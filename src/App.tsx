@@ -13,7 +13,8 @@ import {
   Plus,
   Maximize,
   Minimize,
-  Smartphone
+  Smartphone,
+  Sparkles
 } from "lucide-react";
 import { motion } from "motion/react";
 
