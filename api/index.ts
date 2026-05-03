@@ -48,7 +48,8 @@ const SCOPES = [
   "profile",
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/spreadsheets",
-  "https://www.googleapis.com/auth/drive.file"
+  "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/drive.metadata.readonly"
 ];
 
 const MASTER_SHEET_NAME = "Nexus - Banco de Dados";
@@ -64,14 +65,21 @@ const getOrCreateMasterSheet = async (auth: any) => {
   const drive = google.drive({ version: "v3", auth });
   const sheets = google.sheets({ version: "v4", auth });
 
+  console.log(`[Drive] Searching for master sheet: ${MASTER_SHEET_NAME}`);
   const search = await drive.files.list({
     q: `name = '${MASTER_SHEET_NAME}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
-    fields: "files(id, name)",
+    fields: "files(id, name, owners, shared)",
   });
 
-  let fileId = search.data.files?.[0]?.id;
+  const files = search.data.files || [];
+  console.log(`[Drive] Found ${files.length} potential master sheets.`);
+
+  // If multiple exist, try to pick one that is NOT owned by the current user if they are a "guest" or just the first one
+  // For now, we'll just take the first one found, but broadening the scope ensures we see shared ones.
+  let fileId = files[0]?.id;
 
   if (!fileId) {
+    console.log(`[Drive] Master sheet not found. Creating a new one...`);
     const createRes = await sheets.spreadsheets.create({
       requestBody: {
         properties: { title: MASTER_SHEET_NAME },
@@ -263,6 +271,29 @@ app.get("/api/app/patients", async (req, res) => {
     }));
 
     res.json(patients);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get current database info
+app.get("/api/app/db-info", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+    const drive = google.drive({ version: "v3", auth });
+    const file = await drive.files.get({
+      fileId,
+      fields: "id, name, webViewLink, owners"
+    });
+    res.json({
+      id: file.data.id,
+      name: file.data.name,
+      link: file.data.webViewLink,
+      owner: file.data.owners?.[0]?.emailAddress
+    });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

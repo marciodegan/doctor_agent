@@ -429,6 +429,17 @@ export const Chat: React.FC = () => {
       setIsLoading(true);
       try {
         if (cmd === "/ajuda") {
+          let dbInfoStr = "";
+          try {
+            const dbRes = await fetch("/api/app/db-info");
+            const dbInfo = await dbRes.json();
+            if (dbInfo.id) {
+              dbInfoStr = `\n\n🛡️ **Planilha Conectada:**\n- Nome: ${dbInfo.name}\n- Owner: ${dbInfo.owner}\n- [Link da Planilha](${dbInfo.link})\n\n💡 Se você compartilhou esta planilha com outro usuário, ele deve clicar no link acima enquanto logado na conta Google dele para que o Google Drive dela "conheça" o arquivo.`;
+            }
+          } catch (e) {
+            console.error("Failed to fetch DB info for help", e);
+          }
+
           setMessages(prev => [...prev, { 
             role: "model", 
             text: "🤖 **Nexus Shortcuts (Zero Tokens):**\n\n" +
@@ -446,7 +457,8 @@ export const Chat: React.FC = () => {
                   "- `/iniciaragenda`: Ajuda para marcar novo compromisso.\n" +
                   "- `/limpar`: Reseta a memória da IA.\n" +
                   "- `/ajuda`: Mostra esta lista.\n\n" +
-                  "💡 **Privacidade:** Pacientes são compartilhados com a equipe, mas a Agenda é individual de cada conta Google."
+                  "💡 **Privacidade:** Pacientes são compartilhados com a equipe, mas a Agenda é individual de cada conta Google." +
+                  dbInfoStr
           }]);
         } else if (cmd === "/pacientes") {
           const res = await fetch("/api/app/patients");
