@@ -59,7 +59,9 @@ const SHEET_TABS = {
   LOGS: "Atendimentos",
   ARQUIVOS: "Arquivos",
   FAMILIARES: "Familiares",
-  SETTINGS: "Configuracoes"
+  SETTINGS: "Configuracoes",
+  HOSPITAIS: "Hospitais",
+  STATUSES: "Statuses"
 };
 
 // --- Helper for Unifying Databases ---
@@ -92,11 +94,13 @@ const getOrCreateMasterSheet = async (auth: any) => {
 
     // Initialize Headers
     await Promise.all([
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["Data", "Paciente", "Conteudo", "Tipo"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["Data", "Paciente", "Descricao", "Link"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome Familiar", "Tipo de Relação", "Telefone", "ID do Paciente", "Nome do Paciente"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } })
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.HOSPITAIS}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome do Hospital", "Telefone", "Contato 1", "Contato 2", "Contato 3", "Contato 4", "Contato 5"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:A6`, valueInputOption: "RAW", requestBody: { values: [["Nome"], ["Pré-operatorio"], ["Pós-operatorio"], ["Acompanhamento"], ["Alta"], ["Não informado"]] } })
     ]);
   } else {
     // Ensure all tabs exist
@@ -113,6 +117,13 @@ const getOrCreateMasterSheet = async (auth: any) => {
           }))
         }
       });
+
+      // Initialize missing headers if needed
+      for (const tab of missingTabs) {
+        if (tab === SHEET_TABS.STATUSES) {
+          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUSES}!A1:A6`, valueInputOption: "RAW", requestBody: { values: [["Nome"], ["Pré-operatorio"], ["Pós-operatorio"], ["Acompanhamento"], ["Alta"], ["Não informado"]] } });
+        }
+      }
       console.log(`[Drive] Added missing tabs: ${missingTabs.join(", ")}`);
     }
   }
@@ -315,7 +326,7 @@ app.get("/api/app/patients", async (req, res) => {
     // Get values from Cadastro tab
     const valuesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!A:D`,
+      range: `${SHEET_TABS.CADASTRO}!A:E`,
     });
 
     const rows = valuesRes.data.values || [];
@@ -323,7 +334,8 @@ app.get("/api/app/patients", async (req, res) => {
       id: row[0],
       nome: row[1],
       fone: row[2],
-      idade: row[3]
+      idade: row[3],
+      status: row[4] || "Acompanhamento"
     }));
 
     res.json(patients);
@@ -430,7 +442,102 @@ app.get("/api/app/db-info", async (req, res) => {
   }
 });
 
-// Get consolidated report for a specific patient without LLM
+// Perform a backup of the master sheet
+app.post("/api/app/backup", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+    const drive = google.drive({ version: "v3", auth });
+    
+    const now = new Date();
+    const timestamp = `${now.getDate().toString().padStart(2, '0')}_${(now.getMonth() + 1).toString().padStart(2, '0')}_${now.getFullYear()}_${now.getHours().toString().padStart(2, '0')}_${now.getMinutes().toString().padStart(2, '0')}`;
+    const backupName = `${MASTER_SHEET_NAME} backup ${timestamp}`;
+
+    const copyRes = await drive.files.copy({
+      fileId,
+      requestBody: {
+        name: backupName
+      }
+    });
+
+    res.json({ success: true, backupId: copyRes.data.id, name: backupName });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get all hospitals
+app.get("/api/app/hospitals", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const sheets = google.sheets({ version: "v4", auth });
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+
+    const valuesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.HOSPITAIS}!A:H`,
+    });
+
+    const rows = valuesRes.data.values || [];
+    const hospitals = rows.slice(1).map(row => ({
+      id: row[0],
+      nome: row[1],
+      fone: row[2],
+      contatos: [row[3], row[4], row[5], row[6], row[7]].filter(Boolean)
+    }));
+
+    res.json(hospitals);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Add a new hospital
+app.post("/api/app/hospitals", express.json(), async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const sheets = google.sheets({ version: "v4", auth });
+  const { nome, fone, contatos } = req.body;
+
+  if (!nome) return res.status(400).json({ error: "Nome do Hospital é obrigatório." });
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+
+    const valuesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.HOSPITAIS}!A:A`,
+    });
+    const nextId = (valuesRes.data.values?.length || 1).toString();
+
+    const c1 = contatos?.[0] || "";
+    const c2 = contatos?.[1] || "";
+    const c3 = contatos?.[2] || "";
+    const c4 = contatos?.[3] || "";
+    const c5 = contatos?.[4] || "";
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.HOSPITAIS}!A:H`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[nextId, nome, fone || "", c1, c2, c3, c4, c5]]
+      }
+    });
+
+    res.json({ success: true, id: nextId });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Getconsolidated report for a specific patient without LLM
 app.get("/api/app/patient-report/:id", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
@@ -450,7 +557,7 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
 
     // Use a single batchGet for all tabs
     const ranges = [
-      `${SHEET_TABS.CADASTRO}!A:D`,
+      `${SHEET_TABS.CADASTRO}!A:E`,
       `${SHEET_TABS.LOGS}!A:D`,
       `${SHEET_TABS.ARQUIVOS}!A:D`,
       `${SHEET_TABS.FAMILIARES}!A:F`
@@ -521,7 +628,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
   const sheets = google.sheets({ version: "v4", auth });
-  const { nome, fone, idade } = req.body;
+  const { nome, fone, idade, status } = req.body;
 
   if (!nome) return res.status(400).json({ error: "Nome é obrigatório." });
 
@@ -538,14 +645,56 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
     // Append new patient
     await sheets.spreadsheets.values.append({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!A:D`,
+      range: `${SHEET_TABS.CADASTRO}!A:E`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: [[nextId, nome, fone, idade]]
+        values: [[nextId, nome, fone, idade, status || "Não informado"]]
       }
     });
 
     res.json({ success: true, id: nextId });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Update patient status (Zero LLM)
+app.post("/api/app/patients/status", express.json(), async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const sheets = google.sheets({ version: "v4", auth });
+  const { patientId, status } = req.body;
+
+  if (!patientId || !status) return res.status(400).json({ error: "PatientID e Status são obrigatórios." });
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+
+    // 1. Find row index for the patient ID
+    const valuesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.CADASTRO}!A:A`,
+    });
+    const rows = valuesRes.data.values || [];
+    const rowIndex = rows.findIndex(row => row[0] === patientId.toString());
+
+    if (rowIndex === -1) {
+      return res.status(404).json({ error: `Paciente com ID ${patientId} não encontrado.` });
+    }
+
+    // 2. Update Column E (Status) at the specific row
+    const rowNumber = rowIndex + 1;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.CADASTRO}!E${rowNumber}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[status]]
+      }
+    });
+
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

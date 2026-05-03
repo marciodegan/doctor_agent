@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, User, Bot, Loader2, Sparkles, Image as ImageIcon, X, Mic, Shield, LogOut, Lock, Info, Settings } from "lucide-react";
+import { Send, User, Bot, Loader2, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { tools, executeTool } from "../lib/gemini";
 
@@ -16,16 +16,15 @@ export const Chat: React.FC = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedAudio, setSelectedAudio] = useState<string | null>(null);
   const [lastProcessedFile, setLastProcessedFile] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const audioInputRef = useRef<HTMLInputElement>(null);
   
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
   
   // Create a mutable reference for the agent so we can reset it
   const agentRef = useRef<any>(null);
@@ -72,12 +71,31 @@ export const Chat: React.FC = () => {
     }
   };
 
+  const handleBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      const res = await fetch("/api/app/backup", { method: "POST" });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      
+      setMessages(prev => [...prev, { 
+        role: "model", 
+        text: `✅ **Backup realizado com sucesso!**\nNovo arquivo: **${data.name}**` 
+      }]);
+      setShowSettings(false);
+    } catch (err: any) {
+      console.error("Backup failed", err);
+      setMessages(prev => [...prev, { role: "model", text: `❌ Falha no backup: ${err.message}` }]);
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
   const resetAgent = async () => {
     const { createAgent } = await import("../lib/gemini");
     agentRef.current = createAgent();
     setMessages([{ role: "model", text: `Hello ${companyName}.\n\nHoje é um lindo dia para salvar vidas.` }]);
     setSelectedImage(null);
-    setSelectedAudio(null);
     setLastProcessedFile(null);
   };
 
@@ -94,6 +112,7 @@ export const Chat: React.FC = () => {
     { label: "🖼️ Enviar Imagem", prompt: "/enviarimagem" },
     { label: "📅 Agendar", prompt: "/iniciaragenda" },
     { label: "📅 Agenda", prompt: "/agenda" },
+    { label: "🏥 Hospitais", prompt: "/hospitais" },
     { label: "❓ Ajuda", prompt: "/ajuda" },
   ];
 
@@ -143,17 +162,6 @@ export const Chat: React.FC = () => {
     if (file) {
       const compressedDataUrl = await resizeImage(file);
       setSelectedImage(compressedDataUrl);
-    }
-  };
-
-  const handleAudioSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedAudio(reader.result as string);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -462,6 +470,81 @@ export const Chat: React.FC = () => {
       }
     }
 
+    if (cmd === "/iniciarhospital") {
+      setMessages(prev => [...prev, { 
+        role: "model", 
+        text: `🏥 **Cadastro de Novo Hospital**\n\n` +
+              `Para registrar um novo hospital, use o comando abaixo:\n\n` +
+              `\`/hospital_add nome: [NOME], fone: [TELEFONE], c1: [CONTATO1], c2: [CONTATO2], c3: [CONTATO3], c4: [CONTATO4], c5: [CONTATO5]\`\n\n` +
+              `*Clique no comando abaixo para carregar o modelo no chat:*`
+      }]);
+      setInput("/hospital_add nome: , fone: , c1: , c2: , c3: , c4: , c5: ");
+      return "PREFILL";
+    }
+
+    if (cmd === "/hospitais") {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/app/hospitals");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        
+        const list = data.map((h: any) => {
+          const contatosStr = h.contatos.map((c: string, idx: number) => `  - Contato ${idx + 1}: ${c}`).join("\n");
+          return `• **${h.nome}**\n  📞 ${h.fone || "Sem fone"}\n${contatosStr}`;
+        }).join("\n\n");
+        
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `🏥 **Lista de Hospitais:**\n\n${list || "Nenhum hospital encontrado."}\n\n[➕ Adicionar Novo Hospital](/iniciarhospital)` 
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar hospitais: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/hospital_add")) {
+      setIsLoading(true);
+      try {
+        const getVal = (label: string) => {
+          const regex = new RegExp(`${label}:\\s*([^,]+)`, "i");
+          const match = cmdInput.match(regex);
+          return match ? match[1].trim() : "";
+        };
+
+        const nome = getVal("nome");
+        const fone = getVal("fone");
+        const c1 = getVal("c1");
+        const c2 = getVal("c2");
+        const c3 = getVal("c3");
+        const c4 = getVal("c4");
+        const c5 = getVal("c5");
+
+        if (!nome) throw new Error("O campo 'nome:' é obrigatório.");
+
+        const res = await fetch("/api/app/hospitals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome, fone, contatos: [c1, c2, c3, c4, c5].filter(Boolean) })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `✅ **Hospital cadastrado com sucesso!**\nNome: **${nome}**\n📞 ${fone || "Não informado"}` 
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro no cadastro de hospital: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
     if (cmd.startsWith("/p") || cmd === "/pacientes" || cmd === "/familiares" || cmd === "/ajuda") {
       setIsLoading(true);
       try {
@@ -491,7 +574,10 @@ export const Chat: React.FC = () => {
                   "- `/registrar nome: [N], fone: [F], idade: [I]`: Cadastra paciente.\n" +
                   "- `/iniciarcadastro`: Ajuda para cadastrar novo paciente.\n" +
                   "- `/agenda`: **Sua** agenda pessoal (Privada).\n" +
-                  "- `/iniciaragenda`: Ajuda para marcar novo compromisso.\n" +
+                  "- `/hospitais`: Lista todos os hospitais.\n" +
+                  "- `/iniciarhospital`: Ajuda para cadastrar novo hospital.\n" +
+                  "- `/hospital_add nome: [N], fone: [F], c1: [C1]...`: Cadastro de hospital.\n" +
+                  "- `/iniciaragenda`: Ajuda para marcar novo compromisso.\n"+
                   "- `/limpar`: Reseta a memória da IA.\n" +
                   "- `/ajuda`: Mostra esta lista.\n\n" +
                   "💡 **Privacidade:** Pacientes são compartilhados com a equipe, mas a Agenda é individual de cada conta Google." +
@@ -502,10 +588,47 @@ export const Chat: React.FC = () => {
           const data = await res.json();
           if (data.error) throw new Error(data.error);
           
-          const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - \`/p ${p.id}\``).join("\n\n");
+          const list = data.map((p: any) => 
+            `• **${p.nome}** (ID: ${p.id})\n` +
+            `  Status: **${p.status || "Não informado"}** \`/status_alterar ${p.id}\`\n` +
+            `  \`/p ${p.id}\``
+          ).join("\n\n");
           setMessages(prev => [...prev, { 
             role: "model", 
             text: `📂 **Lista de Pacientes:**\n\n${list || "Nenhum paciente encontrado."}` 
+          }]);
+        } else if (cmd.startsWith("/status_alterar")) {
+          const id = cmdInput.split(" ")[1];
+          if (!id) throw new Error("ID não informado.");
+          
+          setMessages(prev => [...prev, { 
+            role: "model", 
+            text: `✏️ **Alterar Status (ID: ${id})**\n\n` +
+                  `Escolha o novo status para este paciente:\n\n` +
+                  `- \`/set_status ${id} Pré-operatorio\`\n` +
+                  `- \`/set_status ${id} Pós-operatorio\`\n` +
+                  `- \`/set_status ${id} Acompanhamento\`\n` +
+                  `- \`/set_status ${id} Alta\`\n` +
+                  `- \`/set_status ${id} Não informado\``
+          }]);
+        } else if (cmd.startsWith("/set_status")) {
+          const parts = cmdInput.split(" ");
+          const id = parts[1];
+          const status = parts.slice(2).join(" ");
+          
+          if (!id || !status) throw new Error("ID ou Status não informados.");
+          
+          const res = await fetch("/api/app/patients/status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ patientId: id, status })
+          });
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          
+          setMessages(prev => [...prev, { 
+            role: "model", 
+            text: `✅ **Status atualizado com sucesso!**\nPaciente ID: **${id}**\nNovo Status: **${status}**` 
           }]);
         } else if (cmd.startsWith("/familiares")) {
           const id = cmdInput.split(" ")[1] || "all";
@@ -553,7 +676,7 @@ export const Chat: React.FC = () => {
           const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
 
           const reportText = `🚀 **Relatório Direto: ${cad.Nome} (ID: ${cad.ID})**\n\n` +
-            `**Cadastro:**\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
+            `**Cadastro:**\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
             `**Familiares:**\n\n${fams || "Nenhum registro"}\n\n` +
             `**Evoluções:**\n\n${audios || "Nenhum registro"}\n\n` +
             `**Imagens:**\n\n${docs || "Nenhum registro"}`;
@@ -734,11 +857,10 @@ export const Chat: React.FC = () => {
   const handleSend = async (e?: React.FormEvent, customPrompt?: string, forceClear?: boolean) => {
     e?.preventDefault();
     const promptToSend = customPrompt || input;
-    if (!promptToSend.trim() && !selectedImage && !selectedAudio || isLoading) return;
+    if (!promptToSend.trim() && !selectedImage || isLoading) return;
 
     const userMessage = promptToSend.trim();
     const userImage = selectedImage;
-    const userAudio = selectedAudio;
 
     if (forceClear) {
       setMessages([]);
@@ -756,16 +878,13 @@ export const Chat: React.FC = () => {
     }
 
     if (userImage) setLastProcessedFile(userImage);
-    if (userAudio) setLastProcessedFile(userAudio);
     
     setInput("");
     setSelectedImage(null);
-    setSelectedAudio(null);
     setMessages(prev => [...prev, { 
       role: "user", 
       text: userMessage, 
-      image: userImage || undefined,
-      audio: userAudio || undefined
+      image: userImage || undefined
     }]);
     setIsLoading(true);
 
@@ -774,16 +893,6 @@ export const Chat: React.FC = () => {
       if (userImage) {
         const base64Data = userImage.split(",")[1];
         const mimeType = userImage.split(";")[0].split(":")[1];
-        parts.push({
-          inlineData: {
-            data: base64Data,
-            mimeType: mimeType
-          }
-        });
-      }
-      if (userAudio) {
-        const base64Data = userAudio.split(",")[1];
-        const mimeType = userAudio.split(";")[0].split(":")[1];
         parts.push({
           inlineData: {
             data: base64Data,
@@ -806,7 +915,7 @@ export const Chat: React.FC = () => {
             if (call.name === "clear_local_memory") shouldClearMemory = true;
             return {
               name: call.name,
-              result: await executeTool(call.name, call.args, { lastFile: userImage || userAudio || lastProcessedFile })
+              result: await executeTool(call.name, call.args, { lastFile: userImage || lastProcessedFile })
             };
           })
         );
@@ -922,13 +1031,23 @@ export const Chat: React.FC = () => {
                     className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
                   />
                 </div>
-                <button 
-                  onClick={() => updateSettings(companyName)}
-                  disabled={isUpdatingSettings}
-                  className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isUpdatingSettings ? <Loader2 size={18} className="animate-spin" /> : "Salvar Alterações"}
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => updateSettings(companyName)}
+                    disabled={isUpdatingSettings || isBackingUp}
+                    className="flex-[2] py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isUpdatingSettings ? <Loader2 size={18} className="animate-spin" /> : "Salvar"}
+                  </button>
+                  <button 
+                    onClick={handleBackup}
+                    disabled={isUpdatingSettings || isBackingUp}
+                    className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                    title="Realizar backup do banco de dados"
+                  >
+                    {isBackingUp ? <Loader2 size={18} className="animate-spin" /> : "Backup"}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -1019,6 +1138,11 @@ export const Chat: React.FC = () => {
                               if (content.startsWith("/logpac")) label = "📝 Novo Log";
                               if (content.startsWith("/novo_familiar")) label = "➕ Novo Familiar";
                               if (content.startsWith("/agenda_add")) label = "📅 Agendar";
+                              if (content.startsWith("/status_alterar")) label = "✏️ Alterar";
+                              if (content.startsWith("/set_status")) {
+                                const s = content.split(" ").slice(2).join(" ");
+                                label = s;
+                              }
                               if (content.startsWith("/agendar data:")) {
                                 const dateMatch = content.match(/data:\s*([\d-]+)/);
                                 const date = dateMatch ? dateMatch[1] : "";
@@ -1075,32 +1199,18 @@ export const Chat: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* Image/Audio Preview */}
-      {(selectedImage || selectedAudio) && (
+      {/* Image Preview */}
+      {selectedImage && (
         <div className="px-4 py-2 bg-gray-50 border-t flex flex-wrap gap-3">
-          {selectedImage && (
-            <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
-              <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
-              <button 
-                onClick={() => setSelectedImage(null)}
-                className="absolute top-0 right-0 p-1 bg-black/50 text-white hover:bg-black/70"
-              >
-                <X size={12} />
-              </button>
-            </div>
-          )}
-          {selectedAudio && (
-            <div className="relative p-2 bg-blue-50 rounded-lg border border-blue-200 flex items-center gap-2">
-              <Mic size={16} className="text-blue-600" />
-              <span className="text-[10px] font-medium text-blue-700">Audio Ready</span>
-              <button 
-                onClick={() => setSelectedAudio(null)}
-                className="p-1 hover:bg-blue-100 rounded"
-              >
-                <X size={12} className="text-blue-600" />
-              </button>
-            </div>
-          )}
+          <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
+            <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
+            <button 
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-0 right-0 p-1 bg-black/50 text-white hover:bg-black/70"
+            >
+              <X size={12} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1129,13 +1239,6 @@ export const Chat: React.FC = () => {
             className="hidden"
             accept="image/*"
           />
-          <input
-            type="file"
-            ref={audioInputRef}
-            onChange={handleAudioSelect}
-            className="hidden"
-            accept="audio/*"
-          />
           <div className="flex gap-1">
             <button
               type="button"
@@ -1144,14 +1247,6 @@ export const Chat: React.FC = () => {
               title="Upload Image"
             >
               <ImageIcon size={20} />
-            </button>
-            <button
-              type="button"
-              onClick={() => audioInputRef.current?.click()}
-              className="w-11 h-11 bg-white border border-gray-200 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-200 transition-colors"
-              title="Upload Audio"
-            >
-              <Mic size={20} />
             </button>
           </div>
           <div className="relative flex-1">
@@ -1164,7 +1259,7 @@ export const Chat: React.FC = () => {
             />
             <button
               type="submit"
-              disabled={isLoading || (!input.trim() && !selectedImage && !selectedAudio)}
+              disabled={isLoading || (!input.trim() && !selectedImage)}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
               <Send size={16} />
