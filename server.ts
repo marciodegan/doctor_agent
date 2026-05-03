@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import { google } from "googleapis";
 import cookieParser from "cookie-parser";
 import path from "path";
@@ -24,7 +23,7 @@ const getRedirectUri = (req?: express.Request) => {
   console.log(`[DEBUG] Request Host: ${host}, UA: ${userAgent}`);
 
   if (host) {
-    // If we're on a Google Cloud Run URL or localhost, use that host exactly
+    // If we're on a Google Cloud Run URL, Vercel, or localhost, use that host exactly
     if (host.includes(".run.app") || host.includes(".vercel.app") || host.includes("localhost") || host.includes("127.0.0.1")) {
       const uri = `${protocol}://${host}/auth/callback`;
       console.log(`[OAuth] Final Redirect URI: ${uri}`);
@@ -620,6 +619,7 @@ app.post("/api/sheets/:spreadsheetId/values", async (req, res) => {
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

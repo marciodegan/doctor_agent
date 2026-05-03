@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/(api|auth)(.*)",
-      "destination": "/server.ts"
+      "destination": "/api/index.ts"
     },
     {
       "source": "/(.*)",
