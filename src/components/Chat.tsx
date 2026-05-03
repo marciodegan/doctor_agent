@@ -408,7 +408,8 @@ export const Chat: React.FC = () => {
           
           const list = data.map((f: any) => {
             const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
-            const foneLink = cleanFone ? `[📞 **${f.fone}**](https://wa.me/${cleanFone})` : "📞 Sem fone";
+            const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
+            const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
             return `• **${f.nome}** (${f.relacao})\n  ${foneLink}\n  👤 Paciente: ${f.pacienteNome} (ID: ${f.pacienteId})`;
           }).join("\n\n");
           setMessages(prev => [...prev, { 
@@ -435,7 +436,8 @@ export const Chat: React.FC = () => {
 
           const fams = data.familiares.map((f: any) => {
             const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
-            const foneLink = cleanFone ? `[📞 **${f.fone}**](https://wa.me/${cleanFone})` : "📞 Sem fone";
+            const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
+            const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
             return `• **${f.nome}** (${f.relacao}) - ${foneLink}`;
           }).join("\n\n");
 
@@ -475,7 +477,7 @@ export const Chat: React.FC = () => {
 
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: `✅ **Familiar cadastrado com sucesso!**\nNome: **${nome}**\nRelação: ${relacao || "Não especificado"}\nFone: ${fone ? `[${fone}](https://wa.me/${fone.replace(/\D/g, "")})` : "Não informado"}\nPaciente ID: ${patientId}` 
+          text: `✅ **Familiar cadastrado com sucesso!**\nNome: **${nome}**\nRelação: ${relacao || "Não especificado"}\nFone: ${fone ? `[${fone}](https://wa.me/${fone.replace(/\D/g, "").startsWith("55") ? fone.replace(/\D/g, "") : "55" + fone.replace(/\D/g, "")})` : "Não informado"}\nPaciente ID: ${patientId}` 
         }]);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro no cadastro: ${err.message}` }]);

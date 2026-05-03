@@ -186,7 +186,6 @@ export default function App() {
             <div className="lg:hidden w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white mr-2">
               <Command size={16} />
             </div>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Assistant</h2>
           </div>
           
           <div className="flex items-center gap-4">
