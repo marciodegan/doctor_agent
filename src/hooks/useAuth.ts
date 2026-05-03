@@ -26,23 +26,32 @@ export const useAuth = () => {
   }, []);
 
   const login = async () => {
-    // Detect mobile/tablet to avoid popup blockers and handle iframe constraints
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     try {
       console.log("[Auth] Fetching auth URL...");
       const res = await fetch("/api/auth/url");
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: "Unknown server error" }));
-        console.error("[Auth] Server error:", errorData);
-        alert(`Erro de Configuração: ${errorData.error || "Não foi possível obter a URL de autenticação."}`);
+      
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("[Auth] Server returned non-JSON:", text);
+        alert(`Erro de Configuração: O servidor retornou uma resposta inválida (Status ${res.status}). Verifique se as credenciais do Google foram configuradas nos Secrets da Vercel.`);
         return;
       }
-      const { url } = await res.json();
+
+      if (!res.ok) {
+        console.error("[Auth] Server error:", data);
+        alert(`Erro de Configuração: ${data.error || "Não foi possível obter a URL de autenticação."}`);
+        return;
+      }
+      
+      const { url } = data;
       console.log("[Auth] Auth URL received, redirecting...");
       
       if (isMobile) {
-        // Direct redirect is much more reliable on iOS/Android
         window.location.href = url;
       } else {
         const popup = window.open(url, "google_oauth", "width=600,height=700");
@@ -51,9 +60,9 @@ export const useAuth = () => {
           window.location.href = url;
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login trigger error:", error);
-      alert("Erro ao iniciar login. Verifique se as credenciais do Google foram configuradas nos Secrets.");
+      alert(`Erro ao iniciar login: ${error.message || "Erro desconhecido"}`);
     }
   };
 

@@ -1,17 +1,27 @@
 {
   "version": 2,
   "buildCommand": "vite build",
-  "devCommand": "tsx server.ts",
   "installCommand": "npm install",
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/(api|auth)(.*)",
+      "source": "/api/(.*)",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/auth/(.*)",
       "destination": "/api/index.ts"
     },
     {
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/index.ts": {
+      "runtime": "nodejs20.x",
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  }
 }

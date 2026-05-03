@@ -83,18 +83,39 @@ app.get("/api/ping", (req, res) => {
   });
 });
 
-app.get("/api/auth/url", (req, res) => {
-  const client = getOAuth2Client(req);
-  if (!client) {
-    return res.status(500).json({ error: "Google OAuth credentials not configured in environment variables." });
-  }
-
-  const url = client.generateAuthUrl({
-    access_type: "offline",
-    scope: SCOPES,
-    prompt: "consent"
+app.get("/api/diagnostics", (req, res) => {
+  res.json({
+    env: {
+      hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+      hasGeminiKey: !!process.env.GEMINI_API_KEY,
+      nodeEnv: process.env.NODE_ENV,
+      vercel: process.env.VERCEL
+    },
+    headers: req.headers,
+    url: req.url,
+    method: req.method
   });
-  res.json({ url });
+});
+
+app.get("/api/auth/url", (req, res) => {
+  try {
+    const client = getOAuth2Client(req);
+    if (!client) {
+      console.error("Auth client initialization failed: missing credentials");
+      return res.status(500).json({ error: "Google OAuth credentials not configured in Vercel environment variables." });
+    }
+
+    const url = client.generateAuthUrl({
+      access_type: "offline",
+      scope: SCOPES,
+      prompt: "consent"
+    });
+    res.json({ url });
+  } catch (err: any) {
+    console.error("Error generating auth URL:", err);
+    res.status(500).json({ error: err.message || "Internal server error generating auth URL" });
+  }
 });
 
 app.get("/auth/callback", async (req, res) => {
@@ -616,34 +637,6 @@ app.post("/api/sheets/:spreadsheetId/values", async (req, res) => {
   }
 });
 
-async function startServer() {
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-    app.get("*", async (req, res, next) => {
-      const url = req.originalUrl;
-      try {
-        let template = await fs.readFileSync(path.resolve(process.cwd(), "index.html"), "utf-8");
-        template = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ "Content-Type": "text/html" }).end(template);
-      } catch (e) {
-        vite.ssrFixStacktrace(e as Error);
-        next(e);
-      }
-    });
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
   app.get("/api/drive/file/:fileId", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).send("Unauthorized");
@@ -668,7 +661,35 @@ async function startServer() {
   }
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+async function startServer() {
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+    app.get("*", async (req, res, next) => {
+      const url = req.originalUrl;
+      try {
+        let template = fs.readFileSync(path.resolve(process.cwd(), "index.html"), "utf-8");
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ "Content-Type": "text/html" }).end(template);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
