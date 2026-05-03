@@ -181,7 +181,7 @@ export default function App() {
       {/* Main Content */}
       <main className={`lg:pl-64 h-full flex flex-col ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0" : ""}`}>
         {/* Hero / Dashboard Area */}
-        <div className={`p-4 md:p-6 flex flex-col gap-6 ${isFullscreen ? "h-screen overflow-hidden" : "h-full overflow-hidden"}`}>
+        <div className={`p-4 md:p-6 flex flex-col gap-6 ${isFullscreen ? "h-screen overflow-hidden" : "min-h-full"}`}>
           {!isAuthenticated ? (
             <div className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto text-center space-y-8 overflow-y-auto w-full px-4">
               <motion.div 
@@ -217,7 +217,7 @@ export default function App() {
               </motion.button>
             </div>
           ) : (
-            <div className={`grid grid-cols-1 xl:grid-cols-4 gap-6 h-full max-w-[1600px] mx-auto w-full overflow-hidden ${isFullscreen ? "max-w-none" : ""}`}>
+            <div className={`grid grid-cols-1 xl:grid-cols-4 gap-6 h-full max-w-[1600px] mx-auto w-full ${isFullscreen ? "max-w-none" : ""}`}>
               {/* Chat column */}
               <div className="xl:col-span-3 h-full flex flex-col min-h-0">
                 <Chat />
