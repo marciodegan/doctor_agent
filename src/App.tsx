@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { Chat } from "./components/Chat";
 import { Debug } from "./components/Debug";
@@ -14,17 +14,24 @@ import {
   Maximize,
   Minimize,
   Smartphone,
-  Sparkles
+  Sparkles,
+  Shield
 } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function App() {
   const { isAuthenticated, login, logout } = useAuth();
-  const [isDebug, setIsDebug] = React.useState(window.location.hash === "#debug");
-  const [isFullscreen, setIsFullscreen] = React.useState(false);
-  const [installPrompt, setInstallPrompt] = React.useState<any>(null);
+  const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
+    const handleHashChange = () => setIsDebug(window.location.hash === "#debug");
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  useEffect(() => {
     const handleBeforeInstall = (e: any) => {
       e.preventDefault();
       setInstallPrompt(e);
@@ -54,13 +61,9 @@ export default function App() {
     }
   };
 
-  React.useEffect(() => {
-    const handleHashChange = () => setIsDebug(window.location.hash === "#debug");
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
-
   if (isDebug) return <Debug />;
+
+  console.log("[App] Rendering standard view. Auth:", isAuthenticated);
 
   if (isAuthenticated === null) {
     return (
