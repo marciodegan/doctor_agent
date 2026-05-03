@@ -275,7 +275,7 @@ export const Chat: React.FC = () => {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
-        const list = data.map((p: any) => `• [**${p.nome}**] - Digite \`/prep_p ${p.id}\``).join("\n\n");
+        const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - Digite \`/prep_p ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
           role: "model", 
           text: `🚀 **Para qual paciente deseja gerar o relatório?**\n\n${list || "Nenhum paciente encontrado."}\n\n*Clique no comando acima para preparar o envio.*` 
@@ -303,7 +303,7 @@ export const Chat: React.FC = () => {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
-        const list = data.map((p: any) => `• [**${p.nome}**] - Digite \`/logpac ${p.id}\``).join("\n\n");
+        const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - Digite \`/logpac ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
           role: "model", 
           text: `📝 **Para qual paciente deseja adicionar o log?**\n\n${list || "Nenhum paciente encontrado."}\n\n*Clique no comando ou digite \`/logpac ID\`*` 

@@ -26,6 +26,26 @@ export default function App() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
 
   useEffect(() => {
+    const handleFullscreenChange = () => {
+      const doc = document as any;
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement || 
+        doc.webkitFullscreenElement || 
+        doc.mozFullScreenElement || 
+        doc.msFullscreenElement
+      );
+      setIsFullscreen(isCurrentlyFullscreen);
+    };
+
+    const events = ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"];
+    events.forEach(event => document.addEventListener(event, handleFullscreenChange));
+    
+    return () => {
+      events.forEach(event => document.removeEventListener(event, handleFullscreenChange));
+    };
+  }, []);
+
+  useEffect(() => {
     const handleHashChange = () => setIsDebug(window.location.hash === "#debug");
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
@@ -41,14 +61,39 @@ export default function App() {
   }, []);
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-        setIsFullscreen(false);
+    try {
+      const doc = document.documentElement as any;
+      const docWithPrefix = document as any;
+
+      if (!document.fullscreenElement && 
+          !docWithPrefix.webkitFullscreenElement && 
+          !docWithPrefix.mozFullScreenElement && 
+          !docWithPrefix.msFullscreenElement) {
+        
+        const requestMethod = doc.requestFullscreen || 
+                            doc.webkitRequestFullscreen || 
+                            doc.mozRequestFullScreen || 
+                            doc.msRequestFullscreen;
+        
+        if (requestMethod) {
+          requestMethod.call(doc);
+          setIsFullscreen(true);
+        } else {
+          console.warn("[Fullscreen] API not supported in this browser context.");
+        }
+      } else {
+        const exitMethod = document.exitFullscreen || 
+                          docWithPrefix.webkitExitFullscreen || 
+                          docWithPrefix.mozCancelFullScreen || 
+                          docWithPrefix.msExitFullscreen;
+        
+        if (exitMethod) {
+          exitMethod.call(document);
+          setIsFullscreen(false);
+        }
       }
+    } catch (error) {
+      console.error("[Fullscreen] Error toggling:", error);
     }
   };
 
