@@ -11,13 +11,47 @@ import {
   ShieldCheck,
   Command,
   Plus,
-  Sparkles
+  Maximize,
+  Minimize,
+  Smartphone
 } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function App() {
   const { isAuthenticated, login, logout } = useAuth();
   const [isDebug, setIsDebug] = React.useState(window.location.hash === "#debug");
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [installPrompt, setInstallPrompt] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    const handleBeforeInstall = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    }
+  };
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+    }
+  };
 
   React.useEffect(() => {
     const handleHashChange = () => setIsDebug(window.location.hash === "#debug");
@@ -95,12 +129,22 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-4">
-            {isAuthenticated && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-100">
-                <ShieldCheck size={14} />
-                Connected
-              </div>
+            {installPrompt && (
+              <button 
+                onClick={handleInstall}
+                className="flex items-center gap-2 px-3 py-1 bg-black text-white rounded-full text-xs font-bold hover:bg-zinc-800 transition-colors"
+              >
+                <Smartphone size={14} />
+                Install App
+              </button>
             )}
+            <button 
+              onClick={toggleFullscreen}
+              className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+              title="Toggle Fullscreen"
+            >
+              {isFullscreen ? <Minimize size={18} className="text-gray-600" /> : <Maximize size={18} className="text-gray-600" />}
+            </button>
             <button className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors">
               <Plus size={18} className="text-gray-600" />
             </button>

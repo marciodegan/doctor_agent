@@ -8,7 +8,7 @@ export function Debug() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/ping")
+    fetch("/api/diagnostics")
       .then(r => r.json())
       .then(setServerInfo)
       .catch(e => setServerInfo({ error: e.message }))
@@ -58,8 +58,14 @@ export function Debug() {
               </div>
             ) : (
               <>
-                <div><span className="text-zinc-500">REPLY:</span> {JSON.stringify(serverInfo)}</div>
-                {serverInfo?.env ? (
+                <div><span className="text-zinc-500">REPLY:</span> <pre className="text-[10px] overflow-auto max-h-32 p-2 bg-black/30 rounded mt-1">{JSON.stringify(serverInfo, null, 2)}</pre></div>
+                {serverInfo?.calculatedRedirectUri && (
+                  <div className="mt-4 p-4 border border-dashed border-green-500/30 rounded bg-green-500/5">
+                    <div className="text-xs text-zinc-500 mb-1">AUTORIZAR_ESTA_URI_NO_GOOGLE_CONSOLE:</div>
+                    <div className="text-sm select-all break-all text-white font-bold">{serverInfo.calculatedRedirectUri}</div>
+                  </div>
+                )}
+                {serverInfo?.env?.hasClientId ? (
                   <div className="text-green-500 flex items-center gap-2">
                     <Shield size={14} /> CLIENT_ID detected in server environment
                   </div>

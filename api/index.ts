@@ -17,24 +17,15 @@ app.use(cookieParser());
 
 const getRedirectUri = (req?: express.Request) => {
   const host = req?.get("host") || "unknown-host";
-  const protocol = req?.get("x-forwarded-proto") || "https";
-  const userAgent = req?.get("user-agent") || "unknown-ua";
+  let protocol = req?.get("x-forwarded-proto") || "https";
   
-  console.log(`[DEBUG] Request Host: ${host}, UA: ${userAgent}`);
-
-  if (host) {
-    // If we're on a Google Cloud Run URL, Vercel, or localhost, use that host exactly
-    if (host.includes(".run.app") || host.includes(".vercel.app") || host.includes("localhost") || host.includes("127.0.0.1")) {
-      const uri = `${protocol}://${host}/auth/callback`;
-      console.log(`[OAuth] Final Redirect URI: ${uri}`);
-      return uri;
-    }
+  // Localhost fallback to http if proto not explicit
+  if ((host.includes("localhost") || host.includes("127.0.0.1")) && !req?.get("x-forwarded-proto")) {
+    protocol = "http";
   }
 
-  // Final fallback to APP_URL if host detection fails
-  const baseUrl = (process.env.APP_URL || "").replace(/\/$/, "");
-  const uri = baseUrl ? `${baseUrl}/auth/callback` : "";
-  console.log(`[OAuth] Fallback Redirect URI: ${uri}`);
+  const uri = `${protocol}://${host}/auth/callback`;
+  console.log(`[OAuth] Redirect URI: ${uri}`);
   return uri;
 };
 
@@ -94,7 +85,8 @@ app.get("/api/diagnostics", (req, res) => {
     },
     headers: req.headers,
     url: req.url,
-    method: req.method
+    method: req.method,
+    calculatedRedirectUri: getRedirectUri(req)
   });
 });
 
