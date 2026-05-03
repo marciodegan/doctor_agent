@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "buildCommand": "vite build",
+  "devCommand": "tsx server.ts",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(api|auth)(.*)",
+      "destination": "/server.ts"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

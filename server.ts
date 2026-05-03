@@ -9,7 +9,7 @@ import { Readable } from "stream";
 
 dotenv.config();
 
-const app = express();
+export const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: "50mb" }));
@@ -25,7 +25,7 @@ const getRedirectUri = (req?: express.Request) => {
 
   if (host) {
     // If we're on a Google Cloud Run URL or localhost, use that host exactly
-    if (host.includes(".run.app") || host.includes("localhost") || host.includes("127.0.0.1")) {
+    if (host.includes(".run.app") || host.includes(".vercel.app") || host.includes("localhost") || host.includes("127.0.0.1")) {
       const uri = `${protocol}://${host}/auth/callback`;
       console.log(`[OAuth] Final Redirect URI: ${uri}`);
       return uri;
@@ -673,4 +673,8 @@ app.listen(PORT, "0.0.0.0", () => {
   });
 }
 
-startServer();
+if (process.env.VERCEL !== "1") {
+  startServer();
+}
+
+export default app;
