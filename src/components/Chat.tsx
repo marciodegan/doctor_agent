@@ -50,7 +50,6 @@ export const Chat: React.FC = () => {
   };
 
   const suggestions = [
-    { label: "📂 Pacientes", prompt: "/pacientes" },
     { label: "🚀 Relatórios", prompt: "/iniciarrelat" },
     { label: "📝 Log Texto", prompt: "/iniciarlog" },
     { label: "👪 Familiares", prompt: "/iniciarfamiliar" },
@@ -58,7 +57,6 @@ export const Chat: React.FC = () => {
     { label: "🖼️ Enviar Imagem", prompt: "/img id: 1, desc: Foto da ferida" },
     { label: "👤 Novo", prompt: "/iniciarcadastro" },
     { label: "📅 Agenda", prompt: "/agenda" },
-    { label: "📍 Agendar", prompt: "/iniciaragenda" },
     { label: "❓ Ajuda", prompt: "/ajuda" },
   ];
 
@@ -126,8 +124,8 @@ export const Chat: React.FC = () => {
     const cmdInput = command.trim();
     const cmd = cmdInput.toLowerCase();
     
-    if (cmd.startsWith("/agenda_add")) {
-      const rawText = cmdInput.slice("/agenda_add".length).trim();
+    if (cmd.startsWith("/agendar")) {
+      const rawText = cmdInput.slice("/agendar".length).trim();
       let evento = "", hora = "", dataStr = "";
 
       if (rawText.includes(":")) {
@@ -135,30 +133,25 @@ export const Chat: React.FC = () => {
         const parts: Record<string, string> = {};
         const pairs = rawText.split(",");
         pairs.forEach(p => {
-          const [k, v] = p.split(":").map(s => s.trim());
+          const partsArr = p.split(":");
+          const k = partsArr[0]?.trim();
+          const v = partsArr.slice(1).join(":").trim(); // Handle possible colons in values
           if (k && v) parts[k.toLowerCase()] = v;
         });
         evento = parts.evento || "";
         hora = parts.hora || "";
         dataStr = parts.data || "";
-      } else {
-        // Ordered format: evento, hora, data
-        const parts = rawText.split(",").map(s => s.trim());
-        if (parts.length >= 3) {
-          evento = parts[0];
-          hora = parts[1];
-          dataStr = parts[2];
-        } else if (parts.length === 2) {
-          evento = parts[0];
-          hora = parts[1];
-          dataStr = "hoje";
-        }
+      }
+
+      if (!evento && (hora || dataStr)) {
+        setInput(cmdInput);
+        return "PREFILL";
       }
 
       if (!evento || !hora || !dataStr) {
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: "❌ **Formato incorreto.**\n\nUse: `/agenda_add [EVENTO], [HORA], [DATA]`\nExemplo: `/agenda_add Jantar, 20:00, hoje`" 
+          text: "❌ **Formato incorreto.**\n\nUse: `/agendar evento: [NOME], data: [DD-MM-AAAA], hora: [HH:MM]`\nExemplo: `/agendar evento: Consulta, data: 15-05-2024, hora: 14:00`" 
         }]);
         return true;
       }
@@ -166,13 +159,15 @@ export const Chat: React.FC = () => {
       setIsLoading(true);
       try {
         let eventDate = new Date();
-        const dLower = dataStr.toLowerCase();
-        if (dLower === "amanhã" || dLower === "amanha") {
-          eventDate.setDate(eventDate.getDate() + 1);
-        } else if (dLower !== "hoje") {
-          const dateParts = dataStr.split("/");
-          if (dateParts.length === 3) {
-            const [d, m, y] = dateParts;
+        const dateParts = dataStr.split("-");
+        if (dateParts.length === 3) {
+          const [d, m, y] = dateParts;
+          eventDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+        } else {
+          // Try slash format too just in case
+          const altParts = dataStr.split("/");
+          if (altParts.length === 3) {
+            const [d, m, y] = altParts;
             eventDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
           }
         }
@@ -185,7 +180,7 @@ export const Chat: React.FC = () => {
         
         eventDate.setHours(hh, mm, 0, 0);
 
-        if (isNaN(eventDate.getTime())) throw new Error("Data ou Hora inválida.");
+        if (isNaN(eventDate.getTime())) throw new Error("Data ou Hora inválida. Use DD-MM-AAAA");
 
         const pad = (n: number) => n.toString().padStart(2, "0");
         const dateStrIso = `${eventDate.getFullYear()}-${pad(eventDate.getMonth() + 1)}-${pad(eventDate.getDate())}T${pad(eventDate.getHours())}:${pad(eventDate.getMinutes())}:00`;
@@ -195,7 +190,13 @@ export const Chat: React.FC = () => {
         const body = {
           summary: evento,
           start: { dateTime: dateStrIso, timeZone: "America/Sao_Paulo" },
-          end: { dateTime: endDateStrIso, timeZone: "America/Sao_Paulo" }
+          end: { dateTime: endDateStrIso, timeZone: "America/Sao_Paulo" },
+          reminders: {
+            useDefault: false,
+            overrides: [
+              { method: "popup", minutes: 30 }
+            ]
+          }
         };
 
         const res = await fetch("/api/calendar/events", {
@@ -258,16 +259,22 @@ export const Chat: React.FC = () => {
     }
 
     if (cmd === "/iniciaragenda") {
+      const today = new Date();
+      const tomorrow = new Date();
+      tomorrow.setDate(today.getDate() + 1);
+      
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const hojeStr = `${pad(today.getDate())}-${pad(today.getMonth() + 1)}-${today.getFullYear()}`;
+      const amanhaStr = `${pad(tomorrow.getDate())}-${pad(tomorrow.getMonth() + 1)}-${tomorrow.getFullYear()}`;
+      
       setMessages(prev => [...prev, { 
         role: "model", 
-        text: `📅 **Novo Compromisso na Agenda**\n\n` +
-              `Para agendar, basta digitar o evento, a hora e a data separados por vírgula no comando abaixo:\n\n` +
-              `\`/agenda_add [EVENTO], [HORA], [DATA]\`\n\n` +
-              `**Exemplo:**\n\`/agenda_add Jantar com João, 20:00, amanhã\`\n\n` +
-              `*Preenchendo o comando no chat para você completar...*`
+        text: "📅 **Novo Agendamento**\n\nEscolha uma opção para facilitar:\n\n" +
+              `- Hoje \`/agendar data: ${hojeStr}, hora: 09:00, evento: \`\n` +
+              `- Amanhã \`/agendar data: ${amanhaStr}, hora: 09:00, evento: \`\n\n` +
+              "Ou preencha manualmente:\n`/agendar data: DD-MM-AAAA, hora: HH:MM, evento: NOME`" 
       }]);
-      setInput("/agenda_add ");
-      return "PREFILL";
+      return true;
     }
 
     if (cmd === "/iniciarrelat") {
@@ -325,10 +332,10 @@ export const Chat: React.FC = () => {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
-        const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id})\n  - \`/familiares ${p.id}\` \n  - \`/novo_familiar ${p.id}\``).join("\n\n");
+        const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - \`/novo_familiar ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: `👪 **Gestão de Familiares**\n\nSelecione um paciente para ver familiares ou cadastrar um novo:\n\n${list || "Nenhum paciente encontrado."}` 
+          text: `👪 **Gestão de Familiares**\n\nSelecione um paciente para cadastrar um novo familiar:\n\n${list || "Nenhum paciente encontrado."}` 
         }]);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
@@ -338,22 +345,22 @@ export const Chat: React.FC = () => {
       }
     }
 
-    if (cmd === "/iniciaragenda") {
-      setInput("/agendar evento: , data: 2024-05-04, hora: 09:00");
-      setMessages(prev => [...prev, { 
-        role: "model", 
-        text: "📅 **Novo Agendamento**\n\nComplete o comando no chat:\n`/agendar evento: [NOME], data: [AAAA-MM-DD], hora: [HH:MM]`" 
-      }]);
-      return "PREFILL";
-    }
 
     if (cmd.startsWith("/novo_familiar")) {
-      const id = cmdInput.split(" ")[1];
+      const parts = cmdInput.split(" ");
+      const id = parts[1];
       if (id) {
         setInput(`/registrar_familiar id: ${id}, nome: , relacao: , fone: `);
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: `👪 **Novo Familiar para Paciente ID: ${id}**\n\nComplete o comando no chat e envie:\n\`/registrar_familiar id: ${id}, nome: [NOME], relacao: [TIPO], fone: [FONE]\`` 
+          text: `👪 **Novo Familiar**\n\nComplete o comando no chat e envie:\n\`/registrar_familiar id: ${id}, nome: [NOME], relacao: [TIPO], fone: [FONE]\`` 
+        }]);
+        return "PREFILL";
+      } else {
+        setInput("/novo_familiar ");
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: "👪 **Novo Familiar**\n\nComplete o comando com o ID do paciente:\n`/novo_familiar [ID]`" 
         }]);
         return "PREFILL";
       }
@@ -379,7 +386,7 @@ export const Chat: React.FC = () => {
                   "- `/familiares [ID]`: Lista familiares de um paciente.\n" +
                   "- `/novo_familiar [ID]`: Atalho para cadastrar familiar.\n" +
                   "- `/registrar_familiar id: [ID], nome: [N], relacao: [R], fone: [F]`: Cadastro de familiar.\n" +
-                  "- `/agendar evento: [E], data: [D], hora: [H]`: Cria evento na agenda Google.\n" +
+                  "- `/agendar data: [D], hora: [H], evento: [E]`: Cria evento na agenda Google.\n" +
                   "- `/log id: [ID], texto: [T]`: Adiciona log de texto direto.\n" +
                   "- `/img id: [ID], desc: [D]`: Envia imagem anexada direto para o Drive.\n" +
                   "- `/registrar nome: [N], fone: [F], idade: [I]`: Cadastra paciente.\n" +
@@ -441,8 +448,12 @@ export const Chat: React.FC = () => {
             return `• **${f.nome}** (${f.relacao}) - ${foneLink}`;
           }).join("\n\n");
 
+          const cleanCadFone = cad.Telefone ? cad.Telefone.replace(/\D/g, "") : "";
+          const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
+          const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
+
           const reportText = `🚀 **Relatório Direto: ${cad.Nome} (ID: ${cad.ID})**\n\n` +
-            `**Cadastro:**\n- Telefone: ${cad.Telefone || "N/A"}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
+            `**Cadastro:**\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
             `**Familiares:**\n${fams || "Nenhum registro"}\n\n` +
             `**Evoluções:**\n${audios || "Nenhum registro"}\n\n` +
             `**Imagens:**\n${docs || "Nenhum registro"}`;
@@ -582,7 +593,7 @@ export const Chat: React.FC = () => {
 
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: `✅ **Paciente cadastrado com sucesso!**\nID Gerado: **${data.id}**\nNome: ${nome}` 
+          text: `✅ **Paciente cadastrado com sucesso!**\nID Gerado: **${data.id}**\nNome: ${nome}\nFone: ${fone ? `[${fone}](https://wa.me/${fone.replace(/\D/g, "").startsWith("55") ? fone.replace(/\D/g, "") : "55" + fone.replace(/\D/g, "")})` : "Não informado"}` 
         }]);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro no cadastro: ${err.message}` }]);
@@ -844,7 +855,22 @@ export const Chat: React.FC = () => {
                               if (content.startsWith("/remover_evento")) label = "🗑️ Remover";
                               if (content.startsWith("/prep_p")) label = "📄 Relatório";
                               if (content.startsWith("/logpac")) label = "📝 Novo Log";
+                              if (content.startsWith("/novo_familiar")) label = "➕ Novo Familiar";
                               if (content.startsWith("/agenda_add")) label = "📅 Agendar";
+                              if (content.startsWith("/agendar data:")) {
+                                const dateMatch = content.match(/data:\s*([\d-]+)/);
+                                const date = dateMatch ? dateMatch[1] : "";
+                                const today = new Date();
+                                const pad = (n: number) => n.toString().padStart(2, "0");
+                                const hojeStr = `${pad(today.getDate())}-${pad(today.getMonth() + 1)}-${today.getFullYear()}`;
+                                const tomorrow = new Date();
+                                tomorrow.setDate(today.getDate() + 1);
+                                const amanhaStr = `${pad(tomorrow.getDate())}-${pad(tomorrow.getMonth() + 1)}-${tomorrow.getFullYear()}`;
+                                
+                                if (date === hojeStr) label = `Hoje ${date}`;
+                                else if (date === amanhaStr) label = `Amanhã ${date}`;
+                                else label = content;
+                              }
 
                               return (
                                 <button
