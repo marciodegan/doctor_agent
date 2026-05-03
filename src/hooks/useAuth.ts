@@ -4,11 +4,25 @@ export const useAuth = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   const checkAuth = async () => {
+    console.log("[Auth] Checking auth status...");
+    const timeoutId = setTimeout(() => {
+      console.warn("[Auth] Check auth timed out");
+      setIsAuthenticated(prev => (prev === null ? false : prev));
+    }, 8000);
+
     try {
       const res = await fetch("/api/auth/status");
+      clearTimeout(timeoutId);
+      
+      console.log("[Auth] Status response status:", res.status);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      
       const data = await res.json();
+      console.log("[Auth] Auth status API data:", data);
       setIsAuthenticated(data.isAuthenticated);
     } catch (error) {
+      clearTimeout(timeoutId);
+      console.error("[Auth] Check auth failed:", error);
       setIsAuthenticated(false);
     }
   };

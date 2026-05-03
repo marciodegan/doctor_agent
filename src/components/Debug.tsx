@@ -5,14 +5,27 @@ import { Terminal, Shield, Globe, Cpu, AlertTriangle, RefreshCw } from "lucide-r
 export function Debug() {
   const { login } = useAuth();
   const [serverInfo, setServerInfo] = useState<any>(null);
+  const [authDebug, setAuthDebug] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/diagnostics")
-      .then(r => r.json())
-      .then(setServerInfo)
-      .catch(e => setServerInfo({ error: e.message }))
-      .finally(() => setLoading(false));
+    const fetchData = async () => {
+      try {
+        const [diagRes, authRes] = await Promise.all([
+          fetch("/api/diagnostics"),
+          fetch("/api/auth/status")
+        ]);
+        const diag = await diagRes.json();
+        const auth = await authRes.json();
+        setServerInfo(diag);
+        setAuthDebug(auth);
+      } catch (e: any) {
+        setServerInfo({ error: e.message });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
   const browserInfo = {
@@ -59,6 +72,10 @@ export function Debug() {
             ) : (
               <>
                 <div><span className="text-zinc-500">REPLY:</span> <pre className="text-[10px] overflow-auto max-h-32 p-2 bg-black/30 rounded mt-1">{JSON.stringify(serverInfo, null, 2)}</pre></div>
+                
+                <div className="mt-4 font-bold text-xs uppercase text-zinc-500 underline">Auth_Status_Check:</div>
+                <pre className="text-[10px] overflow-auto max-h-32 p-2 bg-black/30 rounded mt-1">{JSON.stringify(authDebug, null, 2)}</pre>
+
                 {serverInfo?.calculatedRedirectUri && (
                   <div className="mt-4 p-4 border border-dashed border-green-500/30 rounded bg-green-500/5">
                     <div className="text-xs text-zinc-500 mb-1">AUTORIZAR_ESTA_URI_NO_GOOGLE_CONSOLE:</div>

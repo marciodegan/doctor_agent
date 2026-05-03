@@ -123,10 +123,22 @@ app.get("/auth/callback", async (req, res) => {
 
   try {
     const { tokens } = await client.getToken(code as string);
-    res.cookie("google_token", tokens, {
+    console.log(`[OAuth] Tokens received. Expiry: ${tokens.expiry_date}`);
+    
+    // Only store what we need to keep cookie size small (browsers limit to ~4KB)
+    const essentialTokens = {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: tokens.expiry_date,
+      scope: tokens.scope,
+      token_type: tokens.token_type
+    };
+
+    res.cookie("google_token", essentialTokens, {
       httpOnly: true,
       secure: true,
       sameSite: "none",
+      path: "/",
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
     });
     res.send(`
@@ -157,7 +169,20 @@ app.get("/auth/callback", async (req, res) => {
 
 app.get("/api/auth/status", (req, res) => {
   const token = req.cookies.google_token;
-  res.json({ isAuthenticated: !!token });
+  const hasToken = !!token;
+  console.log(`[Auth] Status check. Token present: ${hasToken}`);
+  
+  res.json({ 
+    isAuthenticated: hasToken,
+    debug: {
+      hasCookie: hasToken,
+      cookieKeys: token ? Object.keys(token) : [],
+      env: {
+        hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+        hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET
+      }
+    }
+  });
 });
 
 app.post("/api/auth/logout", (req, res) => {
