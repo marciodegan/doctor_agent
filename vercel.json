@@ -18,10 +18,8 @@
     }
   ],
   "functions": {
-    "api/index.ts": {
-      "runtime": "nodejs20.x",
-      "memory": 1024,
-      "maxDuration": 10
+    "api/*.ts": {
+      "runtime": "nodejs20.x"
     }
   }
 }
