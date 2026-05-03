@@ -53,11 +53,13 @@ const SCOPES = [
 ];
 
 const MASTER_SHEET_NAME = "Nexus - Banco de Dados";
+const IMAGES_FOLDER_NAME = "Nexus - Imagens";
 const SHEET_TABS = {
   CADASTRO: "Cadastro",
   LOGS: "Atendimentos",
   ARQUIVOS: "Arquivos",
-  FAMILIARES: "Familiares"
+  FAMILIARES: "Familiares",
+  SETTINGS: "Configuracoes"
 };
 
 // --- Helper for Unifying Databases ---
@@ -83,12 +85,7 @@ const getOrCreateMasterSheet = async (auth: any) => {
     const createRes = await sheets.spreadsheets.create({
       requestBody: {
         properties: { title: MASTER_SHEET_NAME },
-        sheets: [
-          { properties: { title: SHEET_TABS.CADASTRO } },
-          { properties: { title: SHEET_TABS.LOGS } },
-          { properties: { title: SHEET_TABS.ARQUIVOS } },
-          { properties: { title: SHEET_TABS.FAMILIARES } }
-        ]
+        sheets: Object.values(SHEET_TABS).map(title => ({ properties: { title } }))
       }
     });
     fileId = createRes.data.spreadsheetId;
@@ -98,11 +95,70 @@ const getOrCreateMasterSheet = async (auth: any) => {
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["Data", "Paciente", "Conteudo", "Tipo"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["Data", "Paciente", "Descricao", "Link"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome Familiar", "Tipo de Relação", "Telefone", "ID do Paciente", "Nome do Paciente"]] } })
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome Familiar", "Tipo de Relação", "Telefone", "ID do Paciente", "Nome do Paciente"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } })
     ]);
+  } else {
+    // Ensure all tabs exist
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: fileId });
+    const existingTabs = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
+    const missingTabs = Object.values(SHEET_TABS).filter(t => !existingTabs.includes(t));
+
+    if (missingTabs.length > 0) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: fileId,
+        requestBody: {
+          requests: missingTabs.map(title => ({
+            addSheet: { properties: { title } }
+          }))
+        }
+      });
+      console.log(`[Drive] Added missing tabs: ${missingTabs.join(", ")}`);
+    }
   }
   
   return fileId as string;
+};
+
+const getOrCreateImagesFolder = async (auth: any) => {
+  const drive = google.drive({ version: "v3", auth });
+
+  console.log(`[Drive] Searching for images folder: ${IMAGES_FOLDER_NAME}`);
+  const search = await drive.files.list({
+    q: `name = '${IMAGES_FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id, name)",
+  });
+
+  let folderId = search.data.files?.[0]?.id;
+
+  if (!folderId) {
+    console.log(`[Drive] Images folder not found. Creating a new one...`);
+    const createRes = await drive.files.create({
+      requestBody: {
+        name: IMAGES_FOLDER_NAME,
+        mimeType: "application/vnd.google-apps.folder",
+      },
+      fields: "id",
+    });
+    folderId = createRes.data.id;
+
+    // Set permission so files inside are accessible to anyone with the link
+    // This allows multi-user visibility for files linked in the sheet.
+    try {
+      await drive.permissions.create({
+        fileId: folderId as string,
+        requestBody: {
+          role: "reader",
+          type: "anyone",
+        },
+      });
+      console.log(`[Drive] Folder permissions set to 'anyone with link'`);
+    } catch (permError) {
+      console.error("[Drive] Failed to set folder permissions:", permError);
+    }
+  }
+
+  return folderId as string;
 };
 
 // Helper to get auth client from cookie
@@ -271,6 +327,81 @@ app.get("/api/app/patients", async (req, res) => {
     }));
 
     res.json(patients);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get app settings
+app.get("/api/app/settings", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+    const sheets = google.sheets({ version: "v4", auth });
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.SETTINGS}!A:B`,
+    });
+
+    const rows = result.data.values || [];
+    const settings: Record<string, string> = {};
+    rows.slice(1).forEach(row => {
+      if (row[0]) settings[row[0]] = row[1] || "";
+    });
+
+    res.json({
+      companyName: settings["companyName"] || "Nexus Business AI"
+    });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Update app settings
+app.post("/api/app/settings", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const { companyName } = req.body;
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+    const sheets = google.sheets({ version: "v4", auth });
+
+    // We only support companyName for now
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.SETTINGS}!A:B`,
+    });
+
+    const rows = result.data.values || [];
+    let foundIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === "companyName") {
+        foundIndex = i + 1;
+        break;
+      }
+    }
+
+    if (foundIndex !== -1) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: fileId,
+        range: `${SHEET_TABS.SETTINGS}!B${foundIndex}`,
+        valueInputOption: "RAW",
+        requestBody: { values: [[companyName]] }
+      });
+    } else {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: fileId,
+        range: `${SHEET_TABS.SETTINGS}!A:B`,
+        valueInputOption: "RAW",
+        requestBody: { values: [["companyName", companyName]] }
+      });
+    }
+
+    res.json({ status: "ok" });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -545,6 +676,7 @@ app.post("/api/app/upload-image", express.json({ limit: "10mb" }), async (req, r
 
   try {
     const fileId = await getOrCreateMasterSheet(auth);
+    const folderId = await getOrCreateImagesFolder(auth);
 
     // 1. Upload to Drive
     const buffer = Buffer.from(base64Data, "base64");
@@ -552,6 +684,7 @@ app.post("/api/app/upload-image", express.json({ limit: "10mb" }), async (req, r
       requestBody: {
         name: fileName || `Documento_P${patientId}_${Date.now()}`,
         mimeType: mimeType || "image/jpeg",
+        parents: [folderId],
       },
       media: {
         mimeType: mimeType || "image/jpeg",
@@ -562,6 +695,19 @@ app.post("/api/app/upload-image", express.json({ limit: "10mb" }), async (req, r
 
     const driveFileId = driveFile.data.id;
     const shareLink = driveFile.data.webViewLink;
+
+    // Also set specific file permission just in case inheritance is slow
+    try {
+      await drive.permissions.create({
+        fileId: driveFileId as string,
+        requestBody: {
+          role: "reader",
+          type: "anyone",
+        },
+      });
+    } catch (e) {
+      console.error("Error setting file permission:", e);
+    }
 
     // 2. Append to master spreadsheet
     const now = new Date().toLocaleString("pt-BR");
@@ -751,18 +897,36 @@ app.post("/api/drive/upload", async (req, res) => {
   }
 
   try {
+    const folderId = await getOrCreateImagesFolder(auth);
     const buffer = Buffer.from(base64Data, "base64");
     const response = await drive.files.create({
       requestBody: {
         name: name,
         mimeType: mimeType,
+        parents: [folderId],
       },
       media: {
         mimeType: mimeType,
         body: Readable.from(buffer),
       },
-      fields: "id, name, webViewLink",
+      fields: "id, name, webViewLink, webContentLink",
     });
+
+    const fileId = response.data.id;
+
+    // Set permission so others can see it
+    try {
+      await drive.permissions.create({
+        fileId: fileId as string,
+        requestBody: {
+          role: "reader",
+          type: "anyone",
+        },
+      });
+    } catch (e) {
+      console.error("Error setting file permission on generic upload:", e);
+    }
+
     res.json(response.data);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });

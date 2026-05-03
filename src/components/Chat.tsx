@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, User, Bot, Loader2, Sparkles, Image as ImageIcon, X, Mic, Shield, LogOut, Lock, Info } from "lucide-react";
+import { Send, User, Bot, Loader2, Sparkles, Image as ImageIcon, X, Mic, Shield, LogOut, Lock, Info, Settings } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { tools, executeTool } from "../lib/gemini";
 
@@ -12,9 +12,7 @@ interface Message {
 }
 
 export const Chat: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "model", text: "Hello! I'm your Nexus Agent. How can I help you manage your workspace today?" }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -25,20 +23,59 @@ export const Chat: React.FC = () => {
   const audioInputRef = useRef<HTMLInputElement>(null);
   
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [companyName, setCompanyName] = useState("");
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   
   // Create a mutable reference for the agent so we can reset it
   const agentRef = useRef<any>(null);
 
   useEffect(() => {
+    // Fetch Settings
+    fetch("/api/app/settings")
+      .then(res => res.json())
+      .then(data => {
+        const name = data.companyName || "Nexus Business AI";
+        setCompanyName(name);
+        setMessages([
+          { role: "model", text: `Hello ${name}.\n\nHoje é um lindo dia para salvar vidas.` }
+        ]);
+      })
+      .catch(err => {
+        console.error("Failed to fetch settings", err);
+        setMessages([
+          { role: "model", text: "Hello! Como posso ajudar você hoje?" }
+        ]);
+      });
+
     import("../lib/gemini").then(({ createAgent }) => {
       if (!agentRef.current) agentRef.current = createAgent();
     });
   }, []);
 
+  const updateSettings = async (name: string) => {
+    setIsUpdatingSettings(true);
+    try {
+      const res = await fetch("/api/app/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyName: name })
+      });
+      if (res.ok) {
+        setCompanyName(name);
+        setShowSettings(false);
+      }
+    } catch (err) {
+      console.error("Failed to update settings", err);
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
   const resetAgent = async () => {
     const { createAgent } = await import("../lib/gemini");
     agentRef.current = createAgent();
-    setMessages([{ role: "model", text: "Chat history cleared. How can I help you?" }]);
+    setMessages([{ role: "model", text: `Hello ${companyName}.\n\nHoje é um lindo dia para salvar vidas.` }]);
     setSelectedImage(null);
     setSelectedAudio(null);
     setLastProcessedFile(null);
@@ -805,9 +842,9 @@ export const Chat: React.FC = () => {
   };
 
   return (
-    <div id="nexus-chat" className="flex flex-col h-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+    <div id="nexus-chat" className="flex flex-col h-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative">
       {/* Header */}
-      <div className="p-4 border-bottom bg-gray-50 flex items-center justify-between border-b border-gray-100">
+      <div className="p-4 border-b bg-gray-50 flex items-center justify-between border-gray-100 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-sm shadow-blue-200">
             <Sparkles size={18} />
@@ -830,17 +867,73 @@ export const Chat: React.FC = () => {
           </div>
         </div>
         
-        <button 
-          onClick={handleLogout}
-          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors group relative"
-          title="Desconectar Google"
-        >
-          <LogOut size={18} />
-          <span className="absolute right-0 top-full mt-2 hidden group-hover:block bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-50">
-            Desconectar Google
-          </span>
-        </button>
+        <div className="flex items-center gap-1">
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            title="Configurar Empresa"
+          >
+            <Settings size={18} />
+          </button>
+          <button 
+            onClick={handleLogout}
+            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors group relative"
+            title="Desconectar Google"
+          >
+            <LogOut size={18} />
+            <span className="absolute right-0 top-full mt-2 hidden group-hover:block bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-50">
+              Desconectar Google
+            </span>
+          </button>
+        </div>
       </div>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between font-sans">
+                <div className="flex items-center gap-2 text-gray-900 font-bold">
+                  <Settings size={20} className="text-blue-600" />
+                  Configurações
+                </div>
+                <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={18} className="text-gray-400" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4 font-sans">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Nome da Empresa</label>
+                  <input 
+                    type="text" 
+                    value={companyName} 
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Ex: Nexus AI"
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
+                  />
+                </div>
+                <button 
+                  onClick={() => updateSettings(companyName)}
+                  disabled={isUpdatingSettings}
+                  className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isUpdatingSettings ? <Loader2 size={18} className="animate-spin" /> : "Salvar Alterações"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Security Overlay */}
       <AnimatePresence>
@@ -1013,7 +1106,7 @@ export const Chat: React.FC = () => {
 
       {/* Suggested Actions */}
       {!isLoading && (
-        <div className="px-4 pb-2 flex flex-wrap gap-2">
+        <div className="px-4 pb-2 flex flex-wrap gap-2 shrink-0">
           {suggestions.map((s, i) => (
             <button
               key={i}
@@ -1027,7 +1120,7 @@ export const Chat: React.FC = () => {
       )}
 
       {/* Input */}
-      <form onSubmit={handleSend} className="p-3 sm:p-6 border-t bg-gray-50">
+      <form onSubmit={handleSend} className="p-3 sm:p-6 border-t bg-gray-50 shrink-0">
         <div className="relative flex gap-2">
           <input
             type="file"
