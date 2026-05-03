@@ -180,39 +180,8 @@ export default function App() {
 
       {/* Main Content */}
       <main className={`lg:pl-64 min-h-screen flex flex-col ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0" : ""}`}>
-        {/* Topbar */}
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-10 px-4 sm:px-6 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="lg:hidden w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white mr-2">
-              <Command size={16} />
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            {installPrompt && (
-              <button 
-                onClick={handleInstall}
-                className="flex items-center gap-2 px-3 py-1 bg-black text-white rounded-full text-xs font-bold hover:bg-zinc-800 transition-colors"
-              >
-                <Smartphone size={14} />
-                Install App
-              </button>
-            )}
-            <button 
-              onClick={toggleFullscreen}
-              className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
-              title="Toggle Fullscreen"
-            >
-              {isFullscreen ? <Minimize size={18} className="text-gray-600" /> : <Maximize size={18} className="text-gray-600" />}
-            </button>
-            <button className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors">
-              <Plus size={18} className="text-gray-600" />
-            </button>
-          </div>
-        </header>
-
         {/* Hero / Dashboard Area */}
-        <div className={`p-4 md:p-6 flex flex-col gap-8 ${isFullscreen ? "h-[calc(100vh-64px)] overflow-hidden" : "flex-1"}`}>
+        <div className={`p-4 md:p-6 flex flex-col gap-8 ${isFullscreen ? "h-screen overflow-hidden" : "flex-1"}`}>
           {!isAuthenticated ? (
             <div className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto text-center space-y-8">
               <motion.div 

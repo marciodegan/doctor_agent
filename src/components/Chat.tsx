@@ -50,12 +50,12 @@ export const Chat: React.FC = () => {
   };
 
   const suggestions = [
-    { label: "🚀 Relatórios", prompt: "/iniciarrelat" },
-    { label: "📝 Log Texto", prompt: "/iniciarlog" },
-    { label: "👪 Familiares", prompt: "/iniciarfamiliar" },
-    { label: "📅 Agendar", prompt: "/iniciaragenda" },
-    { label: "🖼️ Enviar Imagem", prompt: "/img id: 1, desc: Foto da ferida" },
+    { label: "👤 Pacientes", prompt: "/iniciarrelat" },
+    { label: "📝 Notes", prompt: "/iniciarlog" },
+    { label: "👪 Familiar", prompt: "/iniciarfamiliar" },
     { label: "👤 Novo", prompt: "/iniciarcadastro" },
+    { label: "🖼️ Enviar Imagem", prompt: "/enviarimagem" },
+    { label: "📅 Agendar", prompt: "/iniciaragenda" },
     { label: "📅 Agenda", prompt: "/agenda" },
     { label: "❓ Ajuda", prompt: "/ajuda" },
   ];
@@ -221,22 +221,45 @@ export const Chat: React.FC = () => {
       try {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const tonight = new Date();
-        tonight.setHours(23, 59, 59, 999);
         
-        const res = await fetch(`/api/calendar/events?timeMin=${today.toISOString()}&timeMax=${tonight.toISOString()}`);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        
+        const dayAfterTomorrow = new Date(today);
+        dayAfterTomorrow.setDate(today.getDate() + 2);
+        
+        const res = await fetch(`/api/calendar/events?timeMin=${today.toISOString()}&timeMax=${dayAfterTomorrow.toISOString()}`);
         const data = await res.json();
         
-        const list = data.map((e: any) => {
+        const formatDate = (date: Date) => {
+          return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+        };
+
+        const formatEvent = (e: any) => {
           const start = new Date(e.start.dateTime || e.start.date);
           const timeStr = start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-          return `• **${timeStr}** - ${e.summary} \`/remover_evento ${e.id}\``;
-        }).join("\n\n");
-        
-        setMessages(prev => [...prev, { 
-          role: "model", 
-          text: `📅 **Sua Agenda (${new Date().toLocaleDateString("pt-BR")}):**\n\n${list || "Sem compromissos hoje na sua conta."}\n\n*Nota: Esta agenda é pessoal e visível apenas para você.*` 
-        }]);
+          return `• ${timeStr} - ${e.summary} \`/remover_evento ${e.id}\``;
+        };
+
+        const todayEvents = data.filter((e: any) => {
+          const start = new Date(e.start.dateTime || e.start.date);
+          return start >= today && start < tomorrow;
+        });
+
+        const tomorrowEvents = data.filter((e: any) => {
+          const start = new Date(e.start.dateTime || e.start.date);
+          return start >= tomorrow && start < dayAfterTomorrow;
+        });
+
+        const todayList = todayEvents.map(formatEvent).join("\n\n");
+        const tomorrowList = tomorrowEvents.map(formatEvent).join("\n\n");
+
+        const fullAgenda = 
+          `**📅 Sua Agenda (${formatDate(today)}):**\n\n${todayList || "Sem compromissos."}\n\n` +
+          `**📅 Sua Agenda (${formatDate(tomorrow)}):**\n\n${tomorrowList || "Sem compromissos."}\n\n` +
+          `*Nota: Esta agenda é pessoal e visível apenas para você.*`;
+
+        setMessages(prev => [...prev, { role: "model", text: fullAgenda }]);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar agenda: ${err.message}` }]);
       } finally {
@@ -277,6 +300,34 @@ export const Chat: React.FC = () => {
       return true;
     }
 
+    if (cmd === "/enviarimagem") {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/app/patients");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        
+        const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - \`/prep_img ${p.id}\``).join("\n\n");
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `🖼️ **Para qual paciente deseja enviar a imagem?**\n\n${list || "Nenhum paciente encontrado."}\n\n*Nota: Primeiro anexe a imagem no ícone de clipe abaixo.*` 
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/prep_img")) {
+      const id = cmdInput.split(" ")[1];
+      if (id) {
+        setInput(`/img id: ${id}, descrição: `);
+        return "PREFILL";
+      }
+    }
+
     if (cmd === "/iniciarrelat") {
       setIsLoading(true);
       try {
@@ -284,10 +335,10 @@ export const Chat: React.FC = () => {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
-        const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - Digite \`/prep_p ${p.id}\``).join("\n\n");
+        const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - \`/p ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: `🚀 **Para qual paciente deseja gerar o relatório?**\n\n${list || "Nenhum paciente encontrado."}\n\n*Clique no comando acima para preparar o envio.*` 
+          text: `🚀 **Selecione o paciente para ver o relatório:**\n\n${list || "Nenhum paciente encontrado."}` 
         }]);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
@@ -432,21 +483,21 @@ export const Chat: React.FC = () => {
           if (data.error) throw new Error(data.error);
 
           const cad = data.cadastro;
-          const audios = data.audios.map((a: any) => `• [${a.data}] ${a.conteudo}${a.link ? ` **[[Link](${a.link})]**` : ""}`).join("\n\n");
+          const audios = data.audios.map((a: any) => `• [${a.data}] ${a.conteudo}  `).join("\n");
           
           const docs = data.imagens.map((i: any) => {
             // Extract Drive ID from link if possible for the proxy download
             const fileId = i.link?.match(/[-\w]{25,}/)?.[0];
             const downloadText = fileId ? ` **[[Baixar Arquivo](/api/drive/file/${fileId})]**` : "";
-            return `• [${i.data}] ${i.descricao}${downloadText} **[[Drive](${i.link})]**`;
-          }).join("\n\n");
+            return `• [${i.data}] ${i.descricao}${downloadText} **[[Drive](${i.link})]**  `;
+          }).join("\n");
 
           const fams = data.familiares.map((f: any) => {
             const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
             const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
             const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
-            return `• **${f.nome}** (${f.relacao}) - ${foneLink}`;
-          }).join("\n\n");
+            return `• **${f.nome}** (${f.relacao}) - ${foneLink}  `;
+          }).join("\n");
 
           const cleanCadFone = cad.Telefone ? cad.Telefone.replace(/\D/g, "") : "";
           const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
@@ -454,9 +505,9 @@ export const Chat: React.FC = () => {
 
           const reportText = `🚀 **Relatório Direto: ${cad.Nome} (ID: ${cad.ID})**\n\n` +
             `**Cadastro:**\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
-            `**Familiares:**\n${fams || "Nenhum registro"}\n\n` +
-            `**Evoluções:**\n${audios || "Nenhum registro"}\n\n` +
-            `**Imagens:**\n${docs || "Nenhum registro"}`;
+            `**Familiares:**\n\n${fams || "Nenhum registro"}\n\n` +
+            `**Evoluções:**\n\n${audios || "Nenhum registro"}\n\n` +
+            `**Imagens:**\n\n${docs || "Nenhum registro"}`;
 
           setMessages(prev => [...prev, { role: "model", text: reportText }]);
         }
@@ -532,7 +583,8 @@ export const Chat: React.FC = () => {
         if (!selectedImage) throw new Error("Anexe uma imagem primeiro clicando no ícone de clipe.");
         
         const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
-        const desc = cmdInput.match(/desc:\s*(.+)/i)?.[1]?.trim();
+        const descMatch = cmdInput.match(/(?:desc|descrição):\s*(.+)/i);
+        const desc = descMatch ? descMatch[1]?.trim() : "";
 
         if (!id) throw new Error("Use: /img id: [ID], desc: [Opcional]");
 
@@ -630,12 +682,18 @@ export const Chat: React.FC = () => {
     return false;
   };
 
-  const handleSend = async (e?: React.FormEvent, customPrompt?: string) => {
+  const handleSend = async (e?: React.FormEvent, customPrompt?: string, forceClear?: boolean) => {
     e?.preventDefault();
     const promptToSend = customPrompt || input;
     if (!promptToSend.trim() && !selectedImage && !selectedAudio || isLoading) return;
 
     const userMessage = promptToSend.trim();
+    const userImage = selectedImage;
+    const userAudio = selectedAudio;
+
+    if (forceClear) {
+      setMessages([]);
+    }
 
     // Direct Command Interceptor to save tokens
     if (userMessage.startsWith("/")) {
@@ -648,8 +706,6 @@ export const Chat: React.FC = () => {
       }
     }
 
-    const userImage = selectedImage;
-    const userAudio = selectedAudio;
     if (userImage) setLastProcessedFile(userImage);
     if (userAudio) setLastProcessedFile(userAudio);
     
@@ -853,7 +909,8 @@ export const Chat: React.FC = () => {
                               // Customize labels for common commands
                               let label = content;
                               if (content.startsWith("/remover_evento")) label = "🗑️ Remover";
-                              if (content.startsWith("/prep_p")) label = "📄 Relatório";
+                              if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
+                              if (content.startsWith("/prep_p") || content.startsWith("/p ")) label = "🚀 Relatório";
                               if (content.startsWith("/logpac")) label = "📝 Novo Log";
                               if (content.startsWith("/novo_familiar")) label = "➕ Novo Familiar";
                               if (content.startsWith("/agenda_add")) label = "📅 Agendar";
@@ -948,7 +1005,7 @@ export const Chat: React.FC = () => {
           {suggestions.map((s, i) => (
             <button
               key={i}
-              onClick={() => handleSend(undefined, s.prompt)}
+              onClick={() => handleSend(undefined, s.prompt, true)}
               className="text-[11px] font-bold px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all uppercase tracking-wide"
             >
               {s.label}
