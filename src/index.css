@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@layer base {
+  .markdown-body {
+    @apply leading-relaxed;
+  }
+  .markdown-body a {
+    @apply text-blue-600 hover:underline font-medium;
+  }
+  .markdown-body p {
+    @apply mb-2 last:mb-0;
+  }
+  .markdown-body img {
+    @apply rounded-lg shadow-md my-2 max-w-full;
+  }
+  .markdown-body ul, .markdown-body ol {
+    @apply ml-4 mb-2 list-inside;
+  }
+  .markdown-body ul {
+    @apply list-disc;
+  }
+  .markdown-body ol {
+    @apply list-decimal;
+  }
+}
