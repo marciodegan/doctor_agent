@@ -60,26 +60,33 @@ export default function App() {
     return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
   }, []);
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     try {
       const doc = document.documentElement as any;
       const docWithPrefix = document as any;
 
-      if (!document.fullscreenElement && 
-          !docWithPrefix.webkitFullscreenElement && 
-          !docWithPrefix.mozFullScreenElement && 
-          !docWithPrefix.msFullscreenElement) {
-        
+      // Check if we are currently in native fullscreen
+      const isNativeFS = !!(document.fullscreenElement || 
+                          docWithPrefix.webkitFullscreenElement || 
+                          docWithPrefix.mozFullScreenElement || 
+                          docWithPrefix.msFullscreenElement);
+
+      if (!isNativeFS && !isFullscreen) {
         const requestMethod = doc.requestFullscreen || 
                             doc.webkitRequestFullscreen || 
                             doc.mozRequestFullScreen || 
                             doc.msRequestFullscreen;
         
         if (requestMethod) {
-          requestMethod.call(doc);
-          setIsFullscreen(true);
+          try {
+            await requestMethod.call(doc);
+            setIsFullscreen(true);
+          } catch (e) {
+            console.warn("[Fullscreen] Native request failed, falling back to windowed mode:", e);
+            setIsFullscreen(true); // Windowed fallback
+          }
         } else {
-          console.warn("[Fullscreen] API not supported in this browser context.");
+          setIsFullscreen(true); // Windowed fallback
         }
       } else {
         const exitMethod = document.exitFullscreen || 
@@ -87,13 +94,18 @@ export default function App() {
                           docWithPrefix.mozCancelFullScreen || 
                           docWithPrefix.msExitFullscreen;
         
-        if (exitMethod) {
-          exitMethod.call(document);
-          setIsFullscreen(false);
+        if (exitMethod && isNativeFS) {
+          try {
+            await exitMethod.call(document);
+          } catch (e) {
+            console.error("[Fullscreen] Exit error:", e);
+          }
         }
+        setIsFullscreen(false);
       }
     } catch (error) {
-      console.error("[Fullscreen] Error toggling:", error);
+      console.error("[Fullscreen] Global error:", error);
+      setIsFullscreen(!isFullscreen);
     }
   };
 
@@ -167,9 +179,9 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="lg:pl-64 min-h-screen flex flex-col">
+      <main className={`lg:pl-64 min-h-screen flex flex-col ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0" : ""}`}>
         {/* Topbar */}
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-10 px-6 flex items-center justify-between">
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-10 px-4 sm:px-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="lg:hidden w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white mr-2">
               <Command size={16} />
@@ -201,7 +213,7 @@ export default function App() {
         </header>
 
         {/* Hero / Dashboard Area */}
-        <div className="flex-1 p-6 md:p-10 flex flex-col gap-8">
+        <div className={`p-4 md:p-6 flex flex-col gap-8 ${isFullscreen ? "h-[calc(100vh-64px)] overflow-hidden" : "flex-1"}`}>
           {!isAuthenticated ? (
             <div className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto text-center space-y-8">
               <motion.div 
@@ -237,9 +249,9 @@ export default function App() {
               </motion.button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 h-full max-w-7xl mx-auto w-full">
+            <div className={`grid grid-cols-1 xl:grid-cols-4 gap-6 h-full max-w-[1600px] mx-auto w-full ${isFullscreen ? "max-w-none" : ""}`}>
               {/* Chat column */}
-              <div className="xl:col-span-2 h-[80vh] flex flex-col">
+              <div className="xl:col-span-3 h-full flex flex-col min-h-[600px]">
                 <Chat />
               </div>
 

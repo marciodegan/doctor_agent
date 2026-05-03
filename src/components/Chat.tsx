@@ -53,6 +53,8 @@ export const Chat: React.FC = () => {
     { label: "📂 Pacientes", prompt: "/pacientes" },
     { label: "🚀 Relatórios", prompt: "/iniciarrelat" },
     { label: "📝 Log Texto", prompt: "/iniciarlog" },
+    { label: "👪 Familiares", prompt: "/iniciarfamiliar" },
+    { label: "📅 Agendar", prompt: "/iniciaragenda" },
     { label: "🖼️ Enviar Imagem", prompt: "/img id: 1, desc: Foto da ferida" },
     { label: "👤 Novo", prompt: "/iniciarcadastro" },
     { label: "📅 Agenda", prompt: "/agenda" },
@@ -316,6 +318,47 @@ export const Chat: React.FC = () => {
       }
     }
 
+    if (cmd === "/iniciarfamiliar") {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/app/patients");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        
+        const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id})\n  - \`/familiares ${p.id}\` \n  - \`/novo_familiar ${p.id}\``).join("\n\n");
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `👪 **Gestão de Familiares**\n\nSelecione um paciente para ver familiares ou cadastrar um novo:\n\n${list || "Nenhum paciente encontrado."}` 
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd === "/iniciaragenda") {
+      setInput("/agendar evento: , data: 2024-05-04, hora: 09:00");
+      setMessages(prev => [...prev, { 
+        role: "model", 
+        text: "📅 **Novo Agendamento**\n\nComplete o comando no chat:\n`/agendar evento: [NOME], data: [AAAA-MM-DD], hora: [HH:MM]`" 
+      }]);
+      return "PREFILL";
+    }
+
+    if (cmd.startsWith("/novo_familiar")) {
+      const id = cmdInput.split(" ")[1];
+      if (id) {
+        setInput(`/registrar_familiar id: ${id}, nome: , relacao: , fone: `);
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `👪 **Novo Familiar para Paciente ID: ${id}**\n\nComplete o comando no chat e envie:\n\`/registrar_familiar id: ${id}, nome: [NOME], relacao: [TIPO], fone: [FONE]\`` 
+        }]);
+        return "PREFILL";
+      }
+    }
+
     if (cmd.startsWith("/logpac")) {
       const id = cmdInput.split(" ")[1];
       if (id) {
@@ -324,7 +367,7 @@ export const Chat: React.FC = () => {
       }
     }
 
-    if (cmd.startsWith("/p") || cmd === "/pacientes" || cmd === "/ajuda") {
+    if (cmd.startsWith("/p") || cmd === "/pacientes" || cmd === "/familiares" || cmd === "/ajuda") {
       setIsLoading(true);
       try {
         if (cmd === "/ajuda") {
@@ -333,6 +376,10 @@ export const Chat: React.FC = () => {
             text: "🤖 **Nexus Shortcuts (Zero Tokens):**\n\n" +
                   "- `/pacientes`: Lista todos os pacientes (Banco Compartilhado).\n" +
                   "- `/p [ID]`: Relatório rápido (ex: `/p 2`).\n" +
+                  "- `/familiares [ID]`: Lista familiares de um paciente.\n" +
+                  "- `/novo_familiar [ID]`: Atalho para cadastrar familiar.\n" +
+                  "- `/registrar_familiar id: [ID], nome: [N], relacao: [R], fone: [F]`: Cadastro de familiar.\n" +
+                  "- `/agendar evento: [E], data: [D], hora: [H]`: Cria evento na agenda Google.\n" +
                   "- `/log id: [ID], texto: [T]`: Adiciona log de texto direto.\n" +
                   "- `/img id: [ID], desc: [D]`: Envia imagem anexada direto para o Drive.\n" +
                   "- `/registrar nome: [N], fone: [F], idade: [I]`: Cadastra paciente.\n" +
@@ -348,10 +395,25 @@ export const Chat: React.FC = () => {
           const data = await res.json();
           if (data.error) throw new Error(data.error);
           
-          const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id})`).join("\n\n");
+          const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - \`/p ${p.id}\``).join("\n\n");
           setMessages(prev => [...prev, { 
             role: "model", 
             text: `📂 **Lista de Pacientes:**\n\n${list || "Nenhum paciente encontrado."}` 
+          }]);
+        } else if (cmd.startsWith("/familiares")) {
+          const id = cmdInput.split(" ")[1] || "all";
+          const res = await fetch(`/api/app/family-members/${id}`);
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          
+          const list = data.map((f: any) => {
+            const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
+            const foneLink = cleanFone ? `[📞 **${f.fone}**](https://wa.me/${cleanFone})` : "📞 Sem fone";
+            return `• **${f.nome}** (${f.relacao})\n  ${foneLink}\n  👤 Paciente: ${f.pacienteNome} (ID: ${f.pacienteId})`;
+          }).join("\n\n");
+          setMessages(prev => [...prev, { 
+            role: "model", 
+            text: `👪 **Familiares encontrados:**\n\n${list || "Nenhum familiar encontrado."}` 
           }]);
         } else if (cmd.startsWith("/p ")) {
           const id = cmdInput.split(" ")[1];
@@ -371,8 +433,15 @@ export const Chat: React.FC = () => {
             return `• [${i.data}] ${i.descricao}${downloadText} **[[Drive](${i.link})]**`;
           }).join("\n\n");
 
+          const fams = data.familiares.map((f: any) => {
+            const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
+            const foneLink = cleanFone ? `[📞 **${f.fone}**](https://wa.me/${cleanFone})` : "📞 Sem fone";
+            return `• **${f.nome}** (${f.relacao}) - ${foneLink}`;
+          }).join("\n\n");
+
           const reportText = `🚀 **Relatório Direto: ${cad.Nome} (ID: ${cad.ID})**\n\n` +
             `**Cadastro:**\n- Telefone: ${cad.Telefone || "N/A"}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
+            `**Familiares:**\n${fams || "Nenhum registro"}\n\n` +
             `**Evoluções:**\n${audios || "Nenhum registro"}\n\n` +
             `**Imagens:**\n${docs || "Nenhum registro"}`;
 
@@ -380,6 +449,36 @@ export const Chat: React.FC = () => {
         }
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/registrar_familiar")) {
+      setIsLoading(true);
+      try {
+        const patientId = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
+        const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
+        const relacao = cmdInput.match(/relacao:\s*([^,]+)/i)?.[1]?.trim();
+        const fone = cmdInput.match(/fone:\s*(.+)/i)?.[1]?.trim();
+
+        if (!patientId || !nome) throw new Error("Use: /registrar_familiar id: [ID], nome: [NOME], relacao: [TIPO], fone: [FONE]");
+
+        const res = await fetch("/api/app/family-members", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patientId, nome, relacao, fone })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `✅ **Familiar cadastrado com sucesso!**\nNome: **${nome}**\nRelação: ${relacao || "Não especificado"}\nFone: ${fone ? `[${fone}](https://wa.me/${fone.replace(/\D/g, "")})` : "Não informado"}\nPaciente ID: ${patientId}` 
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro no cadastro: ${err.message}` }]);
       } finally {
         setIsLoading(false);
         return true;
@@ -700,7 +799,7 @@ export const Chat: React.FC = () => {
       </AnimatePresence>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-6">
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => (
             <motion.div
@@ -710,7 +809,7 @@ export const Chat: React.FC = () => {
               transition={{ duration: 0.2 }}
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              <div className={`flex gap-3 max-w-[85%] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+              <div className={`flex gap-3 max-w-[90%] sm:max-w-[85%] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                   msg.role === "user" ? "bg-gray-100 text-gray-600" : "bg-blue-100 text-blue-600"
                 }`}>
@@ -831,7 +930,7 @@ export const Chat: React.FC = () => {
       )}
 
       {/* Input */}
-      <form onSubmit={handleSend} className="p-4 border-t bg-gray-50">
+      <form onSubmit={handleSend} className="p-3 sm:p-6 border-t bg-gray-50">
         <div className="relative flex gap-2">
           <input
             type="file"

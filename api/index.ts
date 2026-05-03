@@ -243,7 +243,7 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
   try {
     // 1. Find all relevant sheets
     const searchRes = await drive.files.list({
-      q: "(name = 'Pacientes - Cadastro' or name = 'Pacientes - Áudios' or name = 'Pacientes - Imagens') and mimeType = 'application/vnd.google-apps.spreadsheet'",
+      q: "(name = 'Pacientes - Cadastro' or name = 'Pacientes - Áudios' or name = 'Pacientes - Imagens' or name = 'Pacientes - Familiares') and mimeType = 'application/vnd.google-apps.spreadsheet'",
       fields: "files(id, name)",
     });
 
@@ -251,23 +251,24 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
     const cadastroSheet = files.find(f => f.name === "Pacientes - Cadastro");
     const audiosSheet = files.find(f => f.name === "Pacientes - Áudios");
     const imagensSheet = files.find(f => f.name === "Pacientes - Imagens");
+    const familySheet = files.find(f => f.name === "Pacientes - Familiares");
 
     if (!cadastroSheet) return res.status(404).json({ error: "Planilha 'Pacientes - Cadastro' não encontrada." });
 
     const report: any = {
       cadastro: null,
       audios: [],
-      imagens: []
+      imagens: [],
+      familiares: []
     };
 
     // 2. Fetch data from Cadastro (A:D)
     const cadRes = await sheets.spreadsheets.values.get({ spreadsheetId: cadastroSheet.id!, range: "A:D" });
     const cadRows = cadRes.data.values || [];
     const cadHeader = cadRows[0] || [];
-    const cadData = cadRows.slice(1).find(row => row[0] === id || row[1] === id); // Match ID or Name
+    const cadData = cadRows.slice(1).find(row => row[0] === id || row[1] === id); 
 
     if (cadData) {
-      // Return key-value pairs based on header
       report.cadastro = cadHeader.reduce((acc: any, col: string, idx: number) => {
         acc[col] = cadData[idx];
         return acc;
@@ -276,12 +277,14 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       return res.status(404).json({ error: `Paciente '${id}' não encontrado no Cadastro.` });
     }
 
-    const patientName = cadData[1]; // Use canonical Name for secondary sheet lookups
+    const patientName = cadData[1];
+    const patientId = cadData[0];
 
-    // 3. Fetch data from Áudios and Imagens in parallel
-    const [audioRes, imgRes] = await Promise.all([
+    // 3. Fetch data from Áudios, Imagens, and Familiares in parallel
+    const [audioRes, imgRes, famRes] = await Promise.all([
       audiosSheet ? sheets.spreadsheets.values.get({ spreadsheetId: audiosSheet.id!, range: "A:E" }) : Promise.resolve({ data: { values: [] } }),
-      imagensSheet ? sheets.spreadsheets.values.get({ spreadsheetId: imagensSheet.id!, range: "A:E" }) : Promise.resolve({ data: { values: [] } })
+      imagensSheet ? sheets.spreadsheets.values.get({ spreadsheetId: imagensSheet.id!, range: "A:E" }) : Promise.resolve({ data: { values: [] } }),
+      familySheet ? sheets.spreadsheets.values.get({ spreadsheetId: familySheet.id!, range: "A:F" }) : Promise.resolve({ data: { values: [] } })
     ]);
 
     // Process Audios
@@ -289,7 +292,7 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
     const audioIdx = audioRows[0]?.indexOf("Paciente");
     if (audioIdx !== -1) {
       report.audios = audioRows.slice(1)
-        .filter(row => row[audioIdx] === patientName || row[audioIdx] === id)
+        .filter(row => row[audioIdx] === patientName || row[audioIdx] === patientId)
         .map(row => ({ data: row[0], conteudo: row[2], link: row[3] }));
     }
 
@@ -298,8 +301,21 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
     const imgIdx = imgRows[0]?.indexOf("Paciente");
     if (imgIdx !== -1) {
       report.imagens = imgRows.slice(1)
-        .filter(row => row[imgIdx] === patientName || row[imgIdx] === id)
+        .filter(row => row[imgIdx] === patientName || row[imgIdx] === patientId)
         .map(row => ({ data: row[0], descricao: row[2], link: row[3] }));
+    }
+
+    // Process Familiares (ID, Nome Familiar, Tipo de Relação, Telefone, ID do Paciente, Nome do Paciente)
+    const famRows = famRes.data.values || [];
+    if (famRows.length > 0) {
+      report.familiares = famRows.slice(1)
+        .filter(row => row[4] === patientId || row[5] === patientName)
+        .map(row => ({
+          id: row[0],
+          nome: row[1],
+          relacao: row[2],
+          fone: row[3]
+        }));
     }
 
     res.json(report);
@@ -342,6 +358,128 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [[nextId, nome, fone, idade]]
+      }
+    });
+
+    res.json({ success: true, id: nextId });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get family members for a patient
+app.get("/api/app/family-members/:patientId", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const drive = google.drive({ version: "v3", auth });
+  const sheets = google.sheets({ version: "v4", auth });
+  const { patientId } = req.params;
+
+  try {
+    const searchRes = await drive.files.list({
+      q: "name = 'Pacientes - Familiares' and mimeType = 'application/vnd.google-apps.spreadsheet'",
+      fields: "files(id, name)",
+    });
+
+    const file = searchRes.data.files?.[0];
+    if (!file?.id) return res.json([]); 
+
+    const valuesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: file.id,
+      range: "A:F",
+    });
+
+    const rows = valuesRes.data.values || [];
+    // ID, Nome Familiar, Tipo de Relação, Telefone, ID do Paciente, Nome do Paciente
+    const family = rows.slice(1)
+      .filter(row => row[4] === patientId || row[5] === patientId || patientId === "all")
+      .map(row => ({
+        id: row[0],
+        nome: row[1],
+        relacao: row[2],
+        fone: row[3],
+        pacienteId: row[4],
+        pacienteNome: row[5]
+      }));
+
+    res.json(family);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Register a new family member
+app.post("/api/app/family-members", express.json(), async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const drive = google.drive({ version: "v3", auth });
+  const sheets = google.sheets({ version: "v4", auth });
+  const { nome, relacao, fone, patientId, patientNome } = req.body;
+
+  if (!nome || !patientId) return res.status(400).json({ error: "Nome e ID do Paciente são obrigatórios." });
+
+  try {
+    // 1. Find or Create the sheet
+    let searchRes = await drive.files.list({
+      q: "name = 'Pacientes - Familiares' and mimeType = 'application/vnd.google-apps.spreadsheet'",
+      fields: "files(id, name)",
+    });
+
+    let file = searchRes.data.files?.[0];
+    if (!file?.id) {
+      const createRes = await sheets.spreadsheets.create({
+        requestBody: {
+          properties: { title: "Pacientes - Familiares" },
+          sheets: [{ properties: { title: "Familiares" } }]
+        }
+      });
+      file = { id: createRes.data.spreadsheetId };
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: file.id!,
+        range: "A1:F1",
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [["ID", "Nome Familiar", "Tipo de Relação", "Telefone", "ID do Paciente", "Nome do Paciente"]]
+        }
+      });
+    }
+
+    let finalPatientNome = patientNome;
+    if (!finalPatientNome) {
+      const cadSearchRes = await drive.files.list({
+        q: "name = 'Pacientes - Cadastro' and mimeType = 'application/vnd.google-apps.spreadsheet'",
+        fields: "files(id, name)",
+      });
+      const cadFile = cadSearchRes.data.files?.[0];
+      if (cadFile?.id) {
+        const cadValuesRes = await sheets.spreadsheets.values.get({
+          spreadsheetId: cadFile.id,
+          range: "A:B",
+        });
+        const cadRows = cadValuesRes.data.values || [];
+        const patientRow = cadRows.find(row => row[0] === patientId);
+        if (patientRow) {
+          finalPatientNome = patientRow[1];
+        }
+      }
+    }
+
+    // 2. Determine ID
+    const valuesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: file.id!,
+      range: "A:A",
+    });
+    const nextId = (valuesRes.data.values?.length || 1).toString();
+
+    // 3. Append: [ID, Nome Familiar, Tipo de Relação, Telefone, ID do Paciente, Nome do Paciente]
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: file.id!,
+      range: "A:F",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[nextId, nome, relacao || "Não especificado", fone || "", patientId, finalPatientNome || ""]]
       }
     });
 
