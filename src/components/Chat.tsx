@@ -264,7 +264,7 @@ export const Chat: React.FC = () => {
     { label: "👤 Novo", prompt: "/iniciarcadastro" },
     { label: "📅 Agendar", prompt: "/iniciaragenda" },
     { label: "📅 Agenda", prompt: "/agenda" },
-    { label: "🏥 Hospitais", prompt: "/hospitais" },
+    { label: "⚙️ Config", prompt: "/config_menu" },
     { label: "❓ Ajuda", prompt: "/ajuda" },
   ];
 
@@ -623,6 +623,71 @@ export const Chat: React.FC = () => {
       }
     }
 
+    if (cmd === "/config_menu") {
+      setMessages(prev => [...prev, { 
+        role: "model", 
+        text: "⚙️ **Configurações do Sistema**\n\nEscolha o que deseja gerenciar:",
+        form: {
+          title: "Menu de Configuração",
+          fields: [],
+          submitLabel: "Voltar", // Not used if we add custom buttons below
+          commandPrefix: "/"
+        }
+      }]);
+      // We'll append a message with the config buttons manually to avoid form constraints
+      setMessages(prev => {
+        const lastMsg = prev[prev.length - 1];
+        if (lastMsg.role === "model" && lastMsg.text.includes("Configurações")) {
+          return [...prev.slice(0, -1), {
+            ...lastMsg,
+            text: "⚙️ **Configurações do Sistema**\n\nSelecione uma opção:\n\n• [🏥 Hospitais](/hospitais)\n• [🏷️ Status](/list_statuses)\n• [🖼️ Tipos de Imagem](/list_image_options)"
+          }];
+        }
+        return prev;
+      });
+      return true;
+    }
+
+    if (cmd === "/list_statuses") {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/app/statuses");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        
+        const list = data.map((s: string) => `• ${s}`).join("\n");
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `🏷️ **Status Disponíveis:**\n\n${list || "Nenhum status encontrado."}` 
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar status: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd === "/list_image_options") {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/app/image-options");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        
+        const list = data.map((s: string) => `• ${s}`).join("\n");
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `🖼️ **Tipos de Imagem (Opções de Descrição):**\n\n${list || "Nenhuma opção encontrada."}` 
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar opções de imagem: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+    
     if (cmd === "/iniciarrelat") {
       setIsLoading(true);
       try {
@@ -843,11 +908,10 @@ export const Chat: React.FC = () => {
         if (data.error) throw new Error(data.error);
 
         const cad = data.cadastro;
-        const audios = data.audios.map((a: any) => `• [${a.data}] ${a.conteudo}  `).join("\n");
+        const audios = data.audios.map((a: any) => `• **${a.data}**\n  ${a.conteudo}`).join("\n\n");
         
         const docs = data.imagens.map((i: any) => {
-          const fileId = i.link?.match(/[-\w]{25,}/)?.[0];
-          const downloadText = fileId ? ` [[Baixar Arquivo](/api/drive/file/${fileId})]` : "";
+          const downloadText = i.link ? ` [[Baixar Arquivo](${i.link})]` : "";
           return `• [${i.data}]${downloadText}\n\n${i.descricao}`;
         }).join("\n\n");
 
@@ -855,14 +919,14 @@ export const Chat: React.FC = () => {
           const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
           const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
           const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
-          return `• **${f.nome}** (${f.relacao}) - ${foneLink}  `;
-        }).join("\n");
+          return `• **${f.nome}** (${f.relacao})\n  ${foneLink}`;
+        }).join("\n\n");
 
         const cleanCadFone = cad.Telefone ? cad.Telefone.replace(/\D/g, "") : "";
         const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
         const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
 
-        const reportText = `# ${cad.Nome}\n` +
+        const reportText = `# **${cad.Nome}**\n` +
           `📍 **Status:** ${cad.Status || "Não informado"} \`/status_alterar ${cad.ID}\`\n\n` +
           `**Cadastro** \`/edit_name ${cad.ID} label:✏️\`\n` +
           `- idade: ${cad.Idade || "N/A"}\n` +

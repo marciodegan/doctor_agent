@@ -761,12 +761,14 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   try {
     const fileId = await getOrCreateMasterSheet(auth);
 
-    // Get current rows to determine next ID
+    // Get current rows to determine next ID (Safe Max + 1)
     const valuesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: fileId,
       range: `${SHEET_TABS.CADASTRO}!A:A`,
     });
-    const nextId = (valuesRes.data.values?.length || 1).toString();
+    const rows = valuesRes.data.values || [];
+    const ids = rows.slice(1).map(r => parseInt(r[0])).filter(n => !isNaN(n));
+    const nextId = (ids.length > 0 ? Math.max(...ids) + 1 : 1).toString();
 
     // Append new patient
     await sheets.spreadsheets.values.append({
@@ -1007,12 +1009,14 @@ app.post("/api/app/family-members", express.json(), async (req, res) => {
       }
     }
 
-    // Determine ID
+    // Determine ID (Safe Max + 1)
     const valuesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: fileId,
       range: `${SHEET_TABS.FAMILIARES}!A:A`,
     });
-    const nextId = (valuesRes.data.values?.length || 1).toString();
+    const rows = valuesRes.data.values || [];
+    const ids = rows.slice(1).map(r => parseInt(r[0])).filter(n => !isNaN(n));
+    const nextId = (ids.length > 0 ? Math.max(...ids) + 1 : 1).toString();
 
     // Append: [id, nome_familiar, tipo_parentesco, telefone, paciente_id, paciente_nome]
     await sheets.spreadsheets.values.append({
