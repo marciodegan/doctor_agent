@@ -33,32 +33,68 @@ export const useAuth = () => {
   useEffect(() => {
     checkAuth();
 
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
-        console.log("[Auth] success message received");
-        
-        const tokens = event.data.tokens;
-        if (tokens) {
-          console.log("[Auth] Tokens received in message, establishing session...");
-          try {
-            await fetch("/api/auth/session", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tokens }),
-              credentials: 'include'
-            });
-            console.log("[Auth] Session established successfully");
-          } catch (e) {
-            console.error("[Auth] Failed to establish session via tokens:", e);
-          }
+    const processAuthSuccess = async (tokens: any) => {
+      console.log("[Auth] success message received, refreshing status...");
+      
+      if (tokens) {
+        console.log("[Auth] Tokens received, establishing session...");
+        try {
+          await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tokens }),
+            credentials: 'include'
+          });
+          console.log("[Auth] Session established successfully");
+        } catch (e) {
+          console.error("[Auth] Failed to establish session via tokens:", e);
         }
-        
-        console.log("[Auth] refreshing status in 500ms...");
-        setTimeout(() => checkAuth(), 500); 
+      }
+      
+      console.log("[Auth] refreshing status in 500ms...");
+      setTimeout(() => checkAuth(), 500); 
+    };
+
+    // Listen via postMessage
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
+        processAuthSuccess(event.data.tokens);
       }
     };
+
+    // Listen via BroadcastChannel
+    const authChannel = new BroadcastChannel('nexus_auth_channel');
+    authChannel.onmessage = (event) => {
+      if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
+        console.log("[Auth] Received via BroadcastChannel");
+        processAuthSuccess(event.data.tokens);
+      }
+    };
+
+    // Listen via LocalStorage fallback (rare cases)
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'nexus_auth_success' && event.newValue) {
+        try {
+          const data = JSON.parse(event.newValue);
+          // Only process if recent (within 30s)
+          if (Date.now() - data.timestamp < 30000) {
+            console.log("[Auth] Received via LocalStorage fallback");
+            processAuthSuccess(data.tokens);
+            localStorage.removeItem('nexus_auth_success');
+          }
+        } catch (e) {
+          console.error("[Auth] Error parsing storage auth:", e);
+        }
+      }
+    };
+
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      window.removeEventListener("storage", handleStorage);
+      authChannel.close();
+    };
   }, []);
 
   const login = async () => {

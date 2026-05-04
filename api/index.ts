@@ -201,11 +201,11 @@ const getOrCreateImagesFolder = async (auth: any) => {
   return folderId as string;
 };
 
-const COOKIE_NAME = "nexus_auth_token_v1";
+const COOKIE_NAME = "__Secure-nexus-auth-v1";
 
 // Helper to get auth client from cookie
 const getAuthClient = (req: express.Request) => {
-  const token = req.cookies[COOKIE_NAME];
+  const token = req.cookies[COOKIE_NAME] || req.cookies["nexus_auth_token_v1"] || req.cookies["google_token"];
   if (!token) return null;
   
   const client = getOAuth2Client(req);
@@ -298,28 +298,65 @@ app.get("/auth/callback", async (req, res) => {
 
     res.send(`
       <html>
-        <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb;">
-          <div style="text-align: center; padding: 2rem; background: white; border-radius: 1rem; shadow: 0 10px 25px -5px rgba(0,0,0,0.1);">
-            <h2 style="color: #111827; margin-bottom: 0.5rem;">Autenticação concluída!</h2>
-            <p style="color: #6b7280;">Sincronizando com o app...</p>
+        <head>
+          <title>Autenticação Nexus</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb; color: #111827; }
+            .card { text-align: center; padding: 2.5rem; background: white; border-radius: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); max-width: 90%; width: 400px; }
+            h2 { margin-bottom: 0.5rem; font-weight: 800; letter-spacing: -0.025em; }
+            p { color: #6b7280; font-size: 0.875rem; margin-bottom: 2rem; }
+            .spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem; }
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            .btn { background: #111827; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+            .btn:hover { background: #1f2937; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="spinner"></div>
+            <h2>Autenticação concluída!</h2>
+            <p>Sincronizando com seu workspace. Esta janela será fechada automaticamente em instantes.</p>
+            <button class="btn" onclick="window.close()">Fechar Janela</button>
             <script>
               const tokens = ${JSON.stringify(essentialTokens)};
-              try {
-                if (window.opener) {
-                  console.log("[OAuth] Sending tokens to opener...");
-                  window.opener.postMessage({ 
+              const authChannel = new BroadcastChannel('nexus_auth_channel');
+              
+              function finish() {
+                try {
+                  console.log("[OAuth] Notifying application...");
+                  
+                  const payload = { 
                     type: 'OAUTH_AUTH_SUCCESS', 
                     tokens: tokens 
-                  }, '*');
-                  // We'll wait a bit before closing to ensure message is sent
-                  setTimeout(() => window.close(), 2000);
-                } else {
+                  };
+
+                  // 1. BroadcastChannel (Preferred)
+                  authChannel.postMessage(payload);
+                  
+                  // 2. window.opener (Legacy fallback)
+                  if (window.opener) {
+                    window.opener.postMessage(payload, '*');
+                  }
+                  
+                  // 3. LocalStorage signaller (Safety fallback)
+                  localStorage.setItem('nexus_auth_success', JSON.stringify({ 
+                    timestamp: Date.now(), 
+                    tokens: tokens 
+                  }));
+                  
+                  console.log("[OAuth] Notifications sent");
+                  setTimeout(() => {
+                    authChannel.close();
+                    window.close();
+                  }, 2500);
+                } catch (e) {
+                  console.error("[OAuth] Error in callback script:", e);
                   window.location.href = '/';
                 }
-              } catch (e) {
-                console.error("[OAuth] Error in callback script:", e);
-                window.location.href = '/';
               }
+
+              finish();
             </script>
           </div>
         </body>
@@ -338,12 +375,14 @@ app.post("/api/auth/session", (req, res) => {
   const { tokens } = req.body;
   if (!tokens) return res.status(400).json({ error: "Missing tokens" });
 
+  console.log(`[Auth] Establishing session in iframe context for ${COOKIE_NAME}`);
+
   res.cookie(COOKIE_NAME, tokens, {
     httpOnly: true,
     secure: true,
     sameSite: "none",
     path: "/",
-    partitioned: true, // This will now use the iframe's partition key!
+    partitioned: true,
     maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
   });
 
@@ -351,17 +390,13 @@ app.post("/api/auth/session", (req, res) => {
 });
 
 app.get("/api/auth/status", (req, res) => {
-  const token = req.cookies[COOKIE_NAME];
+  const token = req.cookies[COOKIE_NAME] || req.cookies["nexus_auth_token_v1"] || req.cookies["google_token"];
   const hasToken = !!token;
-  const oldToken = req.cookies["google_token"];
-  
-  console.log(`[Auth] Status check. COOKIE_NAME(${COOKIE_NAME}): ${hasToken}, google_token: ${!!oldToken}`);
   
   res.json({ 
-    isAuthenticated: hasToken || !!oldToken,
+    isAuthenticated: hasToken,
     debug: {
       hasCookie: hasToken,
-      hasOldCookie: !!oldToken,
       cookieName: COOKIE_NAME,
       cookieCount: Object.keys(req.cookies || {}).length,
       allCookies: Object.keys(req.cookies || {}),
@@ -375,20 +410,18 @@ app.get("/api/auth/status", (req, res) => {
 });
 
 app.post("/api/auth/logout", (req, res) => {
-  res.clearCookie(COOKIE_NAME, {
+  const clearOptions = {
     httpOnly: true,
     secure: true,
-    sameSite: "none",
+    sameSite: "none" as const,
     path: "/",
     partitioned: true
-  });
-  res.clearCookie("google_token", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    path: "/",
-    partitioned: true
-  });
+  };
+  
+  res.clearCookie(COOKIE_NAME, clearOptions);
+  res.clearCookie("nexus_auth_token_v1", clearOptions);
+  res.clearCookie("google_token", clearOptions);
+  
   res.json({ success: true });
 });
 
