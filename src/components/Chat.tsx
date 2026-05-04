@@ -527,7 +527,7 @@ export const Chat: React.FC = () => {
 
     if (cmd.startsWith("/prep_img")) {
       const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.split(" ")[1];
-      const nome = cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
+      const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
 
       if (id) {
         setMessages([{
@@ -617,7 +617,7 @@ export const Chat: React.FC = () => {
 
     if (cmd.startsWith("/novo_familiar")) {
       const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.split(" ")[1];
-      const nome = cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
+      const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
 
       if (id) {
         setMessages([{
@@ -647,7 +647,7 @@ export const Chat: React.FC = () => {
 
     if (cmd.startsWith("/logpac")) {
       const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.split(" ")[1];
-      const nome = cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
+      const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
 
       if (id) {
         setMessages([{
@@ -787,9 +787,9 @@ export const Chat: React.FC = () => {
 
         const reportText = `**${cad.Nome} (ID: ${cad.ID})**\n\n` +
           `**Cadastro** \`/edit_name ${cad.ID} label:✏️\`\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
-          `**Familiares:** \`/novo_familiar id: ${cad.ID} nome: ${cad.Nome} label:➕\`\n\n${fams || "Nenhum registro"}\n\n` +
-          `**Evoluções:** \`/logpac id: ${cad.ID} nome: ${cad.Nome} label:➕\`\n\n${audios || "Nenhum registro"}\n\n` +
-          `**Imagens:** \`/prep_img id: ${cad.ID} nome: ${cad.Nome} label:➕\`\n\n${docs || "Nenhum registro"}`;
+          `**Familiares:** \`/novo_familiar id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${fams || "Nenhum registro"}\n\n` +
+          `**Evoluções:** \`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${audios || "Nenhum registro"}\n\n` +
+          `**Imagens:** \`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${docs || "Nenhum registro"}`;
 
         setMessages([{ role: "model", text: reportText }]);
         setTimeout(scrollToTop, 0);
@@ -1089,7 +1089,7 @@ export const Chat: React.FC = () => {
         const patientNome = cmdInput.match(/paciente_nome:\s*([^,]+)/i)?.[1]?.trim();
         const nomeParaApi = cmdInput.match(/nome_familiar:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/familiar_nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
         const relacaoParaApi = cmdInput.match(/tipo_parentesco:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/relacao:\s*([^,]+)/i)?.[1]?.trim();
-        const foneParaApi = cmdInput.match(/telefone:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/fone:\s*(.+)/i)?.[1]?.trim();
+        const foneParaApi = cmdInput.match(/telefone:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/fone:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/fone:\s*(.+)/i)?.[1]?.trim();
 
         if (!patientId || !nomeParaApi) throw new Error("Use: /registrar_familiar id: [ID], nome_familiar: [NOME], tipo_parentesco: [TIPO], telefone: [FONE]");
 
