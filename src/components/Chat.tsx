@@ -123,6 +123,19 @@ const MessageForm: React.FC<{
               <span className="text-xs font-medium">Toque para selecionar imagem</span>
             </button>
           )}
+
+          <button 
+            type="button"
+            onClick={() => setUseAI(!useAI)}
+            className={`w-full py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
+              useAI 
+                ? 'bg-purple-50 text-purple-700 border-purple-200 ring-2 ring-purple-100' 
+                : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            <Sparkles size={14} className={useAI ? "text-purple-600" : "text-gray-300"} />
+            {useAI ? "Análise com IA Ativada ✨" : "Ativar Análise Inteligente da Imagem?"}
+          </button>
         </div>
       )}
 
@@ -154,21 +167,6 @@ const MessageForm: React.FC<{
           />
         </div>
       ))}
-
-      {isImageForm && (
-        <button 
-          type="button"
-          onClick={() => setUseAI(!useAI)}
-          className={`w-full py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 border ${
-            useAI 
-              ? 'bg-purple-50 text-purple-700 border-purple-200 ring-2 ring-purple-100' 
-              : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-          }`}
-        >
-          <Sparkles size={16} className={useAI ? "text-purple-600" : "text-gray-400"} />
-          {useAI ? "Análise com IA Ativada ✨" : "Usar IA para Analisar?"}
-        </button>
-      )}
       
       <button 
         type="submit"
@@ -1462,7 +1460,7 @@ export const Chat: React.FC = () => {
 
         // 3. Call Gemini
         const result = await ai.models.generateContent({
-          model: "gemini-1.5-flash",
+          model: "gemini-3-flash-preview",
           contents: [
             {
               role: "user",
