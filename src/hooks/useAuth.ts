@@ -11,7 +11,7 @@ export const useAuth = () => {
     }, 8000);
 
     try {
-      const res = await fetch("/api/auth/status");
+      const res = await fetch("/api/auth/status", { credentials: 'include' });
       clearTimeout(timeoutId);
       
       console.log("[Auth] Status response status:", res.status);
@@ -48,7 +48,7 @@ export const useAuth = () => {
     
     try {
       console.log("[Auth] Fetching auth URL...");
-      const res = await fetch("/api/auth/url");
+      const res = await fetch("/api/auth/url", { credentials: 'include' });
       
       const text = await res.text();
       let data;
@@ -85,7 +85,7 @@ export const useAuth = () => {
   };
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch("/api/auth/logout", { method: "POST", credentials: 'include' });
     setIsAuthenticated(false);
   };
 

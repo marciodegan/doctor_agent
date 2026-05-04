@@ -201,9 +201,11 @@ const getOrCreateImagesFolder = async (auth: any) => {
   return folderId as string;
 };
 
+const COOKIE_NAME = "nexus_auth_token_v1";
+
 // Helper to get auth client from cookie
 const getAuthClient = (req: express.Request) => {
-  const token = req.cookies.google_token;
+  const token = req.cookies[COOKIE_NAME];
   if (!token) return null;
   
   const client = getOAuth2Client(req);
@@ -284,7 +286,7 @@ app.get("/auth/callback", async (req, res) => {
       token_type: tokens.token_type
     };
 
-    res.cookie("google_token", essentialTokens, {
+    res.cookie(COOKIE_NAME, essentialTokens, {
       httpOnly: true,
       secure: true,
       sameSite: "none",
@@ -319,14 +321,15 @@ app.get("/auth/callback", async (req, res) => {
 });
 
 app.get("/api/auth/status", (req, res) => {
-  const token = req.cookies.google_token;
+  const token = req.cookies[COOKIE_NAME];
   const hasToken = !!token;
-  console.log(`[Auth] Status check. Token present: ${hasToken}`);
+  console.log(`[Auth] Status check for ${COOKIE_NAME}. Token present: ${hasToken}`);
   
   res.json({ 
     isAuthenticated: hasToken,
     debug: {
       hasCookie: hasToken,
+      cookieName: COOKIE_NAME,
       cookieKeys: token ? Object.keys(token) : [],
       cookieCount: Object.keys(req.cookies || {}).length,
       allCookies: Object.keys(req.cookies || {}),
@@ -339,6 +342,14 @@ app.get("/api/auth/status", (req, res) => {
 });
 
 app.post("/api/auth/logout", (req, res) => {
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    path: "/",
+    partitioned: true
+  });
+  // Also clear the old one just in case
   res.clearCookie("google_token", {
     httpOnly: true,
     secure: true,

@@ -253,8 +253,17 @@ export const Chat: React.FC = () => {
     setTimeout(scrollToTop, 0);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Clear both possible cookie names just in case
+    document.cookie = "nexus_auth_token_v1=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     document.cookie = "google_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    
+    // Server-side logout to clear httpOnly cookies
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: 'include' });
+    } catch (e) {
+      console.error("Logout failed", e);
+    }
     window.location.reload();
   };
 
