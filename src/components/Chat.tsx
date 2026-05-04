@@ -17,7 +17,12 @@ interface Message {
   };
 }
 
-const MessageForm: React.FC<{ form: any; onSubmit: (cmd: string) => void }> = ({ form, onSubmit }) => {
+const MessageForm: React.FC<{ 
+  form: any; 
+  onSubmit: (cmd: string) => void;
+  selectedImage?: string | null;
+  onSelectImage?: (img: string | null) => void;
+}> = ({ form, onSubmit, selectedImage, onSelectImage }) => {
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     form.fields.forEach((f: any) => {
@@ -26,6 +31,44 @@ const MessageForm: React.FC<{ form: any; onSubmit: (cmd: string) => void }> = ({
     return initial;
   });
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+          } else {
+            if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.7));
+        };
+      };
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onSelectImage) {
+      const dataUrl = await resizeImage(file);
+      onSelectImage(dataUrl);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parts = Object.entries(values).map(([k, v]) => `${k}: ${v}`);
@@ -33,9 +76,47 @@ const MessageForm: React.FC<{ form: any; onSubmit: (cmd: string) => void }> = ({
     onSubmit(fullCmd);
   };
 
+  const isImageForm = form.commandPrefix?.startsWith("/img");
+
   return (
-    <form onSubmit={handleSubmit} className="mt-4 p-4 bg-white/50 rounded-2xl border border-blue-100 space-y-3">
+    <form onSubmit={handleSubmit} className="mt-4 p-4 bg-white/50 rounded-2xl border border-blue-100 space-y-3 shadow-sm">
       {form.title && <h4 className="text-sm font-bold text-blue-800 mb-2">{form.title}</h4>}
+      
+      {isImageForm && (
+        <div className="space-y-2">
+          <label className="text-[10px] uppercase tracking-wider font-bold text-gray-500 ml-1">Anexar Documento / Foto</label>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            className="hidden" 
+            accept="image/*" 
+          />
+          
+          {selectedImage ? (
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-200 group">
+              <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
+              <button 
+                type="button"
+                onClick={() => onSelectImage?.(null)}
+                className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <button 
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full aspect-video bg-white border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all gap-2"
+            >
+              <ImageIcon size={32} />
+              <span className="text-xs font-medium">Toque para selecionar imagem</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {form.fields.map((field: any) => (
         <div key={field.name}>
           <label className="text-[10px] uppercase tracking-wider font-bold text-gray-500 ml-1">{field.label}</label>
@@ -49,6 +130,7 @@ const MessageForm: React.FC<{ form: any; onSubmit: (cmd: string) => void }> = ({
           />
         </div>
       ))}
+      
       <button 
         type="submit"
         className="w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
@@ -432,7 +514,7 @@ export const Chat: React.FC = () => {
         const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - \`/prep_img ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: `🖼️ **Para qual paciente deseja enviar a imagem?**\n\n${list || "Nenhum paciente encontrado."}\n\n*Nota: Primeiro anexe a imagem no ícone de clipe abaixo.*` 
+          text: `🖼️ **Para qual paciente deseja enviar a imagem?**\n\n${list || "Nenhum paciente encontrado."}` 
         }]);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
@@ -443,11 +525,13 @@ export const Chat: React.FC = () => {
     }
 
     if (cmd.startsWith("/prep_img")) {
-      const id = cmdInput.split(" ")[1];
+      const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.split(" ")[1];
+      const nome = cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
+
       if (id) {
-        setMessages(prev => [...prev, { 
-          role: "model", 
-          text: `🖼️ **Anexar Imagem**\n\nIdentificado ID: **${id}**. Clique no clipe de papel abaixo para anexar a imagem e preencha a descrição:`,
+        setMessages([{
+          role: "model",
+          text: `🖼️ **Anexar Imagem**\n\n📌 **Paciente:** ${nome ? `${nome} (ID: ${id})` : `ID: ${id}`}\n\nSelecione a imagem abaixo e preencha a descrição:`,
           form: {
             title: "Descrição da Imagem",
             fields: [
@@ -531,12 +615,13 @@ export const Chat: React.FC = () => {
 
 
     if (cmd.startsWith("/novo_familiar")) {
-      const parts = cmdInput.split(" ");
-      const id = parts[1];
+      const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.split(" ")[1];
+      const nome = cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
+
       if (id) {
-        setMessages(prev => [...prev, { 
-          role: "model", 
-          text: `👪 **Novo Familiar**\n\nCadastrando para o Paciente ID: **${id}**`,
+        setMessages([{
+          role: "model",
+          text: `👪 **Novo Familiar**\n\n📌 **Paciente:** ${nome ? `${nome} (ID: ${id})` : `ID: ${id}`}`,
           form: {
             title: "Dados do Familiar",
             fields: [
@@ -551,7 +636,7 @@ export const Chat: React.FC = () => {
         return true;
       } else {
         setInput("/novo_familiar ");
-        setMessages(prev => [...prev, { 
+        setMessages([{ 
           role: "model", 
           text: "👪 **Novo Familiar**\n\nComplete o comando com o ID do paciente:\n`/novo_familiar [ID]`" 
         }]);
@@ -560,11 +645,13 @@ export const Chat: React.FC = () => {
     }
 
     if (cmd.startsWith("/logpac")) {
-      const id = cmdInput.split(" ")[1];
+      const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.split(" ")[1];
+      const nome = cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
+
       if (id) {
-        setMessages(prev => [...prev, { 
-          role: "model", 
-          text: `📝 **Adicionar Log**\n\nPaciente ID: **${id}**`,
+        setMessages([{
+          role: "model",
+          text: `📝 **Adicionar Log**\n\n📌 **Paciente:** ${nome ? `${nome} (ID: ${id})` : `ID: ${id}`}`,
           form: {
             title: "Texto do Log",
             fields: [
@@ -690,10 +777,10 @@ export const Chat: React.FC = () => {
         const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
 
         const reportText = `**${cad.Nome} (ID: ${cad.ID})**\n\n` +
-          `**Cadastro** ✏️ \`/edit_name ${cad.ID}\`\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
-          `**Familiares:**\n\n${fams || "Nenhum registro"}\n\n` +
-          `**Evoluções:**\n\n${audios || "Nenhum registro"}\n\n` +
-          `**Imagens:**\n\n${docs || "Nenhum registro"}`;
+          `**Cadastro** \`/edit_name ${cad.ID} label:✏️\`\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
+          `**Familiares:** \`/novo_familiar id: ${cad.ID} nome: ${cad.Nome} label:➕\`\n\n${fams || "Nenhum registro"}\n\n` +
+          `**Evoluções:** \`/logpac id: ${cad.ID} nome: ${cad.Nome} label:➕\`\n\n${audios || "Nenhum registro"}\n\n` +
+          `**Imagens:** \`/prep_img id: ${cad.ID} nome: ${cad.Nome} label:➕\`\n\n${docs || "Nenhum registro"}`;
 
         setMessages([{ role: "model", text: reportText }]);
         setTimeout(scrollToTop, 0);
@@ -891,6 +978,7 @@ export const Chat: React.FC = () => {
 
     if (cmd.startsWith("/update_patient")) {
       setIsLoading(true);
+      setMessages([]); // Clear screen immediately
       try {
         const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
         const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
@@ -907,10 +995,9 @@ export const Chat: React.FC = () => {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        setMessages(prev => [...prev, { 
-          role: "model", 
-          text: `✅ **Paciente atualizado com sucesso!**\nID: **${id}**\n\n[Ver Relatório Atualizado](/p ${id})` 
-        }]);
+        // Clear screen and show updated report
+        setMessages([]);
+        handleDirectCommand(`/p ${id}`);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro na atualização: ${err.message}` }]);
       } finally {
@@ -1047,7 +1134,7 @@ export const Chat: React.FC = () => {
     if (cmd.startsWith("/img")) {
       setIsLoading(true);
       try {
-        if (!selectedImage) throw new Error("Anexe uma imagem primeiro clicando no ícone de clipe.");
+        if (!selectedImage) throw new Error("Selecione uma imagem acima antes de enviar.");
         
         const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
         const descMatch = cmdInput.match(/(?:desc|descrição):\s*(.+)/i);
@@ -1395,25 +1482,16 @@ export const Chat: React.FC = () => {
       {/* Messages */}
       <div ref={scrollRef} className="px-2 sm:px-6 py-4 space-y-6">
         <AnimatePresence initial={false}>
-          {messages.map((msg, i) => (
+          {messages.filter(m => m.role === "model").map((msg, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.2 }}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              className="flex justify-start"
             >
-              <div className={`flex gap-3 max-w-[90%] sm:max-w-[85%] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                  msg.role === "user" ? "bg-gray-100 text-gray-600" : "bg-blue-100 text-blue-600"
-                }`}>
-                  {msg.role === "user" ? <User size={16} /> : <Bot size={16} />}
-                </div>
-                <div className={`p-3 rounded-2xl text-sm ${
-                  msg.role === "user" 
-                    ? "bg-blue-600 text-white rounded-tr-none" 
-                    : "bg-gray-100 text-gray-800 rounded-tl-none border border-gray-200"
-                }`}>
+              <div className="flex gap-3 w-full">
+                <div className="p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full">
                   {msg.image && (
                     <img src={msg.image} alt="User upload" className="max-w-full rounded-lg mb-2 shadow-sm" />
                   )}
@@ -1434,27 +1512,29 @@ export const Chat: React.FC = () => {
                               if (isInline && content.startsWith("/")) {
                                 // Customize labels for common commands
                                 let label = content;
-                                if (content.startsWith("/remover_evento")) label = "🗑️";
-                                if (content.startsWith("/pacientes")) label = "📋 Pacientes";
-                                if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
-                                if (content.startsWith("/prep_p") || content.startsWith("/p ")) {
-                                  if (content.includes(" label:")) {
-                                    label = content.split(" label:")[1].trim();
-                                  } else {
+
+                                // General label override support
+                                if (content.includes(" label:")) {
+                                  label = content.split(" label:")[1].trim();
+                                } else {
+                                  if (content.startsWith("/remover_evento")) label = "🗑️";
+                                  if (content.startsWith("/pacientes")) label = "📋 Pacientes";
+                                  if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
+                                  if (content.startsWith("/prep_p") || content.startsWith("/p ")) {
                                     label = "🚀 Relatório";
                                   }
-                                }
-                                if (content.startsWith("/logpac")) label = "📝 Novo Log";
-                                if (content.startsWith("/novo_familiar")) label = "➕ Novo Familiar";
-                                if (content.startsWith("/edit_name")) label = "✏️ Editar Cadastro";
-                                if (content.startsWith("/update_patient")) label = "Confirmar";
-                                if (content.startsWith("/agenda_add")) label = "📅 Agendar";
-                                if (content.startsWith("/status_alterar")) {
-                                  if (content.includes("status ")) {
-                                    const s = content.split("status ")[1];
-                                    label = s;
-                                  } else {
-                                    label = "✏️ Alterar";
+                                  if (content.startsWith("/logpac")) label = "📝 Novo Log";
+                                  if (content.startsWith("/novo_familiar")) label = "➕ Novo Familiar";
+                                  if (content.startsWith("/edit_name")) label = "✏️ Editar Cadastro";
+                                  if (content.startsWith("/update_patient")) label = "Confirmar";
+                                  if (content.startsWith("/agenda_add")) label = "📅 Agendar";
+                                  if (content.startsWith("/status_alterar")) {
+                                    if (content.includes("status ")) {
+                                      const s = content.split("status ")[1];
+                                      label = s;
+                                    } else {
+                                      label = "✏️ Alterar";
+                                    }
                                   }
                                 }
                                 if (content.startsWith("/status_select")) {
@@ -1514,6 +1594,8 @@ export const Chat: React.FC = () => {
                         <MessageForm 
                           form={msg.form} 
                           onSubmit={(cmd) => handleSend(undefined, cmd)} 
+                          selectedImage={selectedImage}
+                          onSelectImage={setSelectedImage}
                         />
                       )}
                     </>
@@ -1559,57 +1641,18 @@ export const Chat: React.FC = () => {
 
       {/* Suggested Actions */}
       {!isLoading && (
-        <div className="px-4 pb-2 flex flex-wrap gap-2 shrink-0">
+        <div className="px-4 pb-4 flex flex-wrap gap-2 shrink-0 border-t pt-4 bg-gray-50/50">
           {suggestions.map((s, i) => (
             <button
               key={i}
               onClick={() => handleSend(undefined, s.prompt, true)}
-              className="text-[11px] font-bold px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all uppercase tracking-wide"
+              className="text-[11px] font-bold px-3 py-1.5 bg-white border border-gray-200 rounded-full text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all uppercase tracking-wide shadow-sm"
             >
               {s.label}
             </button>
           ))}
         </div>
       )}
-
-      {/* Input */}
-      <form onSubmit={handleSend} className="p-3 sm:p-6 border-t bg-gray-50 shrink-0">
-        <div className="relative flex gap-2">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageSelect}
-            className="hidden"
-            accept="image/*"
-          />
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-11 h-11 bg-white border border-gray-200 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-200 transition-colors"
-              title="Upload Image"
-            >
-              <ImageIcon size={20} />
-            </button>
-          </div>
-          <div className="relative flex-1">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Message your agent..."
-              className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm shadow-sm"
-            />
-            <button
-              type="submit"
-              disabled={isLoading || (!input.trim() && !selectedImage)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-            >
-              <Send size={16} />
-            </button>
-          </div>
-        </div>
-      </form>
     </div>
   );
 };
