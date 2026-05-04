@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, User, Bot, Loader2, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings } from "lucide-react";
+import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { tools, executeTool } from "../lib/gemini";
 
