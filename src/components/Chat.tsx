@@ -625,12 +625,12 @@ export const Chat: React.FC = () => {
           form: {
             title: "Dados do Familiar",
             fields: [
-              { label: "Nome do Familiar", name: "nome", type: "text" },
+              { label: "Nome do Familiar", name: "familiar_nome", type: "text" },
               { label: "Grau de Parentesco", name: "relacao", type: "text", placeholder: "Ex: Filho(a), Esposa..." },
               { label: "Telefone", name: "fone", type: "text" },
             ],
             submitLabel: "Salvar Familiar",
-            commandPrefix: `/registrar_familiar id: ${id},`
+            commandPrefix: `/registrar_familiar id: ${id}, p_nome: ${nome || ""},`
           }
         }]);
         return true;
@@ -1077,16 +1077,17 @@ export const Chat: React.FC = () => {
       setIsLoading(true);
       try {
         const patientId = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
-        const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
+        const patientNome = cmdInput.match(/p_nome:\s*([^,]+)/i)?.[1]?.trim();
+        const nome = cmdInput.match(/familiar_nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
         const relacao = cmdInput.match(/relacao:\s*([^,]+)/i)?.[1]?.trim();
         const fone = cmdInput.match(/fone:\s*(.+)/i)?.[1]?.trim();
 
-        if (!patientId || !nome) throw new Error("Use: /registrar_familiar id: [ID], nome: [NOME], relacao: [TIPO], fone: [FONE]");
+        if (!patientId || !nome) throw new Error("Use: /registrar_familiar id: [ID], familiar_nome: [NOME], relacao: [TIPO], fone: [FONE]");
 
         const res = await fetch("/api/app/family-members", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ patientId, nome, relacao, fone })
+          body: JSON.stringify({ patientId, nome, relacao, fone, patientNome })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
