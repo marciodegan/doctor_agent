@@ -265,17 +265,24 @@ export const Chat: React.FC = () => {
       setIsLoading(true);
       try {
         let eventDate = new Date();
-        const dateParts = dataStr.split("-");
-        if (dateParts.length === 3) {
-          const [d, m, y] = dateParts;
-          eventDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-        } else {
-          // Try slash format too just in case
-          const altParts = dataStr.split("/");
-          if (altParts.length === 3) {
-            const [d, m, y] = altParts;
+        
+        // Handle YYYY-MM-DD (from date picker) or DD-MM-YYYY (manual)
+        if (dataStr.includes("-")) {
+          const parts = dataStr.split("-");
+          if (parts[0].length === 4) {
+            // YYYY-MM-DD
+            const [y, m, d] = parts;
+            eventDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+          } else {
+            // DD-MM-YYYY
+            const [d, m, y] = parts;
             eventDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
           }
+        } else if (dataStr.includes("/")) {
+          const parts = dataStr.split("/");
+          // DD/MM/YYYY
+          const [d, m, y] = parts;
+          eventDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
         }
 
         const timeParts = hora.split(":");
@@ -365,7 +372,8 @@ export const Chat: React.FC = () => {
           `**📅 Sua Agenda (${formatDate(tomorrow)}):**\n\n${tomorrowList || "Sem compromissos."}\n\n` +
           `*Nota: Esta agenda é pessoal e visível apenas para você.*`;
 
-        setMessages(prev => [...prev, { role: "model", text: fullAgenda }]);
+        setMessages([{ role: "model", text: fullAgenda }]);
+        setTimeout(scrollToTop, 0);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar agenda: ${err.message}` }]);
       } finally {
@@ -395,7 +403,8 @@ export const Chat: React.FC = () => {
     if (cmd === "/iniciaragenda") {
       const today = new Date();
       const pad = (n: number) => n.toString().padStart(2, "0");
-      const hojeStr = `${pad(today.getDate())}-${pad(today.getMonth() + 1)}-${today.getFullYear()}`;
+      const hojeStrIso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`; // YYYY-MM-DD for picker
+      const agoraStr = `${pad(today.getHours())}:00`;
       
       setMessages(prev => [...prev, { 
         role: "model", 
@@ -404,8 +413,8 @@ export const Chat: React.FC = () => {
           title: "Agendar Compromisso",
           fields: [
             { label: "Evento / Descrição", name: "evento", type: "text", placeholder: "Ex: Consulta de Retorno" },
-            { label: "Data (DD-MM-AAAA)", name: "data", type: "text", defaultValue: hojeStr },
-            { label: "Horário (HH:MM)", name: "hora", type: "text", defaultValue: "09:00" },
+            { label: "Data", name: "data", type: "date", defaultValue: hojeStrIso },
+            { label: "Horário", name: "hora", type: "time", defaultValue: agoraStr },
           ],
           submitLabel: "Adicionar à Agenda",
           commandPrefix: "/agendar"
@@ -681,7 +690,8 @@ export const Chat: React.FC = () => {
           `**Evoluções:**\n\n${audios || "Nenhum registro"}\n\n` +
           `**Imagens:**\n\n${docs || "Nenhum registro"}`;
 
-        setMessages(prev => [...prev, { role: "model", text: reportText }]);
+        setMessages([{ role: "model", text: reportText }]);
+        setTimeout(scrollToTop, 0);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
       } finally {
@@ -721,11 +731,10 @@ export const Chat: React.FC = () => {
         const pageData = sortedData.slice(start, end);
 
         const list = pageData.map((p: any) => 
-          `--- \n` +
-          `👤 **${p.nome}** (ID: ${p.id}) \n` +
-          `📍 Status: **${p.status || "Não informado"}** \n` +
-          `👉 \`/p ${p.id}\` | \`/edit_name ${p.id}\` | \`/status_alterar ${p.id}\``
-        ).join("\n\n");
+          `👤 \`/p ${p.id} label:${p.nome}\` (**ID: ${p.id}**)\n` +
+          `🔹 Status: **${p.status || "N/A"}**\n` +
+          `✏️ \`/edit_name ${p.id}\` | 🔄 \`/status_alterar ${p.id}\``
+        ).join("\n\n---\n\n");
 
         let nav = "";
         const cmdName = cmd.startsWith("/pacientes") ? "/pacientes" : "/cadastro";
@@ -737,10 +746,11 @@ export const Chat: React.FC = () => {
 
         const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`${cmdName} sort:nome\` (A-Z)\n• \`${cmdName} sort:id\` (Mais recentes)`;
 
-        setMessages(prev => [...prev, { 
+        setMessages([{ 
           role: "model", 
           text: `📂 **Cadastro de Pacientes (${data.length} total):**\n\n${list || "Nenhum paciente encontrado."}${nav}${sortOptions}` 
         }]);
+        setTimeout(scrollToTop, 0);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
       } finally {
@@ -812,9 +822,10 @@ export const Chat: React.FC = () => {
           }]);
         } else {
           const list = pageData.map((p: any) => 
-            `• **${p.nome}** (ID: ${p.id})\n` +
-            `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
-          ).join("\n\n");
+            `👤 \`/p ${p.id} label:${p.nome}\` (**ID: ${p.id}**)\n` +
+            `🔹 Status: **${p.status || "N/A"}**\n` +
+            `✏️ \`/edit_name ${p.id}\` | 🔄 \`/status_alterar ${p.id}\``
+          ).join("\n\n---\n\n");
           
           let nav = "";
           if (totalPages > 1) {
@@ -826,10 +837,11 @@ export const Chat: React.FC = () => {
 
           const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`/buscar ${termo ? `termo:${termo} ` : ""}sort:nome\` (A-Z)\n• \`/buscar ${termo ? `termo:${termo} ` : ""}sort:id\` (Mais recentes)`;
 
-          setMessages(prev => [...prev, { 
+          setMessages([{ 
             role: "model", 
             text: `🔍 **Resultados para "${termo || "todos"}":**\n\n${list}${nav}${sortOptions}` 
           }]);
+          setTimeout(scrollToTop, 0);
         }
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro na busca: ${err.message}` }]);
@@ -851,7 +863,7 @@ export const Chat: React.FC = () => {
         
         const p = pData.cadastro;
         
-        setMessages(prev => [...prev, { 
+        setMessages([{ 
           role: "model", 
           text: `✏️ **Editar Cadastro: ${p.Nome} (ID: ${p.ID})**`,
           form: {
@@ -865,6 +877,7 @@ export const Chat: React.FC = () => {
             commandPrefix: `/update_patient id: ${id},`
           }
         }]);
+        setTimeout(scrollToTop, 0);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar paciente: ${err.message}` }]);
       } finally {
@@ -1234,7 +1247,7 @@ export const Chat: React.FC = () => {
   };
 
   return (
-    <div id="nexus-chat" className="flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative mt-4 md:mt-0">
+    <div id="nexus-chat" className="flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative">
       {/* Header */}
       <div className="p-4 border-b bg-gray-50 flex items-center justify-between border-gray-100 shrink-0">
         <div className="flex items-center gap-2">
@@ -1419,7 +1432,13 @@ export const Chat: React.FC = () => {
                                 if (content.startsWith("/remover_evento")) label = "🗑️";
                                 if (content.startsWith("/pacientes") || content.startsWith("/cadastro")) label = "📋 Cadastro";
                                 if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
-                                if (content.startsWith("/prep_p") || content.startsWith("/p ")) label = "🚀 Relatório";
+                                if (content.startsWith("/prep_p") || content.startsWith("/p ")) {
+                                  if (content.includes(" label:")) {
+                                    label = content.split(" label:")[1].trim();
+                                  } else {
+                                    label = "🚀 Relatório";
+                                  }
+                                }
                                 if (content.startsWith("/logpac")) label = "📝 Novo Log";
                                 if (content.startsWith("/novo_familiar")) label = "➕ Novo Familiar";
                                 if (content.startsWith("/edit_name")) label = "✏️ Editar Cadastro";
@@ -1461,7 +1480,17 @@ export const Chat: React.FC = () => {
 
                                 return (
                                   <button
-                                    onClick={() => handleSend(undefined, content)}
+                                    onClick={() => {
+                                      const shouldClear = content.startsWith("/p ") || 
+                                                          content.startsWith("/edit_name") || 
+                                                          content.startsWith("/pacientes") || 
+                                                          content.startsWith("/cadastro") ||
+                                                          content.startsWith("/status_alterar") ||
+                                                          content.startsWith("/buscar") ||
+                                                          content.startsWith("/hospitais") ||
+                                                          content.startsWith("/agenda");
+                                      handleSend(undefined, content, shouldClear);
+                                    }}
                                     className="not-prose bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-mono font-bold hover:bg-blue-100 transition-colors cursor-pointer border border-blue-100 mx-0.5"
                                   >
                                     {label}
