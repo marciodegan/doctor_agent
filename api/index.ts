@@ -28,13 +28,24 @@ const getRedirectUri = (req?: express.Request) => {
   const host = req?.get("host") || "unknown-host";
   let protocol = req?.get("x-forwarded-proto") || "https";
   
-  // Localhost fallback to http if proto not explicit
+  // Use origin if available for precision
+  const origin = req?.get("origin") || req?.get("referer");
+  if (origin && (origin.includes(".run.app") || origin.includes("localhost"))) {
+    try {
+      const originUrl = new URL(origin);
+      const uri = `${originUrl.protocol}//${originUrl.host}/auth/callback`;
+      console.log(`[OAuth] Redirect URI from origin: ${uri}`);
+      return uri;
+    } catch (e) {}
+  }
+
+  // Localhost fallback
   if ((host.includes("localhost") || host.includes("127.0.0.1")) && !req?.get("x-forwarded-proto")) {
     protocol = "http";
   }
 
   const uri = `${protocol}://${host}/auth/callback`;
-  console.log(`[OAuth] Redirect URI: ${uri}`);
+  console.log(`[OAuth] Calculated Redirect URI: ${uri}`);
   return uri;
 };
 
@@ -393,24 +404,20 @@ app.get("/api/auth/poll/:state", (req, res) => {
   const { state } = req.params;
   let tokens = pendingSessions.get(state);
   
-  // Fallback to cookies if Map is empty (Serverless instances)
-  if (!tokens) {
-    tokens = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["google_token"];
-  }
-
-  if (tokens) {
-    console.log(`[Auth] Poll success for state: ${state}`);
-    // We don't delete from map here if it was a cookie fallback, 
-    // but it's fine either way as we consume it on client.
-    return res.json({ tokens });
+  // Fallback to cookies if Map is empty or session transitioned
+  const cookieTokens = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME];
+  
+  if (tokens || cookieTokens) {
+    console.log(`[Auth] Poll success for state: ${state} (Map: ${!!tokens}, Cookie: ${!!cookieTokens})`);
+    if (tokens) pendingSessions.delete(state);
+    return res.json({ tokens: tokens || cookieTokens });
   }
   
   res.status(404).json({ 
-    error: "Session not found",
+    error: "Session pending",
     debug: {
       hasStateInMap: pendingSessions.has(state),
-      cookieCount: Object.keys(req.cookies || {}).length,
-      cookies: Object.keys(req.cookies || {})
+      cookieCount: Object.keys(req.cookies || {}).length
     }
   });
 });
