@@ -9,7 +9,56 @@ interface Message {
   text: string;
   image?: string;
   audio?: string;
+  form?: {
+    title?: string;
+    fields: { label: string; name: string; type: string; placeholder?: string; defaultValue?: string }[];
+    submitLabel: string;
+    commandPrefix: string;
+  };
 }
+
+const MessageForm: React.FC<{ form: any; onSubmit: (cmd: string) => void }> = ({ form, onSubmit }) => {
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    form.fields.forEach((f: any) => {
+      initial[f.name] = f.defaultValue || "";
+    });
+    return initial;
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parts = Object.entries(values).map(([k, v]) => `${k}: ${v}`);
+    const fullCmd = `${form.commandPrefix} ${parts.join(", ")}`;
+    onSubmit(fullCmd);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 p-4 bg-white/50 rounded-2xl border border-blue-100 space-y-3">
+      {form.title && <h4 className="text-sm font-bold text-blue-800 mb-2">{form.title}</h4>}
+      {form.fields.map((field: any) => (
+        <div key={field.name}>
+          <label className="text-[10px] uppercase tracking-wider font-bold text-gray-500 ml-1">{field.label}</label>
+          <input 
+            type={field.type}
+            value={values[field.name]}
+            onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
+            placeholder={field.placeholder}
+            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            required
+          />
+        </div>
+      ))}
+      <button 
+        type="submit"
+        className="w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+      >
+        <Plus size={16} />
+        {form.submitLabel}
+      </button>
+    </form>
+  );
+};
 
 export const Chat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -113,6 +162,7 @@ export const Chat: React.FC = () => {
     { label: "📅 Agendar", prompt: "/iniciaragenda" },
     { label: "📅 Agenda", prompt: "/agenda" },
     { label: "🏥 Hospitais", prompt: "/hospitais" },
+    { label: "🏷️ Status", prompt: "/status_menu" },
     { label: "❓ Ajuda", prompt: "/ajuda" },
   ];
 
@@ -316,31 +366,39 @@ export const Chat: React.FC = () => {
     if (cmd === "/iniciarcadastro") {
       setMessages(prev => [...prev, { 
         role: "model", 
-        text: `👤 **Cadastro de Novo Paciente**\n\n` +
-              `Para registrar um novo paciente, use o comando abaixo:\n\n` +
-              `\`/registrar nome: [NOME], fone: [TELEFONE], idade: [IDADE]\`\n\n` +
-              `**Exemplo:**\n\`/registrar nome: João Silva, fone: (51) 98888-7777, idade: 30\`\n\n` +
-              `*Clique no comando abaixo para carregar o modelo no chat:*`
+        text: `👤 **Cadastro de Novo Paciente**\n\nPreencha os dados abaixo para registrar:`,
+        form: {
+          title: "Novo Paciente",
+          fields: [
+            { label: "Nome do Paciente", name: "nome", type: "text", placeholder: "Ex: João Silva" },
+            { label: "Telefone", name: "fone", type: "text", placeholder: "Ex: (51) 98888-7777" },
+            { label: "Idade", name: "idade", type: "text", placeholder: "Ex: 30" },
+          ],
+          submitLabel: "Registrar Paciente",
+          commandPrefix: "/registrar"
+        }
       }]);
-      setInput("/registrar nome: , fone: , idade: ");
-      return "PREFILL";
+      return true;
     }
 
     if (cmd === "/iniciaragenda") {
       const today = new Date();
-      const tomorrow = new Date();
-      tomorrow.setDate(today.getDate() + 1);
-      
       const pad = (n: number) => n.toString().padStart(2, "0");
       const hojeStr = `${pad(today.getDate())}-${pad(today.getMonth() + 1)}-${today.getFullYear()}`;
-      const amanhaStr = `${pad(tomorrow.getDate())}-${pad(tomorrow.getMonth() + 1)}-${tomorrow.getFullYear()}`;
       
       setMessages(prev => [...prev, { 
         role: "model", 
-        text: "📅 **Novo Agendamento**\n\nEscolha uma opção para facilitar:\n\n" +
-              `- Hoje \`/agendar data: ${hojeStr}, hora: 09:00, evento: \`\n` +
-              `- Amanhã \`/agendar data: ${amanhaStr}, hora: 09:00, evento: \`\n\n` +
-              "Ou preencha manualmente:\n`/agendar data: DD-MM-AAAA, hora: HH:MM, evento: NOME`" 
+        text: "📅 **Novo Agendamento**\n\nPreencha os detalhes do compromisso:",
+        form: {
+          title: "Agendar Compromisso",
+          fields: [
+            { label: "Evento / Descrição", name: "evento", type: "text", placeholder: "Ex: Consulta de Retorno" },
+            { label: "Data (DD-MM-AAAA)", name: "data", type: "text", defaultValue: hojeStr },
+            { label: "Horário (HH:MM)", name: "hora", type: "text", defaultValue: "09:00" },
+          ],
+          submitLabel: "Adicionar à Agenda",
+          commandPrefix: "/agendar"
+        }
       }]);
       return true;
     }
@@ -368,8 +426,19 @@ export const Chat: React.FC = () => {
     if (cmd.startsWith("/prep_img")) {
       const id = cmdInput.split(" ")[1];
       if (id) {
-        setInput(`/img id: ${id}, descrição: `);
-        return "PREFILL";
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `🖼️ **Anexar Imagem**\n\nIdentificado ID: **${id}**. Clique no clipe de papel abaixo para anexar a imagem e preencha a descrição:`,
+          form: {
+            title: "Descrição da Imagem",
+            fields: [
+              { label: "Descrição / Título", name: "descrição", type: "text", placeholder: "Ex: Raio-X do tórax" }
+            ],
+            submitLabel: "Enviar Imagem",
+            commandPrefix: `/img id: ${id},`
+          }
+        }]);
+        return true;
       }
     }
 
@@ -446,12 +515,21 @@ export const Chat: React.FC = () => {
       const parts = cmdInput.split(" ");
       const id = parts[1];
       if (id) {
-        setInput(`/registrar_familiar id: ${id}, nome: , relacao: , fone: `);
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: `👪 **Novo Familiar**\n\nComplete o comando no chat e envie:\n\`/registrar_familiar id: ${id}, nome: [NOME], relacao: [TIPO], fone: [FONE]\`` 
+          text: `👪 **Novo Familiar**\n\nCadastrando para o Paciente ID: **${id}**`,
+          form: {
+            title: "Dados do Familiar",
+            fields: [
+              { label: "Nome do Familiar", name: "nome", type: "text" },
+              { label: "Grau de Parentesco", name: "relacao", type: "text", placeholder: "Ex: Filho(a), Esposa..." },
+              { label: "Telefone", name: "fone", type: "text" },
+            ],
+            submitLabel: "Salvar Familiar",
+            commandPrefix: `/registrar_familiar id: ${id},`
+          }
         }]);
-        return "PREFILL";
+        return true;
       } else {
         setInput("/novo_familiar ");
         setMessages(prev => [...prev, { 
@@ -465,8 +543,19 @@ export const Chat: React.FC = () => {
     if (cmd.startsWith("/logpac")) {
       const id = cmdInput.split(" ")[1];
       if (id) {
-        setInput(`/log id: ${id}, texto: `);
-        return "PREFILL";
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `📝 **Adicionar Log**\n\nPaciente ID: **${id}**`,
+          form: {
+            title: "Texto do Log",
+            fields: [
+              { label: "O que aconteceu?", name: "texto", type: "text", placeholder: "Descreva a atualização..." }
+            ],
+            submitLabel: "Salvar Evolução",
+            commandPrefix: `/log id: ${id},`
+          }
+        }]);
+        return true;
       }
     }
 
@@ -597,21 +686,141 @@ export const Chat: React.FC = () => {
             role: "model", 
             text: `📂 **Lista de Pacientes:**\n\n${list || "Nenhum paciente encontrado."}` 
           }]);
+        } else if (cmd === "/status_menu") {
+          setIsLoading(true);
+          try {
+            const statusRes = await fetch("/api/app/statuses");
+            const statuses = await statusRes.json();
+            
+            const list = statuses.map((s: string, idx: number) => 
+              `${idx + 1} - ${s} \`/status_select ${s}\``
+            ).join("\n");
+
+            setMessages(prev => [...prev, { 
+              role: "model", 
+              text: `🏷️ **Selecione o Status que deseja aplicar:**\n\n${list}`
+            }]);
+          } catch (err: any) {
+            setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar status: ${err.message}` }]);
+          } finally {
+            setIsLoading(false);
+            return true;
+          }
+        } else if (cmd.startsWith("/status_select")) {
+          const status = cmdInput.slice("/status_select".length).trim();
+          if (!status) throw new Error("Status não informado.");
+          
+          setIsLoading(true);
+          try {
+            const res = await fetch("/api/app/patients");
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            
+            const list = data.map((p: any) => 
+              `• **${p.nome}** (ID: ${p.id}) - \`/status_apply status: ${status}, pac: ${p.id}\``
+            ).join("\n\n");
+
+            setMessages(prev => [...prev, { 
+              role: "model", 
+              text: `🏷️ **Aplicar Status: ${status}**\n\nSelecione o paciente:\n\n${list || "Nenhum paciente encontrado."}`
+            }]);
+          } catch (err: any) {
+            setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar pacientes: ${err.message}` }]);
+          } finally {
+            setIsLoading(false);
+            return true;
+          }
+        } else if (cmd.startsWith("/status_apply")) {
+          // Format: /status_apply status: [STATUS], pac: [ID]
+          const statusMatch = cmdInput.match(/status:\s*([^,]+)/i);
+          const pacMatch = cmdInput.match(/pac:\s*([\w-]+)/i);
+          
+          const status = statusMatch ? statusMatch[1].trim() : null;
+          const id = pacMatch ? pacMatch[1].trim() : null;
+          
+          if (!id || !status) throw new Error("Status ou ID não identificados.");
+          
+          setIsLoading(true);
+          try {
+            const res = await fetch("/api/app/patients/status", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ patientId: id, status })
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            
+            setMessages(prev => [...prev, { 
+              role: "model", 
+              text: `✅ **Status atualizado e registrado!**\nPaciente: **${id}**\nNovo Status: **${status}**` 
+            }]);
+          } catch (err: any) {
+            setMessages(prev => [...prev, { role: "model", text: `❌ Erro na atualização: ${err.message}` }]);
+          } finally {
+            setIsLoading(false);
+            return true;
+          }
+        } else if (cmdInput.startsWith("/status_alterar pac")) {
+          // Format: /status_alterar pac [ID], status [STATUS]
+          const idMatch = cmdInput.match(/pac\s+([\w-]+)/i);
+          const statusMatch = cmdInput.match(/status\s+(.+)$/i);
+          
+          const id = idMatch ? idMatch[1] : null;
+          const status = statusMatch ? statusMatch[1].trim() : null;
+          
+          if (!id || !status) throw new Error("ID ou Status não informados no formato correto.");
+          
+          setIsLoading(true);
+          try {
+            const res = await fetch("/api/app/patients/status", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ patientId: id, status })
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            
+            setMessages(prev => [...prev, { 
+              role: "model", 
+              text: `✅ **Status atualizado com sucesso!**\nPaciente ID: **${id}**\nNovo Status: **${status}**` 
+            }]);
+          } catch (err: any) {
+            setMessages(prev => [...prev, { role: "model", text: `❌ Erro na atualização: ${err.message}` }]);
+          } finally {
+            setIsLoading(false);
+            return true;
+          }
         } else if (cmd.startsWith("/status_alterar")) {
           const id = cmdInput.split(" ")[1];
           if (!id) throw new Error("ID não informado.");
           
-          setMessages(prev => [...prev, { 
-            role: "model", 
-            text: `✏️ **Alterar Status (ID: ${id})**\n\n` +
-                  `Escolha o novo status para este paciente:\n\n` +
-                  `- \`/set_status ${id} Pré-operatorio\`\n` +
-                  `- \`/set_status ${id} Pós-operatorio\`\n` +
-                  `- \`/set_status ${id} Acompanhamento\`\n` +
-                  `- \`/set_status ${id} Alta\`\n` +
-                  `- \`/set_status ${id} Não informado\``
-          }]);
+          setIsLoading(true);
+          try {
+            // Get patient info first
+            const pRes = await fetch(`/api/app/patient-report/${id}`);
+            const pData = await pRes.json();
+            const pName = pData.cadastro?.Nome || "Paciente";
+
+            const statusRes = await fetch("/api/app/statuses");
+            const statuses = await statusRes.json();
+            
+            const list = statuses.map((s: string, idx: number) => 
+              `${idx + 1} - ${s} \`/status_alterar pac ${id}, status ${s}\``
+            ).join("\n");
+
+            setMessages(prev => [...prev, { 
+              role: "model", 
+              text: `🚀 **Relatório Direto: ${pName} (ID: ${id})**\n\n` +
+                    `**Alterar status:**\n\n${list}`
+            }]);
+          } catch (err: any) {
+            setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar status: ${err.message}` }]);
+          } finally {
+            setIsLoading(false);
+            return true;
+          }
         } else if (cmd.startsWith("/set_status")) {
+          // Backward compatibility or for manual typing
           const parts = cmdInput.split(" ");
           const id = parts[1];
           const status = parts.slice(2).join(" ");
@@ -630,6 +839,7 @@ export const Chat: React.FC = () => {
             role: "model", 
             text: `✅ **Status atualizado com sucesso!**\nPaciente ID: **${id}**\nNovo Status: **${status}**` 
           }]);
+          return true;
         } else if (cmd.startsWith("/familiares")) {
           const id = cmdInput.split(" ")[1] || "all";
           const res = await fetch(`/api/app/family-members/${id}`);
@@ -1122,58 +1332,81 @@ export const Chat: React.FC = () => {
                   {msg.role === "user" ? (
                     <div className="whitespace-pre-wrap">{msg.text}</div>
                   ) : (
-                    <div className="markdown-body prose prose-sm max-w-none">
-                      <ReactMarkdown
-                        components={{
-                          code({ children, ...props }) {
-                            const content = String(children);
-                            // Check if it's inline (no className which usually defines language-*)
-                            const isInline = !props.className;
-                            if (isInline && content.startsWith("/")) {
-                              // Customize labels for common commands
-                              let label = content;
-                              if (content.startsWith("/remover_evento")) label = "🗑️ Remover";
-                              if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
-                              if (content.startsWith("/prep_p") || content.startsWith("/p ")) label = "🚀 Relatório";
-                              if (content.startsWith("/logpac")) label = "📝 Novo Log";
-                              if (content.startsWith("/novo_familiar")) label = "➕ Novo Familiar";
-                              if (content.startsWith("/agenda_add")) label = "📅 Agendar";
-                              if (content.startsWith("/status_alterar")) label = "✏️ Alterar";
-                              if (content.startsWith("/set_status")) {
-                                const s = content.split(" ").slice(2).join(" ");
-                                label = s;
-                              }
-                              if (content.startsWith("/agendar data:")) {
-                                const dateMatch = content.match(/data:\s*([\d-]+)/);
-                                const date = dateMatch ? dateMatch[1] : "";
-                                const today = new Date();
-                                const pad = (n: number) => n.toString().padStart(2, "0");
-                                const hojeStr = `${pad(today.getDate())}-${pad(today.getMonth() + 1)}-${today.getFullYear()}`;
-                                const tomorrow = new Date();
-                                tomorrow.setDate(today.getDate() + 1);
-                                const amanhaStr = `${pad(tomorrow.getDate())}-${pad(tomorrow.getMonth() + 1)}-${tomorrow.getFullYear()}`;
-                                
-                                if (date === hojeStr) label = `Hoje ${date}`;
-                                else if (date === amanhaStr) label = `Amanhã ${date}`;
-                                else label = content;
-                              }
+                    <>
+                      <div className="markdown-body prose prose-sm max-w-none">
+                        <ReactMarkdown
+                          components={{
+                            code({ children, ...props }) {
+                              const content = String(children);
+                              // Check if it's inline (no className which usually defines language-*)
+                              const isInline = !props.className;
+                              if (isInline && content.startsWith("/")) {
+                                // Customize labels for common commands
+                                let label = content;
+                                if (content.startsWith("/remover_evento")) label = "🗑️ Remover";
+                                if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
+                                if (content.startsWith("/prep_p") || content.startsWith("/p ")) label = "🚀 Relatório";
+                                if (content.startsWith("/logpac")) label = "📝 Novo Log";
+                                if (content.startsWith("/novo_familiar")) label = "➕ Novo Familiar";
+                                if (content.startsWith("/agenda_add")) label = "📅 Agendar";
+                                if (content.startsWith("/status_alterar")) {
+                                  if (content.includes("status ")) {
+                                    const s = content.split("status ")[1];
+                                    label = s;
+                                  } else {
+                                    label = "✏️ Alterar";
+                                  }
+                                }
+                                if (content.startsWith("/status_select")) {
+                                  label = content.split("/status_select ")[1] || "Selecionar";
+                                }
+                                if (content.startsWith("/status_apply")) {
+                                  const idMatch = content.match(/pac:\s*([\w-]+)/i);
+                                  label = idMatch ? `Aplicar ao ID: ${idMatch[1]}` : "Confirmar";
+                                }
+                                if (content.startsWith("/set_status")) {
+                                  const s = content.split(" ").slice(2).join(" ");
+                                  label = s;
+                                }
+                                if (content.startsWith("/agendar data:")) {
+                                  const dateMatch = content.match(/data:\s*([\d-]+)/);
+                                  const date = dateMatch ? dateMatch[1] : "";
+                                  const today = new Date();
+                                  const pad = (n: number) => n.toString().padStart(2, "0");
+                                  const hojeStr = `${pad(today.getDate())}-${pad(today.getMonth() + 1)}-${today.getFullYear()}`;
+                                  const tomorrow = new Date();
+                                  tomorrow.setDate(today.getDate() + 1);
+                                  const amanhaStr = `${pad(tomorrow.getDate())}-${pad(tomorrow.getMonth() + 1)}-${tomorrow.getFullYear()}`;
+                                  
+                                  if (date === hojeStr) label = `Hoje ${date}`;
+                                  else if (date === amanhaStr) label = `Amanhã ${date}`;
+                                  else label = content;
+                                }
 
-                              return (
-                                <button
-                                  onClick={() => handleSend(undefined, content)}
-                                  className="not-prose bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-mono font-bold hover:bg-blue-100 transition-colors cursor-pointer border border-blue-100 mx-0.5"
-                                >
-                                  {label}
-                                </button>
-                              );
+                                return (
+                                  <button
+                                    onClick={() => handleSend(undefined, content)}
+                                    className="not-prose bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-mono font-bold hover:bg-blue-100 transition-colors cursor-pointer border border-blue-100 mx-0.5"
+                                  >
+                                    {label}
+                                  </button>
+                                );
+                              }
+                              return <code {...props}>{children}</code>;
                             }
-                            return <code {...props}>{children}</code>;
-                          }
-                        }}
-                      >
-                        {msg.text}
-                      </ReactMarkdown>
-                    </div>
+                          }}
+                        >
+                          {msg.text}
+                        </ReactMarkdown>
+                      </div>
+
+                      {msg.form && (
+                        <MessageForm 
+                          form={msg.form} 
+                          onSubmit={(cmd) => handleSend(undefined, cmd)} 
+                        />
+                      )}
+                    </>
                   )}
                 </div>
               </div>

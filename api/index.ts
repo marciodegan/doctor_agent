@@ -61,7 +61,8 @@ const SHEET_TABS = {
   FAMILIARES: "Familiares",
   SETTINGS: "Configuracoes",
   HOSPITAIS: "Hospitais",
-  STATUSES: "Statuses"
+  STATUSES: "Statuses",
+  STATUS_LOG: "Log de Status"
 };
 
 // --- Helper for Unifying Databases ---
@@ -100,7 +101,8 @@ const getOrCreateMasterSheet = async (auth: any) => {
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome Familiar", "Tipo de Relação", "Telefone", "ID do Paciente", "Nome do Paciente"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.HOSPITAIS}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome do Hospital", "Telefone", "Contato 1", "Contato 2", "Contato 3", "Contato 4", "Contato 5"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:A6`, valueInputOption: "RAW", requestBody: { values: [["Nome"], ["Pré-operatorio"], ["Pós-operatorio"], ["Acompanhamento"], ["Alta"], ["Não informado"]] } })
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:A6`, valueInputOption: "RAW", requestBody: { values: [["Nome"], ["Pré-operatorio"], ["Pós-operatorio"], ["Acompanhamento"], ["Alta"], ["Não informado"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } })
     ]);
   } else {
     // Ensure all tabs exist
@@ -122,6 +124,9 @@ const getOrCreateMasterSheet = async (auth: any) => {
       for (const tab of missingTabs) {
         if (tab === SHEET_TABS.STATUSES) {
           await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUSES}!A1:A6`, valueInputOption: "RAW", requestBody: { values: [["Nome"], ["Pré-operatorio"], ["Pós-operatorio"], ["Acompanhamento"], ["Alta"], ["Não informado"]] } });
+        }
+        if (tab === SHEET_TABS.STATUS_LOG) {
+          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } });
         }
       }
       console.log(`[Drive] Added missing tabs: ${missingTabs.join(", ")}`);
@@ -335,7 +340,7 @@ app.get("/api/app/patients", async (req, res) => {
       nome: row[1],
       fone: row[2],
       idade: row[3],
-      status: row[4] || "Acompanhamento"
+      status: row[4] || "Não informado"
     }));
 
     res.json(patients);
@@ -664,6 +669,7 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
   const sheets = google.sheets({ version: "v4", auth });
+  const oauth2 = google.oauth2({ version: "v2", auth });
   const { patientId, status } = req.body;
 
   if (!patientId || !status) return res.status(400).json({ error: "PatientID e Status são obrigatórios." });
@@ -671,10 +677,15 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
   try {
     const fileId = await getOrCreateMasterSheet(auth);
 
-    // 1. Find row index for the patient ID
+    // 1. Get User Info
+    const userInfo = await oauth2.userinfo.get();
+    const userId = userInfo.data.id || "Unknown";
+    const userName = userInfo.data.name || userInfo.data.email || "Unknown User";
+
+    // 2. Find row index for the patient ID and get the name
     const valuesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!A:A`,
+      range: `${SHEET_TABS.CADASTRO}!A:B`,
     });
     const rows = valuesRes.data.values || [];
     const rowIndex = rows.findIndex(row => row[0] === patientId.toString());
@@ -683,7 +694,9 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
       return res.status(404).json({ error: `Paciente com ID ${patientId} não encontrado.` });
     }
 
-    // 2. Update Column E (Status) at the specific row
+    const patientName = rows[rowIndex][1];
+
+    // 3. Update Column E (Status) at the specific row
     const rowNumber = rowIndex + 1;
     await sheets.spreadsheets.values.update({
       spreadsheetId: fileId,
@@ -694,7 +707,44 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
       }
     });
 
+    // 4. Log in Log de Status
+    const now = new Date();
+    const dateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.STATUS_LOG}!A:D`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[patientId, patientName, status, dateStr]]
+      }
+    });
+
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get all allowed statuses
+app.get("/api/app/statuses", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const sheets = google.sheets({ version: "v4", auth });
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+
+    const valuesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.STATUSES}!A:A`,
+    });
+
+    const rows = valuesRes.data.values || [];
+    const statuses = rows.slice(1).map(row => row[0]).filter(Boolean);
+
+    res.json(statuses);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
