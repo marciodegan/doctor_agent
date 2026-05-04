@@ -154,7 +154,8 @@ export const Chat: React.FC = () => {
   };
 
   const suggestions = [
-    { label: "👤 Pacientes", prompt: "/iniciarrelat" },
+    { label: "🔍 Buscar", prompt: "/edit_menu" },
+    { label: "👤 Pacientes", prompt: "/pacientes" },
     { label: "📝 Notes", prompt: "/iniciarlog" },
     { label: "👪 Familiar", prompt: "/iniciarfamiliar" },
     { label: "👤 Novo", prompt: "/iniciarcadastro" },
@@ -660,8 +661,10 @@ export const Chat: React.FC = () => {
             role: "model", 
             text: "🤖 **Nexus Shortcuts (Zero Tokens):**\n\n" +
                   "- `/pacientes`: Lista todos os pacientes (Banco Compartilhado).\n" +
+                  "- `/buscar [NOME]`: Busca paciente por nome.\n" +
                   "- `/p [ID]`: Relatório rápido (ex: `/p 2`).\n" +
                   "- `/edit_name [ID]`: Editar nome, fone ou idade do paciente.\n" +
+                  "- `/edit_menu`: Atalho direto para buscar e editar.\n" +
                   "- `/familiares [ID]`: Lista familiares de um paciente.\n" +
                   "- `/novo_familiar [ID]`: Atalho para cadastrar familiar.\n" +
                   "- `/registrar_familiar id: [ID], nome: [N], relacao: [R], fone: [F]`: Cadastro de familiar.\n" +
@@ -694,6 +697,56 @@ export const Chat: React.FC = () => {
             role: "model", 
             text: `📂 **Lista de Pacientes:**\n\n${list || "Nenhum paciente encontrado."}` 
           }]);
+        } else if (cmd === "/edit_menu") {
+          setMessages(prev => [...prev, { 
+            role: "model", 
+            text: "🔍 **Buscar Paciente para Editar**\n\nDigite o nome ou parte dele:",
+            form: {
+              title: "Buscar Paciente",
+              fields: [
+                { label: "Nome do Paciente", name: "termo", type: "text" },
+              ],
+              submitLabel: "Procurar",
+              commandPrefix: "/buscar termo:"
+            }
+          }]);
+          return true;
+        } else if (cmd.startsWith("/buscar")) {
+          setIsLoading(true);
+          try {
+            const termo = cmdInput.match(/termo:\s*(.+)/i)?.[1]?.trim() || cmdInput.replace("/buscar", "").trim();
+            if (!termo) throw new Error("Informe um nome para buscar.");
+
+            const res = await fetch("/api/app/patients");
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            const matches = data.filter((p: any) => 
+              p.nome.toLowerCase().includes(termo.toLowerCase()) || 
+              p.id.toString() === termo
+            );
+
+            if (matches.length === 0) {
+              setMessages(prev => [...prev, { 
+                role: "model", 
+                text: `❌ Nenhum paciente encontrado para "**${termo}**".` 
+              }]);
+            } else {
+              const list = matches.map((p: any) => 
+                `• **${p.nome}** (ID: ${p.id})\n` +
+                `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
+              ).join("\n\n");
+              setMessages(prev => [...prev, { 
+                role: "model", 
+                text: `🔍 **Resultados para "${termo}":**\n\n${list}` 
+              }]);
+            }
+          } catch (err: any) {
+            setMessages(prev => [...prev, { role: "model", text: `❌ Erro na busca: ${err.message}` }]);
+          } finally {
+            setIsLoading(false);
+            return true;
+          }
         } else if (cmd.startsWith("/edit_name")) {
           const id = cmdInput.split(" ")[1];
           if (!id) throw new Error("ID não informado.");
