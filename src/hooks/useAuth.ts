@@ -120,12 +120,15 @@ export const useAuth = () => {
         }
 
         if (state) {
+          console.log("[Auth] Starting session poll for state:", state);
+          let pollAttempts = 0;
           pollIntervalRef.current = window.setInterval(async () => {
+            pollAttempts++;
             try {
               const pollRes = await fetch(`/api/auth/poll/${state}`, { credentials: 'include' });
               if (pollRes.ok) {
                 const pollData = await pollRes.json();
-                console.log("[Auth] Poll success!");
+                console.log("[Auth] Poll success! Tokens found.");
                 if (pollIntervalRef.current) {
                   clearInterval(pollIntervalRef.current);
                   pollIntervalRef.current = null;
@@ -142,15 +145,18 @@ export const useAuth = () => {
                 if (popup && !popup.closed) popup.close();
               } else if (pollRes.status === 404) {
                 const errData = await pollRes.json().catch(() => ({}));
-                if (errData.debug?.cookieCount > 0) {
-                   console.log("[Auth] Poll 404 but cookies found. This is unusual.", errData.debug);
+                if (pollAttempts % 5 === 0) {
+                  console.log(`[Auth] Polling... (Attempt ${pollAttempts})`, errData.debug);
                 }
               }
-            } catch (e) {}
+            } catch (e) {
+              console.error("[Auth] Poll fetch error:", e);
+            }
           }, 2000);
 
           const checkPopup = setInterval(() => {
             if (popup.closed) {
+              console.log("[Auth] Popup closed by user/system");
               clearInterval(checkPopup);
               setTimeout(() => {
                 if (pollIntervalRef.current) {
@@ -158,7 +164,7 @@ export const useAuth = () => {
                   pollIntervalRef.current = null;
                 }
                 checkAuth();
-              }, 1000);
+              }, 1500);
             }
           }, 1000);
         }

@@ -210,8 +210,12 @@ const getOrCreateImagesFolder = async (auth: any) => {
 const COOKIE_NAME = "__Secure-nexus-p-v1";
 const LEGACY_COOKIE_NAME = "__Secure-nexus-u-v1";
 
-// Cache for pending sessions to bridge the gap between popup and iframe
-const pendingSessions = new Map<string, any>();
+// Use global storage for serverless persistence (best effort)
+const globalStore = global as any;
+if (!globalStore.pendingSessions) {
+  globalStore.pendingSessions = new Map<string, any>();
+}
+const pendingSessions: Map<string, any> = globalStore.pendingSessions;
 
 // Helper to get auth client from cookie
 const getAuthClient = (req: express.Request) => {
@@ -337,10 +341,13 @@ app.get("/auth/callback", async (req, res) => {
             <div id="content">
               <div class="spinner"></div>
               <h2>Sincronizando...</h2>
-              <p>Autenticação concluída com sucesso. Estamos vinculando sua sessão ao aplicativo.</p>
+              <p>Autenticação concluída! Estamos vinculando sua sessão. Você pode fechar esta janela agora.</p>
             </div>
-            <a href="/" class="btn" id="finish-btn">CONCLUIR MANUALMENTE</a>
-            <div id="debug-status" class="status">Comunicando com o app...</div>
+            
+            <button onclick="copyTokens()" class="btn" id="finish-btn">CONCLUIR LOGIN</button>
+            
+            <div id="debug-status" class="status">Tentando comunicação direta...</div>
+
             <script>
               const tokens = ${JSON.stringify(essentialTokens)};
               const payload = { type: 'OAUTH_AUTH_SUCCESS', tokens, timestamp: Date.now() };
@@ -363,28 +370,27 @@ app.get("/auth/callback", async (req, res) => {
               const interval = setInterval(() => {
                 count++;
                 notify();
-                document.getElementById('debug-status').innerText = "Sincronizando... (" + count + ")";
+                document.getElementById('debug-status').innerText = "Comunicando com o app... (" + count + ")";
                 
-                if (count >= 10) {
+                if (count >= 15) {
                   clearInterval(interval);
-                  document.getElementById('content').innerHTML = "<h2>Pronto!</h2><p>Tudo certo! Você já pode voltar ao Nexus.</p>";
-                  document.getElementById('debug-status').innerText = "Sincronização finalizada.";
+                  document.getElementById('content').innerHTML = "<h2>Login Pronto</h2><p>Pode fechar esta janela e voltar ao Nexus.</p>";
+                  document.getElementById('debug-status').innerText = "Processo finalizado.";
                 }
               }, 1000);
 
-              document.getElementById('finish-btn').onclick = function() {
+              window.copyTokens = function() {
                 notify();
                 setTimeout(() => {
                   if (window.opener) window.close();
                   else window.location.href = '/';
                 }, 500);
-                return false;
               };
 
-              // Auto-close if we are a popup
+              // Auto-close if successful
               setTimeout(() => {
-                if (window.opener) window.close();
-              }, 15000);
+                 if (window.opener) window.close();
+              }, 20000);
             </script>
           </div>
         </body>
