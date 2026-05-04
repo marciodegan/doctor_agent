@@ -136,7 +136,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900 pt-[calc(env(safe-area-inset-top,0px)+24px)]">
       {/* Sidebar - Desktop Only */}
       <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-20">
         <div className="flex items-center gap-2 mb-10 px-2">

@@ -168,9 +168,16 @@ export const Chat: React.FC = () => {
 
   useEffect(() => {
     if (scrollRef.current) {
+      // Default behavior is still scroll to bottom for new messages
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
+
+  const scrollToTop = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  };
 
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve) => {
@@ -1069,6 +1076,10 @@ export const Chat: React.FC = () => {
     const promptToSend = customPrompt || input;
     if (!promptToSend.trim() && !selectedImage || isLoading) return;
 
+    if (customPrompt) {
+      scrollToTop();
+    }
+
     const userMessage = promptToSend.trim();
     const userImage = selectedImage;
 
@@ -1161,7 +1172,7 @@ export const Chat: React.FC = () => {
   };
 
   return (
-    <div id="nexus-chat" className="flex flex-col h-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative">
+    <div id="nexus-chat" className="flex flex-col h-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative mt-4 md:mt-0">
       {/* Header */}
       <div className="p-4 border-b bg-gray-50 flex items-center justify-between border-gray-100 shrink-0">
         <div className="flex items-center gap-2">
