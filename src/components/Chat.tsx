@@ -689,8 +689,8 @@ export const Chat: React.FC = () => {
         const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
         const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
 
-        const reportText = `🚀 **Relatório Direto: ${cad.Nome} (ID: ${cad.ID})**\n\n` +
-          `**Cadastro:**\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n- \`/edit_name ${cad.ID}\`\n\n` +
+        const reportText = `**${cad.Nome} (ID: ${cad.ID})**\n\n` +
+          `**Cadastro** ✏️ \`/edit_name ${cad.ID}\`\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
           `**Familiares:**\n\n${fams || "Nenhum registro"}\n\n` +
           `**Evoluções:**\n\n${audios || "Nenhum registro"}\n\n` +
           `**Imagens:**\n\n${docs || "Nenhum registro"}`;
@@ -736,7 +736,7 @@ export const Chat: React.FC = () => {
         const pageData = sortedData.slice(start, end);
 
         const list = pageData.map((p: any) => 
-          `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**\n` +
+          `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**  \n` +
           `📍 **Status:** ${p.status || "Não informado"}`
         ).join("\n\n---\n\n");
 
@@ -826,7 +826,7 @@ export const Chat: React.FC = () => {
           }]);
         } else {
           const list = pageData.map((p: any) => 
-            `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**\n` +
+            `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**  \n` +
             `📍 **Status:** ${p.status || "Não informado"}`
           ).join("\n\n---\n\n");
           
