@@ -726,6 +726,65 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
   }
 });
 
+// Update patient information (Generic)
+app.post("/api/app/patients/update", express.json(), async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const sheets = google.sheets({ version: "v4", auth });
+  const { id, nome, fone, idade } = req.body;
+
+  if (!id) return res.status(400).json({ error: "ID do paciente é obrigatório." });
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+
+    // Find row index
+    const valuesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.CADASTRO}!A:A`,
+    });
+    const rows = valuesRes.data.values || [];
+    const rowIndex = rows.findIndex(row => row[0] === id.toString());
+
+    if (rowIndex === -1) {
+      return res.status(404).json({ error: `Paciente com ID ${id} não encontrado.` });
+    }
+
+    const rowNumber = rowIndex + 1;
+    
+    // Update individual cells if provided
+    if (nome) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: fileId,
+        range: `${SHEET_TABS.CADASTRO}!B${rowNumber}`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [[nome]] }
+      });
+    }
+    if (fone) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: fileId,
+        range: `${SHEET_TABS.CADASTRO}!C${rowNumber}`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [[fone]] }
+      });
+    }
+    if (idade) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: fileId,
+        range: `${SHEET_TABS.CADASTRO}!D${rowNumber}`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [[idade]] }
+      });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // Get all allowed statuses
 app.get("/api/app/statuses", async (req, res) => {
   const auth = getAuthClient(req);

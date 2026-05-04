@@ -661,6 +661,7 @@ export const Chat: React.FC = () => {
             text: "🤖 **Nexus Shortcuts (Zero Tokens):**\n\n" +
                   "- `/pacientes`: Lista todos os pacientes (Banco Compartilhado).\n" +
                   "- `/p [ID]`: Relatório rápido (ex: `/p 2`).\n" +
+                  "- `/edit_name [ID]`: Editar nome, fone ou idade do paciente.\n" +
                   "- `/familiares [ID]`: Lista familiares de um paciente.\n" +
                   "- `/novo_familiar [ID]`: Atalho para cadastrar familiar.\n" +
                   "- `/registrar_familiar id: [ID], nome: [N], relacao: [R], fone: [F]`: Cadastro de familiar.\n" +
@@ -687,12 +688,72 @@ export const Chat: React.FC = () => {
           const list = data.map((p: any) => 
             `• **${p.nome}** (ID: ${p.id})\n` +
             `  Status: **${p.status || "Não informado"}** \`/status_alterar ${p.id}\`\n` +
-            `  \`/p ${p.id}\``
+            `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
           ).join("\n\n");
           setMessages(prev => [...prev, { 
             role: "model", 
             text: `📂 **Lista de Pacientes:**\n\n${list || "Nenhum paciente encontrado."}` 
           }]);
+        } else if (cmd.startsWith("/edit_name")) {
+          const id = cmdInput.split(" ")[1];
+          if (!id) throw new Error("ID não informado.");
+          
+          setIsLoading(true);
+          try {
+            const pRes = await fetch(`/api/app/patient-report/${id}`);
+            const pData = await pRes.json();
+            if (pData.error) throw new Error(pData.error);
+            
+            const p = pData.cadastro;
+            
+            setMessages(prev => [...prev, { 
+              role: "model", 
+              text: `✏️ **Editar Cadastro: ${p.Nome} (ID: ${p.ID})**`,
+              form: {
+                title: "Atualizar Dados",
+                fields: [
+                  { label: "Nome", name: "nome", type: "text", defaultValue: p.Nome },
+                  { label: "Telefone", name: "fone", type: "text", defaultValue: p.Telefone || "" },
+                  { label: "Idade", name: "idade", type: "text", defaultValue: p.Idade || "" },
+                ],
+                submitLabel: "Salvar Alterações",
+                commandPrefix: `/update_patient id: ${id},`
+              }
+            }]);
+          } catch (err: any) {
+            setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar paciente: ${err.message}` }]);
+          } finally {
+            setIsLoading(false);
+            return true;
+          }
+        } else if (cmd.startsWith("/update_patient")) {
+          setIsLoading(true);
+          try {
+            const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
+            const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
+            const fone = cmdInput.match(/fone:\s*([^,]+)/i)?.[1]?.trim();
+            const idade = cmdInput.match(/idade:\s*(.+)/i)?.[1]?.trim();
+
+            if (!id) throw new Error("ID não identificado.");
+
+            const res = await fetch("/api/app/patients/update", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id, nome, fone, idade })
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            setMessages(prev => [...prev, { 
+              role: "model", 
+              text: `✅ **Paciente atualizado com sucesso!**\nID: **${id}**\n\n[Ver Relatório Atualizado](/p ${id})` 
+            }]);
+          } catch (err: any) {
+            setMessages(prev => [...prev, { role: "model", text: `❌ Erro na atualização: ${err.message}` }]);
+          } finally {
+            setIsLoading(false);
+            return true;
+          }
         } else if (cmd === "/status_menu") {
           setIsLoading(true);
           try {
@@ -893,7 +954,7 @@ export const Chat: React.FC = () => {
           const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
 
           const reportText = `🚀 **Relatório Direto: ${cad.Nome} (ID: ${cad.ID})**\n\n` +
-            `**Cadastro:**\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
+            `**Cadastro:**\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n- \`/edit_name ${cad.ID}\`\n\n` +
             `**Familiares:**\n\n${fams || "Nenhum registro"}\n\n` +
             `**Evoluções:**\n\n${audios || "Nenhum registro"}\n\n` +
             `**Imagens:**\n\n${docs || "Nenhum registro"}`;
@@ -1359,6 +1420,8 @@ export const Chat: React.FC = () => {
                                 if (content.startsWith("/prep_p") || content.startsWith("/p ")) label = "🚀 Relatório";
                                 if (content.startsWith("/logpac")) label = "📝 Novo Log";
                                 if (content.startsWith("/novo_familiar")) label = "➕ Novo Familiar";
+                                if (content.startsWith("/edit_name")) label = "✏️ Editar Cadastro";
+                                if (content.startsWith("/update_patient")) label = "Confirmar";
                                 if (content.startsWith("/agenda_add")) label = "📅 Agendar";
                                 if (content.startsWith("/status_alterar")) {
                                   if (content.includes("status ")) {
