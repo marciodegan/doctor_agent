@@ -25,6 +25,11 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
 
 const getRedirectUri = (req?: express.Request) => {
+  // Allow explicit override via environment variable
+  if (process.env.GOOGLE_REDIRECT_URL) {
+    return process.env.GOOGLE_REDIRECT_URL;
+  }
+
   // Use x-forwarded-host as priority for Vercel/proxies
   const host = req?.get("x-forwarded-host") || req?.get("host") || "unknown-host";
   let protocol = req?.get("x-forwarded-proto") || "https";
@@ -321,9 +326,10 @@ app.get("/auth/callback", async (req, res) => {
             p { color: #4b5563; font-size: 0.9375rem; margin-bottom: 2rem; line-height: 1.5; }
             .spinner { width: 48px; height: 48px; border: 4px solid #e5e7eb; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem; }
             @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            .btn { background: #2563eb; color: white; border: none; padding: 0.875rem 1.75rem; border-radius: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s; display: inline-block; text-decoration: none; margin-top: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-            .btn:hover { background: #1d4ed8; transform: translateY(-1px); }
-            .status { margin-top: 1.5rem; font-size: 0.8125rem; color: #6b7280; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem; }
+            .btn { background: #2563eb; color: white; border: none; padding: 1.25rem 2rem; border-radius: 1rem; font-weight: 800; cursor: pointer; transition: all 0.2s; display: block; text-decoration: none; margin: 1.5rem auto 0; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4); text-transform: uppercase; font-size: 0.875rem; letter-spacing: 0.05em; }
+            .btn:hover { background: #1d4ed8; transform: translateY(-2px); box-shadow: 0 20px 25px -5px rgba(37, 99, 235, 0.5); }
+            .btn:active { transform: translateY(0); }
+            .status { margin-top: 2rem; font-size: 0.75rem; color: #9ca3af; font-family: monospace; }
           </style>
         </head>
         <body>
@@ -395,7 +401,18 @@ app.get("/api/auth/poll/:state", (req, res) => {
   let tokens = pendingSessions.get(state);
   
   // Fallback to cookies if Map is empty or session transitioned
-  const cookieTokens = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME];
+  // We check ALL possible cookies to find something that looks like tokens
+  let cookieTokens = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME];
+  
+  if (!cookieTokens) {
+    for (const name in req.cookies) {
+      const val = req.cookies[name];
+      if (val && typeof val === "object" && val.access_token) {
+        cookieTokens = val;
+        break;
+      }
+    }
+  }
   
   if (tokens || cookieTokens) {
     console.log(`[Auth] Poll success for state: ${state} (Map: ${!!tokens}, Cookie: ${!!cookieTokens})`);
@@ -407,7 +424,8 @@ app.get("/api/auth/poll/:state", (req, res) => {
     error: "Session pending",
     debug: {
       hasStateInMap: pendingSessions.has(state),
-      cookieCount: Object.keys(req.cookies || {}).length
+      cookieCount: Object.keys(req.cookies || {}).length,
+      cookieNames: Object.keys(req.cookies || {})
     }
   });
 });
