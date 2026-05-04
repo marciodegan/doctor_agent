@@ -37,6 +37,7 @@ const MessageForm: React.FC<{
     });
     return initial;
   });
+  const [useAI, setUseAI] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,7 +80,8 @@ const MessageForm: React.FC<{
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parts = Object.entries(values).map(([k, v]) => `${k}: ${v}`);
-    const fullCmd = `${form.commandPrefix} ${parts.join(", ")}`;
+    let fullCmd = `${form.commandPrefix} ${parts.join(", ")}`;
+    if (useAI) fullCmd += ", useAI: true";
     onSubmit(fullCmd);
   };
 
@@ -152,6 +154,21 @@ const MessageForm: React.FC<{
           />
         </div>
       ))}
+
+      {isImageForm && (
+        <button 
+          type="button"
+          onClick={() => setUseAI(!useAI)}
+          className={`w-full py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 border ${
+            useAI 
+              ? 'bg-purple-50 text-purple-700 border-purple-200 ring-2 ring-purple-100' 
+              : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          <Sparkles size={16} className={useAI ? "text-purple-600" : "text-gray-400"} />
+          {useAI ? "Análise com IA Ativada ✨" : "Usar IA para Analisar?"}
+        </button>
+      )}
       
       <button 
         type="submit"
@@ -1328,8 +1345,9 @@ export const Chat: React.FC = () => {
         if (!selectedImage) throw new Error("Selecione uma imagem acima antes de enviar.");
         
         const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
-        const descMatch = cmdInput.match(/(?:desc|descrição):\s*(.+)/i);
+        const descMatch = cmdInput.match(/(?:desc|descrição):\s*([^,]+)/i);
         const desc = descMatch ? descMatch[1]?.trim() : "";
+        const useAI = cmdInput.includes("useAI: true");
 
         if (!id) throw new Error("Use: /img id: [ID], desc: [Opcional]");
 
@@ -1352,7 +1370,15 @@ export const Chat: React.FC = () => {
         if (data.error) throw new Error(data.error);
 
         setMessages([]);
-        await handleDirectCommand(`/p ${id}`);
+        
+        if (useAI && data.fileId) {
+          await handleDirectCommand(`/p ${id}`);
+          setMessages(prev => [...prev, { role: "model", text: "⏳ **Solicitando análise inteligente da imagem enviada...**" }]);
+          await handleDirectCommand(`/ai_analyze id: ${data.fileId}, pId: ${id}`);
+        } else {
+          await handleDirectCommand(`/p ${id}`);
+        }
+
         setSelectedImage(null); // Clear image after upload
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro no upload: ${err.message}` }]);
@@ -1436,7 +1462,7 @@ export const Chat: React.FC = () => {
 
         // 3. Call Gemini
         const result = await ai.models.generateContent({
-          model: "gemini-2.0-flash",
+          model: "gemini-1.5-flash",
           contents: [
             {
               role: "user",
