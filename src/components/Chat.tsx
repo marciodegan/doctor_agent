@@ -683,20 +683,63 @@ export const Chat: React.FC = () => {
                   "💡 **Privacidade:** Pacientes são compartilhados com a equipe, mas a Agenda é individual de cada conta Google." +
                   dbInfoStr
           }]);
-        } else if (cmd === "/pacientes") {
-          const res = await fetch("/api/app/patients");
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
-          
-          const list = data.map((p: any) => 
-            `• **${p.nome}** (ID: ${p.id})\n` +
-            `  Status: **${p.status || "Não informado"}** \`/status_alterar ${p.id}\`\n` +
-            `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
-          ).join("\n\n");
-          setMessages(prev => [...prev, { 
-            role: "model", 
-            text: `📂 **Lista de Pacientes:**\n\n${list || "Nenhum paciente encontrado."}` 
-          }]);
+        } else if (cmd.startsWith("/pacientes")) {
+          setIsLoading(true);
+          try {
+            const res = await fetch("/api/app/patients");
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            
+            let page = 1;
+            let sort = "id";
+            
+            const pagMatch = cmdInput.match(/pag:\s*(\d+)/i);
+            if (pagMatch) page = parseInt(pagMatch[1]);
+            
+            const sortMatch = cmdInput.match(/sort:\s*(\w+)/i);
+            if (sortMatch) sort = sortMatch[1].toLowerCase();
+
+            // Sorting logic
+            const sortedData = [...data];
+            if (sort === "nome") {
+              sortedData.sort((a, b) => a.nome.localeCompare(b.nome));
+            } else {
+              // Default sort by ID descending (recents)
+              sortedData.sort((a, b) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
+            }
+
+            const PAGE_SIZE = 8;
+            const totalPages = Math.ceil(sortedData.length / PAGE_SIZE);
+            const pageToView = Math.max(1, Math.min(page, totalPages || 1));
+            const start = (pageToView - 1) * PAGE_SIZE;
+            const end = start + PAGE_SIZE;
+            const pageData = sortedData.slice(start, end);
+
+            const list = pageData.map((p: any) => 
+              `• **${p.nome}** (ID: ${p.id})\n` +
+              `  Status: **${p.status || "Não informado"}** \`/status_alterar ${p.id}\`\n` +
+              `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
+            ).join("\n\n");
+
+            let nav = "";
+            if (totalPages > 1) {
+              nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
+              if (pageToView > 1) nav += ` \`/pacientes pag:${pageToView - 1} sort:${sort}\` `;
+              if (pageToView < totalPages) nav += ` \`/pacientes pag:${pageToView + 1} sort:${sort}\` `;
+            }
+
+            const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`/pacientes sort:nome\` (A-Z)\n• \`/pacientes sort:id\` (Mais recentes)`;
+
+            setMessages(prev => [...prev, { 
+              role: "model", 
+              text: `📂 **Lista de Pacientes (${data.length} total):**\n\n${list || "Nenhum paciente encontrado."}${nav}${sortOptions}` 
+            }]);
+          } catch (err: any) {
+            setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
+          } finally {
+            setIsLoading(false);
+            return true;
+          }
         } else if (cmd === "/edit_menu") {
           setMessages(prev => [...prev, { 
             role: "model", 
@@ -714,31 +757,68 @@ export const Chat: React.FC = () => {
         } else if (cmd.startsWith("/buscar")) {
           setIsLoading(true);
           try {
-            const termo = cmdInput.match(/termo:\s*(.+)/i)?.[1]?.trim() || cmdInput.replace("/buscar", "").trim();
-            if (!termo) throw new Error("Informe um nome para buscar.");
+            const termo = cmdInput.match(/termo:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.replace("/buscar", "").split(" ")[1] || "";
+            let page = 1;
+            let sort = "id";
 
+            const pagMatch = cmdInput.match(/pag:\s*(\d+)/i);
+            if (pagMatch) page = parseInt(pagMatch[1]);
+            
+            const sortMatch = cmdInput.match(/sort:\s*(\w+)/i);
+            if (sortMatch) sort = sortMatch[1].toLowerCase();
+
+            if (!termo && cmdInput.includes("termo:")) throw new Error("Informe um nome para buscar.");
+            
             const res = await fetch("/api/app/patients");
             const data = await res.json();
             if (data.error) throw new Error(data.error);
 
-            const matches = data.filter((p: any) => 
-              p.nome.toLowerCase().includes(termo.toLowerCase()) || 
-              p.id.toString() === termo
-            );
+            let filtered = data;
+            if (termo) {
+              filtered = data.filter((p: any) => 
+                p.nome.toLowerCase().includes(termo.toLowerCase()) || 
+                p.id.toString() === termo
+              );
+            }
 
-            if (matches.length === 0) {
+            // Sorting logic
+            if (sort === "nome") {
+              filtered.sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+            } else {
+              filtered.sort((a: any, b: any) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
+            }
+
+            const PAGE_SIZE = 8;
+            const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+            const pageToView = Math.max(1, Math.min(page, totalPages || 1));
+            const start = (pageToView - 1) * PAGE_SIZE;
+            const end = start + PAGE_SIZE;
+            const pageData = filtered.slice(start, end);
+
+            if (filtered.length === 0) {
               setMessages(prev => [...prev, { 
                 role: "model", 
-                text: `❌ Nenhum paciente encontrado para "**${termo}**".` 
+                text: `❌ Nenhum paciente encontrado para "**${termo || "todos"}**".` 
               }]);
             } else {
-              const list = matches.map((p: any) => 
+              const list = pageData.map((p: any) => 
                 `• **${p.nome}** (ID: ${p.id})\n` +
                 `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
               ).join("\n\n");
+              
+              let nav = "";
+              if (totalPages > 1) {
+                nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
+                const searchBase = termo ? `termo:${termo}` : "";
+                if (pageToView > 1) nav += ` \`/buscar ${searchBase} pag:${pageToView - 1} sort:${sort}\` `;
+                if (pageToView < totalPages) nav += ` \`/buscar ${searchBase} pag:${pageToView + 1} sort:${sort}\` `;
+              }
+
+              const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`/buscar ${termo ? `termo:${termo} ` : ""}sort:nome\` (A-Z)\n• \`/buscar ${termo ? `termo:${termo} ` : ""}sort:id\` (Mais recentes)`;
+
               setMessages(prev => [...prev, { 
                 role: "model", 
-                text: `🔍 **Resultados para "${termo}":**\n\n${list}` 
+                text: `🔍 **Resultados para "${termo || "todos"}":**\n\n${list}${nav}${sortOptions}` 
               }]);
             }
           } catch (err: any) {
