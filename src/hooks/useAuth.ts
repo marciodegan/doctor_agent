@@ -57,7 +57,9 @@ export const useAuth = () => {
 
     // Listen via postMessage
     const handleMessage = (event: MessageEvent) => {
+      console.log("[Auth] Message received:", event.data?.type, "from", event.origin);
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
+        console.log("[Auth] Valid auth message received from popup");
         processAuthSuccess(event.data.tokens);
       }
     };

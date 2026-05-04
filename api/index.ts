@@ -201,11 +201,12 @@ const getOrCreateImagesFolder = async (auth: any) => {
   return folderId as string;
 };
 
-const COOKIE_NAME = "__Secure-nexus-auth-v1";
+const COOKIE_NAME = "n_session_p";
+const LEGACY_COOKIE_NAME = "n_session_u";
 
 // Helper to get auth client from cookie
 const getAuthClient = (req: express.Request) => {
-  const token = req.cookies[COOKIE_NAME] || req.cookies["nexus_auth_token_v1"] || req.cookies["google_token"];
+  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["google_token"] || req.cookies["__Secure-nexus-auth-v1"] || req.cookies["nexus_auth_token_v1"];
   if (!token) return null;
   
   const client = getOAuth2Client(req);
@@ -286,7 +287,16 @@ app.get("/auth/callback", async (req, res) => {
       token_type: tokens.token_type
     };
 
-    // Still set it here as fallback for non-iframe usage
+    // 1. Set Legacy Cookie (Unpartitioned)
+    res.cookie(LEGACY_COOKIE_NAME, essentialTokens, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    });
+
+    // 2. Set Partitioned Cookie (For better iframe support in modern Chrome)
     res.cookie(COOKIE_NAME, essentialTokens, {
       httpOnly: true,
       secure: true,
@@ -308,55 +318,94 @@ app.get("/auth/callback", async (req, res) => {
             p { color: #6b7280; font-size: 0.875rem; margin-bottom: 2rem; }
             .spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem; }
             @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            .btn { background: #111827; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-            .btn:hover { background: #1f2937; }
+            .btn { background: #111827; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-block; text-decoration: none; }
+            .btn:hover { background: #1f2937; transform: translateY(-1px); }
+            .btn:active { transform: translateY(0); }
+            .status { margin-top: 1rem; font-size: 0.75rem; color: #9ca3af; }
           </style>
         </head>
         <body>
           <div class="card">
             <div class="spinner"></div>
             <h2>Autenticação concluída!</h2>
-            <p>Sincronizando com seu workspace. Esta janela será fechada automaticamente em instantes.</p>
-            <button class="btn" onclick="window.close()">Fechar Janela</button>
+            <p>Estamos sincronizando sua conta com o sistema. Esta janela deve fechar automaticamente.</p>
+            <a href="/" class="btn" id="finish-btn">Concluir Manualmente</a>
+            <div id="debug-status" class="status">Tentando comunicação...</div>
+            
             <script>
               const tokens = ${JSON.stringify(essentialTokens)};
-              const authChannel = new BroadcastChannel('nexus_auth_channel');
-              
-              function finish() {
-                try {
-                  console.log("[OAuth] Notifying application...");
-                  
-                  const payload = { 
-                    type: 'OAUTH_AUTH_SUCCESS', 
-                    tokens: tokens 
-                  };
+              const payload = { 
+                type: 'OAUTH_AUTH_SUCCESS', 
+                tokens: tokens,
+                source: 'callback_page'
+              };
 
-                  // 1. BroadcastChannel (Preferred)
+              function updateStatus(msg) {
+                console.log("[OAuth]", msg);
+                document.getElementById('debug-status').innerText = msg;
+              }
+
+              function notify() {
+                let sent = false;
+                
+                // 1. BroadcastChannel
+                try {
+                  const authChannel = new BroadcastChannel('nexus_auth_channel');
                   authChannel.postMessage(payload);
-                  
-                  // 2. window.opener (Legacy fallback)
+                  updateStatus("Enviado via canal de transmissão");
+                  sent = true;
+                  setTimeout(() => authChannel.close(), 1000);
+                } catch (e) {
+                  console.error("BroadcastChannel error", e);
+                }
+
+                // 2. window.opener
+                try {
                   if (window.opener) {
                     window.opener.postMessage(payload, '*');
+                    updateStatus("Enviado via janela principal");
+                    sent = true;
                   }
-                  
-                  // 3. LocalStorage signaller (Safety fallback)
+                } catch (e) {
+                  console.error("postMessage error", e);
+                }
+
+                // 3. LocalStorage signaller
+                try {
                   localStorage.setItem('nexus_auth_success', JSON.stringify({ 
                     timestamp: Date.now(), 
                     tokens: tokens 
                   }));
-                  
-                  console.log("[OAuth] Notifications sent");
-                  setTimeout(() => {
-                    authChannel.close();
-                    window.close();
-                  }, 2500);
+                  updateStatus("Sinalizado via armazenamento local");
+                  sent = true;
                 } catch (e) {
-                  console.error("[OAuth] Error in callback script:", e);
-                  window.location.href = '/';
+                  console.error("LocalStorage error", e);
                 }
+
+                return sent;
               }
 
-              finish();
+              // Try multiple times as the opener might not be ready
+              let attempts = 0;
+              const interval = setInterval(() => {
+                attempts++;
+                const ok = notify();
+                if (ok && attempts > 5) {
+                   clearInterval(interval);
+                   updateStatus("Sincronizado! Fechando...");
+                   setTimeout(() => window.close(), 1500);
+                }
+                if (attempts > 30) clearInterval(interval);
+              }, 500);
+
+              document.getElementById('finish-btn').onclick = function(e) {
+                notify();
+                setTimeout(() => {
+                  if (window.opener) window.close();
+                  else window.location.href = '/';
+                }, 500);
+                return false;
+              };
             </script>
           </div>
         </body>
@@ -377,6 +426,16 @@ app.post("/api/auth/session", (req, res) => {
 
   console.log(`[Auth] Establishing session in iframe context for ${COOKIE_NAME}`);
 
+  // Set Legacy
+  res.cookie(LEGACY_COOKIE_NAME, tokens, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    path: "/",
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+  });
+
+  // Set Partitioned
   res.cookie(COOKIE_NAME, tokens, {
     httpOnly: true,
     secure: true,
@@ -390,14 +449,16 @@ app.post("/api/auth/session", (req, res) => {
 });
 
 app.get("/api/auth/status", (req, res) => {
-  const token = req.cookies[COOKIE_NAME] || req.cookies["nexus_auth_token_v1"] || req.cookies["google_token"];
+  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["google_token"];
   const hasToken = !!token;
   
   res.json({ 
     isAuthenticated: hasToken,
     debug: {
-      hasCookie: hasToken,
+      hasPartitioned: !!req.cookies[COOKIE_NAME],
+      hasLegacy: !!req.cookies[LEGACY_COOKIE_NAME],
       cookieName: COOKIE_NAME,
+      legacyName: LEGACY_COOKIE_NAME,
       cookieCount: Object.keys(req.cookies || {}).length,
       allCookies: Object.keys(req.cookies || {}),
       ua: req.headers["user-agent"],
@@ -414,13 +475,14 @@ app.post("/api/auth/logout", (req, res) => {
     httpOnly: true,
     secure: true,
     sameSite: "none" as const,
-    path: "/",
-    partitioned: true
+    path: "/"
   };
   
-  res.clearCookie(COOKIE_NAME, clearOptions);
-  res.clearCookie("nexus_auth_token_v1", clearOptions);
-  res.clearCookie("google_token", clearOptions);
+  res.clearCookie(COOKIE_NAME, { ...clearOptions, partitioned: true });
+  res.clearCookie(LEGACY_COOKIE_NAME, clearOptions);
+  res.clearCookie("nexus_auth_token_v1", { ...clearOptions, partitioned: true });
+  res.clearCookie("google_token", { ...clearOptions, partitioned: true });
+  res.clearCookie("__Secure-nexus-auth-v1", { ...clearOptions, partitioned: true });
   
   res.json({ success: true });
 });
