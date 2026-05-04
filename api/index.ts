@@ -210,16 +210,33 @@ const getOrCreateImagesFolder = async (auth: any) => {
 const COOKIE_NAME = "__Secure-nexus-p-v1";
 const LEGACY_COOKIE_NAME = "__Secure-nexus-u-v1";
 
-// Use global storage for serverless persistence (best effort)
+// Use global storage for serverless persistence (best effort across cold starts on same instance)
 const globalStore = global as any;
 if (!globalStore.pendingSessions) {
   globalStore.pendingSessions = new Map<string, any>();
 }
 const pendingSessions: Map<string, any> = globalStore.pendingSessions;
 
+const setAuthCookies = (res: express.Response, tokens: any) => {
+  const cookieOptions: any = {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    path: '/',
+    partitioned: true 
+  };
+  
+  res.cookie(COOKIE_NAME, tokens, cookieOptions);
+  // Also set legacy for compatibility or debug
+  res.cookie(LEGACY_COOKIE_NAME, tokens, { ...cookieOptions, partitioned: false });
+  // Set a visible breadcrumb for client-side visibility checks
+  res.cookie("n_active", "1", { ...cookieOptions, httpOnly: false, partitioned: false });
+};
+
 // Helper to get auth client from cookie
 const getAuthClient = (req: express.Request) => {
-  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"] || req.cookies["__Secure-nexus-auth-v1"] || req.cookies["nexus_auth_token_v1"];
+  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
   if (!token) return null;
   
   const client = getOAuth2Client(req);
@@ -307,16 +324,7 @@ app.get("/auth/callback", async (req, res) => {
       setTimeout(() => pendingSessions.delete(state as string), 5 * 60 * 1000);
     }
 
-    // Set cookies as fallback
-    const cookieOptions = {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none" as const,
-      path: "/",
-      maxAge: 30 * 24 * 60 * 60 * 1000
-    };
-    res.cookie(LEGACY_COOKIE_NAME, essentialTokens, cookieOptions);
-    res.cookie(COOKIE_NAME, essentialTokens, { ...cookieOptions, partitioned: true });
+    setAuthCookies(res, essentialTokens);
 
     res.send(`
       <html>
@@ -404,21 +412,10 @@ app.get("/auth/callback", async (req, res) => {
 
 app.get("/api/auth/poll/:state", (req, res) => {
   const { state } = req.params;
-  let tokens = pendingSessions.get(state);
+  const tokens = pendingSessions.get(state);
   
-  // Fallback to cookies if Map is empty or session transitioned
-  // We check ALL possible cookies to find something that looks like tokens
-  let cookieTokens = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME];
-  
-  if (!cookieTokens) {
-    for (const name in req.cookies) {
-      const val = req.cookies[name];
-      if (val && typeof val === "object" && val.access_token) {
-        cookieTokens = val;
-        break;
-      }
-    }
-  }
+  // Fallback to cookies if Map is empty (Serverless instances often hit different executors)
+  const cookieTokens = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME];
   
   if (tokens || cookieTokens) {
     console.log(`[Auth] Poll success for state: ${state} (Map: ${!!tokens}, Cookie: ${!!cookieTokens})`);
@@ -439,17 +436,7 @@ app.get("/api/auth/poll/:state", (req, res) => {
 app.post("/api/auth/session", (req, res) => {
   const { tokens } = req.body;
   if (!tokens) return res.status(400).json({ error: "Missing tokens" });
-
-  const cookieOptions = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none" as const,
-    path: "/",
-    maxAge: 30 * 24 * 60 * 60 * 1000
-  };
-  res.cookie(LEGACY_COOKIE_NAME, tokens, cookieOptions);
-  res.cookie(COOKIE_NAME, tokens, { ...cookieOptions, partitioned: true });
-
+  setAuthCookies(res, tokens);
   res.json({ success: true });
 });
 
