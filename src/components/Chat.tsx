@@ -654,8 +654,14 @@ export const Chat: React.FC = () => {
       }
     }
 
-    if (cmd.startsWith("/p ")) {
-      const id = cmdInput.split(" ")[1];
+    if (cmd.startsWith("/p ") || (/^\/p\d+/i).test(cmd)) {
+      let id = "";
+      if (cmd.startsWith("/p ")) {
+        id = cmdInput.split(" ")[1];
+      } else {
+        id = cmd.match(/\/p(\d+)/i)?.[1] || "";
+      }
+      
       if (!id) throw new Error("Especifique um ID (ex: /p 1)");
 
       setIsLoading(true);
@@ -1168,7 +1174,9 @@ export const Chat: React.FC = () => {
       if (handled === "PREFILL") return; // Keep input as set by command
       if (handled) {
         setInput("");
-        setMessages(prev => [...prev, { role: "user", text: userMessage }]);
+        if (!forceClear) {
+          setMessages(prev => [...prev, { role: "user", text: userMessage }]);
+        }
         return;
       }
     }
@@ -1481,7 +1489,7 @@ export const Chat: React.FC = () => {
                                 return (
                                   <button
                                     onClick={() => {
-                                      const shouldClear = content.startsWith("/p ") || 
+                                      const shouldClear = content.startsWith("/p") || 
                                                           content.startsWith("/edit_name") || 
                                                           content.startsWith("/pacientes") || 
                                                           content.startsWith("/cadastro") ||
