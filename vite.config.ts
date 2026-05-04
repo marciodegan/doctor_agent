@@ -13,6 +13,13 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico'],
+        workbox: {
+          navigateFallback: "/index.html",
+          navigateFallbackDenylist: [
+            /^\/api\//,
+            /^\/auth\/callback/,
+          ],
+        },
         manifest: {
           name: 'Nexus Business AI',
           short_name: 'Nexus AI',

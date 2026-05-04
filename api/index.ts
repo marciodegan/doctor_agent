@@ -39,7 +39,7 @@ const getRedirectUri = (req?: express.Request) => {
     protocol = "http";
   }
 
-  const uri = `${protocol}://${host}/auth/callback`;
+  const uri = `${protocol}://${host}/api/auth/google/callback`;
   console.log(`[OAuth] Using Redirect URI: ${uri}`);
   return uri;
 };
@@ -295,7 +295,7 @@ app.get("/api/auth/url", (req, res) => {
   }
 });
 
-app.get("/auth/callback", async (req, res) => {
+app.get("/api/auth/google/callback", async (req, res) => {
   const { code, state, error } = req.query;
   
   if (error) {
