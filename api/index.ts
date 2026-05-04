@@ -5,8 +5,17 @@ import path from "path";
 import dotenv from "dotenv";
 import fs from "fs";
 import { Readable } from "stream";
+import Stripe from "stripe";
 
 dotenv.config();
+
+let stripe: Stripe | null = null;
+const getStripe = () => {
+  if (!stripe && process.env.STRIPE_SECRET_KEY) {
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+  }
+  return stripe;
+};
 
 export const app = express();
 const PORT = 3000;
@@ -1244,6 +1253,43 @@ app.post("/api/sheets/:spreadsheetId/values", async (req, res) => {
   } catch (error) {
     console.error("Error fetching file:", error);
     res.status(500).send("Error fetching file");
+  }
+});
+
+// --- Stripe Integration ---
+app.post("/api/create-checkout-session", async (req, res) => {
+  const stripeInstance = getStripe();
+  if (!stripeInstance) {
+    return res.status(500).json({ error: "Stripe is not configured." });
+  }
+
+  const { priceId } = req.body;
+  if (!priceId) {
+    return res.status(400).json({ error: "Price ID is required." });
+  }
+
+  try {
+    const host = req.get("host");
+    const protocol = req.get("x-forwarded-proto") || "https";
+    const origin = `${protocol}://${host}`;
+
+    const session = await stripeInstance.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      mode: "subscription",
+      success_url: `${origin}/?session_id={CHECKOUT_SESSION_ID}&success=true`,
+      cancel_url: `${origin}/?success=false`,
+    });
+
+    res.json({ url: session.url });
+  } catch (error: any) {
+    console.error("Stripe Checkout Error:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 

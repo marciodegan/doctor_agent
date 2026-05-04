@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { Chat } from "./components/Chat";
 import { Debug } from "./components/Debug";
+import { Pricing } from "./components/Pricing";
 import { 
   Calendar, 
   FileText, 
@@ -15,7 +16,9 @@ import {
   Minimize,
   Smartphone,
   Sparkles,
-  Shield
+  Shield,
+  Zap,
+  TrendingUp
 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -24,6 +27,7 @@ export default function App() {
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [currentView, setCurrentView] = useState<"workspace" | "pricing">("workspace");
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -148,9 +152,24 @@ export default function App() {
 
         <nav className="flex-1 space-y-1">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Workspace</div>
-          <NavItem icon={<Layout size={18} />} label="Agent Dashboard" active />
+          <NavItem 
+            icon={<Layout size={18} />} 
+            label="Agent Dashboard" 
+            active={currentView === "workspace"} 
+            onClick={() => setCurrentView("workspace")}
+          />
           <NavItem icon={<Calendar size={18} />} label="Calendar" />
           <NavItem icon={<FileText size={18} />} label="Drive & Files" />
+          
+          <div className="pt-8 space-y-1">
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Account</div>
+            <NavItem 
+              icon={<Zap size={18} className="text-blue-600" />} 
+              label="Assinatura Pro" 
+              active={currentView === "pricing"}
+              onClick={() => setCurrentView("pricing")}
+            />
+          </div>
         </nav>
 
         <div className="mt-auto px-2">
@@ -220,7 +239,11 @@ export default function App() {
             <div className={`grid grid-cols-1 xl:grid-cols-4 gap-6 h-full max-w-[1600px] mx-auto w-full ${isFullscreen ? "max-w-none" : ""}`}>
               {/* Chat column */}
               <div className="xl:col-span-3 flex flex-col min-h-0">
-                <Chat />
+                {currentView === "pricing" ? (
+                  <Pricing onBack={() => setCurrentView("workspace")} />
+                ) : (
+                  <Chat />
+                )}
               </div>
 
               {/* Sidebar Info column */}
@@ -237,6 +260,30 @@ export default function App() {
                     <span className="text-xs font-medium">Gemini 3.1 Pro Powered</span>
                   </div>
                 </div>
+
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onClick={() => setCurrentView("pricing")}
+                  className="bg-zinc-900 rounded-3xl p-6 text-white cursor-pointer hover:bg-zinc-800 transition-all border border-zinc-700 group"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-2 bg-blue-600 rounded-xl group-hover:scale-110 transition-transform">
+                      <Zap size={20} />
+                    </div>
+                    <div className="flex -space-x-2">
+                       {[1,2,3].map(i => (
+                         <div key={i} className="w-6 h-6 rounded-full border-2 border-zinc-900 bg-zinc-700" />
+                       ))}
+                    </div>
+                  </div>
+                  <h4 className="font-bold text-sm mb-1">Nexus Business Pro</h4>
+                  <p className="text-[10px] text-zinc-400 mb-4 line-clamp-2">Acesso total a automações, IA avançada e relatórios personalizados.</p>
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-widest">
+                    <span>Assinar agora</span>
+                    <TrendingUp size={14} />
+                  </div>
+                </motion.div>
 
                 <div className="bg-white border border-gray-100 rounded-3xl p-6 space-y-4">
                   <div className="flex items-center justify-between">
@@ -256,9 +303,11 @@ export default function App() {
   );
 }
 
-function NavItem({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) {
+function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) {
   return (
-    <button className={`flex items-center gap-3 w-full p-2.5 rounded-xl transition-all ${
+    <button 
+      onClick={onClick}
+      className={`flex items-center gap-3 w-full p-2.5 rounded-xl transition-all ${
       active 
         ? "bg-black text-white shadow-lg shadow-black/10" 
         : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
