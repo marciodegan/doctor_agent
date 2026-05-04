@@ -286,6 +286,7 @@ app.get("/auth/callback", async (req, res) => {
       token_type: tokens.token_type
     };
 
+    // Still set it here as fallback for non-iframe usage
     res.cookie(COOKIE_NAME, essentialTokens, {
       httpOnly: true,
       secure: true,
@@ -294,22 +295,33 @@ app.get("/auth/callback", async (req, res) => {
       partitioned: true,
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
     });
+
     res.send(`
       <html>
-        <body>
-          <script>
-            try {
-              if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS' }, '*');
-                setTimeout(() => window.close(), 1000);
-              } else {
+        <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb;">
+          <div style="text-align: center; padding: 2rem; background: white; border-radius: 1rem; shadow: 0 10px 25px -5px rgba(0,0,0,0.1);">
+            <h2 style="color: #111827; margin-bottom: 0.5rem;">Autenticação concluída!</h2>
+            <p style="color: #6b7280;">Sincronizando com o app...</p>
+            <script>
+              const tokens = ${JSON.stringify(essentialTokens)};
+              try {
+                if (window.opener) {
+                  console.log("[OAuth] Sending tokens to opener...");
+                  window.opener.postMessage({ 
+                    type: 'OAUTH_AUTH_SUCCESS', 
+                    tokens: tokens 
+                  }, '*');
+                  // We'll wait a bit before closing to ensure message is sent
+                  setTimeout(() => window.close(), 2000);
+                } else {
+                  window.location.href = '/';
+                }
+              } catch (e) {
+                console.error("[OAuth] Error in callback script:", e);
                 window.location.href = '/';
               }
-            } catch (e) {
-              window.location.href = '/';
-            }
-          </script>
-          <p>Authentication successful. Redirecting...</p>
+            </script>
+          </div>
         </body>
       </html>
     `);
@@ -320,19 +332,40 @@ app.get("/auth/callback", async (req, res) => {
   }
 });
 
+// New route to allow setting the cookie from within the iframe context
+// This ensures the Partitioned attribute uses the correct partition key (e.g. ai.studio)
+app.post("/api/auth/session", (req, res) => {
+  const { tokens } = req.body;
+  if (!tokens) return res.status(400).json({ error: "Missing tokens" });
+
+  res.cookie(COOKIE_NAME, tokens, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    path: "/",
+    partitioned: true, // This will now use the iframe's partition key!
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+  });
+
+  res.json({ success: true });
+});
+
 app.get("/api/auth/status", (req, res) => {
   const token = req.cookies[COOKIE_NAME];
   const hasToken = !!token;
-  console.log(`[Auth] Status check for ${COOKIE_NAME}. Token present: ${hasToken}`);
+  const oldToken = req.cookies["google_token"];
+  
+  console.log(`[Auth] Status check. COOKIE_NAME(${COOKIE_NAME}): ${hasToken}, google_token: ${!!oldToken}`);
   
   res.json({ 
-    isAuthenticated: hasToken,
+    isAuthenticated: hasToken || !!oldToken,
     debug: {
       hasCookie: hasToken,
+      hasOldCookie: !!oldToken,
       cookieName: COOKIE_NAME,
-      cookieKeys: token ? Object.keys(token) : [],
       cookieCount: Object.keys(req.cookies || {}).length,
       allCookies: Object.keys(req.cookies || {}),
+      ua: req.headers["user-agent"],
       env: {
         hasClientId: !!process.env.GOOGLE_CLIENT_ID,
         hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET
@@ -349,7 +382,6 @@ app.post("/api/auth/logout", (req, res) => {
     path: "/",
     partitioned: true
   });
-  // Also clear the old one just in case
   res.clearCookie("google_token", {
     httpOnly: true,
     secure: true,

@@ -33,9 +33,27 @@ export const useAuth = () => {
   useEffect(() => {
     checkAuth();
 
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
-        console.log("[Auth] success message received, refreshing status in 500ms...");
+        console.log("[Auth] success message received");
+        
+        const tokens = event.data.tokens;
+        if (tokens) {
+          console.log("[Auth] Tokens received in message, establishing session...");
+          try {
+            await fetch("/api/auth/session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ tokens }),
+              credentials: 'include'
+            });
+            console.log("[Auth] Session established successfully");
+          } catch (e) {
+            console.error("[Auth] Failed to establish session via tokens:", e);
+          }
+        }
+        
+        console.log("[Auth] refreshing status in 500ms...");
         setTimeout(() => checkAuth(), 500); 
       }
     };
