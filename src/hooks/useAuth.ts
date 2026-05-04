@@ -19,6 +19,9 @@ export const useAuth = () => {
       
       const data = await res.json();
       console.log("[Auth] Auth status API data:", data);
+      if (!data.isAuthenticated && data.debug) {
+        console.warn("[Auth] Not authenticated. Debug info:", data.debug);
+      }
       setIsAuthenticated(data.isAuthenticated);
     } catch (error) {
       clearTimeout(timeoutId);
@@ -32,7 +35,8 @@ export const useAuth = () => {
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
-        checkAuth();
+        console.log("[Auth] success message received, refreshing status in 500ms...");
+        setTimeout(() => checkAuth(), 500); 
       }
     };
     window.addEventListener("message", handleMessage);

@@ -289,6 +289,7 @@ app.get("/auth/callback", async (req, res) => {
       secure: true,
       sameSite: "none",
       path: "/",
+      partitioned: true,
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
     });
     res.send(`
@@ -327,6 +328,8 @@ app.get("/api/auth/status", (req, res) => {
     debug: {
       hasCookie: hasToken,
       cookieKeys: token ? Object.keys(token) : [],
+      cookieCount: Object.keys(req.cookies || {}).length,
+      allCookies: Object.keys(req.cookies || {}),
       env: {
         hasClientId: !!process.env.GOOGLE_CLIENT_ID,
         hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET
@@ -336,7 +339,13 @@ app.get("/api/auth/status", (req, res) => {
 });
 
 app.post("/api/auth/logout", (req, res) => {
-  res.clearCookie("google_token");
+  res.clearCookie("google_token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    path: "/",
+    partitioned: true
+  });
   res.json({ success: true });
 });
 
