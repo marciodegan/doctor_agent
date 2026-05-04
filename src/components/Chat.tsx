@@ -86,7 +86,7 @@ export const Chat: React.FC = () => {
         const name = data.companyName || "Nexus Business AI";
         setCompanyName(name);
         setMessages([
-          { role: "model", text: `Hello ${name}.\n\nHoje é um lindo dia para salvar vidas.` }
+          { role: "model", text: `Hello ${name}.\n\nHoje é um lindo dia para salvar vidas.\n\nGerencie o **[📋 Cadastro](/pacientes)**, busque por **[🔍 Nome](/edit_menu)** ou veja sua **[📅 Agenda](/agenda)**.` }
         ]);
       })
       .catch(err => {
@@ -155,8 +155,9 @@ export const Chat: React.FC = () => {
   };
 
   const suggestions = [
+    { label: "📋 Cadastro", prompt: "/pacientes" },
     { label: "🔍 Buscar", prompt: "/edit_menu" },
-    { label: "👤 Pacientes", prompt: "/pacientes" },
+    { label: "👤 Pacientes", prompt: "/buscar" },
     { label: "📝 Notes", prompt: "/iniciarlog" },
     { label: "👪 Familiar", prompt: "/iniciarfamiliar" },
     { label: "👤 Novo", prompt: "/iniciarcadastro" },
@@ -169,19 +170,15 @@ export const Chat: React.FC = () => {
   ];
 
   useEffect(() => {
-    const mainContainer = document.getElementById("main-scroll-container");
-    if (mainContainer) {
-      mainContainer.scrollTop = mainContainer.scrollHeight;
-    }
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: "smooth"
+    });
   }, [messages, isLoading]);
 
   const scrollToTop = () => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
-    }
-    const mainContainer = document.getElementById("main-scroll-container");
-    if (mainContainer) {
-      mainContainer.scrollTo({ top: 0, behavior: "smooth" });
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -693,7 +690,7 @@ export const Chat: React.FC = () => {
       }
     }
 
-    if (cmd.startsWith("/pacientes")) {
+    if (cmd.startsWith("/pacientes") || cmd === "/cadastro") {
       setIsLoading(true);
       try {
         const res = await fetch("/api/app/patients");
@@ -724,23 +721,25 @@ export const Chat: React.FC = () => {
         const pageData = sortedData.slice(start, end);
 
         const list = pageData.map((p: any) => 
-          `• **${p.nome}** (ID: ${p.id})\n` +
-          `  Status: **${p.status || "Não informado"}** \`/status_alterar ${p.id}\`\n` +
-          `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
+          `--- \n` +
+          `👤 **${p.nome}** (ID: ${p.id}) \n` +
+          `📍 Status: **${p.status || "Não informado"}** \n` +
+          `👉 \`/p ${p.id}\` | \`/edit_name ${p.id}\` | \`/status_alterar ${p.id}\``
         ).join("\n\n");
 
         let nav = "";
+        const cmdName = cmd.startsWith("/pacientes") ? "/pacientes" : "/cadastro";
         if (totalPages > 1) {
           nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
-          if (pageToView > 1) nav += ` \`/pacientes pag:${pageToView - 1} sort:${sort}\` `;
-          if (pageToView < totalPages) nav += ` \`/pacientes pag:${pageToView + 1} sort:${sort}\` `;
+          if (pageToView > 1) nav += ` \`${cmdName} pag:${pageToView - 1} sort:${sort}\` `;
+          if (pageToView < totalPages) nav += ` \`${cmdName} pag:${pageToView + 1} sort:${sort}\` `;
         }
 
-        const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`/pacientes sort:nome\` (A-Z)\n• \`/pacientes sort:id\` (Mais recentes)`;
+        const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`${cmdName} sort:nome\` (A-Z)\n• \`${cmdName} sort:id\` (Mais recentes)`;
 
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: `📂 **Lista de Pacientes (${data.length} total):**\n\n${list || "Nenhum paciente encontrado."}${nav}${sortOptions}` 
+          text: `📂 **Cadastro de Pacientes (${data.length} total):**\n\n${list || "Nenhum paciente encontrado."}${nav}${sortOptions}` 
         }]);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
@@ -1418,6 +1417,7 @@ export const Chat: React.FC = () => {
                                 // Customize labels for common commands
                                 let label = content;
                                 if (content.startsWith("/remover_evento")) label = "🗑️";
+                                if (content.startsWith("/pacientes") || content.startsWith("/cadastro")) label = "📋 Cadastro";
                                 if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
                                 if (content.startsWith("/prep_p") || content.startsWith("/p ")) label = "🚀 Relatório";
                                 if (content.startsWith("/logpac")) label = "📝 Novo Log";

@@ -136,7 +136,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden pt-[calc(env(safe-area-inset-top,0px)+24px)]">
+    <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900 pt-[calc(env(safe-area-inset-top,0px)+24px)]">
       {/* Sidebar - Desktop Only */}
       <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-20">
         <div className="flex items-center gap-2 mb-10 px-2">
@@ -179,9 +179,9 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`lg:pl-64 h-full flex flex-col ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0" : ""}`}>
+      <main className={`lg:pl-64 flex flex-col ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0" : ""}`}>
         {/* Hero / Dashboard Area */}
-        <div id="main-scroll-container" className={`p-4 md:p-6 flex flex-col gap-6 flex-1 ${isFullscreen ? "h-screen overflow-hidden" : "overflow-y-auto"}`}>
+        <div id="main-scroll-container" className={`p-4 md:p-6 flex flex-col gap-6 w-full ${isFullscreen ? "h-screen overflow-hidden" : ""}`}>
           {!isAuthenticated ? (
             <div className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto text-center space-y-8 w-full px-4">
               <motion.div 
