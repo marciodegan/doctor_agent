@@ -21,8 +21,8 @@ export default defineConfig(({mode}) => {
           ],
         },
         manifest: {
-          name: 'Nexus Business AI',
-          short_name: 'Nexus AI',
+          name: 'Doctor Pro',
+          short_name: 'Doctor Pro',
           description: 'Seu assistente inteligente integrado ao Google Workspace.',
           theme_color: '#2563eb',
           background_color: '#ffffff',
@@ -31,12 +31,12 @@ export default defineConfig(({mode}) => {
           start_url: '/',
           icons: [
             {
-              src: 'https://placehold.co/192x192/2563eb/white?text=Nexus',
+              src: 'https://placehold.co/192x192/2563eb/white?text=DP',
               sizes: '192x192',
               type: 'image/png'
             },
             {
-              src: 'https://placehold.co/512x512/2563eb/white?text=Nexus',
+              src: 'https://placehold.co/512x512/2563eb/white?text=DP',
               sizes: '512x512',
               type: 'image/png'
             }

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
-import { Check, Sparkles, Zap, Shield, ArrowLeft } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Check, Sparkles, Zap, Shield, ArrowLeft, ExternalLink, Settings } from "lucide-react";
 import { motion } from "motion/react";
+import { useAuth } from "../hooks/useAuth";
 
 interface PricingProps {
   onBack: () => void;
@@ -8,11 +9,32 @@ interface PricingProps {
 
 export function Pricing({ onBack }: PricingProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [stripeStatus, setStripeStatus] = useState<{ subscribed: boolean; configured: boolean; error?: string } | null>(null);
+  const { isAuthenticated, login } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetch("/api/stripe/status")
+        .then(res => res.json())
+        .then(data => setStripeStatus(data))
+        .catch(err => console.error("Error fetching stripe status:", err));
+    }
+  }, [isAuthenticated]);
 
   const handleSubscribe = async () => {
+    if (!isAuthenticated) {
+      login();
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const priceId = (import.meta as any).env.VITE_STRIPE_PRICE_ID || "price_1Q5X..."; // Placeholder if not set
+      const priceId = (import.meta as any).env.VITE_STRIPE_PRICE_ID;
+      if (!priceId) {
+        alert("VITE_STRIPE_PRICE_ID não configurado no ambiente.");
+        return;
+      }
+
       const response = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -23,6 +45,27 @@ export function Pricing({ onBack }: PricingProps) {
         window.location.href = data.url;
       } else {
         alert(data.error || "Erro ao iniciar checkout.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro na conexão com o servidor.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleManage = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/create-portal-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "Erro ao abrir portal de gerenciamento.");
       }
     } catch (err) {
       console.error(err);
@@ -51,7 +94,7 @@ export function Pricing({ onBack }: PricingProps) {
           className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-xs font-bold tracking-tight uppercase border border-blue-100 mb-4"
         >
           <Sparkles size={12} />
-          Nexus Pro
+          Doctor Pro
         </motion.div>
         <motion.h2 
           initial={{ opacity: 0, y: 20 }}
@@ -68,7 +111,7 @@ export function Pricing({ onBack }: PricingProps) {
           transition={{ delay: 0.2 }}
           className="text-gray-500 text-lg max-w-2xl mx-auto"
         >
-          Elimine tarefas manuais e escale sua operação com o Nexus Agent. 
+          Elimine tarefas manuais e escale sua operação com o Doctor Pro Agent. 
           Gerenciamento ilimitado e insights automáticos.
         </motion.p>
       </div>
@@ -85,7 +128,7 @@ export function Pricing({ onBack }: PricingProps) {
           </div>
 
           <div className="mb-10 text-center">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Nexus Pro Agent</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Doctor Pro Agent</h3>
             <div className="flex items-baseline justify-center gap-1">
               <span className="text-gray-400 text-lg font-medium">R$</span>
               <span className="text-6xl font-black text-gray-900 tracking-tighter">149</span>
@@ -98,25 +141,54 @@ export function Pricing({ onBack }: PricingProps) {
             <Feature item="Integração Total com Google Workspace" />
             <Feature item="IA Sem Limites de Mensagens" />
             <Feature item="Dashboard de Status em Tempo Real" />
-            <Feature item="Gerenciamento de Familiares e Logs" />
+            <Feature item="Gerenciamento de Contatos e Informações" />
             <Feature item="Backup Automático Diário" />
             <Feature item="Suporte Prioritário 24/7" />
           </div>
 
-          <button 
-            disabled={isLoading}
-            onClick={handleSubscribe}
-            className="w-full bg-blue-600 text-white font-bold py-5 rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2 group active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
-          >
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <Zap size={20} className="fill-white" />
-                Começar agora com Nexus Pro
-              </>
-            )}
-          </button>
+          {!stripeStatus?.subscribed ? (
+            <button 
+              disabled={isLoading}
+              onClick={handleSubscribe}
+              className="w-full bg-blue-600 text-white font-bold py-5 rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2 group active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Zap size={20} className="fill-white" />
+                  {isAuthenticated ? "Começar agora com Doctor Pro" : "Conectar Google e Assinar"}
+                </>
+              )}
+            </button>
+          ) : (
+            <div className="space-y-4">
+               <div className="bg-green-50 border border-green-100 p-4 rounded-xl flex items-center gap-3 text-green-700">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                  <Check size={18} />
+                </div>
+                <div>
+                  <p className="font-bold text-sm">Assinatura Ativa</p>
+                  <p className="text-[10px] opacity-80">Você tem acesso a todos os recursos.</p>
+                </div>
+              </div>
+              
+              <button 
+                disabled={isLoading}
+                onClick={handleManage}
+                className="w-full bg-gray-900 text-white font-bold py-5 rounded-2xl hover:bg-black transition-all flex items-center justify-center gap-2 group active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Settings size={20} />
+                    Gerenciar Assinatura
+                  </>
+                )}
+              </button>
+            </div>
+          )}
           
           <p className="text-center text-xs text-gray-400 mt-6 flex items-center justify-center gap-2">
             <Shield size={12} />

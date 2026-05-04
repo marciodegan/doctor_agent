@@ -133,7 +133,7 @@ export default function App() {
           <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
             <Layout size={32} />
           </div>
-          <p className="text-gray-400 font-medium tracking-tight">Initializing Nexus...</p>
+          <p className="text-gray-400 font-medium tracking-tight">Initializing Doctor Pro...</p>
         </div>
       </div>
     );
@@ -147,7 +147,7 @@ export default function App() {
           <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white">
             <Command size={18} />
           </div>
-          <h1 className="font-bold text-xl tracking-tight">Nexus</h1>
+          <h1 className="font-bold text-xl tracking-tight">Doctor Pro</h1>
         </div>
 
         <nav className="flex-1 space-y-1">
@@ -213,7 +213,7 @@ export default function App() {
                   <span className="text-blue-600">Simpler Than Ever.</span>
                 </h1>
                 <p className="text-gray-500 text-lg max-w-md mx-auto">
-                  Connect your Google account to let Nexus Agent manage your schedule, documents, and tasks with AI.
+                  Connect your Google account to let Doctor Pro Agent manage your schedule, documents, and tasks with AI.
                 </p>
               </motion.div>
 
@@ -249,7 +249,7 @@ export default function App() {
               {/* Sidebar Info column */}
               <div className="space-y-8 hidden xl:block pr-2">
                 <div className="bg-blue-600 rounded-3xl p-8 text-white shadow-xl shadow-blue-200">
-                  <h3 className="text-xl font-bold mb-2">Nexus Tips</h3>
+                  <h3 className="text-xl font-bold mb-2">Doctor Pro Tips</h3>
                   <p className="text-blue-100 text-sm mb-6 leading-relaxed">
                     Try asking: "What's on my calendar today?" or "Create a new spreadsheet for my budget."
                   </p>
@@ -277,7 +277,7 @@ export default function App() {
                        ))}
                     </div>
                   </div>
-                  <h4 className="font-bold text-sm mb-1">Nexus Business Pro</h4>
+                  <h4 className="font-bold text-sm mb-1">Doctor Pro Business</h4>
                   <p className="text-[10px] text-zinc-400 mb-4 line-clamp-2">Acesso total a automações, IA avançada e relatórios personalizados.</p>
                   <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-widest">
                     <span>Assinar agora</span>

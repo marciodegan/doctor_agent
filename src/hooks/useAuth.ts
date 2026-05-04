@@ -62,7 +62,7 @@ export const useAuth = () => {
       }
     };
 
-    const authChannel = new BroadcastChannel('nexus_auth_channel');
+    const authChannel = new BroadcastChannel('doctor_pro_auth_channel');
     authChannel.onmessage = (event) => {
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
         console.log("[Auth] Received via BroadcastChannel");
@@ -71,13 +71,13 @@ export const useAuth = () => {
     };
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === 'nexus_auth_success' && event.newValue) {
+      if (event.key === 'doctor_pro_auth_success' && event.newValue) {
         try {
           const data = JSON.parse(event.newValue);
           if (Date.now() - data.timestamp < 30000) {
             console.log("[Auth] Received via LocalStorage");
             processAuthSuccess(data.tokens);
-            localStorage.removeItem('nexus_auth_success');
+            localStorage.removeItem('doctor_pro_auth_success');
           }
         } catch (e) {}
       }

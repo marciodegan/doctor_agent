@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { tools, executeTool } from "../lib/gemini";
+import { tools, executeTool, ai } from "../lib/gemini";
 
 interface Message {
   role: "user" | "model";
@@ -187,7 +187,7 @@ export const Chat: React.FC = () => {
     fetch("/api/app/settings")
       .then(res => res.json())
       .then(data => {
-        const name = data.companyName || "Nexus Business AI";
+        const name = data.companyName || "Doctor Pro";
         setCompanyName(name);
         setMessages([
           { role: "model", text: `Hello ${name}.\n\nHoje é um lindo dia para salvar vidas.\n\nGerencie os **[📋 Pacientes](/pacientes)**, busque por **[🔍 Nome](/edit_menu)** ou veja sua **[📅 Agenda](/agenda)**.` }
@@ -498,9 +498,7 @@ export const Chat: React.FC = () => {
           title: "Novo Paciente",
           fields: [
             { label: "Nome do Paciente", name: "nome", type: "text", placeholder: "Ex: João Silva" },
-            { label: "Telefone", name: "fone", type: "number", placeholder: "Ex: (51) 98888-7777" },
             { label: "Idade", name: "idade", type: "text", placeholder: "Ex: 30" },
-            { label: "CPF", name: "cpf", type: "text", placeholder: "000.000.000-00" },
           ],
           submitLabel: "Registrar Paciente",
           commandPrefix: "/registrar"
@@ -921,7 +919,17 @@ export const Chat: React.FC = () => {
         
         const docs = data.imagens.map((i: any) => {
           const downloadText = i.link ? ` [[Baixar Arquivo](${i.link})]` : "";
-          return `• [${i.data}]${downloadText}\n\n${i.descricao}`;
+          const fileIdMatch = i.link?.match(/id=([^&]+)/) || i.link?.match(/\/file\/d\/([^/]+)/);
+          const fileId = fileIdMatch ? fileIdMatch[1] : "";
+          
+          let aiPart = "";
+          if (i.aiResposta) {
+            aiPart = `\n🤖 **AI Resposta:** ${i.aiResposta}`;
+          } else if (fileId) {
+            aiPart = `\n\`/ai_analyze id:${fileId} pId:${id} label:✨ Analisar com IA\``;
+          }
+          
+          return `• [${i.data}]${downloadText}\n\n${i.descricao}${aiPart}`;
         }).join("\n\n");
 
         const fams = data.familiares.map((f: any) => {
@@ -935,14 +943,10 @@ export const Chat: React.FC = () => {
         const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
         const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
 
-        const reportText = `# **${cad.Nome}**\n` +
+        const reportText = `# **${cad.Nome}**, ${cad.Idade || "N/A"} anos \`/edit_name ${cad.ID} label:✏️\`\n` +
           `📍 **Status:** ${cad.Status || "Não informado"} \`/status_alterar ${cad.ID}\`\n\n` +
-          `**Cadastro** \`/edit_name ${cad.ID} label:✏️\`\n` +
-          `- idade: ${cad.Idade || "N/A"}\n` +
-          `- telefone: ${foneCadLink}\n` +
-          `- cpf: ${cad.paciente_cpf || "N/A"}\n\n` +
-          `**Familiares:** \`/novo_familiar id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${fams || "Nenhum registro"}\n\n` +
-          `**Evoluções:** \`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${audios || "Nenhum registro"}\n\n` +
+          `**Contatos:** \`/novo_familiar id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${fams || "Nenhum registro"}\n\n` +
+          `**Informações:** \`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${audios || "Nenhum registro"}\n\n` +
           `**Imagens:** \`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${docs || "Nenhum registro"}`;
 
         setMessages([{ role: "model", text: reportText }]);
@@ -1148,7 +1152,6 @@ export const Chat: React.FC = () => {
             title: "Atualizar Dados",
             fields: [
               { label: "Nome", name: "nome", type: "text", defaultValue: p.Nome },
-              { label: "Telefone", name: "fone", type: "number", defaultValue: p.Telefone || "" },
               { label: "Idade", name: "idade", type: "text", defaultValue: p.Idade || "" },
             ],
             submitLabel: "Salvar Alterações",
@@ -1229,19 +1232,19 @@ export const Chat: React.FC = () => {
 
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: "🤖 **Nexus Shortcuts (Zero Tokens):**\n\n" +
+          text: "🤖 **Doctor Pro Shortcuts (Zero Tokens):**\n\n" +
                 "- `/pacientes`: Lista todos os pacientes (Banco Compartilhado).\n" +
                 "- `/buscar [NOME]`: Busca paciente por nome.\n" +
                 "- `/p [ID]`: Relatório rápido (ex: `/p 2`).\n" +
-                "- `/edit_name [ID]`: Editar nome, fone ou idade do paciente.\n" +
+                "- `/edit_name [ID]`: Editar nome ou idade do paciente.\n" +
                 "- `/edit_menu`: Atalho direto para buscar e editar.\n" +
-                "- `/familiares [ID]`: Lista familiares de um paciente.\n" +
-                "- `/novo_familiar [ID]`: Atalho para cadastrar familiar.\n" +
-                "- `/registrar_familiar id: [ID], nome: [N], relacao: [R], fone: [F]`: Cadastro de familiar.\n" +
+                "- `/contatos [ID]`: Lista contatos de um paciente.\n" +
+                "- `/novo_familiar [ID]`: Atalho para cadastrar contato (familiar).\n" +
+                "- `/registrar_familiar id: [ID], nome: [N], relacao: [R], fone: [F]`: Cadastro de contato.\n" +
                 "- `/agendar data: [D], hora: [H], evento: [E]`: Cria evento na agenda Google.\n" +
                 "- `/log id: [ID], texto: [T]`: Adiciona log de texto direto.\n" +
                 "- `/img id: [ID], desc: [D]`: Envia imagem anexada direto para o Drive.\n" +
-                "- `/registrar nome: [N], fone: [F], idade: [I]`: Cadastra paciente.\n" +
+                "- `/registrar nome: [N], idade: [I]`: Cadastra paciente.\n" +
                 "- `/iniciarcadastro`: Ajuda para cadastrar novo paciente.\n" +
                 "- `/agenda`: **Sua** agenda pessoal (Privada).\n" +
                 "- `/hospitais`: Lista todos os hospitais.\n" +
@@ -1413,6 +1416,62 @@ export const Chat: React.FC = () => {
       }
     }
 
+    if (cmd.startsWith("/ai_analyze")) {
+      const driveId = cmdInput.match(/id:\s*([^, ]+)/i)?.[1]?.trim();
+      const pId = cmdInput.match(/pId:\s*([^, ]+)/i)?.[1]?.trim() || "";
+
+      if (!driveId) throw new Error("ID do arquivo não especificado.");
+
+      setIsLoading(true);
+      try {
+        // 1. Check Quota
+        const qRes = await fetch("/api/ai/check-quota");
+        const qData = await qRes.json();
+        if (qData.remaining <= 0) throw new Error(qData.error || "Você atingiu sua cota de 10 análises diárias.");
+
+        // 2. Fetch image base64
+        const imgRes = await fetch(`/api/drive/file-base64/${driveId}`);
+        const imgData = await imgRes.json();
+        if (!imgRes.ok) throw new Error(imgData.error || "Erro ao baixar imagem.");
+
+        // 3. Call Gemini
+        const result = await ai.models.generateContent({
+          model: "gemini-2.0-flash",
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: "aja como um phd em cirurgia cardíaca e analise essa imagem" },
+                { inlineData: { data: imgData.base64, mimeType: imgData.mimeType } }
+              ]
+            }
+          ]
+        });
+
+        const analysis = result.text || "";
+
+        // 4. Save to Sheets
+        const saveRes = await fetch("/api/ai/save-analysis", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ driveId, analysis })
+        });
+        const saveData = await saveRes.json();
+        if (!saveRes.ok) throw new Error(saveData.error || "Erro ao salvar análise.");
+
+        setMessages(prev => [...prev, { role: "model", text: `✨ **Análise da IA Concluída:**\n\n${analysis}` }]);
+        
+        if (pId) {
+          setTimeout(() => handleDirectCommand(`/p ${pId}`), 1500);
+        }
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro na IA: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
     if (cmd === "/limpar") {
       resetAgent();
       return true;
@@ -1532,7 +1591,7 @@ export const Chat: React.FC = () => {
             <Sparkles size={18} />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900 leading-tight">Nexus Business AI</h3>
+            <h3 className="font-semibold text-gray-900 leading-tight">Doctor Pro</h3>
             <div className="flex items-center gap-2">
               <p className="text-[10px] text-green-600 font-bold flex items-center gap-1 uppercase tracking-wider">
                 <span className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span>
@@ -1600,7 +1659,7 @@ export const Chat: React.FC = () => {
                     type="text" 
                     value={companyName} 
                     onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="Ex: Nexus AI"
+                    placeholder="Ex: Doctor Pro"
                     className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
                   />
                 </div>

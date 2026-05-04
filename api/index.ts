@@ -67,8 +67,8 @@ const SCOPES = [
   "https://www.googleapis.com/auth/drive.metadata.readonly"
 ];
 
-const MASTER_SHEET_NAME = "Nexus - Banco de Dados";
-const IMAGES_FOLDER_NAME = "Nexus - Imagens";
+const MASTER_SHEET_NAME = "Doctor Pro - Banco de Dados";
+const IMAGES_FOLDER_NAME = "Doctor Pro - Imagens";
 const SHEET_TABS = {
   CADASTRO: "Cadastro",
   LOGS: "Log de Status",
@@ -80,7 +80,8 @@ const SHEET_TABS = {
   STATUS_LOG: "Atividades",
   OPCOES_IMAGENS: "OpcoesImagens",
   STATUS_USER: "Status User",
-  LOCAL_USER: "Local User"
+  LOCAL_USER: "Local User",
+  AI_USAGE: "AI_Usage"
 };
 
 // --- Helper for Unifying Databases ---
@@ -115,7 +116,7 @@ const getOrCreateMasterSheet = async (auth: any) => {
     await Promise.all([
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status", "paciente_cpf"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "paciente_nome", "descricao"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link", "ai_resposta"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["id", "nome_familiar", "tipo_parentesco", "telefone", "paciente_id", "paciente_nome"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.HOSPITAIS}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome do Hospital", "Telefone", "Contato 1", "Contato 2", "Contato 3", "Contato 4", "Contato 5"]] } }),
@@ -123,7 +124,8 @@ const getOrCreateMasterSheet = async (auth: any) => {
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } })
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.AI_USAGE}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Data", "UsageCount"]] } })
     ]);
   } else {
     // Ensure all tabs exist
@@ -158,12 +160,63 @@ const getOrCreateMasterSheet = async (auth: any) => {
         if (tab === SHEET_TABS.LOCAL_USER) {
           await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } });
         }
+        if (tab === SHEET_TABS.AI_USAGE) {
+          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.AI_USAGE}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Data", "UsageCount"]] } });
+        }
       }
       console.log(`[Drive] Added missing tabs: ${missingTabs.join(", ")}`);
+    }
+
+    // Ensure AI_Resposta column exists in ARQUIVOS
+    const range = `${SHEET_TABS.ARQUIVOS}!1:1`;
+    const headersRes = await sheets.spreadsheets.values.get({ spreadsheetId: fileId, range });
+    const headers = headersRes.data.values?.[0] || [];
+    if (!headers.includes("ai_resposta")) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: fileId,
+        range: `${SHEET_TABS.ARQUIVOS}!E1`,
+        valueInputOption: "RAW",
+        requestBody: { values: [["ai_resposta"]] }
+      });
     }
   }
   
   return fileId as string;
+};
+
+const checkAndIncrementAIUsage = async (auth: any) => {
+  const sheets = google.sheets({ version: "v4", auth });
+  const fileId = await getOrCreateMasterSheet(auth);
+  const today = new Date().toISOString().split('T')[0];
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: fileId,
+    range: `${SHEET_TABS.AI_USAGE}!A:B`
+  });
+
+  const rows = res.data.values || [];
+  const todayRowIdx = rows.findIndex(r => r[0] === today);
+  const currentCount = todayRowIdx !== -1 ? parseInt(rows[todayRowIdx][1] || "0") : 0;
+
+  if (currentCount >= 10) {
+    throw new Error("Cota diária de IA (10 análises) atingida. Tente novamente amanhã.");
+  }
+
+  if (todayRowIdx !== -1) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.AI_USAGE}!B${todayRowIdx + 1}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[currentCount + 1]] }
+    });
+  } else {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.AI_USAGE}!A:B`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[today, 1]] }
+    });
+  }
 };
 
 const getOrCreateImagesFolder = async (auth: any) => {
@@ -329,7 +382,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
     res.send(`
       <html>
         <head>
-          <title>Autenticação Nexus</title>
+          <title>Autenticação Doctor Pro</title>
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f3f4f6; color: #111827; }
@@ -362,14 +415,14 @@ app.get("/api/auth/google/callback", async (req, res) => {
 
               function notify() {
                 try {
-                  const channel = new BroadcastChannel('nexus_auth_channel');
+                  const channel = new BroadcastChannel('doctor_pro_auth_channel');
                   channel.postMessage(payload);
                 } catch (e) {}
                 try {
                   if (window.opener) window.opener.postMessage(payload, '*');
                 } catch (e) {}
                 try {
-                  localStorage.setItem('nexus_auth_success', JSON.stringify(payload));
+                  localStorage.setItem('doctor_pro_auth_success', JSON.stringify(payload));
                 } catch (e) {}
               }
 
@@ -382,7 +435,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
                 
                 if (count >= 15) {
                   clearInterval(interval);
-                  document.getElementById('content').innerHTML = "<h2>Login Pronto</h2><p>Pode fechar esta janela e voltar ao Nexus.</p>";
+                  document.getElementById('content').innerHTML = "<h2>Login Pronto</h2><p>Pode fechar esta janela e voltar ao Doctor Pro.</p>";
                   document.getElementById('debug-status').innerText = "Processo finalizado.";
                 }
               }, 1000);
@@ -553,7 +606,7 @@ app.get("/api/app/settings", async (req, res) => {
     });
 
     res.json({
-      companyName: settings["companyName"] || "Nexus Business AI"
+      companyName: settings["companyName"] || "Doctor Pro"
     });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -855,7 +908,12 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
     if (imgRows.length > 0) {
       report.imagens = imgRows.slice(1)
         .filter(row => row[1] === patientId.toString())
-        .map(row => ({ data: row[0], descricao: row[2], link: row[3] }));
+        .map(row => ({ 
+          data: row[0], 
+          descricao: row[2], 
+          link: row[3],
+          aiResposta: row[4] 
+        }));
     }
 
     // Process Familiares
@@ -1356,7 +1414,7 @@ app.post("/api/sheets/create", async (req, res) => {
   try {
     const response = await sheets.spreadsheets.create({
       requestBody: {
-        properties: { title: req.body.title || "Nexus Agent Sheet" },
+        properties: { title: req.body.title || "Doctor Pro Agent Sheet" },
       },
     });
     res.json(response.data);
@@ -1517,6 +1575,28 @@ app.post("/api/sheets/:spreadsheetId/values", async (req, res) => {
   }
 });
 
+app.get("/api/drive/file-base64/:fileId", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const drive = google.drive({ version: "v3", auth });
+  try {
+    const { fileId } = req.params;
+    const metadata = await drive.files.get({ fileId, fields: "mimeType" });
+    const mimeType = metadata.data.mimeType;
+
+    const response = await drive.files.get(
+      { fileId, alt: "media" },
+      { responseType: "arraybuffer" }
+    );
+
+    const base64 = Buffer.from(response.data as ArrayBuffer).toString("base64");
+    res.json({ base64, mimeType });
+  } catch (error) {
+    res.status(500).json({ error: "Error fetching file" });
+  }
+});
+
 // --- Stripe Integration ---
 app.post("/api/create-checkout-session", async (req, res) => {
   const stripeInstance = getStripe();
@@ -1551,6 +1631,143 @@ app.post("/api/create-checkout-session", async (req, res) => {
   } catch (error: any) {
     console.error("Stripe Checkout Error:", error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+
+app.get("/api/ai/check-quota", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const sheets = google.sheets({ version: "v4", auth });
+    const fileId = await getOrCreateMasterSheet(auth);
+    const today = new Date().toISOString().split('T')[0];
+
+    const resUsage = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.AI_USAGE}!A:B`
+    });
+
+    const rows = resUsage.data.values || [];
+    const todayRowIdx = rows.findIndex(r => r[0] === today);
+    const currentCount = todayRowIdx !== -1 ? parseInt(rows[todayRowIdx][1] || "0") : 0;
+
+    res.json({ count: currentCount, remaining: Math.max(0, 10 - currentCount) });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.post("/api/ai/save-analysis", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const { driveId, analysis } = req.body;
+  if (!driveId || !analysis) return res.status(400).json({ error: "Missing driveId or analysis" });
+
+  try {
+    // 1. Quota increment
+    await checkAndIncrementAIUsage(auth);
+
+    // 2. Save to Sheets
+    const sheets = google.sheets({ version: "v4", auth });
+    const fileId = await getOrCreateMasterSheet(auth);
+
+    const valuesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.ARQUIVOS}!A:E`
+    });
+
+    const rows = valuesRes.data.values || [];
+    // Link column is D (index 3). We search for the driveId in the link.
+    const rowIdx = rows.findIndex(r => r[3] && r[3].includes(driveId));
+
+    if (rowIdx !== -1) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: fileId,
+        range: `${SHEET_TABS.ARQUIVOS}!E${rowIdx + 1}`, // Column E is ai_resposta
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [[analysis]] }
+      });
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: "Registro do arquivo não encontrado na planilha." });
+    }
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.post("/api/create-portal-session", async (req, res) => {
+  const stripeInstance = getStripe();
+  if (!stripeInstance) {
+    return res.status(500).json({ error: "Stripe is not configured." });
+  }
+
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const userInfo = await google.oauth2("v2").userinfo.get({ auth });
+    const email = userInfo.data.email;
+
+    if (!email) return res.status(400).json({ error: "Email for user not found" });
+
+    // Find customer by email
+    const customers = await stripeInstance.customers.list({
+      email: email,
+      limit: 1,
+    });
+
+    if (customers.data.length === 0) {
+      return res.status(404).json({ error: "No Stripe customer found for this email." });
+    }
+
+    const host = req.get("host");
+    const protocol = req.get("x-forwarded-proto") || "https";
+    const origin = `${protocol}://${host}`;
+
+    const session = await stripeInstance.billingPortal.sessions.create({
+      customer: customers.data[0].id,
+      return_url: origin,
+    });
+
+    res.json({ url: session.url });
+  } catch (error: any) {
+    console.error("Stripe Portal Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/stripe/status", async (req, res) => {
+  const stripeInstance = getStripe();
+  if (!stripeInstance) return res.json({ subscribed: false, configured: false });
+
+  const auth = getAuthClient(req);
+  if (!auth) return res.json({ subscribed: false, authenticated: false });
+
+  try {
+    const userInfo = await google.oauth2("v2").userinfo.get({ auth });
+    const email = userInfo.data.email;
+
+    if (!email) return res.json({ subscribed: false });
+
+    const customers = await stripeInstance.customers.list({ email, limit: 1 });
+    if (customers.data.length === 0) return res.json({ subscribed: false });
+
+    const subscriptions = await stripeInstance.subscriptions.list({
+      customer: customers.data[0].id,
+      status: "active",
+      limit: 1,
+    });
+
+    res.json({ 
+      subscribed: subscriptions.data.length > 0,
+      customer: customers.data[0].id,
+      configured: true
+    });
+  } catch (error) {
+    res.json({ subscribed: false, error: (error as Error).message });
   }
 });
 

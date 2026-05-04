@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+export const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const listCalendarEventsTool: FunctionDeclaration = {
   name: "list_calendar_events",
@@ -178,9 +178,9 @@ export const tools = [
 ];
 
 export const createAgent = () => ai.chats.create({
-  model: "gemini-3-flash-preview", // Nexus Business AI uses the latest flash model
+  model: "gemini-3-flash-preview", // Doctor Pro uses the latest flash model
   config: {
-    systemInstruction: `You are Nexus Business AI, a highly professional workspace assistant. 
+    systemInstruction: `You are Doctor Pro, a highly professional workspace assistant. 
     You have access to the user's Google Calendar, Drive, and Sheets through provided tools.
     
     TRUST & SECURITY:
@@ -214,19 +214,16 @@ export const createAgent = () => ai.chats.create({
     4. SPECIFIC TEXT LOG PATTERN (PROCV LOGIC):
        Even if the text says "Paciente 2", perform a quick lookup in the "Cadastro" sheet values to ensure Row 2 (if that's what it means) or ID '2' belongs to the correct person. This acts as a manual VLOOKUP to prevent data collision.
 
-    4. DATA CONSOLIDATION & PROFILE VIEW (Dashboard):
-       - When the user asks to "carregar perfil", "atualizar perfil" or "preparar aba de perfil" for a patient:
+    4. DATA CONSOLIDATION & PROFILE VIEW:
+       - When the user asks to see a patient's info, profile, or report:
          1. Search and fetch info from "Pacientes - Cadastro", "Pacientes - Imagens", and "Pacientes - Áudios".
-         2. Filter all rows matching the Patient ID or Name.
-         3. Search for the spreadsheet "Pacientes - Perfil".
-         4. Use 'update_spreadsheet_values' to write a structured dashboard in "Pacientes - Perfil":
-            - It should clear existing data (by writing empty strings to a large range) or just overwrite systematically.
-            - Structure: 
-              Row 1: [ID] | [NOME] | [TELEFONE]
-              Row 3: [COLUNA IMAGENS] | [COLUNA ÁUDIOS]
-              Row 4 onwards: List each entry found in the respective columns for that patient.
-         5. Inform the user that the "Paciente - Perfil" sheet is now updated and ready for viewing.
-         6. IMMEDIATELY call 'clear_local_memory' to save tokens.
+         2. Consolidate into a report with these specific sections:
+            - Header: # **[NOME]**, [IDADE] anos \`/edit_name [ID] label:✏️\`
+            - Section: **Contatos:** [List of relatives/family]
+            - Section: **Informações:** [List of logs/evolution text]
+            - Section: **Imagens:** [List of images]
+         3. NEVER include CPF or Telefone fields in the patient profile unless explicitly asked.
+         4. IMMEDIATELY call 'clear_local_memory' after providing the report.
 
     CONSULTING PATIENT INFO:
     - If user asks for patient history (like "retornar todas informações"), the agent MUST:
