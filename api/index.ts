@@ -204,6 +204,9 @@ const getOrCreateImagesFolder = async (auth: any) => {
 const COOKIE_NAME = "__Secure-nexus-p-v1";
 const LEGACY_COOKIE_NAME = "__Secure-nexus-u-v1";
 
+// Cache for pending sessions to bridge the gap between popup and iframe
+const pendingSessions = new Map<string, any>();
+
 // Helper to get auth client from cookie
 const getAuthClient = (req: express.Request) => {
   const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"] || req.cookies["__Secure-nexus-auth-v1"] || req.cookies["nexus_auth_token_v1"];
@@ -248,15 +251,17 @@ app.get("/api/auth/url", (req, res) => {
     const client = getOAuth2Client(req);
     if (!client) {
       console.error("Auth client initialization failed: missing credentials");
-      return res.status(500).json({ error: "Google OAuth credentials not configured in Vercel environment variables." });
+      return res.status(500).json({ error: "Google OAuth credentials not configured." });
     }
 
+    const state = Math.random().toString(36).substring(2) + Date.now().toString(36);
     const url = client.generateAuthUrl({
       access_type: "offline",
       scope: SCOPES,
-      prompt: "consent"
+      prompt: "consent",
+      state: state
     });
-    res.json({ url });
+    res.json({ url, state });
   } catch (err: any) {
     console.error("Error generating auth URL:", err);
     res.status(500).json({ error: err.message || "Internal server error generating auth URL" });
@@ -264,21 +269,19 @@ app.get("/api/auth/url", (req, res) => {
 });
 
 app.get("/auth/callback", async (req, res) => {
-  const { code, error } = req.query;
+  const { code, state, error } = req.query;
   
   if (error) {
     console.error("Auth query error:", error);
-    return res.status(403).send(`Authentication failed: ${error}. Certifique-se de que seu e-mail está na lista de 'Test Users' no Google Cloud Console.`);
+    return res.status(403).send(`Authentication failed: ${error}`);
   }
 
   const client = getOAuth2Client(req);
-  if (!client) return res.status(500).send("Server configuration error: Missing Google Credentials.");
+  if (!client) return res.status(500).send("Server configuration error.");
 
   try {
     const { tokens } = await client.getToken(code as string);
-    console.log(`[OAuth] Tokens received. Expiry: ${tokens.expiry_date}`);
     
-    // Only store what we need to keep cookie size small (browsers limit to ~4KB)
     const essentialTokens = {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
@@ -287,24 +290,23 @@ app.get("/auth/callback", async (req, res) => {
       token_type: tokens.token_type
     };
 
-    // 1. Set Legacy Cookie (Unpartitioned)
-    res.cookie(LEGACY_COOKIE_NAME, essentialTokens, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      path: "/",
-      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-    });
+    // Store for polling
+    if (state) {
+      console.log(`[Auth] Storing pending session for state: ${state}`);
+      pendingSessions.set(state as string, essentialTokens);
+      setTimeout(() => pendingSessions.delete(state as string), 5 * 60 * 1000);
+    }
 
-    // 2. Set Partitioned Cookie (For better iframe support in modern Chrome)
-    res.cookie(COOKIE_NAME, essentialTokens, {
+    // Set cookies as fallback
+    const cookieOptions = {
       httpOnly: true,
       secure: true,
-      sameSite: "none",
+      sameSite: "none" as const,
       path: "/",
-      partitioned: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-    });
+      maxAge: 30 * 24 * 60 * 60 * 1000
+    };
+    res.cookie(LEGACY_COOKIE_NAME, essentialTokens, cookieOptions);
+    res.cookie(COOKIE_NAME, essentialTokens, { ...cookieOptions, partitioned: true });
 
     res.send(`
       <html>
@@ -320,9 +322,7 @@ app.get("/auth/callback", async (req, res) => {
             @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
             .btn { background: #2563eb; color: white; border: none; padding: 0.875rem 1.75rem; border-radius: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-block; text-decoration: none; margin-top: 0.5rem; }
             .btn:hover { background: #1d4ed8; transform: translateY(-1px); }
-            .btn:active { transform: translateY(0); }
-            .status { margin-top: 1.5rem; font-size: 0.8125rem; color: #6b7280; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem; border: 1px solid #f3f4f6; }
-            .success-icon { display: none; color: #059669; font-size: 3rem; margin-bottom: 1rem; }
+            .status { margin-top: 1.5rem; font-size: 0.8125rem; color: #6b7280; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem; }
           </style>
         </head>
         <body>
@@ -332,187 +332,104 @@ app.get("/auth/callback", async (req, res) => {
               <h2>Autenticação concluída!</h2>
               <p>Estamos sincronizando sua conta com o Nexus. Isso deve levar apenas alguns segundos.</p>
             </div>
-            
-            <div id="success-state" style="display: none;">
-              <div class="success-icon" style="display: block;">✓</div>
-              <h2>Pronto!</h2>
-              <p>Sua conta foi sincronizada com sucesso. Você já pode voltar ao aplicativo.</p>
-            </div>
-
             <a href="/" class="btn" id="finish-btn">Voltar para o App</a>
             <div id="debug-status" class="status">Iniciando sincronização...</div>
-            
             <script>
               const tokens = ${JSON.stringify(essentialTokens)};
-              const payload = { 
-                type: 'OAUTH_AUTH_SUCCESS', 
-                tokens: tokens,
-                source: 'callback_page',
-                timestamp: Date.now()
-              };
-
-              const debugEl = document.getElementById('debug-status');
-              function updateStatus(msg) {
-                console.log("[OAuth]", msg);
-                debugEl.innerText = msg;
-              }
-
-              function showSuccess() {
-                document.getElementById('loading-state').style.display = 'none';
-                document.getElementById('success-state').style.display = 'block';
-                document.getElementById('finish-btn').innerText = 'Abrir App';
-              }
+              const payload = { type: 'OAUTH_AUTH_SUCCESS', tokens, timestamp: Date.now() };
 
               function notify() {
-                let channels = [];
-                
-                // 1. BroadcastChannel
                 try {
-                  const authChannel = new BroadcastChannel('nexus_auth_channel');
-                  authChannel.postMessage(payload);
-                  channels.push("Canal");
-                  // Keep it open for a bit
-                  setTimeout(() => authChannel.close(), 5000);
-                } catch (e) {
-                  console.error("BC error", e);
-                }
-
-                // 2. window.opener
+                  const channel = new BroadcastChannel('nexus_auth_channel');
+                  channel.postMessage(payload);
+                  setTimeout(() => channel.close(), 2000);
+                } catch (e) {}
                 try {
-                  if (window.opener) {
-                    window.opener.postMessage(payload, '*');
-                    channels.push("Janela");
-                  }
-                } catch (e) {
-                  console.error("Popup error", e);
-                }
-
-                // 3. LocalStorage
+                  if (window.opener) window.opener.postMessage(payload, '*');
+                } catch (e) {}
                 try {
                   localStorage.setItem('nexus_auth_success', JSON.stringify(payload));
-                  channels.push("Cache");
-                } catch (e) {
-                  console.error("Storage error", e);
-                }
-
-                if (channels.length > 0) {
-                  updateStatus("Sincronizado via: " + channels.join(", "));
-                  return true;
-                }
-                return false;
+                } catch (e) {}
               }
 
-              // Initial notification
               notify();
-              
-              // Repeated attempts to catch the parent if it wasn't ready
               let count = 0;
               const interval = setInterval(() => {
                 count++;
                 notify();
+                document.getElementById('debug-status').innerText = "Sincronizando... (" + count + ")";
                 if (count >= 10) {
                   clearInterval(interval);
-                  showSuccess();
+                  document.getElementById('loading-state').innerHTML = "<h2>Pronto!</h2><p>Sua conta foi sincronizada. Você já pode fechar esta janela.</p>";
+                  document.getElementById('debug-status').innerText = "Concluído";
                 }
               }, 1000);
 
-              document.getElementById('finish-btn').onclick = function(e) {
+              document.getElementById('finish-btn').onclick = function() {
                 notify();
-                setTimeout(() => {
-                  if (window.opener) window.close();
-                  else window.location.href = '/';
-                }, 300);
+                if (window.opener) window.close();
+                else window.location.href = '/';
                 return false;
               };
-
-              // Auto-close if successful and count is high
-              setTimeout(() => {
-                if (window.opener) {
-                  updateStatus("Fechando automaticamente...");
-                  setTimeout(() => window.close(), 1000);
-                }
-              }, 12000);
             </script>
           </div>
         </body>
       </html>
     `);
-  } catch (error) {
-    console.error("Auth token error:", error);
-    const msg = (error as any).message || "Unknown error";
-    res.status(500).send(`Authentication failed: ${msg}`);
+  } catch (err: any) {
+    console.error("Auth token error:", err);
+    res.status(500).send(`Authentication failed: ${err.message}`);
   }
 });
 
-// New route to allow setting the cookie from within the iframe context
-// This ensures the Partitioned attribute uses the correct partition key (e.g. ai.studio)
+app.get("/api/auth/poll/:state", (req, res) => {
+  const { state } = req.params;
+  const tokens = pendingSessions.get(state);
+  if (tokens) {
+    pendingSessions.delete(state);
+    return res.json({ tokens });
+  }
+  res.status(404).json({ error: "Session not found" });
+});
+
 app.post("/api/auth/session", (req, res) => {
   const { tokens } = req.body;
   if (!tokens) return res.status(400).json({ error: "Missing tokens" });
 
-  console.log(`[Auth] Establishing session in iframe context for ${COOKIE_NAME}`);
-
-  // Set Legacy
-  res.cookie(LEGACY_COOKIE_NAME, tokens, {
+  const cookieOptions = {
     httpOnly: true,
     secure: true,
-    sameSite: "none",
+    sameSite: "none" as const,
     path: "/",
-    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-  });
-
-  // Set Partitioned
-  res.cookie(COOKIE_NAME, tokens, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    path: "/",
-    partitioned: true,
-    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-  });
+    maxAge: 30 * 24 * 60 * 60 * 1000
+  };
+  res.cookie(LEGACY_COOKIE_NAME, tokens, cookieOptions);
+  res.cookie(COOKIE_NAME, tokens, { ...cookieOptions, partitioned: true });
 
   res.json({ success: true });
 });
 
 app.get("/api/auth/status", (req, res) => {
   const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
-  const hasToken = !!token;
-  
   res.json({ 
-    isAuthenticated: hasToken,
+    isAuthenticated: !!token,
     debug: {
       hasPartitioned: !!req.cookies[COOKIE_NAME],
       hasLegacy: !!req.cookies[LEGACY_COOKIE_NAME],
-      hasOld: !!(req.cookies["n_session_p"] || req.cookies["google_token"]),
-      cookieName: COOKIE_NAME,
-      legacyName: LEGACY_COOKIE_NAME,
       cookieCount: Object.keys(req.cookies || {}).length,
       allCookies: Object.keys(req.cookies || {}),
-      ua: req.headers["user-agent"],
-      env: {
-        hasClientId: !!process.env.GOOGLE_CLIENT_ID,
-        hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET
-      }
+      ua: req.headers["user-agent"]
     }
   });
 });
 
 app.post("/api/auth/logout", (req, res) => {
-  const clearOptions = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none" as const,
-    path: "/"
-  };
-  
-  res.clearCookie(COOKIE_NAME, { ...clearOptions, partitioned: true });
-  res.clearCookie(LEGACY_COOKIE_NAME, clearOptions);
-  res.clearCookie("n_session_p", { ...clearOptions, partitioned: true });
-  res.clearCookie("n_session_u", clearOptions);
-  res.clearCookie("nexus_auth_token_v1", { ...clearOptions, partitioned: true });
-  res.clearCookie("google_token", { ...clearOptions, partitioned: true });
-  res.clearCookie("__Secure-nexus-auth-v1", { ...clearOptions, partitioned: true });
-  
+  const options = { httpOnly: true, secure: true, sameSite: "none" as const, path: "/" };
+  res.clearCookie(COOKIE_NAME, { ...options, partitioned: true });
+  res.clearCookie(LEGACY_COOKIE_NAME, options);
+  res.clearCookie("n_session_p", { ...options, partitioned: true });
+  res.clearCookie("n_session_u", options);
+  res.clearCookie("google_token", options);
   res.json({ success: true });
 });
 

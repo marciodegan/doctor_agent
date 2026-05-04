@@ -112,7 +112,7 @@ export const useAuth = () => {
         data = JSON.parse(text);
       } catch (e) {
         console.error("[Auth] Server returned non-JSON:", text);
-        alert(`Erro de Configuração: O servidor retornou uma resposta inválida (Status ${res.status}). Verifique se as credenciais do Google foram configuradas nos Secrets da Vercel.`);
+        alert(`Erro de Configuração: O servidor retornou uma resposta inválida.`);
         return;
       }
 
@@ -122,16 +122,66 @@ export const useAuth = () => {
         return;
       }
       
-      const { url } = data;
-      console.log("[Auth] Auth URL received, redirecting...");
+      const { url, state } = data;
+      console.log("[Auth] Auth URL received, opening...", { state });
       
       if (isMobile) {
         window.location.href = url;
       } else {
         const popup = window.open(url, "google_oauth", "width=600,height=700");
         if (!popup) {
-          alert("O bloqueador de popups impediu a janela de login. Por favor, autorize popups ou use o redirecionamento direto.");
+          alert("O bloqueador de popups impediu a janela de login. Redirecionando...");
           window.location.href = url;
+          return;
+        }
+
+        // Start polling for the state if available
+        // This handles cases where postMessage/BroadcastChannel/LocalStorage fail due to partitioning
+        if (state) {
+          console.log("[Auth] Starting session poll for state:", state);
+          let attempts = 0;
+          const maxAttempts = 120; // 2-3 minutes
+          const pollInterval = setInterval(async () => {
+            attempts++;
+            if (attempts > maxAttempts) {
+              clearInterval(pollInterval);
+              return;
+            }
+
+            try {
+              const pollRes = await fetch(`/api/auth/poll/${state}`, { credentials: 'include' });
+              if (pollRes.ok) {
+                const pollData = await pollRes.json();
+                console.log("[Auth] Poll success! Establishing session...");
+                clearInterval(pollInterval);
+                
+                // Establish session in iframe context
+                await fetch("/api/auth/session", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ tokens: pollData.tokens }),
+                  credentials: 'include'
+                });
+                
+                checkAuth();
+                if (popup && !popup.closed) popup.close();
+              }
+            } catch (e) {
+              // Ignore polling errors
+            }
+          }, 1500);
+
+          // Clear interval if user closes popup manually
+          const checkPopup = setInterval(() => {
+            if (popup.closed) {
+              clearInterval(checkPopup);
+              // Wait a bit then check auth one last time in case it just finished
+              setTimeout(() => {
+                 clearInterval(pollInterval);
+                 checkAuth();
+              }, 2000);
+            }
+          }, 1000);
         }
       }
     } catch (error: any) {
