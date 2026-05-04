@@ -127,6 +127,7 @@ const MessageForm: React.FC<{
             placeholder={field.placeholder}
             className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             required
+            {...(field.type === "number" ? { inputMode: "numeric" } : {})}
           />
         </div>
       ))}
@@ -625,9 +626,9 @@ export const Chat: React.FC = () => {
           form: {
             title: "Dados do Familiar",
             fields: [
-              { label: "Nome do Familiar", name: "familiar_nome", type: "text" },
-              { label: "Grau de Parentesco", name: "relacao", type: "text", placeholder: "Ex: Filho(a), Esposa..." },
-              { label: "Telefone", name: "fone", type: "number" },
+              { label: "Nome do Familiar", name: "nome_familiar", type: "text" },
+              { label: "Grau de Parentesco", name: "tipo_parentesco", type: "text", placeholder: "Ex: Filho(a), Esposa..." },
+              { label: "Telefone", name: "telefone", type: "number" },
             ],
             submitLabel: "Salvar Familiar",
             commandPrefix: `/registrar_familiar id: ${id}, paciente_nome: ${nome || ""},`
@@ -668,13 +669,21 @@ export const Chat: React.FC = () => {
     if (cmd === "/iniciarhospital") {
       setMessages(prev => [...prev, { 
         role: "model", 
-        text: `🏥 **Cadastro de Novo Hospital**\n\n` +
-              `Para registrar um novo hospital, use o comando abaixo:\n\n` +
-              `\`/hospital_add nome: [NOME], fone: [TELEFONE], c1: [CONTATO1], c2: [CONTATO2], c3: [CONTATO3], c4: [CONTATO4], c5: [CONTATO5]\`\n\n` +
-              `*Clique no comando abaixo para carregar o modelo no chat:*`
+        text: `🏥 **Cadastro de Novo Hospital**\n\nPreencha os dados abaixo para registrar:`,
+        form: {
+          title: "Novo Hospital",
+          fields: [
+            { label: "Nome do Hospital", name: "nome", type: "text", placeholder: "Ex: Hospital Moinhos de Vento" },
+            { label: "Telefone", name: "fone", type: "number", placeholder: "Ex: 5133334444" },
+            { label: "Contato 1", name: "c1", type: "text" },
+            { label: "Contato 2", name: "c2", type: "text" },
+            { label: "Contato 3", name: "c3", type: "text" },
+          ],
+          submitLabel: "Salvar Hospital",
+          commandPrefix: "/hospital_add"
+        }
       }]);
-      setInput("/hospital_add nome: , fone: , c1: , c2: , c3: , c4: , c5: ");
-      return "PREFILL";
+      return true;
     }
 
     if (cmd === "/hospitais") {
@@ -1078,22 +1087,22 @@ export const Chat: React.FC = () => {
       try {
         const patientId = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
         const patientNome = cmdInput.match(/paciente_nome:\s*([^,]+)/i)?.[1]?.trim();
-        const nome = cmdInput.match(/familiar_nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
-        const relacao = cmdInput.match(/relacao:\s*([^,]+)/i)?.[1]?.trim();
-        const fone = cmdInput.match(/fone:\s*(.+)/i)?.[1]?.trim();
+        const nomeParaApi = cmdInput.match(/nome_familiar:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/familiar_nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
+        const relacaoParaApi = cmdInput.match(/tipo_parentesco:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/relacao:\s*([^,]+)/i)?.[1]?.trim();
+        const foneParaApi = cmdInput.match(/telefone:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/fone:\s*(.+)/i)?.[1]?.trim();
 
-        if (!patientId || !nome) throw new Error("Use: /registrar_familiar id: [ID], familiar_nome: [NOME], relacao: [TIPO], fone: [FONE]");
+        if (!patientId || !nomeParaApi) throw new Error("Use: /registrar_familiar id: [ID], nome_familiar: [NOME], tipo_parentesco: [TIPO], telefone: [FONE]");
 
         const res = await fetch("/api/app/family-members", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ patientId, nome, relacao, fone, paciente_nome: patientNome })
+          body: JSON.stringify({ patientId, nome: nomeParaApi, relacao: relacaoParaApi, fone: foneParaApi, paciente_nome: patientNome })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
         setMessages([]);
-        handleCommand(`/p ${patientId}`);
+        handleSend(undefined, `/p ${patientId}`, true);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro no cadastro: ${err.message}` }]);
       } finally {

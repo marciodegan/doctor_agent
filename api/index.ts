@@ -98,7 +98,7 @@ const getOrCreateMasterSheet = async (auth: any) => {
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "paciente_nome", "descricao"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome Familiar", "Tipo de Relação", "Telefone", "Id do Paciente", "paciente_nome"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["id", "nome_familiar", "tipo_parentesco", "telefone", "paciente_id", "paciente_nome"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.HOSPITAIS}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome do Hospital", "Telefone", "Contato 1", "Contato 2", "Contato 3", "Contato 4", "Contato 5"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:A6`, valueInputOption: "RAW", requestBody: { values: [["Nome"], ["Pré-operatorio"], ["Pós-operatorio"], ["Acompanhamento"], ["Alta"], ["Não informado"]] } }),
@@ -876,7 +876,7 @@ app.post("/api/app/family-members", express.json(), async (req, res) => {
     });
     const nextId = (valuesRes.data.values?.length || 1).toString();
 
-    // Append: [ID, Nome Familiar, Tipo de Relação, Telefone, ID do Paciente, Nome do Paciente]
+    // Append: [id, nome_familiar, tipo_parentesco, telefone, paciente_id, paciente_nome]
     await sheets.spreadsheets.values.append({
       spreadsheetId: fileId,
       range: `${SHEET_TABS.FAMILIARES}!A:F`,
