@@ -706,7 +706,7 @@ export const Chat: React.FC = () => {
       }
     }
 
-    if (cmd.startsWith("/pacientes") || cmd === "/cadastro") {
+    if (cmd.startsWith("/pacientes")) {
       setIsLoading(true);
       try {
         const res = await fetch("/api/app/patients");
@@ -737,13 +737,12 @@ export const Chat: React.FC = () => {
         const pageData = sortedData.slice(start, end);
 
         const list = pageData.map((p: any) => 
-          `👤 \`/p ${p.id} label:${p.nome}\` (**ID: ${p.id}**)\n` +
-          `🔹 Status: **${p.status || "N/A"}**\n` +
-          `✏️ \`/edit_name ${p.id}\` | 🔄 \`/status_alterar ${p.id}\``
+          `👤 \`/p ${p.id} label:${p.nome}\` **ID: [${p.id}]**\n` +
+          `📍 **Status:** ${p.status || "Não informado"}`
         ).join("\n\n---\n\n");
 
         let nav = "";
-        const cmdName = cmd.startsWith("/pacientes") ? "/pacientes" : "/cadastro";
+        const cmdName = "/pacientes";
         if (totalPages > 1) {
           nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
           if (pageToView > 1) nav += ` \`${cmdName} pag:${pageToView - 1} sort:${sort}\` `;
@@ -828,9 +827,8 @@ export const Chat: React.FC = () => {
           }]);
         } else {
           const list = pageData.map((p: any) => 
-            `👤 \`/p ${p.id} label:${p.nome}\` (**ID: ${p.id}**)\n` +
-            `🔹 Status: **${p.status || "N/A"}**\n` +
-            `✏️ \`/edit_name ${p.id}\` | 🔄 \`/status_alterar ${p.id}\``
+            `👤 \`/p ${p.id} label:${p.nome}\` **ID: [${p.id}]**\n` +
+            `📍 **Status:** ${p.status || "Não informado"}`
           ).join("\n\n---\n\n");
           
           let nav = "";
@@ -1438,7 +1436,7 @@ export const Chat: React.FC = () => {
                                 // Customize labels for common commands
                                 let label = content;
                                 if (content.startsWith("/remover_evento")) label = "🗑️";
-                                if (content.startsWith("/pacientes") || content.startsWith("/cadastro")) label = "📋 Cadastro";
+                                if (content.startsWith("/pacientes")) label = "📋 Pacientes";
                                 if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
                                 if (content.startsWith("/prep_p") || content.startsWith("/p ")) {
                                   if (content.includes(" label:")) {
