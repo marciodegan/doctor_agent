@@ -201,12 +201,12 @@ const getOrCreateImagesFolder = async (auth: any) => {
   return folderId as string;
 };
 
-const COOKIE_NAME = "n_session_p";
-const LEGACY_COOKIE_NAME = "n_session_u";
+const COOKIE_NAME = "__Secure-nexus-p-v1";
+const LEGACY_COOKIE_NAME = "__Secure-nexus-u-v1";
 
 // Helper to get auth client from cookie
 const getAuthClient = (req: express.Request) => {
-  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["google_token"] || req.cookies["__Secure-nexus-auth-v1"] || req.cookies["nexus_auth_token_v1"];
+  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"] || req.cookies["__Secure-nexus-auth-v1"] || req.cookies["nexus_auth_token_v1"];
   if (!token) return null;
   
   const client = getOAuth2Client(req);
@@ -312,100 +312,126 @@ app.get("/auth/callback", async (req, res) => {
           <title>Autenticação Nexus</title>
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb; color: #111827; }
-            .card { text-align: center; padding: 2.5rem; background: white; border-radius: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); max-width: 90%; width: 400px; }
-            h2 { margin-bottom: 0.5rem; font-weight: 800; letter-spacing: -0.025em; }
-            p { color: #6b7280; font-size: 0.875rem; margin-bottom: 2rem; }
-            .spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f3f4f6; color: #111827; }
+            .card { text-align: center; padding: 2.5rem; background: white; border-radius: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); max-width: 90%; width: 420px; }
+            h2 { margin-bottom: 0.5rem; font-weight: 800; letter-spacing: -0.025em; color: #1e40af; }
+            p { color: #4b5563; font-size: 0.9375rem; margin-bottom: 2rem; line-height: 1.5; }
+            .spinner { width: 48px; height: 48px; border: 4px solid #e5e7eb; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem; }
             @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            .btn { background: #111827; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-block; text-decoration: none; }
-            .btn:hover { background: #1f2937; transform: translateY(-1px); }
+            .btn { background: #2563eb; color: white; border: none; padding: 0.875rem 1.75rem; border-radius: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-block; text-decoration: none; margin-top: 0.5rem; }
+            .btn:hover { background: #1d4ed8; transform: translateY(-1px); }
             .btn:active { transform: translateY(0); }
-            .status { margin-top: 1rem; font-size: 0.75rem; color: #9ca3af; }
+            .status { margin-top: 1.5rem; font-size: 0.8125rem; color: #6b7280; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem; border: 1px solid #f3f4f6; }
+            .success-icon { display: none; color: #059669; font-size: 3rem; margin-bottom: 1rem; }
           </style>
         </head>
         <body>
           <div class="card">
-            <div class="spinner"></div>
-            <h2>Autenticação concluída!</h2>
-            <p>Estamos sincronizando sua conta com o sistema. Esta janela deve fechar automaticamente.</p>
-            <a href="/" class="btn" id="finish-btn">Concluir Manualmente</a>
-            <div id="debug-status" class="status">Tentando comunicação...</div>
+            <div id="loading-state">
+              <div class="spinner"></div>
+              <h2>Autenticação concluída!</h2>
+              <p>Estamos sincronizando sua conta com o Nexus. Isso deve levar apenas alguns segundos.</p>
+            </div>
+            
+            <div id="success-state" style="display: none;">
+              <div class="success-icon" style="display: block;">✓</div>
+              <h2>Pronto!</h2>
+              <p>Sua conta foi sincronizada com sucesso. Você já pode voltar ao aplicativo.</p>
+            </div>
+
+            <a href="/" class="btn" id="finish-btn">Voltar para o App</a>
+            <div id="debug-status" class="status">Iniciando sincronização...</div>
             
             <script>
               const tokens = ${JSON.stringify(essentialTokens)};
               const payload = { 
                 type: 'OAUTH_AUTH_SUCCESS', 
                 tokens: tokens,
-                source: 'callback_page'
+                source: 'callback_page',
+                timestamp: Date.now()
               };
 
+              const debugEl = document.getElementById('debug-status');
               function updateStatus(msg) {
                 console.log("[OAuth]", msg);
-                document.getElementById('debug-status').innerText = msg;
+                debugEl.innerText = msg;
+              }
+
+              function showSuccess() {
+                document.getElementById('loading-state').style.display = 'none';
+                document.getElementById('success-state').style.display = 'block';
+                document.getElementById('finish-btn').innerText = 'Abrir App';
               }
 
               function notify() {
-                let sent = false;
+                let channels = [];
                 
                 // 1. BroadcastChannel
                 try {
                   const authChannel = new BroadcastChannel('nexus_auth_channel');
                   authChannel.postMessage(payload);
-                  updateStatus("Enviado via canal de transmissão");
-                  sent = true;
-                  setTimeout(() => authChannel.close(), 1000);
+                  channels.push("Canal");
+                  // Keep it open for a bit
+                  setTimeout(() => authChannel.close(), 5000);
                 } catch (e) {
-                  console.error("BroadcastChannel error", e);
+                  console.error("BC error", e);
                 }
 
                 // 2. window.opener
                 try {
                   if (window.opener) {
                     window.opener.postMessage(payload, '*');
-                    updateStatus("Enviado via janela principal");
-                    sent = true;
+                    channels.push("Janela");
                   }
                 } catch (e) {
-                  console.error("postMessage error", e);
+                  console.error("Popup error", e);
                 }
 
-                // 3. LocalStorage signaller
+                // 3. LocalStorage
                 try {
-                  localStorage.setItem('nexus_auth_success', JSON.stringify({ 
-                    timestamp: Date.now(), 
-                    tokens: tokens 
-                  }));
-                  updateStatus("Sinalizado via armazenamento local");
-                  sent = true;
+                  localStorage.setItem('nexus_auth_success', JSON.stringify(payload));
+                  channels.push("Cache");
                 } catch (e) {
-                  console.error("LocalStorage error", e);
+                  console.error("Storage error", e);
                 }
 
-                return sent;
+                if (channels.length > 0) {
+                  updateStatus("Sincronizado via: " + channels.join(", "));
+                  return true;
+                }
+                return false;
               }
 
-              // Try multiple times as the opener might not be ready
-              let attempts = 0;
+              // Initial notification
+              notify();
+              
+              // Repeated attempts to catch the parent if it wasn't ready
+              let count = 0;
               const interval = setInterval(() => {
-                attempts++;
-                const ok = notify();
-                if (ok && attempts > 5) {
-                   clearInterval(interval);
-                   updateStatus("Sincronizado! Fechando...");
-                   setTimeout(() => window.close(), 1500);
+                count++;
+                notify();
+                if (count >= 10) {
+                  clearInterval(interval);
+                  showSuccess();
                 }
-                if (attempts > 30) clearInterval(interval);
-              }, 500);
+              }, 1000);
 
               document.getElementById('finish-btn').onclick = function(e) {
                 notify();
                 setTimeout(() => {
                   if (window.opener) window.close();
                   else window.location.href = '/';
-                }, 500);
+                }, 300);
                 return false;
               };
+
+              // Auto-close if successful and count is high
+              setTimeout(() => {
+                if (window.opener) {
+                  updateStatus("Fechando automaticamente...");
+                  setTimeout(() => window.close(), 1000);
+                }
+              }, 12000);
             </script>
           </div>
         </body>
@@ -449,7 +475,7 @@ app.post("/api/auth/session", (req, res) => {
 });
 
 app.get("/api/auth/status", (req, res) => {
-  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["google_token"];
+  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
   const hasToken = !!token;
   
   res.json({ 
@@ -457,6 +483,7 @@ app.get("/api/auth/status", (req, res) => {
     debug: {
       hasPartitioned: !!req.cookies[COOKIE_NAME],
       hasLegacy: !!req.cookies[LEGACY_COOKIE_NAME],
+      hasOld: !!(req.cookies["n_session_p"] || req.cookies["google_token"]),
       cookieName: COOKIE_NAME,
       legacyName: LEGACY_COOKIE_NAME,
       cookieCount: Object.keys(req.cookies || {}).length,
@@ -480,6 +507,8 @@ app.post("/api/auth/logout", (req, res) => {
   
   res.clearCookie(COOKIE_NAME, { ...clearOptions, partitioned: true });
   res.clearCookie(LEGACY_COOKIE_NAME, clearOptions);
+  res.clearCookie("n_session_p", { ...clearOptions, partitioned: true });
+  res.clearCookie("n_session_u", clearOptions);
   res.clearCookie("nexus_auth_token_v1", { ...clearOptions, partitioned: true });
   res.clearCookie("google_token", { ...clearOptions, partitioned: true });
   res.clearCookie("__Secure-nexus-auth-v1", { ...clearOptions, partitioned: true });
