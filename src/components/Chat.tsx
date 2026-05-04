@@ -169,9 +169,9 @@ export const Chat: React.FC = () => {
   ];
 
   useEffect(() => {
-    if (scrollRef.current) {
-      // Default behavior is still scroll to bottom for new messages
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    const mainContainer = document.getElementById("main-scroll-container");
+    if (mainContainer) {
+      mainContainer.scrollTop = mainContainer.scrollHeight;
     }
   }, [messages, isLoading]);
 
@@ -179,9 +179,11 @@ export const Chat: React.FC = () => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
     }
+    const mainContainer = document.getElementById("main-scroll-container");
+    if (mainContainer) {
+      mainContainer.scrollTo({ top: 0, behavior: "smooth" });
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
-    document.body.scrollTo({ top: 0, behavior: "smooth" });
-    document.documentElement.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const resizeImage = (file: File): Promise<string> => {
@@ -1233,7 +1235,7 @@ export const Chat: React.FC = () => {
   };
 
   return (
-    <div id="nexus-chat" className="flex flex-col h-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative mt-4 md:mt-0">
+    <div id="nexus-chat" className="flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative mt-4 md:mt-0">
       {/* Header */}
       <div className="p-4 border-b bg-gray-50 flex items-center justify-between border-gray-100 shrink-0">
         <div className="flex items-center gap-2">
@@ -1374,7 +1376,7 @@ export const Chat: React.FC = () => {
       </AnimatePresence>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-6">
+      <div ref={scrollRef} className="px-2 sm:px-6 py-4 space-y-6">
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => (
             <motion.div
@@ -1415,7 +1417,7 @@ export const Chat: React.FC = () => {
                               if (isInline && content.startsWith("/")) {
                                 // Customize labels for common commands
                                 let label = content;
-                                if (content.startsWith("/remover_evento")) label = "🗑️ Remover";
+                                if (content.startsWith("/remover_evento")) label = "🗑️";
                                 if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
                                 if (content.startsWith("/prep_p") || content.startsWith("/p ")) label = "🚀 Relatório";
                                 if (content.startsWith("/logpac")) label = "📝 Novo Log";

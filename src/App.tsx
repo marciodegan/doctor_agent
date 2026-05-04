@@ -181,9 +181,9 @@ export default function App() {
       {/* Main Content */}
       <main className={`lg:pl-64 h-full flex flex-col ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0" : ""}`}>
         {/* Hero / Dashboard Area */}
-        <div className={`p-4 md:p-6 flex flex-col gap-6 ${isFullscreen ? "h-screen overflow-hidden" : "h-full overflow-hidden"}`}>
+        <div id="main-scroll-container" className={`p-4 md:p-6 flex flex-col gap-6 flex-1 ${isFullscreen ? "h-screen overflow-hidden" : "overflow-y-auto"}`}>
           {!isAuthenticated ? (
-            <div className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto text-center space-y-8 overflow-y-auto w-full px-4">
+            <div className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto text-center space-y-8 w-full px-4">
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -219,12 +219,12 @@ export default function App() {
           ) : (
             <div className={`grid grid-cols-1 xl:grid-cols-4 gap-6 h-full max-w-[1600px] mx-auto w-full ${isFullscreen ? "max-w-none" : ""}`}>
               {/* Chat column */}
-              <div className="xl:col-span-3 h-full flex flex-col min-h-0">
+              <div className="xl:col-span-3 flex flex-col min-h-0">
                 <Chat />
               </div>
 
               {/* Sidebar Info column */}
-              <div className="space-y-8 hidden xl:block overflow-y-auto pr-2">
+              <div className="space-y-8 hidden xl:block pr-2">
                 <div className="bg-blue-600 rounded-3xl p-8 text-white shadow-xl shadow-blue-200">
                   <h3 className="text-xl font-bold mb-2">Nexus Tips</h3>
                   <p className="text-blue-100 text-sm mb-6 leading-relaxed">
