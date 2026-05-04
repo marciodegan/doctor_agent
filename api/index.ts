@@ -107,7 +107,7 @@ const getOrCreateMasterSheet = async (auth: any) => {
 
     // Initialize Headers
     await Promise.all([
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status", "paciente_cpf"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "paciente_nome", "descricao"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["id", "nome_familiar", "tipo_parentesco", "telefone", "paciente_id", "paciente_nome"]] } }),
@@ -683,7 +683,7 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
 
     // Use a single batchGet for all tabs
     const ranges = [
-      `${SHEET_TABS.CADASTRO}!A:E`,
+      `${SHEET_TABS.CADASTRO}!A:F`,
       `${SHEET_TABS.LOGS}!A:D`,
       `${SHEET_TABS.ARQUIVOS}!A:D`,
       `${SHEET_TABS.FAMILIARES}!A:F`
@@ -754,7 +754,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
   const sheets = google.sheets({ version: "v4", auth });
-  const { nome, fone, idade, status } = req.body;
+  const { nome, fone, idade, status, cpf } = req.body;
 
   if (!nome) return res.status(400).json({ error: "Nome é obrigatório." });
 
@@ -771,10 +771,10 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
     // Append new patient
     await sheets.spreadsheets.values.append({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!A:E`,
+      range: `${SHEET_TABS.CADASTRO}!A:F`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: [[nextId, nome, fone, idade, status || "Não informado"]]
+        values: [[nextId, nome, fone, idade, status || "Não informado", cpf || ""]]
       }
     });
 

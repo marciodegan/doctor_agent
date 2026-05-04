@@ -491,6 +491,7 @@ export const Chat: React.FC = () => {
             { label: "Nome do Paciente", name: "nome", type: "text", placeholder: "Ex: João Silva" },
             { label: "Telefone", name: "fone", type: "number", placeholder: "Ex: (51) 98888-7777" },
             { label: "Idade", name: "idade", type: "text", placeholder: "Ex: 30" },
+            { label: "CPF", name: "cpf", type: "text", placeholder: "000.000.000-00" },
           ],
           submitLabel: "Registrar Paciente",
           commandPrefix: "/registrar"
@@ -847,7 +848,7 @@ export const Chat: React.FC = () => {
         const docs = data.imagens.map((i: any) => {
           const fileId = i.link?.match(/[-\w]{25,}/)?.[0];
           const downloadText = fileId ? ` [[Baixar Arquivo](/api/drive/file/${fileId})]` : "";
-          return `• [${i.data}]${downloadText}\n${i.descricao}`;
+          return `• [${i.data}]${downloadText}\n\n${i.descricao}`;
         }).join("\n\n");
 
         const fams = data.familiares.map((f: any) => {
@@ -861,8 +862,12 @@ export const Chat: React.FC = () => {
         const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
         const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
 
-        const reportText = `**${cad.Nome} (ID: ${cad.ID})**\n\n` +
-          `**Cadastro** \`/edit_name ${cad.ID} label:✏️\`\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n\n` +
+        const reportText = `# ${cad.Nome}\n` +
+          `📍 **Status:** ${cad.Status || "Não informado"} \`/status_alterar ${cad.ID}\`\n\n` +
+          `**Cadastro** \`/edit_name ${cad.ID} label:✏️\`\n` +
+          `- idade: ${cad.Idade || "N/A"}\n` +
+          `- telefone: ${foneCadLink}\n` +
+          `- cpf: ${cad.paciente_cpf || "N/A"}\n\n` +
           `**Familiares:** \`/novo_familiar id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${fams || "Nenhum registro"}\n\n` +
           `**Evoluções:** \`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${audios || "Nenhum registro"}\n\n` +
           `**Imagens:** \`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${docs || "Nenhum registro"}`;
@@ -1270,10 +1275,8 @@ export const Chat: React.FC = () => {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        setMessages(prev => [...prev, { 
-          role: "model", 
-          text: `✅ **Imagem salva com sucesso!**\nPaciente ID: **${id}**\n[Visualizar no Drive](${data.link})` 
-        }]);
+        setMessages([]);
+        await handleDirectCommand(`/p ${id}`);
         setSelectedImage(null); // Clear image after upload
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro no upload: ${err.message}` }]);
@@ -1296,21 +1299,20 @@ export const Chat: React.FC = () => {
         const nome = getVal("nome");
         const fone = getVal("fone");
         const idade = getVal("idade");
+        const cpf = getVal("cpf");
 
         if (!nome) throw new Error("O campo 'nome:' é obrigatório.");
 
         const res = await fetch("/api/app/patients", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nome, fone, idade })
+          body: JSON.stringify({ nome, fone, idade, cpf })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        setMessages(prev => [...prev, { 
-          role: "model", 
-          text: `✅ **Paciente cadastrado com sucesso!**\nID Gerado: **${data.id}**\nNome: ${nome}\nFone: ${fone ? `[${fone}](https://wa.me/${fone.replace(/\D/g, "").startsWith("55") ? fone.replace(/\D/g, "") : "55" + fone.replace(/\D/g, "")})` : "Não informado"}` 
-        }]);
+        setMessages([]);
+        await handleDirectCommand("/pacientes");
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro no cadastro: ${err.message}` }]);
       } finally {
