@@ -418,17 +418,21 @@ app.get("/api/auth/poll/:state", (req, res) => {
   const cookieTokens = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME];
   
   if (tokens || cookieTokens) {
-    console.log(`[Auth] Poll success for state: ${state} (Map: ${!!tokens}, Cookie: ${!!cookieTokens})`);
+    console.log(`[Auth] Poll SUCCESS for state: ${state} | Map: ${!!tokens} | Cookie: ${!!cookieTokens}`);
     if (tokens) pendingSessions.delete(state);
     return res.json({ tokens: tokens || cookieTokens });
   }
   
+  const allCookieNames = Object.keys(req.cookies || {});
+  console.log(`[Auth] Poll 404 for state: ${state} | Cookies present: ${allCookieNames.join(", ") || "none"}`);
+
   res.status(404).json({ 
     error: "Session pending",
     debug: {
+      stateRequested: state,
       hasStateInMap: pendingSessions.has(state),
-      cookieCount: Object.keys(req.cookies || {}).length,
-      cookieNames: Object.keys(req.cookies || {})
+      cookieCount: allCookieNames.length,
+      cookieNames: allCookieNames
     }
   });
 });
