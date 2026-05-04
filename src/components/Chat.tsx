@@ -471,7 +471,7 @@ export const Chat: React.FC = () => {
           title: "Novo Paciente",
           fields: [
             { label: "Nome do Paciente", name: "nome", type: "text", placeholder: "Ex: João Silva" },
-            { label: "Telefone", name: "fone", type: "text", placeholder: "Ex: (51) 98888-7777" },
+            { label: "Telefone", name: "fone", type: "number", placeholder: "Ex: (51) 98888-7777" },
             { label: "Idade", name: "idade", type: "text", placeholder: "Ex: 30" },
           ],
           submitLabel: "Registrar Paciente",
@@ -627,10 +627,10 @@ export const Chat: React.FC = () => {
             fields: [
               { label: "Nome do Familiar", name: "familiar_nome", type: "text" },
               { label: "Grau de Parentesco", name: "relacao", type: "text", placeholder: "Ex: Filho(a), Esposa..." },
-              { label: "Telefone", name: "fone", type: "text" },
+              { label: "Telefone", name: "fone", type: "number" },
             ],
             submitLabel: "Salvar Familiar",
-            commandPrefix: `/registrar_familiar id: ${id}, p_nome: ${nome || ""},`
+            commandPrefix: `/registrar_familiar id: ${id}, paciente_nome: ${nome || ""},`
           }
         }]);
         return true;
@@ -658,7 +658,7 @@ export const Chat: React.FC = () => {
               { label: "O que aconteceu?", name: "texto", type: "text", placeholder: "Descreva a atualização..." }
             ],
             submitLabel: "Salvar Evolução",
-            commandPrefix: `/log id: ${id},`
+            commandPrefix: `/log id: ${id}, p_nome: ${nome || ""},`
           }
         }]);
         return true;
@@ -960,7 +960,7 @@ export const Chat: React.FC = () => {
             title: "Atualizar Dados",
             fields: [
               { label: "Nome", name: "nome", type: "text", defaultValue: p.Nome },
-              { label: "Telefone", name: "fone", type: "text", defaultValue: p.Telefone || "" },
+              { label: "Telefone", name: "fone", type: "number", defaultValue: p.Telefone || "" },
               { label: "Idade", name: "idade", type: "text", defaultValue: p.Idade || "" },
             ],
             submitLabel: "Salvar Alterações",
@@ -1077,7 +1077,7 @@ export const Chat: React.FC = () => {
       setIsLoading(true);
       try {
         const patientId = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
-        const patientNome = cmdInput.match(/p_nome:\s*([^,]+)/i)?.[1]?.trim();
+        const patientNome = cmdInput.match(/paciente_nome:\s*([^,]+)/i)?.[1]?.trim();
         const nome = cmdInput.match(/familiar_nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
         const relacao = cmdInput.match(/relacao:\s*([^,]+)/i)?.[1]?.trim();
         const fone = cmdInput.match(/fone:\s*(.+)/i)?.[1]?.trim();
@@ -1087,15 +1087,13 @@ export const Chat: React.FC = () => {
         const res = await fetch("/api/app/family-members", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ patientId, nome, relacao, fone, patientNome })
+          body: JSON.stringify({ patientId, nome, relacao, fone, paciente_nome: patientNome })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        setMessages(prev => [...prev, { 
-          role: "model", 
-          text: `✅ **Familiar cadastrado com sucesso!**\nNome: **${nome}**\nRelação: ${relacao || "Não especificado"}\nFone: ${fone ? `[${fone}](https://wa.me/${fone.replace(/\D/g, "").startsWith("55") ? fone.replace(/\D/g, "") : "55" + fone.replace(/\D/g, "")})` : "Não informado"}\nPaciente ID: ${patientId}` 
-        }]);
+        setMessages([]);
+        handleCommand(`/p ${patientId}`);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro no cadastro: ${err.message}` }]);
       } finally {
@@ -1108,6 +1106,7 @@ export const Chat: React.FC = () => {
       setIsLoading(true);
       try {
         const patientId = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
+        const patientNome = cmdInput.match(/p_nome:\s*([^,]+)/i)?.[1]?.trim();
         const text = cmdInput.match(/texto:\s*(.+)/i)?.[1]?.trim();
 
         if (!patientId || !text) throw new Error("Use: /log id: [ID], texto: [Sua transcrição]");
@@ -1115,14 +1114,14 @@ export const Chat: React.FC = () => {
         const res = await fetch("/api/app/logs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ patientId, text })
+          body: JSON.stringify({ patientId, text, paciente_nome: patientNome })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: `✅ **Texto adicionado com sucesso!**\nPaciente ID: **${patientId}**\n\nO conteúdo foi salvo na planilha "Pacientes - Áudios".` 
+          text: `✅ **Texto adicionado com sucesso!**\nPaciente ID: **${patientId}**\n\nO conteúdo foi salvo na planilha "Log de Status".` 
         }]);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao salvar log: ${err.message}` }]);

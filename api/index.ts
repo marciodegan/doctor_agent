@@ -56,13 +56,13 @@ const MASTER_SHEET_NAME = "Nexus - Banco de Dados";
 const IMAGES_FOLDER_NAME = "Nexus - Imagens";
 const SHEET_TABS = {
   CADASTRO: "Cadastro",
-  LOGS: "Atendimentos",
+  LOGS: "Log de Status",
   ARQUIVOS: "Arquivos",
   FAMILIARES: "Familiares",
   SETTINGS: "Configuracoes",
   HOSPITAIS: "Hospitais",
   STATUSES: "Statuses",
-  STATUS_LOG: "Log de Status"
+  STATUS_LOG: "Atividades"
 };
 
 // --- Helper for Unifying Databases ---
@@ -96,9 +96,9 @@ const getOrCreateMasterSheet = async (auth: any) => {
     // Initialize Headers
     await Promise.all([
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["Data", "Paciente", "Conteudo", "Tipo"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["Data", "Paciente", "Descricao", "Link"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome Familiar", "Tipo de Relação", "Telefone", "ID do Paciente", "Nome do Paciente"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "paciente_nome", "descricao"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome Familiar", "Tipo de Relação", "Telefone", "Id do Paciente", "paciente_nome"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.HOSPITAIS}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome do Hospital", "Telefone", "Contato 1", "Contato 2", "Contato 3", "Contato 4", "Contato 5"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:A6`, valueInputOption: "RAW", requestBody: { values: [["Nome"], ["Pré-operatorio"], ["Pós-operatorio"], ["Acompanhamento"], ["Alta"], ["Não informado"]] } }),
@@ -595,17 +595,17 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
     const patientName = cadData[1];
     const patientId = cadData[0];
 
-    // Process Logs/Audios
+    // Process Logs/Audios (Evoluções - Log de Status)
     if (logRows.length > 0) {
       report.audios = logRows.slice(1)
-        .filter(row => row[1] === patientName || row[1] === patientId)
-        .map(row => ({ data: row[0], conteudo: row[2], link: row[3] }));
+        .filter(row => row[1] === patientId.toString() || row[2] === patientName)
+        .map(row => ({ data: row[0], conteudo: row[3] }));
     }
 
-    // Process Imagens/Arquivos
+    // Process Imagens/Arquivos (Arquivos)
     if (imgRows.length > 0) {
       report.imagens = imgRows.slice(1)
-        .filter(row => row[1] === patientName || row[1] === patientId)
+        .filter(row => row[1] === patientId.toString())
         .map(row => ({ data: row[0], descricao: row[2], link: row[3] }));
     }
 
@@ -849,14 +849,14 @@ app.post("/api/app/family-members", express.json(), async (req, res) => {
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
   const sheets = google.sheets({ version: "v4", auth });
-  const { nome, relacao, fone, patientId, patientNome } = req.body;
+  const { nome, relacao, fone, patientId, paciente_nome } = req.body;
 
   if (!nome || !patientId) return res.status(400).json({ error: "Nome e ID do Paciente são obrigatórios." });
 
   try {
     const fileId = await getOrCreateMasterSheet(auth);
 
-    let finalPatientNome = patientNome;
+    let finalPatientNome = paciente_nome;
     if (!finalPatientNome) {
       const cadValuesRes = await sheets.spreadsheets.values.get({
         spreadsheetId: fileId,
@@ -892,18 +892,29 @@ app.post("/api/app/family-members", express.json(), async (req, res) => {
   }
 });
 
-// Add a text log directly to "Pacientes - Áudios" (Zero LLM)
+// Add a text log directly to "Log de Status" (Zero LLM)
 app.post("/api/app/logs", express.json(), async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
   const sheets = google.sheets({ version: "v4", auth });
-  const { patientId, text } = req.body;
+  const { patientId, text, paciente_nome } = req.body;
 
   if (!patientId || !text) return res.status(400).json({ error: "PatientID e Texto são obrigatórios." });
 
   try {
     const fileId = await getOrCreateMasterSheet(auth);
+
+    let finalPatientNome = paciente_nome;
+    if (!finalPatientNome) {
+      const cadValuesRes = await sheets.spreadsheets.values.get({
+        spreadsheetId: fileId,
+        range: `${SHEET_TABS.CADASTRO}!A:B`,
+      });
+      const rows = cadValuesRes.data.values || [];
+      const row = rows.find(r => r[0] === patientId.toString());
+      finalPatientNome = row ? row[1] : "Paciente Desconhecido";
+    }
 
     const now = new Date().toLocaleString("pt-BR");
     await sheets.spreadsheets.values.append({
@@ -911,7 +922,7 @@ app.post("/api/app/logs", express.json(), async (req, res) => {
       range: `${SHEET_TABS.LOGS}!A:D`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: [[now, patientId, text, "REGISTRO_TEXTO"]]
+        values: [[now, patientId, finalPatientNome, text]]
       }
     });
 
