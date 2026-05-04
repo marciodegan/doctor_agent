@@ -86,7 +86,7 @@ export const Chat: React.FC = () => {
         const name = data.companyName || "Nexus Business AI";
         setCompanyName(name);
         setMessages([
-          { role: "model", text: `Hello ${name}.\n\nHoje é um lindo dia para salvar vidas.\n\nGerencie o **[📋 Cadastro](/pacientes)**, busque por **[🔍 Nome](/edit_menu)** ou veja sua **[📅 Agenda](/agenda)**.` }
+          { role: "model", text: `Hello ${name}.\n\nHoje é um lindo dia para salvar vidas.\n\nGerencie os **[📋 Pacientes](/pacientes)**, busque por **[🔍 Nome](/edit_menu)** ou veja sua **[📅 Agenda](/agenda)**.` }
         ]);
       })
       .catch(err => {
@@ -155,9 +155,8 @@ export const Chat: React.FC = () => {
   };
 
   const suggestions = [
-    { label: "📋 Cadastro", prompt: "/pacientes" },
+    { label: "👤 Pacientes", prompt: "/pacientes" },
     { label: "🔍 Buscar", prompt: "/edit_menu" },
-    { label: "👤 Pacientes", prompt: "/buscar" },
     { label: "📝 Notes", prompt: "/iniciarlog" },
     { label: "👪 Familiar", prompt: "/iniciarfamiliar" },
     { label: "👤 Novo", prompt: "/iniciarcadastro" },
@@ -737,7 +736,7 @@ export const Chat: React.FC = () => {
         const pageData = sortedData.slice(start, end);
 
         const list = pageData.map((p: any) => 
-          `👤 \`/p ${p.id} label:${p.nome}\` **ID: [${p.id}]**\n` +
+          `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**\n` +
           `📍 **Status:** ${p.status || "Não informado"}`
         ).join("\n\n---\n\n");
 
@@ -827,7 +826,7 @@ export const Chat: React.FC = () => {
           }]);
         } else {
           const list = pageData.map((p: any) => 
-            `👤 \`/p ${p.id} label:${p.nome}\` **ID: [${p.id}]**\n` +
+            `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**\n` +
             `📍 **Status:** ${p.status || "Não informado"}`
           ).join("\n\n---\n\n");
           
