@@ -9,6 +9,12 @@ interface Message {
   text: string;
   image?: string;
   audio?: string;
+  isProfile?: boolean;
+  profileData?: {
+    id: string;
+    nome: string;
+    idade: string;
+  };
   form?: {
     title?: string;
     fields: { 
@@ -1759,7 +1765,19 @@ export const Chat: React.FC = () => {
               className="flex justify-start"
             >
               <div className="flex gap-3 w-full">
-                <div className="p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full">
+                <div className={`p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full overflow-hidden ${msg.isProfile ? 'pt-0 ring-1 ring-blue-100' : ''}`}>
+                  {msg.isProfile && msg.profileData && (
+                    <div className="bg-blue-600 -mx-4 -mt-4 mb-4 p-8 flex flex-col items-center justify-center text-white shadow-inner">
+                      <button 
+                        onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
+                        className="group flex flex-col items-center hover:scale-105 transition-transform"
+                      >
+                        <h2 className="text-3xl font-bold text-blue-50 group-hover:text-white transition-colors">{msg.profileData.nome}</h2>
+                        <p className="text-xl text-blue-200 group-hover:text-blue-50 transition-colors">{msg.profileData.idade} anos</p>
+                        <span className="mt-2 text-[10px] uppercase tracking-wider text-blue-300 group-hover:text-blue-100 transition-colors underline decoration-blue-400">Tocar para Editar</span>
+                      </button>
+                    </div>
+                  )}
                   {msg.image && (
                     <img src={msg.image} alt="User upload" className="max-w-full rounded-lg mb-2 shadow-sm" />
                   )}
