@@ -12,7 +12,7 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        includeAssets: ['favicon.ico'],
         manifest: {
           name: 'Nexus Business AI',
           short_name: 'Nexus AI',
@@ -24,20 +24,14 @@ export default defineConfig(({mode}) => {
           start_url: '/',
           icons: [
             {
-              src: 'https://cdn.pixabay.com/photo/2016/12/28/08/15/ai-1935613_1280.png',
+              src: 'https://placehold.co/192x192/2563eb/white?text=Nexus',
               sizes: '192x192',
               type: 'image/png'
             },
             {
-              src: 'https://cdn.pixabay.com/photo/2016/12/28/08/15/ai-1935613_1280.png',
+              src: 'https://placehold.co/512x512/2563eb/white?text=Nexus',
               sizes: '512x512',
               type: 'image/png'
-            },
-            {
-              src: 'https://cdn.pixabay.com/photo/2016/12/28/08/15/ai-1935613_1280.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any maskable'
             }
           ]
         }

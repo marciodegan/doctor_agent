@@ -320,20 +320,20 @@ app.get("/auth/callback", async (req, res) => {
             p { color: #4b5563; font-size: 0.9375rem; margin-bottom: 2rem; line-height: 1.5; }
             .spinner { width: 48px; height: 48px; border: 4px solid #e5e7eb; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem; }
             @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            .btn { background: #2563eb; color: white; border: none; padding: 0.875rem 1.75rem; border-radius: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-block; text-decoration: none; margin-top: 0.5rem; }
+            .btn { background: #2563eb; color: white; border: none; padding: 0.875rem 1.75rem; border-radius: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s; display: inline-block; text-decoration: none; margin-top: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
             .btn:hover { background: #1d4ed8; transform: translateY(-1px); }
             .status { margin-top: 1.5rem; font-size: 0.8125rem; color: #6b7280; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem; }
           </style>
         </head>
         <body>
           <div class="card">
-            <div id="loading-state">
+            <div id="content">
               <div class="spinner"></div>
-              <h2>Autenticação concluída!</h2>
-              <p>Estamos sincronizando sua conta com o Nexus. Isso deve levar apenas alguns segundos.</p>
+              <h2>Sincronizando...</h2>
+              <p>Autenticação concluída com sucesso. Estamos vinculando sua sessão ao aplicativo.</p>
             </div>
-            <a href="/" class="btn" id="finish-btn">Voltar para o App</a>
-            <div id="debug-status" class="status">Iniciando sincronização...</div>
+            <a href="/" class="btn" id="finish-btn">CONCLUIR MANUALMENTE</a>
+            <div id="debug-status" class="status">Comunicando com o app...</div>
             <script>
               const tokens = ${JSON.stringify(essentialTokens)};
               const payload = { type: 'OAUTH_AUTH_SUCCESS', tokens, timestamp: Date.now() };
@@ -342,7 +342,6 @@ app.get("/auth/callback", async (req, res) => {
                 try {
                   const channel = new BroadcastChannel('nexus_auth_channel');
                   channel.postMessage(payload);
-                  setTimeout(() => channel.close(), 2000);
                 } catch (e) {}
                 try {
                   if (window.opener) window.opener.postMessage(payload, '*');
@@ -358,19 +357,27 @@ app.get("/auth/callback", async (req, res) => {
                 count++;
                 notify();
                 document.getElementById('debug-status').innerText = "Sincronizando... (" + count + ")";
+                
                 if (count >= 10) {
                   clearInterval(interval);
-                  document.getElementById('loading-state').innerHTML = "<h2>Pronto!</h2><p>Sua conta foi sincronizada. Você já pode fechar esta janela.</p>";
-                  document.getElementById('debug-status').innerText = "Concluído";
+                  document.getElementById('content').innerHTML = "<h2>Pronto!</h2><p>Tudo certo! Você já pode voltar ao Nexus.</p>";
+                  document.getElementById('debug-status').innerText = "Sincronização finalizada.";
                 }
               }, 1000);
 
               document.getElementById('finish-btn').onclick = function() {
                 notify();
-                if (window.opener) window.close();
-                else window.location.href = '/';
+                setTimeout(() => {
+                  if (window.opener) window.close();
+                  else window.location.href = '/';
+                }, 500);
                 return false;
               };
+
+              // Auto-close if we are a popup
+              setTimeout(() => {
+                if (window.opener) window.close();
+              }, 15000);
             </script>
           </div>
         </body>
@@ -384,12 +391,28 @@ app.get("/auth/callback", async (req, res) => {
 
 app.get("/api/auth/poll/:state", (req, res) => {
   const { state } = req.params;
-  const tokens = pendingSessions.get(state);
+  let tokens = pendingSessions.get(state);
+  
+  // Fallback to cookies if Map is empty (Serverless instances)
+  if (!tokens) {
+    tokens = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["google_token"];
+  }
+
   if (tokens) {
-    pendingSessions.delete(state);
+    console.log(`[Auth] Poll success for state: ${state}`);
+    // We don't delete from map here if it was a cookie fallback, 
+    // but it's fine either way as we consume it on client.
     return res.json({ tokens });
   }
-  res.status(404).json({ error: "Session not found" });
+  
+  res.status(404).json({ 
+    error: "Session not found",
+    debug: {
+      hasStateInMap: pendingSessions.has(state),
+      cookieCount: Object.keys(req.cookies || {}).length,
+      cookies: Object.keys(req.cookies || {})
+    }
+  });
 });
 
 app.post("/api/auth/session", (req, res) => {
