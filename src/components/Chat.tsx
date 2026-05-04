@@ -146,6 +146,7 @@ export const Chat: React.FC = () => {
     setMessages([{ role: "model", text: `Hello ${companyName}.\n\nHoje é um lindo dia para salvar vidas.` }]);
     setSelectedImage(null);
     setLastProcessedFile(null);
+    setTimeout(scrollToTop, 0);
   };
 
   const handleLogout = () => {
@@ -178,6 +179,9 @@ export const Chat: React.FC = () => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
     }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    document.body.scrollTo({ top: 0, behavior: "smooth" });
+    document.documentElement.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const resizeImage = (file: File): Promise<string> => {
@@ -642,458 +646,321 @@ export const Chat: React.FC = () => {
       }
     }
 
-    if (cmd.startsWith("/p") || cmd === "/pacientes" || cmd === "/familiares" || cmd === "/ajuda") {
+    if (cmd.startsWith("/p ")) {
+      const id = cmdInput.split(" ")[1];
+      if (!id) throw new Error("Especifique um ID (ex: /p 1)");
+
       setIsLoading(true);
       try {
-        if (cmd === "/ajuda") {
-          let dbInfoStr = "";
-          try {
-            const dbRes = await fetch("/api/app/db-info");
-            const dbInfo = await dbRes.json();
-            if (dbInfo.id) {
-              dbInfoStr = `\n\n🛡️ **Planilha Conectada:**\n- Nome: ${dbInfo.name}\n- Owner: ${dbInfo.owner}\n- [Link da Planilha](${dbInfo.link})\n\n💡 Se você compartilhou esta planilha com outro usuário, ele deve clicar no link acima enquanto logado na conta Google dele para que o Google Drive dela "conheça" o arquivo.`;
-            }
-          } catch (e) {
-            console.error("Failed to fetch DB info for help", e);
-          }
+        const res = await fetch(`/api/app/patient-report/${id}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
 
-          setMessages(prev => [...prev, { 
-            role: "model", 
-            text: "🤖 **Nexus Shortcuts (Zero Tokens):**\n\n" +
-                  "- `/pacientes`: Lista todos os pacientes (Banco Compartilhado).\n" +
-                  "- `/buscar [NOME]`: Busca paciente por nome.\n" +
-                  "- `/p [ID]`: Relatório rápido (ex: `/p 2`).\n" +
-                  "- `/edit_name [ID]`: Editar nome, fone ou idade do paciente.\n" +
-                  "- `/edit_menu`: Atalho direto para buscar e editar.\n" +
-                  "- `/familiares [ID]`: Lista familiares de um paciente.\n" +
-                  "- `/novo_familiar [ID]`: Atalho para cadastrar familiar.\n" +
-                  "- `/registrar_familiar id: [ID], nome: [N], relacao: [R], fone: [F]`: Cadastro de familiar.\n" +
-                  "- `/agendar data: [D], hora: [H], evento: [E]`: Cria evento na agenda Google.\n" +
-                  "- `/log id: [ID], texto: [T]`: Adiciona log de texto direto.\n" +
-                  "- `/img id: [ID], desc: [D]`: Envia imagem anexada direto para o Drive.\n" +
-                  "- `/registrar nome: [N], fone: [F], idade: [I]`: Cadastra paciente.\n" +
-                  "- `/iniciarcadastro`: Ajuda para cadastrar novo paciente.\n" +
-                  "- `/agenda`: **Sua** agenda pessoal (Privada).\n" +
-                  "- `/hospitais`: Lista todos os hospitais.\n" +
-                  "- `/iniciarhospital`: Ajuda para cadastrar novo hospital.\n" +
-                  "- `/hospital_add nome: [N], fone: [F], c1: [C1]...`: Cadastro de hospital.\n" +
-                  "- `/iniciaragenda`: Ajuda para marcar novo compromisso.\n"+
-                  "- `/limpar`: Reseta a memória da IA.\n" +
-                  "- `/ajuda`: Mostra esta lista.\n\n" +
-                  "💡 **Privacidade:** Pacientes são compartilhados com a equipe, mas a Agenda é individual de cada conta Google." +
-                  dbInfoStr
-          }]);
-        } else if (cmd.startsWith("/pacientes")) {
-          setIsLoading(true);
-          try {
-            const res = await fetch("/api/app/patients");
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            
-            let page = 1;
-            let sort = "id";
-            
-            const pagMatch = cmdInput.match(/pag:\s*(\d+)/i);
-            if (pagMatch) page = parseInt(pagMatch[1]);
-            
-            const sortMatch = cmdInput.match(/sort:\s*(\w+)/i);
-            if (sortMatch) sort = sortMatch[1].toLowerCase();
+        const cad = data.cadastro;
+        const audios = data.audios.map((a: any) => `• [${a.data}] ${a.conteudo}  `).join("\n");
+        
+        const docs = data.imagens.map((i: any) => {
+          const fileId = i.link?.match(/[-\w]{25,}/)?.[0];
+          const downloadText = fileId ? ` **[[Baixar Arquivo](/api/drive/file/${fileId})]**` : "";
+          return `• [${i.data}] ${i.descricao}${downloadText} **[[Drive](${i.link})]**  `;
+        }).join("\n");
 
-            // Sorting logic
-            const sortedData = [...data];
-            if (sort === "nome") {
-              sortedData.sort((a, b) => a.nome.localeCompare(b.nome));
-            } else {
-              // Default sort by ID descending (recents)
-              sortedData.sort((a, b) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
-            }
+        const fams = data.familiares.map((f: any) => {
+          const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
+          const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
+          const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
+          return `• **${f.nome}** (${f.relacao}) - ${foneLink}  `;
+        }).join("\n");
 
-            const PAGE_SIZE = 8;
-            const totalPages = Math.ceil(sortedData.length / PAGE_SIZE);
-            const pageToView = Math.max(1, Math.min(page, totalPages || 1));
-            const start = (pageToView - 1) * PAGE_SIZE;
-            const end = start + PAGE_SIZE;
-            const pageData = sortedData.slice(start, end);
+        const cleanCadFone = cad.Telefone ? cad.Telefone.replace(/\D/g, "") : "";
+        const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
+        const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
 
-            const list = pageData.map((p: any) => 
-              `• **${p.nome}** (ID: ${p.id})\n` +
-              `  Status: **${p.status || "Não informado"}** \`/status_alterar ${p.id}\`\n` +
-              `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
-            ).join("\n\n");
+        const reportText = `🚀 **Relatório Direto: ${cad.Nome} (ID: ${cad.ID})**\n\n` +
+          `**Cadastro:**\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n- \`/edit_name ${cad.ID}\`\n\n` +
+          `**Familiares:**\n\n${fams || "Nenhum registro"}\n\n` +
+          `**Evoluções:**\n\n${audios || "Nenhum registro"}\n\n` +
+          `**Imagens:**\n\n${docs || "Nenhum registro"}`;
 
-            let nav = "";
-            if (totalPages > 1) {
-              nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
-              if (pageToView > 1) nav += ` \`/pacientes pag:${pageToView - 1} sort:${sort}\` `;
-              if (pageToView < totalPages) nav += ` \`/pacientes pag:${pageToView + 1} sort:${sort}\` `;
-            }
+        setMessages(prev => [...prev, { role: "model", text: reportText }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
 
-            const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`/pacientes sort:nome\` (A-Z)\n• \`/pacientes sort:id\` (Mais recentes)`;
+    if (cmd.startsWith("/pacientes")) {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/app/patients");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        
+        let page = 1;
+        let sort = "id";
+        
+        const pagMatch = cmdInput.match(/pag:\s*(\d+)/i);
+        if (pagMatch) page = parseInt(pagMatch[1]);
+        
+        const sortMatch = cmdInput.match(/sort:\s*(\w+)/i);
+        if (sortMatch) sort = sortMatch[1].toLowerCase();
 
-            setMessages(prev => [...prev, { 
-              role: "model", 
-              text: `📂 **Lista de Pacientes (${data.length} total):**\n\n${list || "Nenhum paciente encontrado."}${nav}${sortOptions}` 
-            }]);
-          } catch (err: any) {
-            setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
-          } finally {
-            setIsLoading(false);
-            return true;
-          }
-        } else if (cmd === "/edit_menu") {
-          setMessages(prev => [...prev, { 
-            role: "model", 
-            text: "🔍 **Buscar Paciente para Editar**\n\nDigite o nome ou parte dele:",
-            form: {
-              title: "Buscar Paciente",
-              fields: [
-                { label: "Nome do Paciente", name: "termo", type: "text" },
-              ],
-              submitLabel: "Procurar",
-              commandPrefix: "/buscar termo:"
-            }
-          }]);
-          return true;
-        } else if (cmd.startsWith("/buscar")) {
-          setIsLoading(true);
-          try {
-            const termo = cmdInput.match(/termo:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.replace("/buscar", "").split(" ")[1] || "";
-            let page = 1;
-            let sort = "id";
-
-            const pagMatch = cmdInput.match(/pag:\s*(\d+)/i);
-            if (pagMatch) page = parseInt(pagMatch[1]);
-            
-            const sortMatch = cmdInput.match(/sort:\s*(\w+)/i);
-            if (sortMatch) sort = sortMatch[1].toLowerCase();
-
-            if (!termo && cmdInput.includes("termo:")) throw new Error("Informe um nome para buscar.");
-            
-            const res = await fetch("/api/app/patients");
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-
-            let filtered = data;
-            if (termo) {
-              filtered = data.filter((p: any) => 
-                p.nome.toLowerCase().includes(termo.toLowerCase()) || 
-                p.id.toString() === termo
-              );
-            }
-
-            // Sorting logic
-            if (sort === "nome") {
-              filtered.sort((a: any, b: any) => a.nome.localeCompare(b.nome));
-            } else {
-              filtered.sort((a: any, b: any) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
-            }
-
-            const PAGE_SIZE = 8;
-            const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-            const pageToView = Math.max(1, Math.min(page, totalPages || 1));
-            const start = (pageToView - 1) * PAGE_SIZE;
-            const end = start + PAGE_SIZE;
-            const pageData = filtered.slice(start, end);
-
-            if (filtered.length === 0) {
-              setMessages(prev => [...prev, { 
-                role: "model", 
-                text: `❌ Nenhum paciente encontrado para "**${termo || "todos"}**".` 
-              }]);
-            } else {
-              const list = pageData.map((p: any) => 
-                `• **${p.nome}** (ID: ${p.id})\n` +
-                `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
-              ).join("\n\n");
-              
-              let nav = "";
-              if (totalPages > 1) {
-                nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
-                const searchBase = termo ? `termo:${termo}` : "";
-                if (pageToView > 1) nav += ` \`/buscar ${searchBase} pag:${pageToView - 1} sort:${sort}\` `;
-                if (pageToView < totalPages) nav += ` \`/buscar ${searchBase} pag:${pageToView + 1} sort:${sort}\` `;
-              }
-
-              const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`/buscar ${termo ? `termo:${termo} ` : ""}sort:nome\` (A-Z)\n• \`/buscar ${termo ? `termo:${termo} ` : ""}sort:id\` (Mais recentes)`;
-
-              setMessages(prev => [...prev, { 
-                role: "model", 
-                text: `🔍 **Resultados para "${termo || "todos"}":**\n\n${list}${nav}${sortOptions}` 
-              }]);
-            }
-          } catch (err: any) {
-            setMessages(prev => [...prev, { role: "model", text: `❌ Erro na busca: ${err.message}` }]);
-          } finally {
-            setIsLoading(false);
-            return true;
-          }
-        } else if (cmd.startsWith("/edit_name")) {
-          const id = cmdInput.split(" ")[1];
-          if (!id) throw new Error("ID não informado.");
-          
-          setIsLoading(true);
-          try {
-            const pRes = await fetch(`/api/app/patient-report/${id}`);
-            const pData = await pRes.json();
-            if (pData.error) throw new Error(pData.error);
-            
-            const p = pData.cadastro;
-            
-            setMessages(prev => [...prev, { 
-              role: "model", 
-              text: `✏️ **Editar Cadastro: ${p.Nome} (ID: ${p.ID})**`,
-              form: {
-                title: "Atualizar Dados",
-                fields: [
-                  { label: "Nome", name: "nome", type: "text", defaultValue: p.Nome },
-                  { label: "Telefone", name: "fone", type: "text", defaultValue: p.Telefone || "" },
-                  { label: "Idade", name: "idade", type: "text", defaultValue: p.Idade || "" },
-                ],
-                submitLabel: "Salvar Alterações",
-                commandPrefix: `/update_patient id: ${id},`
-              }
-            }]);
-          } catch (err: any) {
-            setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar paciente: ${err.message}` }]);
-          } finally {
-            setIsLoading(false);
-            return true;
-          }
-        } else if (cmd.startsWith("/update_patient")) {
-          setIsLoading(true);
-          try {
-            const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
-            const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
-            const fone = cmdInput.match(/fone:\s*([^,]+)/i)?.[1]?.trim();
-            const idade = cmdInput.match(/idade:\s*(.+)/i)?.[1]?.trim();
-
-            if (!id) throw new Error("ID não identificado.");
-
-            const res = await fetch("/api/app/patients/update", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id, nome, fone, idade })
-            });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-
-            setMessages(prev => [...prev, { 
-              role: "model", 
-              text: `✅ **Paciente atualizado com sucesso!**\nID: **${id}**\n\n[Ver Relatório Atualizado](/p ${id})` 
-            }]);
-          } catch (err: any) {
-            setMessages(prev => [...prev, { role: "model", text: `❌ Erro na atualização: ${err.message}` }]);
-          } finally {
-            setIsLoading(false);
-            return true;
-          }
-        } else if (cmd === "/status_menu") {
-          setIsLoading(true);
-          try {
-            const statusRes = await fetch("/api/app/statuses");
-            const statuses = await statusRes.json();
-            
-            const list = statuses.map((s: string, idx: number) => 
-              `${idx + 1} - ${s} \`/status_select ${s}\``
-            ).join("\n");
-
-            setMessages(prev => [...prev, { 
-              role: "model", 
-              text: `🏷️ **Selecione o Status que deseja aplicar:**\n\n${list}`
-            }]);
-          } catch (err: any) {
-            setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar status: ${err.message}` }]);
-          } finally {
-            setIsLoading(false);
-            return true;
-          }
-        } else if (cmd.startsWith("/status_select")) {
-          const status = cmdInput.slice("/status_select".length).trim();
-          if (!status) throw new Error("Status não informado.");
-          
-          setIsLoading(true);
-          try {
-            const res = await fetch("/api/app/patients");
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            
-            const list = data.map((p: any) => 
-              `• **${p.nome}** (ID: ${p.id}) - \`/status_apply status: ${status}, pac: ${p.id}\``
-            ).join("\n\n");
-
-            setMessages(prev => [...prev, { 
-              role: "model", 
-              text: `🏷️ **Aplicar Status: ${status}**\n\nSelecione o paciente:\n\n${list || "Nenhum paciente encontrado."}`
-            }]);
-          } catch (err: any) {
-            setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar pacientes: ${err.message}` }]);
-          } finally {
-            setIsLoading(false);
-            return true;
-          }
-        } else if (cmd.startsWith("/status_apply")) {
-          // Format: /status_apply status: [STATUS], pac: [ID]
-          const statusMatch = cmdInput.match(/status:\s*([^,]+)/i);
-          const pacMatch = cmdInput.match(/pac:\s*([\w-]+)/i);
-          
-          const status = statusMatch ? statusMatch[1].trim() : null;
-          const id = pacMatch ? pacMatch[1].trim() : null;
-          
-          if (!id || !status) throw new Error("Status ou ID não identificados.");
-          
-          setIsLoading(true);
-          try {
-            const res = await fetch("/api/app/patients/status", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ patientId: id, status })
-            });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            
-            setMessages(prev => [...prev, { 
-              role: "model", 
-              text: `✅ **Status atualizado e registrado!**\nPaciente: **${id}**\nNovo Status: **${status}**` 
-            }]);
-          } catch (err: any) {
-            setMessages(prev => [...prev, { role: "model", text: `❌ Erro na atualização: ${err.message}` }]);
-          } finally {
-            setIsLoading(false);
-            return true;
-          }
-        } else if (cmdInput.startsWith("/status_alterar pac")) {
-          // Format: /status_alterar pac [ID], status [STATUS]
-          const idMatch = cmdInput.match(/pac\s+([\w-]+)/i);
-          const statusMatch = cmdInput.match(/status\s+(.+)$/i);
-          
-          const id = idMatch ? idMatch[1] : null;
-          const status = statusMatch ? statusMatch[1].trim() : null;
-          
-          if (!id || !status) throw new Error("ID ou Status não informados no formato correto.");
-          
-          setIsLoading(true);
-          try {
-            const res = await fetch("/api/app/patients/status", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ patientId: id, status })
-            });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            
-            setMessages(prev => [...prev, { 
-              role: "model", 
-              text: `✅ **Status atualizado com sucesso!**\nPaciente ID: **${id}**\nNovo Status: **${status}**` 
-            }]);
-          } catch (err: any) {
-            setMessages(prev => [...prev, { role: "model", text: `❌ Erro na atualização: ${err.message}` }]);
-          } finally {
-            setIsLoading(false);
-            return true;
-          }
-        } else if (cmd.startsWith("/status_alterar")) {
-          const id = cmdInput.split(" ")[1];
-          if (!id) throw new Error("ID não informado.");
-          
-          setIsLoading(true);
-          try {
-            // Get patient info first
-            const pRes = await fetch(`/api/app/patient-report/${id}`);
-            const pData = await pRes.json();
-            const pName = pData.cadastro?.Nome || "Paciente";
-
-            const statusRes = await fetch("/api/app/statuses");
-            const statuses = await statusRes.json();
-            
-            const list = statuses.map((s: string, idx: number) => 
-              `${idx + 1} - ${s} \`/status_alterar pac ${id}, status ${s}\``
-            ).join("\n");
-
-            setMessages(prev => [...prev, { 
-              role: "model", 
-              text: `🚀 **Relatório Direto: ${pName} (ID: ${id})**\n\n` +
-                    `**Alterar status:**\n\n${list}`
-            }]);
-          } catch (err: any) {
-            setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar status: ${err.message}` }]);
-          } finally {
-            setIsLoading(false);
-            return true;
-          }
-        } else if (cmd.startsWith("/set_status")) {
-          // Backward compatibility or for manual typing
-          const parts = cmdInput.split(" ");
-          const id = parts[1];
-          const status = parts.slice(2).join(" ");
-          
-          if (!id || !status) throw new Error("ID ou Status não informados.");
-          
-          const res = await fetch("/api/app/patients/status", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ patientId: id, status })
-          });
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
-          
-          setMessages(prev => [...prev, { 
-            role: "model", 
-            text: `✅ **Status atualizado com sucesso!**\nPaciente ID: **${id}**\nNovo Status: **${status}**` 
-          }]);
-          return true;
-        } else if (cmd.startsWith("/familiares")) {
-          const id = cmdInput.split(" ")[1] || "all";
-          const res = await fetch(`/api/app/family-members/${id}`);
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
-          
-          const list = data.map((f: any) => {
-            const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
-            const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
-            const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
-            return `• **${f.nome}** (${f.relacao})\n  ${foneLink}\n  👤 Paciente: ${f.pacienteNome} (ID: ${f.pacienteId})`;
-          }).join("\n\n");
-          setMessages(prev => [...prev, { 
-            role: "model", 
-            text: `👪 **Familiares encontrados:**\n\n${list || "Nenhum familiar encontrado."}` 
-          }]);
-        } else if (cmd.startsWith("/p ")) {
-          const id = cmdInput.split(" ")[1];
-          if (!id) throw new Error("Especifique um ID (ex: /p 1)");
-
-          const res = await fetch(`/api/app/patient-report/${id}`);
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
-
-          const cad = data.cadastro;
-          const audios = data.audios.map((a: any) => `• [${a.data}] ${a.conteudo}  `).join("\n");
-          
-          const docs = data.imagens.map((i: any) => {
-            // Extract Drive ID from link if possible for the proxy download
-            const fileId = i.link?.match(/[-\w]{25,}/)?.[0];
-            const downloadText = fileId ? ` **[[Baixar Arquivo](/api/drive/file/${fileId})]**` : "";
-            return `• [${i.data}] ${i.descricao}${downloadText} **[[Drive](${i.link})]**  `;
-          }).join("\n");
-
-          const fams = data.familiares.map((f: any) => {
-            const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
-            const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
-            const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
-            return `• **${f.nome}** (${f.relacao}) - ${foneLink}  `;
-          }).join("\n");
-
-          const cleanCadFone = cad.Telefone ? cad.Telefone.replace(/\D/g, "") : "";
-          const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
-          const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
-
-          const reportText = `🚀 **Relatório Direto: ${cad.Nome} (ID: ${cad.ID})**\n\n` +
-            `**Cadastro:**\n- Status: **${cad.Status || "Não informado"}** \`/status_alterar ${cad.ID}\`\n- Telefone: ${foneCadLink}\n- Idade: ${cad.Idade || "N/A"}\n- \`/edit_name ${cad.ID}\`\n\n` +
-            `**Familiares:**\n\n${fams || "Nenhum registro"}\n\n` +
-            `**Evoluções:**\n\n${audios || "Nenhum registro"}\n\n` +
-            `**Imagens:**\n\n${docs || "Nenhum registro"}`;
-
-          setMessages(prev => [...prev, { role: "model", text: reportText }]);
+        const sortedData = [...data];
+        if (sort === "nome") {
+          sortedData.sort((a, b) => a.nome.localeCompare(b.nome));
+        } else {
+          sortedData.sort((a, b) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
         }
+
+        const PAGE_SIZE = 8;
+        const totalPages = Math.ceil(sortedData.length / PAGE_SIZE);
+        const pageToView = Math.max(1, Math.min(page, totalPages || 1));
+        const start = (pageToView - 1) * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
+        const pageData = sortedData.slice(start, end);
+
+        const list = pageData.map((p: any) => 
+          `• **${p.nome}** (ID: ${p.id})\n` +
+          `  Status: **${p.status || "Não informado"}** \`/status_alterar ${p.id}\`\n` +
+          `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
+        ).join("\n\n");
+
+        let nav = "";
+        if (totalPages > 1) {
+          nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
+          if (pageToView > 1) nav += ` \`/pacientes pag:${pageToView - 1} sort:${sort}\` `;
+          if (pageToView < totalPages) nav += ` \`/pacientes pag:${pageToView + 1} sort:${sort}\` `;
+        }
+
+        const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`/pacientes sort:nome\` (A-Z)\n• \`/pacientes sort:id\` (Mais recentes)`;
+
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `📂 **Lista de Pacientes (${data.length} total):**\n\n${list || "Nenhum paciente encontrado."}${nav}${sortOptions}` 
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd === "/edit_menu") {
+      setMessages(prev => [...prev, { 
+        role: "model", 
+        text: "🔍 **Buscar Paciente para Editar**\n\nDigite o nome ou parte dele:",
+        form: {
+          title: "Buscar Paciente",
+          fields: [
+            { label: "Nome do Paciente", name: "termo", type: "text" },
+          ],
+          submitLabel: "Procurar",
+          commandPrefix: "/buscar termo:"
+        }
+      }]);
+      return true;
+    }
+
+    if (cmd.startsWith("/buscar")) {
+      setIsLoading(true);
+      try {
+        const termo = cmdInput.match(/termo:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.replace("/buscar", "").split(" ")[1] || "";
+        let page = 1;
+        let sort = "id";
+
+        const pagMatch = cmdInput.match(/pag:\s*(\d+)/i);
+        if (pagMatch) page = parseInt(pagMatch[1]);
+        
+        const sortMatch = cmdInput.match(/sort:\s*(\w+)/i);
+        if (sortMatch) sort = sortMatch[1].toLowerCase();
+
+        if (!termo && cmdInput.includes("termo:")) throw new Error("Informe um nome para buscar.");
+        
+        const res = await fetch("/api/app/patients");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        let filtered = data;
+        if (termo) {
+          filtered = data.filter((p: any) => 
+            p.nome.toLowerCase().includes(termo.toLowerCase()) || 
+            p.id.toString() === termo
+          );
+        }
+
+        if (sort === "nome") {
+          filtered.sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+        } else {
+          filtered.sort((a: any, b: any) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
+        }
+
+        const PAGE_SIZE = 8;
+        const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+        const pageToView = Math.max(1, Math.min(page, totalPages || 1));
+        const start = (pageToView - 1) * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
+        const pageData = filtered.slice(start, end);
+
+        if (filtered.length === 0) {
+          setMessages(prev => [...prev, { 
+            role: "model", 
+            text: `❌ Nenhum paciente encontrado para "**${termo || "todos"}**".` 
+          }]);
+        } else {
+          const list = pageData.map((p: any) => 
+            `• **${p.nome}** (ID: ${p.id})\n` +
+            `  \`/p ${p.id}\` \`/edit_name ${p.id}\``
+          ).join("\n\n");
+          
+          let nav = "";
+          if (totalPages > 1) {
+            nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
+            const searchBase = termo ? `termo:${termo}` : "";
+            if (pageToView > 1) nav += ` \`/buscar ${searchBase} pag:${pageToView - 1} sort:${sort}\` `;
+            if (pageToView < totalPages) nav += ` \`/buscar ${searchBase} pag:${pageToView + 1} sort:${sort}\` `;
+          }
+
+          const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`/buscar ${termo ? `termo:${termo} ` : ""}sort:nome\` (A-Z)\n• \`/buscar ${termo ? `termo:${termo} ` : ""}sort:id\` (Mais recentes)`;
+
+          setMessages(prev => [...prev, { 
+            role: "model", 
+            text: `🔍 **Resultados para "${termo || "todos"}":**\n\n${list}${nav}${sortOptions}` 
+          }]);
+        }
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro na busca: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/edit_name")) {
+      const id = cmdInput.split(" ")[1];
+      if (!id) throw new Error("ID não informado.");
+      
+      setIsLoading(true);
+      try {
+        const pRes = await fetch(`/api/app/patient-report/${id}`);
+        const pData = await pRes.json();
+        if (pData.error) throw new Error(pData.error);
+        
+        const p = pData.cadastro;
+        
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `✏️ **Editar Cadastro: ${p.Nome} (ID: ${p.ID})**`,
+          form: {
+            title: "Atualizar Dados",
+            fields: [
+              { label: "Nome", name: "nome", type: "text", defaultValue: p.Nome },
+              { label: "Telefone", name: "fone", type: "text", defaultValue: p.Telefone || "" },
+              { label: "Idade", name: "idade", type: "text", defaultValue: p.Idade || "" },
+            ],
+            submitLabel: "Salvar Alterações",
+            commandPrefix: `/update_patient id: ${id},`
+          }
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar paciente: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/update_patient")) {
+      setIsLoading(true);
+      try {
+        const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
+        const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
+        const fone = cmdInput.match(/fone:\s*([^,]+)/i)?.[1]?.trim();
+        const idade = cmdInput.match(/idade:\s*(.+)/i)?.[1]?.trim();
+
+        if (!id) throw new Error("ID não identificado.");
+
+        const res = await fetch("/api/app/patients/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, nome, fone, idade })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `✅ **Paciente atualizado com sucesso!**\nID: **${id}**\n\n[Ver Relatório Atualizado](/p ${id})` 
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro na atualização: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/familiares")) {
+      const id = cmdInput.split(" ")[1] || "all";
+      const res = await fetch(`/api/app/family-members/${id}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      
+      const list = data.map((f: any) => {
+        const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
+        const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
+        const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
+        return `• **${f.nome}** (${f.relacao})\n  ${foneLink}\n  👤 Paciente: ${f.pacienteNome} (ID: ${f.pacienteId})`;
+      }).join("\n\n");
+      setMessages(prev => [...prev, { 
+        role: "model", 
+        text: `👪 **Familiares encontrados:**\n\n${list || "Nenhum familiar encontrado."}` 
+      }]);
+      return true;
+    }
+
+    if (cmd === "/ajuda") {
+      setIsLoading(true);
+      try {
+        let dbInfoStr = "";
+        try {
+          const dbRes = await fetch("/api/app/db-info");
+          const dbInfo = await dbRes.json();
+          if (dbInfo.id) {
+            dbInfoStr = `\n\n🛡️ **Planilha Conectada:**\n- Nome: ${dbInfo.name}\n- Owner: ${dbInfo.owner}\n- [Link da Planilha](${dbInfo.link})\n\n💡 Se você compartilhou esta planilha com outro usuário, ele deve clicar no link acima enquanto logado na conta Google dele para que o Google Drive dela "conheça" o arquivo.`;
+          }
+        } catch (e) {
+          console.error("Failed to fetch DB info for help", e);
+        }
+
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: "🤖 **Nexus Shortcuts (Zero Tokens):**\n\n" +
+                "- `/pacientes`: Lista todos os pacientes (Banco Compartilhado).\n" +
+                "- `/buscar [NOME]`: Busca paciente por nome.\n" +
+                "- `/p [ID]`: Relatório rápido (ex: `/p 2`).\n" +
+                "- `/edit_name [ID]`: Editar nome, fone ou idade do paciente.\n" +
+                "- `/edit_menu`: Atalho direto para buscar e editar.\n" +
+                "- `/familiares [ID]`: Lista familiares de um paciente.\n" +
+                "- `/novo_familiar [ID]`: Atalho para cadastrar familiar.\n" +
+                "- `/registrar_familiar id: [ID], nome: [N], relacao: [R], fone: [F]`: Cadastro de familiar.\n" +
+                "- `/agendar data: [D], hora: [H], evento: [E]`: Cria evento na agenda Google.\n" +
+                "- `/log id: [ID], texto: [T]`: Adiciona log de texto direto.\n" +
+                "- `/img id: [ID], desc: [D]`: Envia imagem anexada direto para o Drive.\n" +
+                "- `/registrar nome: [N], fone: [F], idade: [I]`: Cadastra paciente.\n" +
+                "- `/iniciarcadastro`: Ajuda para cadastrar novo paciente.\n" +
+                "- `/agenda`: **Sua** agenda pessoal (Privada).\n" +
+                "- `/hospitais`: Lista todos os hospitais.\n" +
+                "- `/iniciarhospital`: Ajuda para cadastrar novo hospital.\n" +
+                "- `/hospital_add nome: [N], fone: [F], c1: [C1]...`: Cadastro de hospital.\n" +
+                "- `/iniciaragenda`: Ajuda para marcar novo compromisso.\n"+
+                "- `/limpar`: Reseta a memória da IA.\n" +
+                "- `/ajuda`: Mostra esta lista.\n\n" +
+                "💡 **Privacidade:** Pacientes são compartilhados com a equipe, mas a Agenda é individual de cada conta Google." +
+                dbInfoStr
+        }]);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
       } finally {
@@ -1271,7 +1138,7 @@ export const Chat: React.FC = () => {
     if (!promptToSend.trim() && !selectedImage || isLoading) return;
 
     if (customPrompt) {
-      scrollToTop();
+      setTimeout(scrollToTop, 0);
     }
 
     const userMessage = promptToSend.trim();
