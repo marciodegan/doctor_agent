@@ -25,27 +25,17 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
 
 const getRedirectUri = (req?: express.Request) => {
-  const host = req?.get("host") || "unknown-host";
+  // Use x-forwarded-host as priority for Vercel/proxies
+  const host = req?.get("x-forwarded-host") || req?.get("host") || "unknown-host";
   let protocol = req?.get("x-forwarded-proto") || "https";
   
-  // Use origin if available for precision
-  const origin = req?.get("origin") || req?.get("referer");
-  if (origin && (origin.includes(".run.app") || origin.includes("localhost"))) {
-    try {
-      const originUrl = new URL(origin);
-      const uri = `${originUrl.protocol}//${originUrl.host}/auth/callback`;
-      console.log(`[OAuth] Redirect URI from origin: ${uri}`);
-      return uri;
-    } catch (e) {}
-  }
-
   // Localhost fallback
   if ((host.includes("localhost") || host.includes("127.0.0.1")) && !req?.get("x-forwarded-proto")) {
     protocol = "http";
   }
 
   const uri = `${protocol}://${host}/auth/callback`;
-  console.log(`[OAuth] Calculated Redirect URI: ${uri}`);
+  console.log(`[OAuth] Using Redirect URI: ${uri}`);
   return uri;
 };
 
