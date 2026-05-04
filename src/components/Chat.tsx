@@ -11,7 +11,14 @@ interface Message {
   audio?: string;
   form?: {
     title?: string;
-    fields: { label: string; name: string; type: string; placeholder?: string; defaultValue?: string }[];
+    fields: { 
+      label: string; 
+      name: string; 
+      type: string; 
+      placeholder?: string; 
+      defaultValue?: string;
+      options?: string[];
+    }[];
     submitLabel: string;
     commandPrefix: string;
   };
@@ -120,6 +127,20 @@ const MessageForm: React.FC<{
       {form.fields.map((field: any) => (
         <div key={field.name}>
           <label className="text-[10px] uppercase tracking-wider font-bold text-gray-500 ml-1">{field.label}</label>
+          {field.options && field.options.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2 ml-1">
+              {field.options.map((opt: string) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setValues(prev => ({ ...prev, [field.name]: opt }))}
+                  className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold border border-blue-100 hover:bg-blue-100 transition-colors"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          )}
           <input 
             type={field.type}
             value={values[field.name]}
@@ -240,14 +261,10 @@ export const Chat: React.FC = () => {
   const suggestions = [
     { label: "👤 Pacientes", prompt: "/pacientes" },
     { label: "🔍 Buscar", prompt: "/edit_menu" },
-    { label: "📝 Notes", prompt: "/iniciarlog" },
-    { label: "👪 Familiar", prompt: "/iniciarfamiliar" },
     { label: "👤 Novo", prompt: "/iniciarcadastro" },
-    { label: "🖼️ Enviar Imagem", prompt: "/enviarimagem" },
     { label: "📅 Agendar", prompt: "/iniciaragenda" },
     { label: "📅 Agenda", prompt: "/agenda" },
     { label: "🏥 Hospitais", prompt: "/hospitais" },
-    { label: "🏷️ Status", prompt: "/status_menu" },
     { label: "❓ Ajuda", prompt: "/ajuda" },
   ];
 
@@ -525,23 +542,82 @@ export const Chat: React.FC = () => {
       }
     }
 
+    // Handle Add Hospital form
+    if (cmd.startsWith("/hospital")) {
+      const nome = cmd.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
+      const telefone = cmd.match(/telefone:\s*(.+)/i)?.[1]?.trim() || "";
+
+      if (nome) {
+        setIsLoading(true);
+        fetch("/api/app/hospitals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome, telefone })
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              setMessages(prev => [...prev, { role: "model", text: `✅ **Hospital Adicionado!**\n\n🏥 **${nome}** foi cadastrado com sucesso.` }]);
+            } else {
+              setMessages(prev => [...prev, { role: "model", text: `❌ **Erro ao adicionar hospital:** ${data.error || "Ocorreu um erro inesperado."}` }]);
+            }
+          })
+          .catch(err => {
+            console.error(err);
+            setMessages(prev => [...prev, { role: "model", text: "❌ **Erro de conexão** ao tentar adicionar o hospital." }]);
+          })
+          .finally(() => setIsLoading(false));
+        return true;
+      }
+    }
+
     if (cmd.startsWith("/prep_img")) {
       const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.split(" ")[1];
       const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
 
       if (id) {
-        setMessages([{
-          role: "model",
-          text: `🖼️ **Anexar Imagem**\n\n📌 **Paciente:** ${nome ? `${nome} (ID: ${id})` : `ID: ${id}`}\n\nSelecione a imagem abaixo e preencha a descrição:`,
-          form: {
-            title: "Descrição da Imagem",
-            fields: [
-              { label: "Descrição / Título", name: "descrição", type: "text", placeholder: "Ex: Raio-X do tórax" }
-            ],
-            submitLabel: "Enviar Imagem",
-            commandPrefix: `/img id: ${id},`
-          }
-        }]);
+        setIsLoading(true);
+        fetch("/api/app/image-options")
+          .then(res => res.json())
+          .then(options => {
+            setMessages([{
+              role: "model",
+              text: `🖼️ **Anexar Imagem**\n\n### 📌 **Paciente:** ${nome ? nome : id}`,
+              form: {
+                title: "",
+                fields: [
+                  { 
+                    label: "Descrição / Título", 
+                    name: "descrição", 
+                    type: "text", 
+                    placeholder: "Ex: Raio-X do tórax",
+                    options: Array.isArray(options) ? options : []
+                  }
+                ],
+                submitLabel: "Enviar Imagem",
+                commandPrefix: `/img id: ${id},`
+              }
+            }]);
+          })
+          .catch(err => {
+            console.error("Error fetching image options", err);
+            // Fallback without options
+            setMessages([{
+              role: "model",
+              text: `🖼️ **Anexar Imagem**\n\n### 📌 **Paciente:** ${nome ? nome : id}`,
+              form: {
+                title: "",
+                fields: [
+                  { label: "Descrição / Título", name: "descrição", type: "text", placeholder: "Ex: Raio-X do tórax" }
+                ],
+                submitLabel: "Enviar Imagem",
+                commandPrefix: `/img id: ${id},`
+              }
+            }]);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
         return true;
       }
     }
@@ -770,9 +846,9 @@ export const Chat: React.FC = () => {
         
         const docs = data.imagens.map((i: any) => {
           const fileId = i.link?.match(/[-\w]{25,}/)?.[0];
-          const downloadText = fileId ? ` **[[Baixar Arquivo](/api/drive/file/${fileId})]**` : "";
-          return `• [${i.data}] ${i.descricao}${downloadText} **[[Drive](${i.link})]**  `;
-        }).join("\n");
+          const downloadText = fileId ? ` [[Baixar Arquivo](/api/drive/file/${fileId})]` : "";
+          return `• [${i.data}]${downloadText}\n${i.descricao}`;
+        }).join("\n\n");
 
         const fams = data.familiares.map((f: any) => {
           const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
@@ -799,6 +875,23 @@ export const Chat: React.FC = () => {
         setIsLoading(false);
         return true;
       }
+    }
+
+    if (cmd.startsWith("/novo_hospital")) {
+      setMessages([{
+        role: "model",
+        text: "🏥 **Cadastrar Novo Hospital**\n\nPreencha os dados abaixo para adicionar um registro aos seus serviços.",
+        form: {
+          title: "",
+          fields: [
+            { label: "Nome do Hospital", name: "nome", type: "text", placeholder: "Ex: Hospital São Camilo" },
+            { label: "Telefone / Contato", name: "telefone", type: "text", placeholder: "(11) 99999-9999" }
+          ],
+          submitLabel: "Salvar Hospital",
+          commandPrefix: "/hospital"
+        }
+      }]);
+      return true;
     }
 
     if (cmd.startsWith("/pacientes")) {
@@ -831,10 +924,14 @@ export const Chat: React.FC = () => {
         const end = start + PAGE_SIZE;
         const pageData = sortedData.slice(start, end);
 
-        const list = pageData.map((p: any) => 
-          `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**  \n` +
-          `📍 **Status:** ${p.status || "Não informado"}`
-        ).join("\n\n---\n\n");
+        const list = pageData.map((p: any) => {
+          let text = `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**  \n` +
+                     `📍 **Status:** ${p.status || "Não informado"}`;
+          if (p.roomNumber || p.hospitalName) {
+            text += `\n${p.roomNumber || ""} ${p.hospitalName || ""}`;
+          }
+          return text;
+        }).join("\n\n\n");
 
         let nav = "";
         const cmdName = "/pacientes";
@@ -921,10 +1018,14 @@ export const Chat: React.FC = () => {
             text: `❌ Nenhum paciente encontrado para "**${termo || "todos"}**".` 
           }]);
         } else {
-          const list = pageData.map((p: any) => 
-            `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**  \n` +
-            `📍 **Status:** ${p.status || "Não informado"}`
-          ).join("\n\n---\n\n");
+          const list = pageData.map((p: any) => {
+            let text = `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**  \n` +
+                       `📍 **Status:** ${p.status || "Não informado"}`;
+            if (p.roomNumber || p.hospitalName) {
+              text += `\n${p.roomNumber || ""} ${p.hospitalName || ""}`;
+            }
+            return text;
+          }).join("\n\n\n");
           
           let nav = "";
           if (totalPages > 1) {

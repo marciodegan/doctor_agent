@@ -71,7 +71,10 @@ const SHEET_TABS = {
   SETTINGS: "Configuracoes",
   HOSPITAIS: "Hospitais",
   STATUSES: "Statuses",
-  STATUS_LOG: "Atividades"
+  STATUS_LOG: "Atividades",
+  OPCOES_IMAGENS: "OpcoesImagens",
+  STATUS_USER: "Status User",
+  LOCAL_USER: "Local User"
 };
 
 // --- Helper for Unifying Databases ---
@@ -111,7 +114,10 @@ const getOrCreateMasterSheet = async (auth: any) => {
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.HOSPITAIS}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome do Hospital", "Telefone", "Contato 1", "Contato 2", "Contato 3", "Contato 4", "Contato 5"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:A6`, valueInputOption: "RAW", requestBody: { values: [["Nome"], ["Pré-operatorio"], ["Pós-operatorio"], ["Acompanhamento"], ["Alta"], ["Não informado"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } })
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } })
     ]);
   } else {
     // Ensure all tabs exist
@@ -136,6 +142,15 @@ const getOrCreateMasterSheet = async (auth: any) => {
         }
         if (tab === SHEET_TABS.STATUS_LOG) {
           await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } });
+        }
+        if (tab === SHEET_TABS.OPCOES_IMAGENS) {
+          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } });
+        }
+        if (tab === SHEET_TABS.STATUS_USER) {
+          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } });
+        }
+        if (tab === SHEET_TABS.LOCAL_USER) {
+          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } });
         }
       }
       console.log(`[Drive] Added missing tabs: ${missingTabs.join(", ")}`);
@@ -327,7 +342,7 @@ app.post("/api/auth/logout", (req, res) => {
 
 // --- Direct App Shortcuts (To save tokens/LLM calls) ---
 
-// Get all patients directly from the master sheet
+// Get all patients directly from the master sheet with detailed status and location
 app.get("/api/app/patients", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
@@ -337,20 +352,52 @@ app.get("/api/app/patients", async (req, res) => {
   try {
     const fileId = await getOrCreateMasterSheet(auth);
 
-    // Get values from Cadastro tab
-    const valuesRes = await sheets.spreadsheets.values.get({
+    // Get values from Cadastro, Status User, and Local User tabs
+    const ranges = [
+      `${SHEET_TABS.CADASTRO}!A:E`,
+      `${SHEET_TABS.STATUS_USER}!A:E`,
+      `${SHEET_TABS.LOCAL_USER}!A:E`
+    ];
+
+    const batchRes = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!A:E`,
+      ranges,
     });
 
-    const rows = valuesRes.data.values || [];
-    const patients = rows.slice(1).map(row => ({
+    const valueRanges = batchRes.data.valueRanges || [];
+    const cadRows = valueRanges[0]?.values || [];
+    const statusRows = valueRanges[1]?.values || [];
+    const localRows = valueRanges[2]?.values || [];
+
+    // Map patients basic info
+    const patients = cadRows.slice(1).map(row => ({
       id: row[0],
       nome: row[1],
       fone: row[2],
       idade: row[3],
-      status: row[4] || "Não informado"
+      status: row[4] || "Não informado",
+      roomNumber: "",
+      hospitalName: ""
     }));
+
+    // Enrich with Status User (most recent)
+    // format: status_id, status_data, status_atual, paciente_id, paciente_nome
+    patients.forEach(p => {
+      const pStatusRows = statusRows.slice(1).filter(r => r[3] === p.id.toString());
+      if (pStatusRows.length > 0) {
+        // Last row is usually the most recent if appended
+        const lastStatus = pStatusRows[pStatusRows.length - 1];
+        p.status = lastStatus[2] || p.status;
+      }
+
+      // Enrichment with Local User
+      // format: local_id, local_room_number, local_hospital, paciente_id, paciente_nome
+      const pLocalRow = localRows.slice(1).find(r => r[3] === p.id.toString());
+      if (pLocalRow) {
+        p.roomNumber = pLocalRow[1] || "";
+        p.hospitalName = pLocalRow[2] || "";
+      }
+    });
 
     res.json(patients);
   } catch (error) {
@@ -551,7 +598,72 @@ app.post("/api/app/hospitals", express.json(), async (req, res) => {
   }
 });
 
-// Getconsolidated report for a specific patient without LLM
+// Get image description options
+app.get("/api/app/image-options", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const sheets = google.sheets({ version: "v4", auth });
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+
+    const valuesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.OPCOES_IMAGENS}!A:A`,
+    });
+
+    const rows = valuesRes.data.values || [];
+    const options = rows.slice(1).map(row => row[0]).filter(Boolean);
+
+    res.json(options);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Add a new hospital
+app.post("/api/app/hospitals", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const { nome, telefone } = req.body;
+  if (!nome) return res.status(400).json({ error: "Nome é obrigatório." });
+
+  const sheets = google.sheets({ version: "v4", auth });
+
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+
+    // Get last ID
+    const valuesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.HOSPITAIS}!A:A`,
+    });
+
+    const rows = valuesRes.data.values || [];
+    let nextId = 1;
+    if (rows.length > 1) {
+      const ids = rows.slice(1).map(r => parseInt(r[0])).filter(n => !isNaN(n));
+      if (ids.length > 0) nextId = Math.max(...ids) + 1;
+    }
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.HOSPITAIS}!A:C`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [[nextId, nome, telefone || ""]]
+      }
+    });
+
+    res.json({ success: true, id: nextId });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get consolidated report for a specific patient without LLM
 app.get("/api/app/patient-report/:id", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
@@ -726,6 +838,23 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [[patientId, patientName, status, dateStr]]
+      }
+    });
+
+    // 5. Log in Status User
+    // format: status_id, status_data, status_atual, paciente_id, paciente_nome
+    const valuesStatusRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.STATUS_USER}!A:A`,
+    });
+    const nextStatusId = (valuesStatusRes.data.values?.length || 1).toString();
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.STATUS_USER}!A:E`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[nextStatusId, dateStr, status, patientId, patientName]]
       }
     });
 
