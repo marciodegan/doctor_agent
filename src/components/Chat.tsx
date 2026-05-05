@@ -1095,7 +1095,7 @@ export const Chat: React.FC = () => {
             listText += `<div style="font-size: 17px; font-weight: bold; color: #374151; margin-left: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
             patients.forEach(p => {
               const roomDisplay = p.roomNumber ? ` - ${p.roomNumber}` : "";
-              listText += `<div style="margin-left: 24px; margin-bottom: 4px; font-size: 14px; font-weight: normal;">• <a href="/p ${p.id}">${p.nome}</a>${roomDisplay}</div>`;
+              listText += `<div style="margin-left: 24px; margin-bottom: 4px; font-size: 15px; font-weight: normal;">• <a href="/p ${p.id}">${p.nome}</a>${roomDisplay}</div>`;
             });
           });
         });
