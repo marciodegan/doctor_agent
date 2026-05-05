@@ -1049,21 +1049,10 @@ export const Chat: React.FC = () => {
         const end = start + PAGE_SIZE;
         const pageData = filteredData.slice(start, end);
 
-        // Grouping by Hospital as requested in example
-        const grouped: Record<string, any[]> = {};
-        pageData.forEach((p: any) => {
-          const h = p.hospitalName || "Sem Hospital";
-          if (!grouped[h]) grouped[h] = [];
-          grouped[h].push(p);
-        });
-
-        const list = Object.keys(grouped).map(h => {
-          const pList = grouped[h].map((p: any) => {
-            return `• [\`${p.nome}\`](/p ${p.id} label:${p.nome})\n` + 
-                   `  ${p.status || "Sem status"}\n` + 
-                   `  ${p.hospitalName || "-"} / ${p.roomNumber || "-"}`;
-          }).join("\n\n");
-          return `**${h}**\n${pList}`;
+        const list = pageData.map((p: any) => {
+          return `### [\`${p.nome}\`](/p ${p.id} label:${p.nome})\n` + 
+                 `**Status:** ${p.status || "Sem status"}\n` + 
+                 `${p.hospitalName || "-"} / ${p.roomNumber || "-"}`;
         }).join("\n\n---\n\n");
 
         let nav = "";
@@ -1083,26 +1072,28 @@ export const Chat: React.FC = () => {
               { label: "A-Z", cmd: `/pacientes${currentFilters} sort:nome`, active: sort === "nome" },
               { label: "Mais Recentes", cmd: `/pacientes${currentFilters} sort:id`, active: sort === "id" },
             ]
-          },
-          {
-            title: "Filtrar",
-            actions: [
-              { label: "Por Status", cmd: `/pacientes${currentFilters} view:status sort:${sort}` },
-              { label: "Por Hospital", cmd: `/pacientes${currentFilters} view:hospitais sort:${sort}` },
-            ]
           }
         ];
 
-        if (showHospitals && hospitals.length > 0) {
+        if (statuses.length > 0) {
           actionGroups.push({
-            title: "Selecione o Hospital",
-            actions: hospitals.map((h: string) => ({ label: h, cmd: `/pacientes hospital:${h} sort:${sort}` }))
+            title: "Filtrar por Status",
+            actions: statuses.map((s: string) => ({ 
+              label: s, 
+              cmd: `/pacientes hospital:${hospitalFilter || ""} status:${s} sort:${sort}`,
+              active: statusFilter === s
+            }))
           });
         }
-        if (showStatuses && statuses.length > 0) {
+
+        if (hospitals.length > 0) {
           actionGroups.push({
-            title: "Selecione o Status",
-            actions: statuses.map((s: string) => ({ label: s, cmd: `/pacientes status:${s} sort:${sort}` }))
+            title: "Filtrar por Hospital",
+            actions: hospitals.map((h: string) => ({ 
+              label: h, 
+              cmd: `/pacientes hospital:${h} status:${statusFilter || ""} sort:${sort}`,
+              active: hospitalFilter === h
+            }))
           });
         }
 
