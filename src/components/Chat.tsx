@@ -43,7 +43,6 @@ const MessageForm: React.FC<{
     });
     return initial;
   });
-  const [useAI, setUseAI] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -87,7 +86,6 @@ const MessageForm: React.FC<{
     e.preventDefault();
     const parts = Object.entries(values).map(([k, v]) => `${k}: ${v}`);
     let fullCmd = `${form.commandPrefix} ${parts.join(", ")}`;
-    if (useAI) fullCmd += ", useAI: true";
     onSubmit(fullCmd);
   };
 
@@ -129,19 +127,6 @@ const MessageForm: React.FC<{
               <span className="text-xs font-medium">Toque para selecionar imagem</span>
             </button>
           )}
-
-          <button 
-            type="button"
-            onClick={() => setUseAI(!useAI)}
-            className={`w-full py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
-              useAI 
-                ? 'bg-purple-50 text-purple-700 border-purple-200 ring-2 ring-purple-100' 
-                : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            <Sparkles size={14} className={useAI ? "text-purple-600" : "text-gray-300"} />
-            {useAI ? "Análise com IA Ativada ✨" : "Ativar Análise Inteligente da Imagem?"}
-          </button>
         </div>
       )}
 
@@ -964,13 +949,21 @@ export const Chat: React.FC = () => {
         const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
         const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
 
-        const reportText = `# **${cad.Nome}**, ${cad.Idade || "N/A"} anos \`/edit_name ${cad.ID} label:✏️\`\n` +
-          `📍 **Status:** ${cad.Status || "Não informado"} \`/status_alterar ${cad.ID}\`\n\n` +
+        const reportText = `📍 **Status:** ${cad.Status || "Não informado"} \`/status_alterar ${cad.ID}\`\n\n` +
           `**Contatos:** \`/novo_familiar id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${fams || "Nenhum registro"}\n\n` +
           `**Informações:** \`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${audios || "Nenhum registro"}\n\n` +
           `**Imagens:** \`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${docs || "Nenhum registro"}`;
 
-        setMessages([{ role: "model", text: reportText }]);
+        setMessages([{ 
+          role: "model", 
+          text: reportText,
+          isProfile: true,
+          profileData: {
+            id: cad.ID.toString(),
+            nome: cad.Nome,
+            idade: cad.Idade ? cad.Idade.toString() : "N/A"
+          }
+        }]);
         setTimeout(scrollToTop, 0);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
@@ -1767,14 +1760,20 @@ export const Chat: React.FC = () => {
               <div className="flex gap-3 w-full">
                 <div className={`p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full overflow-hidden ${msg.isProfile ? 'pt-0 ring-1 ring-blue-100' : ''}`}>
                   {msg.isProfile && msg.profileData && (
-                    <div className="bg-blue-600 -mx-4 -mt-4 mb-4 p-8 flex flex-col items-center justify-center text-white shadow-inner">
+                    <div className="bg-blue-50 -mx-4 -mt-4 mb-6 p-10 flex flex-col items-center justify-center border-b border-blue-100 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100/30 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-100/30 rounded-full -ml-12 -mb-12 blur-2xl"></div>
+                      
                       <button 
                         onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
-                        className="group flex flex-col items-center hover:scale-105 transition-transform"
+                        className="group flex flex-col items-center hover:scale-105 transition-transform relative z-10"
                       >
-                        <h2 className="text-3xl font-bold text-blue-50 group-hover:text-white transition-colors">{msg.profileData.nome}</h2>
-                        <p className="text-xl text-blue-200 group-hover:text-blue-50 transition-colors">{msg.profileData.idade} anos</p>
-                        <span className="mt-2 text-[10px] uppercase tracking-wider text-blue-300 group-hover:text-blue-100 transition-colors underline decoration-blue-400">Tocar para Editar</span>
+                        <h2 className="text-4xl font-extrabold text-blue-700 group-hover:text-blue-900 transition-colors tracking-tight text-center leading-tight">{msg.profileData.nome}</h2>
+                        <div className="flex items-center gap-2 mt-2">
+                          <p className="text-2xl font-bold text-blue-500 group-hover:text-blue-700 transition-colors">{msg.profileData.idade} anos</p>
+                          <div className="w-1 h-1 bg-blue-300 rounded-full"></div>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 group-hover:text-blue-600 transition-colors">Editar</span>
+                        </div>
                       </button>
                     </div>
                   )}
