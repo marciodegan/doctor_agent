@@ -1073,11 +1073,11 @@ export const Chat: React.FC = () => {
         let listText = `[\`➕ Novo Paciente\`](/novo_paciente)\n\n`;
 
         Object.entries(hospitalsGrouped).forEach(([hName, group]) => {
-          listText += `<div style="font-size: 12px; font-weight: bold; color: #1f2937; margin-top: 14px; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px;">${hName} [ID ${group.id}]</div>`;
+          listText += `<div style="font-size: 19px; font-weight: bold; color: #111827; margin-top: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 4px;">${hName}</div>`;
           Object.entries(group.statuses).forEach(([sName, patients]) => {
-            listText += `<div style="font-size: 10px; font-weight: bold; font-style: italic; color: #4b5563; margin-left: 8px; margin-top: 6px; margin-bottom: 4px; display: flex; align-items: center;"><span style="margin-right: 4px;">📂</span> ${sName}</div>`;
+            listText += `<div style="font-size: 16px; font-weight: bold; font-style: italic; color: #374151; margin-left: 8px; margin-top: 10px; margin-bottom: 6px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
             patients.forEach(p => {
-              listText += `<div style="margin-left: 20px; margin-bottom: 4px; font-size: 13px;">• [${p.nome}](/p ${p.id})</div>`;
+              listText += `<div style="margin-left: 24px; margin-bottom: 4px; font-size: 14px;">• [${p.nome}](/p ${p.id})</div>`;
             });
           });
         });
