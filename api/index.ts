@@ -708,7 +708,7 @@ app.get("/api/app/patients", async (req, res) => {
     const patients = cadRows.slice(1).map(row => {
       const id = row[0]?.toString().trim();
       const statusInput = row[8]?.toString().trim() || row[4]?.toString().trim(); // Prioritize Column I (index 8)
-      const hospitalInput = row[5]?.toString().trim(); // Column F (hospital_id)
+      const hospitalInput = row[6]?.toString().trim(); // Column G
       
       // Robust Hospital Mapping
       let hName = "";
@@ -747,7 +747,7 @@ app.get("/api/app/patients", async (req, res) => {
         status: sName || "Não informado",
         hospitalId: hId,
         hospitalName: hName || "Sem Hospital",
-        roomNumber: row[6]?.toString().trim() || "" // Column G
+        roomNumber: row[7]?.toString().trim() || ""
       };
 
       // Enrich with Status User (most recent from Map)
