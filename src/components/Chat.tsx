@@ -1053,21 +1053,25 @@ export const Chat: React.FC = () => {
         const end = start + PAGE_SIZE;
         const pageData = filteredData.slice(start, end);
 
-        // Group pageData by Hospital, then by Status
-        const hospitalsGrouped: Record<string, { id: string, statuses: Record<string, any[]> }> = {};
+        // Group pageData by Hospital, then by Status (using statusId for sorting)
+        const hospitalsGrouped: Record<string, { 
+          id: string, 
+          statuses: Record<string, { id: string, name: string, patients: any[] }> 
+        }> = {};
         
         pageData.forEach((p: any) => {
           const hName = p.hospitalName || "Sem Hospital";
           const hId = p.hospitalId || "-";
           const sName = p.status || "Sem Status";
+          const sId = p.statusId?.toString() || "999";
           
           if (!hospitalsGrouped[hName]) {
             hospitalsGrouped[hName] = { id: hId, statuses: {} };
           }
-          if (!hospitalsGrouped[hName].statuses[sName]) {
-            hospitalsGrouped[hName].statuses[sName] = [];
+          if (!hospitalsGrouped[hName].statuses[sId]) {
+            hospitalsGrouped[hName].statuses[sId] = { id: sId, name: sName, patients: [] };
           }
-          hospitalsGrouped[hName].statuses[sName].push(p);
+          hospitalsGrouped[hName].statuses[sId].patients.push(p);
         });
 
         let listText = `<div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">\n\n[➕ Novo Paciente](/iniciarcadastro)\n\n</div>\n\n`;
@@ -1078,7 +1082,14 @@ export const Chat: React.FC = () => {
             listText += `<div style="font-size: 18px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: 24px; margin-bottom: 12px; display: block; border-left: 4px solid #3b82f6;">${hName}</div>`;
           }
           
-          Object.entries(group.statuses).forEach(([sName, patients], statusIdx) => {
+          // Sort statuses by their ID numerically
+          const sortedStatuses = Object.values(group.statuses).sort((a, b) => {
+            const idA = parseInt(a.id) || 0;
+            const idB = parseInt(b.id) || 0;
+            return idA - idB;
+          });
+
+          sortedStatuses.forEach(({ name: sName, patients }, statusIdx) => {
             // Increased spacing between status groupings (twice the previous 24px = 48px, but only if not the very first one in the container)
             const marginTop = (statusIdx === 0 && !hospitalFilter) ? "10px" : "40px";
             listText += `<div style="font-size: 17px; font-weight: bold; color: #374151; margin-left: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
