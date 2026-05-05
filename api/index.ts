@@ -114,13 +114,13 @@ const getOrCreateMasterSheet = async (auth: any) => {
 
     // Initialize Headers
     await Promise.all([
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status", "hospital_nome", "room_number", "paciente_cpf"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "status_id", "hospital_id", "room_number", "paciente_cpf"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "paciente_nome", "descricao"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link", "ai_resposta"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["id", "nome_familiar", "tipo_parentesco", "telefone", "paciente_id", "paciente_nome"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.HOSPITAIS}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome do Hospital", "Telefone", "Contato 1", "Contato 2", "Contato 3", "Contato 4", "Contato 5"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:A6`, valueInputOption: "RAW", requestBody: { values: [["Nome"], ["Pré-operatorio"], ["Pós-operatorio"], ["Acompanhamento"], ["Alta"], ["Não informado"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:B7`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome"], ["1", "Pré-operatorio"], ["2", "Pós-operatorio"], ["3", "Acompanhamento"], ["4", "Alta"], ["5", "Não informado"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } }),
@@ -550,16 +550,31 @@ app.get("/api/app/patients", async (req, res) => {
     const statusRows = valueRanges[1]?.values || [];
     const localRows = valueRanges[2]?.values || [];
 
+    // Also get master hospitals and statuses to resolve IDs to names
+    const masterRes = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId: fileId,
+      ranges: [`${SHEET_TABS.HOSPITAIS}!A:B`, `${SHEET_TABS.STATUSES}!A:B`]
+    });
+    const masterValueRanges = masterRes.data.valueRanges || [];
+    const hMap = Object.fromEntries((masterValueRanges[0]?.values || []).slice(1).map(r => [r[0], r[1]]));
+    const sMap = Object.fromEntries((masterValueRanges[1]?.values || []).slice(1).map(r => [r[0], r[1]]));
+
     // Map patients basic info
-    const patients = cadRows.slice(1).map(row => ({
-      id: row[0]?.toString().trim(),
-      nome: row[1]?.toString().trim(),
-      fone: row[2]?.toString().trim(),
-      idade: row[3]?.toString().trim(),
-      status: row[4]?.toString().trim() || "Não informado",
-      hospitalName: row[5]?.toString().trim() || "",
-      roomNumber: row[6]?.toString().trim() || ""
-    }));
+    const patients = cadRows.slice(1).map(row => {
+      const statusId = row[4]?.toString().trim();
+      const hospitalId = row[5]?.toString().trim();
+      return {
+        id: row[0]?.toString().trim(),
+        nome: row[1]?.toString().trim(),
+        fone: row[2]?.toString().trim(),
+        idade: row[3]?.toString().trim(),
+        statusId: statusId || "",
+        status: sMap[statusId] || statusId || "Não informado",
+        hospitalId: hospitalId || "",
+        hospitalName: hMap[hospitalId] || hospitalId || "",
+        roomNumber: row[6]?.toString().trim() || ""
+      };
+    });
 
     // Enrich with Status User (most recent)
     // format: status_id, status_data, status_atual, paciente_id, paciente_nome
@@ -956,13 +971,13 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
     const ids = rows.slice(1).map(r => parseInt(r[0])).filter(n => !isNaN(n));
     const nextId = (ids.length > 0 ? Math.max(...ids) + 1 : 1).toString();
 
-    // Append new patient: ID, Nome, Telefone, Idade, Status, hospital_nome, room_number, paciente_cpf
+    // Append new patient: ID, Nome, Telefone, Idade, status_id, hospital_id, room_number, paciente_cpf
     await sheets.spreadsheets.values.append({
       spreadsheetId: fileId,
       range: `${SHEET_TABS.CADASTRO}!A:H`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: [[nextId, nome, fone, idade, status || "Não informado", hospitalName || "", roomNumber || "", cpf || ""]]
+        values: [[nextId, nome, fone, idade, status || "", hospitalName || "", roomNumber || "", cpf || ""]]
       }
     });
 
@@ -1005,7 +1020,7 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
 
     const patientName = rows[rowIndex][1];
 
-    // 3. Update Column E (Status) at the specific row
+    // 3. Update Column E (status_id) at the specific row
     const rowNumber = rowIndex + 1;
     await sheets.spreadsheets.values.update({
       spreadsheetId: fileId,
@@ -1143,8 +1158,10 @@ app.get("/api/app/statuses", async (req, res) => {
     });
 
     const rows = valuesRes.data.values || [];
-    // Use column B if available, else A
-    const statuses = rows.slice(1).map(row => row[1] || row[0]).filter(Boolean);
+    const statuses = rows.slice(1).map(row => ({
+      id: row[0],
+      nome: row[1] || row[0]
+    })).filter(s => s.nome);
 
     res.json(statuses);
   } catch (error) {

@@ -1024,10 +1024,16 @@ export const Chat: React.FC = () => {
 
         let filteredData = [...data];
         if (hospitalFilter) {
-          filteredData = filteredData.filter((p: any) => p.hospitalName === hospitalFilter);
+          filteredData = filteredData.filter((p: any) => 
+            p.hospitalId?.toString() === hospitalFilter || 
+            p.hospitalName?.toLowerCase() === hospitalFilter.toLowerCase()
+          );
         }
         if (statusFilter) {
-          filteredData = filteredData.filter((p: any) => p.status === statusFilter);
+          filteredData = filteredData.filter((p: any) => 
+            p.statusId?.toString() === statusFilter || 
+            p.status?.toLowerCase() === statusFilter.toLowerCase()
+          );
         }
 
         if (sort === "nome") {
@@ -1078,10 +1084,10 @@ export const Chat: React.FC = () => {
         if (statuses.length > 0) {
           actionGroups.push({
             title: "Filtrar por Status",
-            actions: statuses.map((s: string) => ({ 
-              label: s, 
-              cmd: `/pacientes hospital:${hospitalFilter || ""} status:${s} sort:${sort}`,
-              active: statusFilter === s
+            actions: masterStatuses.map((s: any) => ({ 
+              label: typeof s === 'string' ? s : s.nome, 
+              cmd: `/pacientes hospital:${hospitalFilter || ""} status:${typeof s === 'string' ? s : s.id} sort:${sort}`,
+              active: statusFilter === (typeof s === 'string' ? s : s.id.toString())
             }))
           });
         }
@@ -1089,10 +1095,10 @@ export const Chat: React.FC = () => {
         if (hospitals.length > 0) {
           actionGroups.push({
             title: "Filtrar por Hospital",
-            actions: hospitals.map((h: string) => ({ 
-              label: h, 
-              cmd: `/pacientes hospital:${h} status:${statusFilter || ""} sort:${sort}`,
-              active: hospitalFilter === h
+            actions: masterHospitalsData.map((h: any) => ({ 
+              label: h.nome, 
+              cmd: `/pacientes hospital:${h.id} status:${statusFilter || ""} sort:${sort}`,
+              active: hospitalFilter === h.id.toString()
             }))
           });
         }
