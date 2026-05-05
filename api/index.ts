@@ -637,8 +637,8 @@ app.get("/api/app/patients", async (req, res) => {
       `${SHEET_TABS.CADASTRO}!A:K`, // Fetch patient data
       `${SHEET_TABS.STATUS_USER}!A:E`,
       `${SHEET_TABS.LOCAL_USER}!A:E`,
-      `${SHEET_TABS.HOSPITAIS}!A:O`, // Fetch hospital master data (up to column O)
-      `${SHEET_TABS.STATUSES}!A:B`
+      `${SHEET_TABS.HOSPITAIS}!A:Z`, // Fetch wider range to include potentially distant columns
+      `${SHEET_TABS.STATUSES}!A:Z`
     ];
 
     const batchRes = await sheets.spreadsheets.values.batchGet({
@@ -655,10 +655,10 @@ app.get("/api/app/patients", async (req, res) => {
     
     // Parse Hospitals from Hospitais tab (Column N=13, Column O=14)
     const hospitals = hospitalRows.slice(1)
-      .filter(row => row[13]) // Column N
+      .filter(row => row[13] || row[0]) // Match using Column N (index 13) or ID in A
       .map(row => ({
-        id: row[13]?.toString().trim(),
-        nome: row[14]?.toString().trim() || row[13]?.toString().trim(), // Column O
+        id: row[13]?.toString().trim() || row[0]?.toString().trim(),
+        nome: row[14]?.toString().trim() || row[1]?.toString().trim() || row[0]?.toString().trim(), // Display Column O (index 14) or B or A
         fone: row[2]?.toString().trim(),
         contatos: [row[3], row[4], row[5], row[6], row[7]].filter(Boolean)
       }));
@@ -765,7 +765,19 @@ app.get("/api/app/patients", async (req, res) => {
       if (id && localMap.has(id)) {
         const local = localMap.get(id)!;
         p.roomNumber = local.room || p.roomNumber;
-        p.hospitalName = local.hospital || p.hospitalName;
+        const localHospital = local.hospital;
+        if (localHospital) {
+          // Robust mapping for local hospital too
+          if (hMap[localHospital]) {
+            p.hospitalName = hMap[localHospital];
+            p.hospitalId = localHospital;
+          } else if (hNameMap[localHospital.toLowerCase()]) {
+            p.hospitalId = hNameMap[localHospital.toLowerCase()];
+            p.hospitalName = hMap[p.hospitalId];
+          } else {
+            p.hospitalName = localHospital;
+          }
+        }
       }
 
       return p;

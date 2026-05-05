@@ -1075,9 +1075,9 @@ export const Chat: React.FC = () => {
         Object.entries(hospitalsGrouped).forEach(([hName, group]) => {
           listText += `<div style="font-size: 19px; font-weight: bold; color: #111827; margin-top: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 4px;">${hName}</div>`;
           Object.entries(group.statuses).forEach(([sName, patients]) => {
-            listText += `<div style="font-size: 16px; font-weight: bold; font-style: italic; color: #374151; margin-left: 8px; margin-top: 10px; margin-bottom: 6px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
+            listText += `<div style="font-size: 16px; font-weight: bold; color: #374151; margin-left: 8px; margin-top: 10px; margin-bottom: 6px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
             patients.forEach(p => {
-              listText += `<div style="margin-left: 24px; margin-bottom: 4px; font-size: 14px;">• [${p.nome}](/p ${p.id})</div>`;
+              listText += `<div style="margin-left: 24px; margin-bottom: 4px; font-size: 14px;">• <a href="/p ${p.id}">${p.nome}</a></div>`;
             });
           });
         });
@@ -1908,6 +1908,25 @@ export const Chat: React.FC = () => {
                         <ReactMarkdown
                           rehypePlugins={[rehypeRaw]}
                           components={{
+                            a({ children, ...props }) {
+                              const href = props.href;
+                              if (href && href.startsWith("/")) {
+                                return (
+                                  <span
+                                    onClick={() => {
+                                      const shouldClear = href.startsWith("/p") || 
+                                                          href.startsWith("/edit") || 
+                                                          href.startsWith("/pacientes");
+                                      handleSend(undefined, href, shouldClear);
+                                    }}
+                                    className="text-blue-600 hover:underline cursor-pointer font-medium"
+                                  >
+                                    {children}
+                                  </span>
+                                );
+                              }
+                              return <a {...props} target="_blank" rel="noopener noreferrer">{children}</a>;
+                            },
                             code({ children, ...props }) {
                               const content = String(children);
                               // Check if it's inline (no className which usually defines language-*)
