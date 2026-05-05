@@ -1028,15 +1028,31 @@ export const Chat: React.FC = () => {
         const hospitals = Array.from(new Set(data.map((p: any) => p.hospitalName).filter(Boolean))) as string[];
         const statuses = Array.from(new Set(data.map((p: any) => p.status).filter(Boolean))) as string[];
 
-        let filterUI = "";
-        if (hospitals.length > 0) {
-          filterUI += `🏥 **Hospitais:**\n${hospitals.map(h => `[\`${h}\`](/pacientes hospital:${h} sort:${sort})`).join(" ")}\n\n`;
+        const showHospitals = cmdInput.includes("view:hospitais");
+        const showStatuses = cmdInput.includes("view:status");
+
+        // Build the new button-based UI
+        let filterAndSortUI = "";
+        
+        // Main Action Buttons Line
+        const currentFilters = `${hospitalFilter ? ` hospital:${hospitalFilter}` : ""}${statusFilter ? ` status:${statusFilter}` : ""}`;
+        
+        filterAndSortUI += `**Filtrar e Ordenar:**\n`;
+        filterAndSortUI += `[\`🔤 A-Z\`](/pacientes${currentFilters} sort:nome) `;
+        filterAndSortUI += `[\`⏰ Recentes\`](/pacientes${currentFilters} sort:id) `;
+        filterAndSortUI += `[\`📍 Status\`](/pacientes${currentFilters} view:status sort:${sort}) `;
+        filterAndSortUI += `[\`🏥 Hospitais\`](/pacientes${currentFilters} view:hospitais sort:${sort})\n\n`;
+
+        // Sub-menus
+        if (showHospitals && hospitals.length > 0) {
+          filterAndSortUI += `🏨 **Selecionar Hospital:**\n${hospitals.map(h => `[\`${h}\`](/pacientes hospital:${h} sort:${sort})`).join(" ")}\n\n`;
         }
-        if (statuses.length > 0) {
-          filterUI += `📍 **Status:**\n${statuses.map(s => `[\`${s}\`](/pacientes status:${s} sort:${sort})`).join(" ")}\n\n`;
+        if (showStatuses && statuses.length > 0) {
+          filterAndSortUI += `📍 **Selecionar Status:**\n${statuses.map(s => `[\`${s}\`](/pacientes status:${s} sort:${sort})`).join(" ")}\n\n`;
         }
+
         if (hospitalFilter || statusFilter) {
-          filterUI += `❌ [**Limpar Filtros**](/pacientes sort:${sort})\n\n`;
+          filterAndSortUI += `✅ Filtrado por: **${hospitalFilter || statusFilter}** [ Limpar ❌ ](/pacientes sort:${sort})\n\n`;
         }
 
         const PAGE_SIZE = 8;
@@ -1059,7 +1075,6 @@ export const Chat: React.FC = () => {
 
         let nav = "";
         const cmdName = "/pacientes";
-        const currentFilters = `${hospitalFilter ? ` hospital:${hospitalFilter}` : ""}${statusFilter ? ` status:${statusFilter}` : ""}`;
         
         if (totalPages > 1) {
           nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
@@ -1067,16 +1082,17 @@ export const Chat: React.FC = () => {
           if (pageToView < totalPages) nav += ` \`${cmdName}${currentFilters} pag:${pageToView + 1} sort:${sort}\` `;
         }
 
-        const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`${cmdName}${currentFilters} sort:nome\` (A-Z)\n• \`${cmdName}${currentFilters} sort:id\` (Mais recentes)`;
-
         let title = `📂 **Cadastro de Pacientes (${data.length} total)**`;
         if (hospitalFilter || statusFilter) {
-          title = `🔍 **Filtrado (${filteredData.length} de ${data.length}):** ${hospitalFilter || ""} ${statusFilter || ""}`;
+          title = `🔍 **Resultados (${filteredData.length})**`;
         }
+
+        // Simulating right-alignment in standard markdown with a header and action block
+        const topHeader = `### ${title}\n\`/iniciarcadastro label:➕ NOVO PACIENTE\`\n\n---\n`;
 
         setMessages([{ 
           role: "model", 
-          text: `\`/iniciarcadastro label:➕ NOVO PACIENTE\`\n\n${filterUI}${title}\n\n${list || "Nenhum paciente encontrado."}${nav}${sortOptions}` 
+          text: `${topHeader}${filterAndSortUI}${list || "Nenhum paciente encontrado."}${nav}` 
         }]);
         setTimeout(scrollToTop, 0);
       } catch (err: any) {
@@ -1204,8 +1220,8 @@ export const Chat: React.FC = () => {
             fields: [
               { label: "Nome", name: "nome", type: "text", defaultValue: p.Nome },
               { label: "Idade", name: "idade", type: "text", defaultValue: p.Idade || "" },
-              { label: "Hospital", name: "hospitalName", type: "text", defaultValue: p.hospital_name || "" },
-              { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.local_room_number || "" },
+              { label: "Hospital", name: "hospitalName", type: "text", defaultValue: p.hospital_nome || "" },
+              { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.room_number || "" },
             ],
             submitLabel: "Salvar Alterações",
             commandPrefix: `/update_patient id: ${id},`

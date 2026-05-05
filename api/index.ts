@@ -114,7 +114,7 @@ const getOrCreateMasterSheet = async (auth: any) => {
 
     // Initialize Headers
     await Promise.all([
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status", "paciente_cpf", "hospital_name", "local_room_number"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status", "paciente_cpf", "hospital_nome", "room_number"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "paciente_nome", "descricao"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link", "ai_resposta"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["id", "nome_familiar", "tipo_parentesco", "telefone", "paciente_id", "paciente_nome"]] } }),
@@ -956,7 +956,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
     const ids = rows.slice(1).map(r => parseInt(r[0])).filter(n => !isNaN(n));
     const nextId = (ids.length > 0 ? Math.max(...ids) + 1 : 1).toString();
 
-    // Append new patient: ID, Nome, Telefone, Idade, Status, paciente_cpf, hospital_name, local_room_number
+    // Append new patient: ID, Nome, Telefone, Idade, Status, paciente_cpf, hospital_nome, room_number
     await sheets.spreadsheets.values.append({
       spreadsheetId: fileId,
       range: `${SHEET_TABS.CADASTRO}!A:H`,
