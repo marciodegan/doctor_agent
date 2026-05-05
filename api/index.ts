@@ -654,9 +654,9 @@ app.get("/api/app/patients", async (req, res) => {
       .filter(row => row[12]) // Must have an ID in column M
       .map(row => ({
         id: row[12]?.toString().trim(),
-        nome: row[13]?.toString().trim(),
-        fone: row[14]?.toString().trim(),
-        contatos: [row[15], row[16], row[17], row[18], row[19]].filter(Boolean)
+        nome: (row[14] || row[13])?.toString().trim(), // User said column O (index 14) is hospital_nome
+        fone: row[15]?.toString().trim(), // Shifted phone to index 15
+        contatos: [row[16], row[17], row[18], row[19]].filter(Boolean)
       }));
 
     if (hospitals.length > 0) {
@@ -685,6 +685,10 @@ app.get("/api/app/patients", async (req, res) => {
     const hMap = Object.fromEntries(hData.map(r => [r.id, r.nome]));
     const sMap = Object.fromEntries(sData.map(r => [r.id, r.nome]));
 
+    // Reverse maps for name-to-id lookup (robustness)
+    const hNameMap = Object.fromEntries(hData.map(r => [r.nome.toLowerCase(), r.id]));
+    const sNameMap = Object.fromEntries(sData.map(r => [r.nome.toLowerCase(), r.id]));
+
     // Pre-index status and local data for O(1) lookup
     const statusMap = new Map<string, string>();
     statusRows.slice(1).forEach(r => {
@@ -707,19 +711,47 @@ app.get("/api/app/patients", async (req, res) => {
     // Map patients basic info
     const patients = cadRows.slice(1).map(row => {
       const id = row[0]?.toString().trim();
-      const statusId = row[4]?.toString().trim();
-      const hospitalId = row[5]?.toString().trim();
+      const statusInput = row[4]?.toString().trim();
+      const hospitalInput = row[6]?.toString().trim(); // Column G
+      
+      // Robust Hospital Mapping
+      let hName = "";
+      let hId = hospitalInput || "";
+      if (hospitalInput) {
+        if (hMap[hospitalInput]) {
+          hName = hMap[hospitalInput];
+        } else if (hNameMap[hospitalInput.toLowerCase()]) {
+          hId = hNameMap[hospitalInput.toLowerCase()];
+          hName = hMap[hId];
+        } else {
+          hName = hospitalInput; // Fallback to raw input
+        }
+      }
+
+      // Robust Status Mapping
+      let sName = "";
+      let sId = statusInput || "";
+      if (statusInput) {
+        if (sMap[statusInput]) {
+          sName = sMap[statusInput];
+        } else if (sNameMap[statusInput.toLowerCase()]) {
+          sId = sNameMap[statusInput.toLowerCase()];
+          sName = sMap[sId];
+        } else {
+          sName = statusInput; // Fallback to raw input
+        }
+      }
       
       const p: any = {
         id: id,
         nome: row[1]?.toString().trim(),
         fone: row[2]?.toString().trim(),
         idade: row[3]?.toString().trim(),
-        statusId: statusId || "",
-        status: sMap[statusId] || statusId || "Não informado",
-        hospitalId: hospitalId || "",
-        hospitalName: hMap[hospitalId] || hospitalId || "",
-        roomNumber: row[6]?.toString().trim() || ""
+        statusId: sId,
+        status: sName || "Não informado",
+        hospitalId: hId,
+        hospitalName: hName || "Sem Hospital",
+        roomNumber: row[5]?.toString().trim() || ""
       };
 
       // Enrich with Status User (most recent from Map)

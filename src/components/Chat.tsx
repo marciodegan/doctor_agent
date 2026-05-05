@@ -1054,24 +1054,30 @@ export const Chat: React.FC = () => {
         const pageData = filteredData.slice(start, end);
 
         // Group pageData by Hospital, then by Status
-        const hospitalsGrouped: Record<string, Record<string, any[]>> = {};
+        const hospitalsGrouped: Record<string, { id: string, statuses: Record<string, any[]> }> = {};
         
         pageData.forEach((p: any) => {
           const hName = p.hospitalName || "Sem Hospital";
+          const hId = p.hospitalId || "-";
           const sName = p.status || "Sem Status";
-          if (!hospitalsGrouped[hName]) hospitalsGrouped[hName] = {};
-          if (!hospitalsGrouped[hName][sName]) hospitalsGrouped[hName][sName] = [];
-          hospitalsGrouped[hName][sName].push(p);
+          
+          if (!hospitalsGrouped[hName]) {
+            hospitalsGrouped[hName] = { id: hId, statuses: {} };
+          }
+          if (!hospitalsGrouped[hName].statuses[sName]) {
+            hospitalsGrouped[hName].statuses[sName] = [];
+          }
+          hospitalsGrouped[hName].statuses[sName].push(p);
         });
 
         let listText = `[\`➕ Novo Paciente\`](/novo_paciente)\n\n`;
 
-        Object.entries(hospitalsGrouped).forEach(([hName, statusesMap]) => {
-          listText += `<div style="font-size: 12px; font-weight: bold; color: #1f2937; margin-top: 12px;">${hName}</div>`;
-          Object.entries(statusesMap).forEach(([sName, patients]) => {
-            listText += `<div style="font-size: 10px; font-weight: bold; font-style: italic; color: #4b5563; margin-left: 8px; margin-bottom: 2px;">${sName}</div>`;
+        Object.entries(hospitalsGrouped).forEach(([hName, group]) => {
+          listText += `<div style="font-size: 12px; font-weight: bold; color: #1f2937; margin-top: 14px; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px;">${hName} [ID ${group.id}]</div>`;
+          Object.entries(group.statuses).forEach(([sName, patients]) => {
+            listText += `<div style="font-size: 10px; font-weight: bold; font-style: italic; color: #4b5563; margin-left: 8px; margin-top: 6px; margin-bottom: 4px; display: flex; align-items: center;"><span style="margin-right: 4px;">📂</span> ${sName}</div>`;
             patients.forEach(p => {
-              listText += `<div style="margin-left: 16px; margin-bottom: 2px;">• [${p.nome}](/edit_paciente ${p.id})</div>`;
+              listText += `<div style="margin-left: 20px; margin-bottom: 4px; font-size: 13px;">• [${p.nome}](/p ${p.id})</div>`;
             });
           });
         });
