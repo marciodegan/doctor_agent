@@ -631,33 +631,13 @@ app.get("/api/app/patients", async (req, res) => {
     const fileId = await getOrCreateMasterSheet(auth);
 
     const now = Date.now();
-    const useCacheHospitals = RESOURCE_CACHE.hospitals.data && (now - RESOURCE_CACHE.hospitals.lastFetch < RESOURCE_CACHE.ttl);
-    const useCacheStatuses = RESOURCE_CACHE.statuses.data && (now - RESOURCE_CACHE.statuses.lastFetch < RESOURCE_CACHE.ttl);
 
     // Get base data ranges
     const ranges = [
-      `${SHEET_TABS.CADASTRO}!A:H`,
+      `${SHEET_TABS.CADASTRO}!A:W`, // Fetch wider range to include Hospitals (M:T) and Statuses (V:W)
       `${SHEET_TABS.STATUS_USER}!A:E`,
       `${SHEET_TABS.LOCAL_USER}!A:E`
     ];
-
-    const rangeMap: Record<string, number> = { cadastro: 0, statusUser: 1, localUser: 2 };
-
-    if (!useCacheHospitals) {
-      console.log("[Cache] Miss: hospitals (fetching full A:H)");
-      rangeMap.hospitals = ranges.length;
-      ranges.push(`${SHEET_TABS.HOSPITAIS}!A:H`);
-    } else {
-      console.log("[Cache] Hit: hospitals");
-    }
-
-    if (!useCacheStatuses) {
-      console.log("[Cache] Miss: statuses (fetching A:B)");
-      rangeMap.statuses = ranges.length;
-      ranges.push(`${SHEET_TABS.STATUSES}!A:B`);
-    } else {
-      console.log("[Cache] Hit: statuses");
-    }
 
     const batchRes = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: fileId,
@@ -665,31 +645,38 @@ app.get("/api/app/patients", async (req, res) => {
     });
 
     const vRanges = batchRes.data.valueRanges || [];
-    const cadRows = vRanges[rangeMap.cadastro]?.values || [];
-    const statusRows = vRanges[rangeMap.statusUser]?.values || [];
-    const localRows = vRanges[rangeMap.localUser]?.values || [];
+    const cadRows = vRanges[0]?.values || [];
+    const statusRows = vRanges[1]?.values || [];
+    const localRows = vRanges[2]?.values || [];
     
-    // Update cache if we fetched fresh data
-    if (!useCacheHospitals && rangeMap.hospitals !== undefined) {
-      const hRows = vRanges[rangeMap.hospitals]?.values || [];
-      const hospitals = hRows.slice(1).map(row => ({
-        id: row[0],
-        nome: row[1],
-        fone: row[2],
-        contatos: [row[3], row[4], row[5], row[6], row[7]].filter(Boolean)
+    // Parse Hospitals from Cadastro columns M:T (indices 12 to 19)
+    const hospitals = cadRows.slice(1)
+      .filter(row => row[12]) // Must have an ID in column M
+      .map(row => ({
+        id: row[12]?.toString().trim(),
+        nome: row[13]?.toString().trim(),
+        fone: row[14]?.toString().trim(),
+        contatos: [row[15], row[16], row[17], row[18], row[19]].filter(Boolean)
       }));
+
+    if (hospitals.length > 0) {
       RESOURCE_CACHE.hospitals.data = hospitals;
       RESOURCE_CACHE.hospitals.lastFetch = now;
+      console.log(`[Cache] Updated hospitals cache from Cadastro sheet (${hospitals.length} items)`);
     }
-    
-    if (!useCacheStatuses && rangeMap.statuses !== undefined) {
-      const sRows = vRanges[rangeMap.statuses]?.values || [];
-      const statuses = sRows.slice(1).map(row => ({
-        id: row[0],
-        nome: row[1] || row[0]
-      })).filter(s => s.nome);
+
+    // Parse Statuses from Cadastro columns V:W (indices 21 to 22)
+    const statuses = cadRows.slice(1)
+      .filter(row => row[21]) // Must have an ID in column V
+      .map(row => ({
+        id: row[21]?.toString().trim(),
+        nome: row[22]?.toString().trim() || row[21]?.toString().trim()
+      }));
+
+    if (statuses.length > 0) {
       RESOURCE_CACHE.statuses.data = statuses;
       RESOURCE_CACHE.statuses.lastFetch = now;
+      console.log(`[Cache] Updated statuses cache from Cadastro sheet (${statuses.length} items)`);
     }
 
     const hData = RESOURCE_CACHE.hospitals.data || [];
