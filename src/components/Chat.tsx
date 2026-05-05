@@ -1070,15 +1070,15 @@ export const Chat: React.FC = () => {
           hospitalsGrouped[hName].statuses[sName].push(p);
         });
 
-        let listText = `<div style="display: flex; justify-content: flex-end; margin-bottom: 16px;"><a href="/novo_paciente" style="background-color: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-flex; align-items: center; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">➕ Novo Paciente</a></div>\n\n`;
+        let listText = `<div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">\n\n[➕ Novo Paciente](/iniciarcadastro)\n\n</div>\n\n`;
 
         Object.entries(hospitalsGrouped).forEach(([hName, group]) => {
           listText += `<div style="font-size: 19px; font-weight: bold; color: #111827; margin-top: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 4px;">${hName}</div>`;
           Object.entries(group.statuses).forEach(([sName, patients]) => {
-            listText += `<div style="font-size: 17px; font-weight: bold; color: #374151; margin-left: 8px; margin-top: 10px; margin-bottom: 6px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
+            listText += `<div style="font-size: 17px; font-weight: bold; color: #374151; margin-left: 8px; margin-top: 24px; margin-bottom: 8px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
             patients.forEach(p => {
-              const roomDisplay = p.roomNumber ? ` - Quarto: ${p.roomNumber}` : "";
-              listText += `<div style="margin-left: 24px; margin-bottom: 6px; font-size: 16px; font-weight: bold;">• <a href="/p ${p.id}">${p.nome}</a>${roomDisplay}</div>`;
+              const roomDisplay = p.roomNumber ? ` - ${p.roomNumber}` : "";
+              listText += `<div style="margin-left: 24px; margin-bottom: 4px; font-size: 13px;">• <a href="/p ${p.id}">${p.nome}</a>${roomDisplay}</div>`;
             });
           });
         });
@@ -1912,15 +1912,20 @@ export const Chat: React.FC = () => {
                             a({ children, ...props }) {
                               const href = props.href;
                               if (href && href.startsWith("/")) {
+                                const isNovoBtn = href === "/iniciarcadastro";
                                 return (
                                   <span
                                     onClick={() => {
-                                      const shouldClear = href.startsWith("/p") || 
+                                      const shouldClear = isNovoBtn ||
+                                                          href.startsWith("/p") || 
                                                           href.startsWith("/edit") || 
                                                           href.startsWith("/pacientes");
                                       handleSend(undefined, href, shouldClear);
                                     }}
-                                    className="text-blue-600 hover:underline cursor-pointer font-bold"
+                                    className={isNovoBtn 
+                                      ? "bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-200 hover:bg-blue-700 cursor-pointer inline-flex items-center gap-2 not-prose"
+                                      : "text-blue-600 hover:underline cursor-pointer font-medium"
+                                    }
                                   >
                                     {children}
                                   </span>
