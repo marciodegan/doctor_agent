@@ -107,6 +107,18 @@ let cachedMasterFileId: string | null = null;
 let masterSheetTabsVerified = false;
 let masterSheetInitPromise: Promise<string> | null = null;
 
+// Resource caching to reduce Sheets API quota consumption
+const RESOURCE_CACHE = {
+  hospitals: { data: null as any[] | null, lastFetch: 0 },
+  statuses: { data: null as any[] | null, lastFetch: 0 },
+  ttl: 120 * 1000 // 2 minutes
+};
+
+const invalidateCache = (type: "hospitals" | "statuses") => {
+  if (type === "hospitals") RESOURCE_CACHE.hospitals.lastFetch = 0;
+  if (type === "statuses") RESOURCE_CACHE.statuses.lastFetch = 0;
+};
+
 // --- Helper for Unifying Databases ---
 const getOrCreateMasterSheet = async (auth: any) => {
   // If already verified in this process life, return immediately
@@ -615,14 +627,20 @@ app.get("/api/app/patients", async (req, res) => {
   try {
     const fileId = await getOrCreateMasterSheet(auth);
 
-    // Get values from Cadastro, Status User, and Local User tabs + Master Hospitals and Statuses to combine requests
+    // Get base data ranges
     const ranges = [
       `${SHEET_TABS.CADASTRO}!A:H`,
       `${SHEET_TABS.STATUS_USER}!A:E`,
-      `${SHEET_TABS.LOCAL_USER}!A:E`,
-      `${SHEET_TABS.HOSPITAIS}!A:B`,
-      `${SHEET_TABS.STATUSES}!A:B`
+      `${SHEET_TABS.LOCAL_USER}!A:E`
     ];
+
+    // Only fetch hospitals/statuses if not in cache or expired
+    const now = Date.now();
+    const useCacheHospitals = RESOURCE_CACHE.hospitals.data && (now - RESOURCE_CACHE.hospitals.lastFetch < RESOURCE_CACHE.ttl);
+    const useCacheStatuses = RESOURCE_CACHE.statuses.data && (now - RESOURCE_CACHE.statuses.lastFetch < RESOURCE_CACHE.ttl);
+
+    if (!useCacheHospitals) ranges.push(`${SHEET_TABS.HOSPITAIS}!A:B`);
+    if (!useCacheStatuses) ranges.push(`${SHEET_TABS.STATUSES}!A:B`);
 
     const batchRes = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: fileId,
@@ -633,11 +651,34 @@ app.get("/api/app/patients", async (req, res) => {
     const cadRows = valueRanges[0]?.values || [];
     const statusRows = valueRanges[1]?.values || [];
     const localRows = valueRanges[2]?.values || [];
-    const hospitalsRows = valueRanges[3]?.values || [];
-    const statusesRows = valueRanges[4]?.values || [];
+    
+    let hospitalsRows = useCacheHospitals ? null : valueRanges[3]?.values;
+    let statusesRows = useCacheStatuses ? null : (useCacheHospitals ? valueRanges[3]?.values : valueRanges[4]?.values);
 
-    const hMap = Object.fromEntries(hospitalsRows.slice(1).map(r => [r[0], r[1]]));
-    const sMap = Object.fromEntries(statusesRows.slice(1).map(r => [r[0], r[1]]));
+    // Update cache if we fetched fresh data
+    if (!useCacheHospitals && hospitalsRows) {
+      const hospitals = hospitalsRows.slice(1).map(row => ({
+        id: row[0],
+        nome: row[1]
+      }));
+      RESOURCE_CACHE.hospitals.data = hospitals;
+      RESOURCE_CACHE.hospitals.lastFetch = now;
+    }
+    
+    if (!useCacheStatuses && statusesRows) {
+      const statuses = statusesRows.slice(1).map(row => ({
+        id: row[0],
+        nome: row[1] || row[0]
+      })).filter(s => s.nome);
+      RESOURCE_CACHE.statuses.data = statuses;
+      RESOURCE_CACHE.statuses.lastFetch = now;
+    }
+
+    const hData = RESOURCE_CACHE.hospitals.data || [];
+    const sData = RESOURCE_CACHE.statuses.data || [];
+
+    const hMap = Object.fromEntries(hData.map(r => [r.id, r.nome]));
+    const sMap = Object.fromEntries(sData.map(r => [r.id, r.nome]));
 
     // Pre-index status and local data for O(1) lookup
     const statusMap = new Map<string, string>();
@@ -826,6 +867,11 @@ app.get("/api/app/hospitals", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
+  const now = Date.now();
+  if (RESOURCE_CACHE.hospitals.data && (now - RESOURCE_CACHE.hospitals.lastFetch < RESOURCE_CACHE.ttl)) {
+    return res.json(RESOURCE_CACHE.hospitals.data);
+  }
+
   const sheets = google.sheets({ version: "v4", auth });
 
   try {
@@ -843,6 +889,9 @@ app.get("/api/app/hospitals", async (req, res) => {
       fone: row[2],
       contatos: [row[3], row[4], row[5], row[6], row[7]].filter(Boolean)
     }));
+
+    RESOURCE_CACHE.hospitals.data = hospitals;
+    RESOURCE_CACHE.hospitals.lastFetch = now;
 
     res.json(hospitals);
   } catch (error) {
@@ -884,6 +933,7 @@ app.post("/api/app/hospitals", express.json(), async (req, res) => {
       }
     });
 
+    invalidateCache("hospitals");
     res.json({ success: true, id: nextId });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -949,6 +999,7 @@ app.post("/api/app/hospitals", async (req, res) => {
       }
     });
 
+    invalidateCache("hospitals");
     res.json({ success: true, id: nextId });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -1243,6 +1294,11 @@ app.get("/api/app/statuses", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
+  const now = Date.now();
+  if (RESOURCE_CACHE.statuses.data && (now - RESOURCE_CACHE.statuses.lastFetch < RESOURCE_CACHE.ttl)) {
+    return res.json(RESOURCE_CACHE.statuses.data);
+  }
+
   const sheets = google.sheets({ version: "v4", auth });
 
   try {
@@ -1258,6 +1314,9 @@ app.get("/api/app/statuses", async (req, res) => {
       id: row[0],
       nome: row[1] || row[0]
     })).filter(s => s.nome);
+
+    RESOURCE_CACHE.statuses.data = statuses;
+    RESOURCE_CACHE.statuses.lastFetch = now;
 
     res.json(statuses);
   } catch (error) {
