@@ -1073,12 +1073,18 @@ export const Chat: React.FC = () => {
         let listText = `<div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">\n\n[➕ Novo Paciente](/iniciarcadastro)\n\n</div>\n\n`;
 
         Object.entries(hospitalsGrouped).forEach(([hName, group]) => {
-          listText += `<div style="font-size: 19px; font-weight: bold; color: #111827; margin-top: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 4px;">${hName}</div>`;
-          Object.entries(group.statuses).forEach(([sName, patients]) => {
-            listText += `<div style="font-size: 17px; font-weight: bold; color: #374151; margin-left: 8px; margin-top: 24px; margin-bottom: 8px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
+          // Hide hospital header if specifically filtering by hospital
+          if (!hospitalFilter) {
+            listText += `<div style="font-size: 18px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: 24px; margin-bottom: 12px; display: block; border-left: 4px solid #3b82f6;">${hName}</div>`;
+          }
+          
+          Object.entries(group.statuses).forEach(([sName, patients], statusIdx) => {
+            // Increased spacing between status groupings (twice the previous 24px = 48px, but only if not the very first one in the container)
+            const marginTop = (statusIdx === 0 && !hospitalFilter) ? "10px" : "40px";
+            listText += `<div style="font-size: 17px; font-weight: bold; color: #374151; margin-left: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
             patients.forEach(p => {
               const roomDisplay = p.roomNumber ? ` - ${p.roomNumber}` : "";
-              listText += `<div style="margin-left: 24px; margin-bottom: 4px; font-size: 13px;">• <a href="/p ${p.id}">${p.nome}</a>${roomDisplay}</div>`;
+              listText += `<div style="margin-left: 24px; margin-bottom: 4px; font-size: 14px; font-weight: normal;">• <a href="/p ${p.id}">${p.nome}</a>${roomDisplay}</div>`;
             });
           });
         });
@@ -1924,7 +1930,7 @@ export const Chat: React.FC = () => {
                                     }}
                                     className={isNovoBtn 
                                       ? "bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-200 hover:bg-blue-700 cursor-pointer inline-flex items-center gap-2 not-prose"
-                                      : "text-blue-600 hover:underline cursor-pointer font-medium"
+                                      : "text-blue-600 hover:underline cursor-pointer font-normal"
                                     }
                                   >
                                     {children}
