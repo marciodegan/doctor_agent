@@ -1019,8 +1019,8 @@ export const Chat: React.FC = () => {
         const sortMatch = cmdInput.match(/sort:\s*(\w+)/i);
         if (sortMatch) sort = sortMatch[1].toLowerCase();
 
-        const hospitalFilter = cmdInput.match(/hospital:\s*([^,]+)/i)?.[1]?.trim();
-        const statusFilter = cmdInput.match(/status:\s*([^,]+)/i)?.[1]?.trim();
+        const hospitalFilter = cmdInput.match(/hospital:\s*(.+?)(?=\s+\w+:|$)/i)?.[1]?.trim();
+        const statusFilter = cmdInput.match(/status:\s*(.+?)(?=\s+\w+:|$)/i)?.[1]?.trim();
 
         let filteredData = [...data];
         if (hospitalFilter) {

@@ -552,31 +552,31 @@ app.get("/api/app/patients", async (req, res) => {
 
     // Map patients basic info
     const patients = cadRows.slice(1).map(row => ({
-      id: row[0],
-      nome: row[1],
-      fone: row[2],
-      idade: row[3],
-      status: row[4] || "Não informado",
-      hospitalName: row[5] || "",
-      roomNumber: row[6] || ""
+      id: row[0]?.toString().trim(),
+      nome: row[1]?.toString().trim(),
+      fone: row[2]?.toString().trim(),
+      idade: row[3]?.toString().trim(),
+      status: row[4]?.toString().trim() || "Não informado",
+      hospitalName: row[5]?.toString().trim() || "",
+      roomNumber: row[6]?.toString().trim() || ""
     }));
 
     // Enrich with Status User (most recent)
     // format: status_id, status_data, status_atual, paciente_id, paciente_nome
     patients.forEach(p => {
-      const pStatusRows = statusRows.slice(1).filter(r => r[3] === p.id.toString());
+      const pStatusRows = statusRows.slice(1).filter(r => r[3]?.toString().trim() === p.id);
       if (pStatusRows.length > 0) {
         // Last row is usually the most recent if appended
         const lastStatus = pStatusRows[pStatusRows.length - 1];
-        p.status = lastStatus[2] || p.status;
+        p.status = lastStatus[2]?.toString().trim() || p.status;
       }
 
       // Enrichment with Local User
       // format: local_id, local_room_number, local_hospital, paciente_id, paciente_nome
-      const pLocalRow = localRows.slice(1).find(r => r[3] === p.id.toString());
+      const pLocalRow = localRows.slice(1).find(r => r[3]?.toString().trim() === p.id);
       if (pLocalRow) {
-        p.roomNumber = pLocalRow[1] || "";
-        p.hospitalName = pLocalRow[2] || "";
+        p.roomNumber = pLocalRow[1]?.toString().trim() || p.roomNumber;
+        p.hospitalName = pLocalRow[2]?.toString().trim() || p.hospitalName;
       }
     });
 
