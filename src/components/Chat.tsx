@@ -998,18 +998,15 @@ export const Chat: React.FC = () => {
     if (cmd.startsWith("/pacientes")) {
       setIsLoading(true);
       try {
-        const [patientsRes, hospitalsRes, statusesRes] = await Promise.all([
-          fetch("/api/app/patients"),
-          fetch("/api/app/hospitals"),
-          fetch("/api/app/statuses")
-        ]);
+        const res = await fetch("/api/app/patients?full=true");
+        const json = await res.json();
         
-        const data = await patientsRes.json();
-        const masterHospitalsData = await hospitalsRes.json();
-        const masterStatuses = await statusesRes.json();
+        if (json.error) throw new Error(json.error);
+        
+        const data = json.patients || [];
+        const masterHospitalsData = json.hospitals || [];
+        const masterStatuses = json.statuses || [];
 
-        if (data.error) throw new Error(data.error);
-        
         let page = 1;
         let sort = "id";
         

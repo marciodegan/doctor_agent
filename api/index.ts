@@ -737,7 +737,15 @@ app.get("/api/app/patients", async (req, res) => {
       return p;
     });
 
-    res.json(patients);
+    if (req.query.full === "true") {
+      res.json({
+        patients,
+        hospitals: hData,
+        statuses: sData
+      });
+    } else {
+      res.json(patients);
+    }
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
