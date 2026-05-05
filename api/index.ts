@@ -92,6 +92,8 @@ const SHEET_TABS = {
   ARQUIVOS: "Arquivos",
   FAMILIARES: "Familiares",
   SETTINGS: "Configuracoes",
+  HOSPITAIS: "Cadastro", // Hospitals are in specific columns of Cadastro
+  STATUSES: "Cadastro",  // Statuses are in specific columns of Cadastro
   STATUS_LOG: "Atividades",
   OPCOES_IMAGENS: "OpcoesImagens",
   STATUS_USER: "Status User",
@@ -170,8 +172,6 @@ const getOrCreateMasterSheet = async (auth: any) => {
           sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link", "ai_resposta"]] } }),
           sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["id", "nome_familiar", "tipo_parentesco", "telefone", "paciente_id", "paciente_nome"]] } }),
           sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.HOSPITAIS}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome do Hospital", "Telefone", "Contato 1", "Contato 2", "Contato 3", "Contato 4", "Contato 5"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:B7`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome"], ["1", "Pré-operatorio"], ["2", "Pós-operatorio"], ["3", "Acompanhamento"], ["4", "Alta"], ["5", "Não informado"]] } }),
           sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } }),
           sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } }),
           sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } }),
@@ -185,7 +185,7 @@ const getOrCreateMasterSheet = async (auth: any) => {
         console.log(`[Drive] Verifying tabs for master sheet: ${fileId}`);
         const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: fileId });
         const existingTabs = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
-        const requiredTabs = Object.values(SHEET_TABS);
+        const requiredTabs = Array.from(new Set(Object.values(SHEET_TABS)));
         const missingTabs = requiredTabs.filter(t => !existingTabs.includes(t));
 
         if (missingTabs.length > 0) {
@@ -747,7 +747,7 @@ app.get("/api/app/patients", async (req, res) => {
         status: sName || "Não informado",
         hospitalId: hId,
         hospitalName: hName || "Sem Hospital",
-        roomNumber: row[5]?.toString().trim() || ""
+        roomNumber: row[7]?.toString().trim() || ""
       };
 
       // Enrich with Status User (most recent from Map)
@@ -934,7 +934,7 @@ app.get("/api/app/hospitals", async (req, res) => {
 
     const valuesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.HOSPITAIS}!A:H`,
+      range: `${SHEET_TABS.HOSPITAIS}!N:U`, // Column N is index 13
     });
 
     const rows = valuesRes.data.values || [];
@@ -969,7 +969,7 @@ app.post("/api/app/hospitals", express.json(), async (req, res) => {
 
     const valuesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.HOSPITAIS}!A:A`,
+      range: `${SHEET_TABS.HOSPITAIS}!N:N`,
     });
     const nextId = (valuesRes.data.values?.length || 1).toString();
 
@@ -981,7 +981,7 @@ app.post("/api/app/hospitals", express.json(), async (req, res) => {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.HOSPITAIS}!A:H`,
+      range: `${SHEET_TABS.HOSPITAIS}!N:U`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [[nextId, nome, fone || "", c1, c2, c3, c4, c5]]
@@ -1035,7 +1035,7 @@ app.post("/api/app/hospitals", async (req, res) => {
     // Get last ID
     const valuesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.HOSPITAIS}!A:A`,
+      range: `${SHEET_TABS.HOSPITAIS}!N:N`,
     });
 
     const rows = valuesRes.data.values || [];
@@ -1363,7 +1363,7 @@ app.get("/api/app/statuses", async (req, res) => {
 
     const valuesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.STATUSES}!A:B`,
+      range: `${SHEET_TABS.STATUSES}!V:W`, // Statuses are V:W
     });
 
     const rows = valuesRes.data.values || [];
