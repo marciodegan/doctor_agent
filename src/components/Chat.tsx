@@ -1045,18 +1045,39 @@ export const Chat: React.FC = () => {
         const showHospitals = cmdInput.includes("view:hospitais");
         const showStatuses = cmdInput.includes("view:status");
 
-        const PAGE_SIZE = 8;
+        const PAGE_SIZE = 10;
         const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
         const pageToView = Math.max(1, Math.min(page, totalPages || 1));
         const start = (pageToView - 1) * PAGE_SIZE;
         const end = start + PAGE_SIZE;
         const pageData = filteredData.slice(start, end);
 
-        const list = pageData.map((p: any) => {
-          return `### [\`${p.nome}\`](/p ${p.id} label:${p.nome})\n` + 
-                 `**Status:** ${p.status || "Sem status"}\n` + 
-                 `${p.hospitalName || "-"} / ${p.roomNumber || "-"}`;
-        }).join("\n\n---\n\n");
+        // Group pageData by Hospital, then by Status
+        const hospitalsGrouped: Record<string, Record<string, any[]>> = {};
+        
+        pageData.forEach((p: any) => {
+          const hName = p.hospitalName || "Sem Hospital";
+          const sName = p.status || "Sem Status";
+          if (!hospitalsGrouped[hName]) hospitalsGrouped[hName] = {};
+          if (!hospitalsGrouped[hName][sName]) hospitalsGrouped[hName][sName] = [];
+          hospitalsGrouped[hName][sName].push(p);
+        });
+
+        let listText = `[\`➕ Novo Paciente\`](/novo_paciente)\n\n`;
+
+        Object.entries(hospitalsGrouped).forEach(([hName, statusesMap]) => {
+          listText += `<div style="font-size: 12px; font-weight: bold; color: #1f2937; margin-top: 12px;">${hName}</div>`;
+          Object.entries(statusesMap).forEach(([sName, patients]) => {
+            listText += `<div style="font-size: 10px; font-weight: bold; font-style: italic; color: #4b5563; margin-left: 8px; margin-bottom: 2px;">${sName}</div>`;
+            patients.forEach(p => {
+              listText += `<div style="margin-left: 16px; margin-bottom: 2px;">• [${p.nome}](/edit_paciente ${p.id})</div>`;
+            });
+          });
+        });
+
+        if (pageData.length === 0) {
+          listText += "_Nenhum paciente encontrado._\n";
+        }
 
         let nav = "";
         const cmdName = "/pacientes";
@@ -1100,18 +1121,16 @@ export const Chat: React.FC = () => {
           });
         }
 
-        let title = `📂 Cadastro de Pacientes (${data.length})`;
         let filterActiveTxt = "";
         if (hospitalFilter || statusFilter) {
-          title = `🔍 Resultados (${filteredData.length})`;
           filterActiveTxt = `\n\nFiltro Ativo: **${hospitalFilter || ""} ${statusFilter || ""}** [\`Limpar\`](/pacientes sort:${sort})`;
         }
 
         setMessages([{ 
           role: "model", 
-          text: (list || "Nenhum paciente encontrado.") + filterActiveTxt + (nav ? nav : ""),
+          text: listText + filterActiveTxt + (nav ? nav : ""),
           isListing: true,
-          listingTitle: title,
+          listingTitle: "", // User wants to remove the title
           actionGroups
         }]);
         setTimeout(scrollToTop, 0);
