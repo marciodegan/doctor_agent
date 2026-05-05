@@ -260,8 +260,9 @@ export const Chat: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    // Clear both possible cookie names just in case
-    document.cookie = "nexus_auth_token_v1=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    // Clear both possible cookie names matching the server configuration
+    document.cookie = "__Secure-nexus-p-v1=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "__Secure-nexus-u-v1=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     document.cookie = "google_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     
     // Server-side logout to clear httpOnly cookies
@@ -482,6 +483,7 @@ export const Chat: React.FC = () => {
         const tomorrowList = tomorrowEvents.map(formatEvent).join("\n\n");
 
         const fullAgenda = 
+          `\`/iniciaragenda label:➕ NOVO EVENTO\`\n\n` +
           `**📅 Sua Agenda (${formatDate(today)}):**\n\n${todayList || "Sem compromissos."}\n\n` +
           `**📅 Sua Agenda (${formatDate(tomorrow)}):**\n\n${tomorrowList || "Sem compromissos."}\n\n` +
           `*Nota: Esta agenda é pessoal e visível apenas para você.*`;
@@ -505,6 +507,8 @@ export const Chat: React.FC = () => {
           fields: [
             { label: "Nome do Paciente", name: "nome", type: "text", placeholder: "Ex: João Silva" },
             { label: "Idade", name: "idade", type: "text", placeholder: "Ex: 30" },
+            { label: "Hospital", name: "hospitalName", type: "text", placeholder: "Ex: Hospital São Lucas" },
+            { label: "Quarto/Leito", name: "roomNumber", type: "text", placeholder: "Ex: 402B" },
           ],
           submitLabel: "Registrar Paciente",
           commandPrefix: "/registrar"
@@ -931,8 +935,6 @@ export const Chat: React.FC = () => {
           let aiPart = "";
           if (i.aiResposta) {
             aiPart = `\n🤖 **AI Resposta:** ${i.aiResposta}`;
-          } else if (fileId) {
-            aiPart = `\n\`/ai_analyze id:${fileId} pId:${id} label:✨ Analisar com IA\``;
           }
           
           return `• [${i.data}]${downloadText}\n\n${i.descricao}${aiPart}`;
@@ -1006,42 +1008,75 @@ export const Chat: React.FC = () => {
         const sortMatch = cmdInput.match(/sort:\s*(\w+)/i);
         if (sortMatch) sort = sortMatch[1].toLowerCase();
 
-        const sortedData = [...data];
+        const hospitalFilter = cmdInput.match(/hospital:\s*([^,]+)/i)?.[1]?.trim();
+        const statusFilter = cmdInput.match(/status:\s*([^,]+)/i)?.[1]?.trim();
+
+        let filteredData = [...data];
+        if (hospitalFilter) {
+          filteredData = filteredData.filter((p: any) => p.hospitalName === hospitalFilter);
+        }
+        if (statusFilter) {
+          filteredData = filteredData.filter((p: any) => p.status === statusFilter);
+        }
+
         if (sort === "nome") {
-          sortedData.sort((a, b) => a.nome.localeCompare(b.nome));
+          filteredData.sort((a, b) => a.nome.localeCompare(b.nome));
         } else {
-          sortedData.sort((a, b) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
+          filteredData.sort((a, b) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
+        }
+
+        const hospitals = Array.from(new Set(data.map((p: any) => p.hospitalName).filter(Boolean))) as string[];
+        const statuses = Array.from(new Set(data.map((p: any) => p.status).filter(Boolean))) as string[];
+
+        let filterUI = "";
+        if (hospitals.length > 0) {
+          filterUI += `🏥 **Hospitais:**\n${hospitals.map(h => `[\`${h}\`](/pacientes hospital:${h} sort:${sort})`).join(" ")}\n\n`;
+        }
+        if (statuses.length > 0) {
+          filterUI += `📍 **Status:**\n${statuses.map(s => `[\`${s}\`](/pacientes status:${s} sort:${sort})`).join(" ")}\n\n`;
+        }
+        if (hospitalFilter || statusFilter) {
+          filterUI += `❌ [**Limpar Filtros**](/pacientes sort:${sort})\n\n`;
         }
 
         const PAGE_SIZE = 8;
-        const totalPages = Math.ceil(sortedData.length / PAGE_SIZE);
+        const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
         const pageToView = Math.max(1, Math.min(page, totalPages || 1));
         const start = (pageToView - 1) * PAGE_SIZE;
         const end = start + PAGE_SIZE;
-        const pageData = sortedData.slice(start, end);
+        const pageData = filteredData.slice(start, end);
 
         const list = pageData.map((p: any) => {
-          let text = `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**  \n` +
-                     `📍 **Status:** ${p.status || "Não informado"}`;
-          if (p.roomNumber || p.hospitalName) {
-            text += `\n${p.roomNumber || ""} ${p.hospitalName || ""}`;
+          let text = `### \`/p ${p.id} label:${p.nome}\`  \n` +
+                     `**Status:** ${p.status || "Não informado"}`;
+          
+          const hospitalInfo = [p.hospitalName, p.roomNumber].filter(Boolean).join(" - ");
+          if (hospitalInfo) {
+            text += `\n${hospitalInfo}`;
           }
           return text;
         }).join("\n\n\n");
 
         let nav = "";
         const cmdName = "/pacientes";
+        const currentFilters = `${hospitalFilter ? ` hospital:${hospitalFilter}` : ""}${statusFilter ? ` status:${statusFilter}` : ""}`;
+        
         if (totalPages > 1) {
           nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
-          if (pageToView > 1) nav += ` \`${cmdName} pag:${pageToView - 1} sort:${sort}\` `;
-          if (pageToView < totalPages) nav += ` \`${cmdName} pag:${pageToView + 1} sort:${sort}\` `;
+          if (pageToView > 1) nav += ` \`${cmdName}${currentFilters} pag:${pageToView - 1} sort:${sort}\` `;
+          if (pageToView < totalPages) nav += ` \`${cmdName}${currentFilters} pag:${pageToView + 1} sort:${sort}\` `;
         }
 
-        const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`${cmdName} sort:nome\` (A-Z)\n• \`${cmdName} sort:id\` (Mais recentes)`;
+        const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`${cmdName}${currentFilters} sort:nome\` (A-Z)\n• \`${cmdName}${currentFilters} sort:id\` (Mais recentes)`;
+
+        let title = `📂 **Cadastro de Pacientes (${data.length} total)**`;
+        if (hospitalFilter || statusFilter) {
+          title = `🔍 **Filtrado (${filteredData.length} de ${data.length}):** ${hospitalFilter || ""} ${statusFilter || ""}`;
+        }
 
         setMessages([{ 
           role: "model", 
-          text: `📂 **Cadastro de Pacientes (${data.length} total):**\n\n${list || "Nenhum paciente encontrado."}${nav}${sortOptions}` 
+          text: `\`/iniciarcadastro label:➕ NOVO PACIENTE\`\n\n${filterUI}${title}\n\n${list || "Nenhum paciente encontrado."}${nav}${sortOptions}` 
         }]);
         setTimeout(scrollToTop, 0);
       } catch (err: any) {
@@ -1115,10 +1150,12 @@ export const Chat: React.FC = () => {
           }]);
         } else {
           const list = pageData.map((p: any) => {
-            let text = `👤 \`/p ${p.id} label:${p.nome}\` **ID:[${p.id}]**  \n` +
-                       `📍 **Status:** ${p.status || "Não informado"}`;
-            if (p.roomNumber || p.hospitalName) {
-              text += `\n${p.roomNumber || ""} ${p.hospitalName || ""}`;
+            let text = `### \`/p ${p.id} label:${p.nome}\`  \n` +
+                       `**Status:** ${p.status || "Não informado"}`;
+            
+            const hospitalInfo = [p.hospitalName, p.roomNumber].filter(Boolean).join(" - ");
+            if (hospitalInfo) {
+              text += `\n${hospitalInfo}`;
             }
             return text;
           }).join("\n\n\n");
@@ -1167,6 +1204,8 @@ export const Chat: React.FC = () => {
             fields: [
               { label: "Nome", name: "nome", type: "text", defaultValue: p.Nome },
               { label: "Idade", name: "idade", type: "text", defaultValue: p.Idade || "" },
+              { label: "Hospital", name: "hospitalName", type: "text", defaultValue: p.hospital_name || "" },
+              { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.local_room_number || "" },
             ],
             submitLabel: "Salvar Alterações",
             commandPrefix: `/update_patient id: ${id},`
@@ -1188,14 +1227,16 @@ export const Chat: React.FC = () => {
         const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
         const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
         const fone = cmdInput.match(/fone:\s*([^,]+)/i)?.[1]?.trim();
-        const idade = cmdInput.match(/idade:\s*(.+)/i)?.[1]?.trim();
+        const idade = cmdInput.match(/idade:\s*([^,]+)/i)?.[1]?.trim();
+        const hospitalName = cmdInput.match(/hospitalName:\s*([^,]+)/i)?.[1]?.trim();
+        const roomNumber = cmdInput.match(/roomNumber:\s*([^,]+)/i)?.[1]?.trim();
 
         if (!id) throw new Error("ID não identificado.");
 
         const res = await fetch("/api/app/patients/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, nome, fone, idade })
+          body: JSON.stringify({ id, nome, fone, idade, hospitalName, roomNumber })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -1391,7 +1432,7 @@ export const Chat: React.FC = () => {
         // Simple parser for "nome: X, fone: Y, idade: Z"
         const parts = cmdInput.replace("/registrar", "").split(",");
         const getVal = (label: string) => {
-          const part = parts.find(p => p.toLowerCase().includes(label));
+          const part = parts.find(p => p.toLowerCase().includes(label.toLowerCase()));
           return part ? part.split(":")[1]?.trim() : "";
         };
 
@@ -1399,13 +1440,15 @@ export const Chat: React.FC = () => {
         const fone = getVal("fone");
         const idade = getVal("idade");
         const cpf = getVal("cpf");
+        const hospitalName = getVal("hospitalName");
+        const roomNumber = getVal("roomNumber");
 
         if (!nome) throw new Error("O campo 'nome:' é obrigatório.");
 
         const res = await fetch("/api/app/patients", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nome, fone, idade, cpf })
+          body: JSON.stringify({ nome, fone, idade, cpf, hospitalName, roomNumber })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -1768,11 +1811,11 @@ export const Chat: React.FC = () => {
                         onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
                         className="group flex flex-col items-center hover:scale-105 transition-transform relative z-10"
                       >
-                        <h2 className="text-4xl font-extrabold text-blue-700 group-hover:text-blue-900 transition-colors tracking-tight text-center leading-tight">{msg.profileData.nome}</h2>
-                        <div className="flex items-center gap-2 mt-2">
-                          <p className="text-2xl font-bold text-blue-500 group-hover:text-blue-700 transition-colors">{msg.profileData.idade} anos</p>
+                        <h2 className="text-2xl font-extrabold text-blue-700 group-hover:text-blue-900 transition-colors tracking-tight text-center leading-tight">{msg.profileData.nome}</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-lg font-bold text-blue-500 group-hover:text-blue-700 transition-colors">{msg.profileData.idade} anos</p>
                           <div className="w-1 h-1 bg-blue-300 rounded-full"></div>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 group-hover:text-blue-600 transition-colors">Editar</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 group-hover:text-blue-600 transition-colors">Editar</span>
                         </div>
                       </button>
                     </div>
