@@ -30,6 +30,7 @@ interface Message {
   };
   isListing?: boolean;
   listingTitle?: string;
+  actionGroups?: { title: string; actions: { label: string; cmd: string; active?: boolean }[] }[];
 }
 
 const MessageForm: React.FC<{ 
@@ -1041,30 +1042,6 @@ export const Chat: React.FC = () => {
         const showHospitals = cmdInput.includes("view:hospitais");
         const showStatuses = cmdInput.includes("view:status");
 
-        // Build the new button-based UI
-        let filterAndSortUI = "";
-        
-        // Main Action Buttons Line
-        const currentFilters = `${hospitalFilter ? ` hospital:${hospitalFilter}` : ""}${statusFilter ? ` status:${statusFilter}` : ""}`;
-        
-        filterAndSortUI += `### Filtrar e Ordenar\n`;
-        filterAndSortUI += `[\`A-Z\`](/pacientes${currentFilters} sort:nome) `;
-        filterAndSortUI += `[\`Mais Recentes\`](/pacientes${currentFilters} sort:id) `;
-        filterAndSortUI += `[\`Por Status\`](/pacientes${currentFilters} view:status sort:${sort}) `;
-        filterAndSortUI += `[\`Por Hospital\`](/pacientes${currentFilters} view:hospitais sort:${sort})\n\n`;
-
-        // Sub-menus
-        if (showHospitals && hospitals.length > 0) {
-          filterAndSortUI += `**Selecione o Hospital:**\n${hospitals.map((h: string) => `[\`${h}\`](/pacientes hospital:${h} sort:${sort})`).join(" ")}\n\n`;
-        }
-        if (showStatuses && statuses.length > 0) {
-          filterAndSortUI += `**Selecione o Status:**\n${statuses.map((s: string) => `[\`${s}\`](/pacientes status:${s} sort:${sort})`).join(" ")}\n\n`;
-        }
-
-        if (hospitalFilter || statusFilter) {
-          filterAndSortUI += `Filtro Ativo: **${hospitalFilter || ""} ${statusFilter || ""}** [ Limpar ](/pacientes sort:${sort})\n\n`;
-        }
-
         const PAGE_SIZE = 8;
         const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
         const pageToView = Math.max(1, Math.min(page, totalPages || 1));
@@ -1072,36 +1049,76 @@ export const Chat: React.FC = () => {
         const end = start + PAGE_SIZE;
         const pageData = filteredData.slice(start, end);
 
-        const list = pageData.map((p: any) => {
-          let text = `### \`/p ${p.id} label:${p.nome}\`  \n` +
-                     `**Status:** ${p.status || "Não informado"}`;
-          
-          const hospitalInfo = [p.hospitalName, p.roomNumber].filter(Boolean).join(" - ");
-          if (hospitalInfo) {
-            text += `\n${hospitalInfo}`;
-          }
-          return text;
-        }).join("\n\n\n");
+        // Grouping by Hospital as requested in example
+        const grouped: Record<string, any[]> = {};
+        pageData.forEach((p: any) => {
+          const h = p.hospitalName || "Sem Hospital";
+          if (!grouped[h]) grouped[h] = [];
+          grouped[h].push(p);
+        });
+
+        const list = Object.keys(grouped).map(h => {
+          const pList = grouped[h].map((p: any) => {
+            return `• [\`${p.nome}\`](/p ${p.id} label:${p.nome})\n` + 
+                   `  ${p.status || "Sem status"}\n` + 
+                   `  ${p.hospitalName || "-"} / ${p.roomNumber || "-"}`;
+          }).join("\n\n");
+          return `**${h}**\n${pList}`;
+        }).join("\n\n---\n\n");
 
         let nav = "";
         const cmdName = "/pacientes";
+        const currentFilters = `${hospitalFilter ? ` hospital:${hospitalFilter}` : ""}${statusFilter ? ` status:${statusFilter}` : ""}`;
         
         if (totalPages > 1) {
           nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
-          if (pageToView > 1) nav += ` \`${cmdName}${currentFilters} pag:${pageToView - 1} sort:${sort}\` `;
-          if (pageToView < totalPages) nav += ` \`${cmdName}${currentFilters} pag:${pageToView + 1} sort:${sort}\` `;
+          if (pageToView > 1) nav += ` [\`⬅️ Ant\`](/pacientes${currentFilters} pag:${pageToView - 1} sort:${sort}) `;
+          if (pageToView < totalPages) nav += ` [\`Próximo ➡️\`](/pacientes${currentFilters} pag:${pageToView + 1} sort:${sort}) `;
+        }
+
+        const actionGroups = [
+          {
+            title: "Ordenar",
+            actions: [
+              { label: "A-Z", cmd: `/pacientes${currentFilters} sort:nome`, active: sort === "nome" },
+              { label: "Mais Recentes", cmd: `/pacientes${currentFilters} sort:id`, active: sort === "id" },
+            ]
+          },
+          {
+            title: "Filtrar",
+            actions: [
+              { label: "Por Status", cmd: `/pacientes${currentFilters} view:status sort:${sort}` },
+              { label: "Por Hospital", cmd: `/pacientes${currentFilters} view:hospitais sort:${sort}` },
+            ]
+          }
+        ];
+
+        if (showHospitals && hospitals.length > 0) {
+          actionGroups.push({
+            title: "Selecione o Hospital",
+            actions: hospitals.map((h: string) => ({ label: h, cmd: `/pacientes hospital:${h} sort:${sort}` }))
+          });
+        }
+        if (showStatuses && statuses.length > 0) {
+          actionGroups.push({
+            title: "Selecione o Status",
+            actions: statuses.map((s: string) => ({ label: s, cmd: `/pacientes status:${s} sort:${sort}` }))
+          });
         }
 
         let title = `📂 Cadastro de Pacientes (${data.length})`;
+        let filterActiveTxt = "";
         if (hospitalFilter || statusFilter) {
           title = `🔍 Resultados (${filteredData.length})`;
+          filterActiveTxt = `\n\nFiltro Ativo: **${hospitalFilter || ""} ${statusFilter || ""}** [\`Limpar\`](/pacientes sort:${sort})`;
         }
 
         setMessages([{ 
           role: "model", 
-          text: `${list || "Nenhum paciente encontrado."}\n\n---\n${filterAndSortUI}${nav}`,
+          text: (list || "Nenhum paciente encontrado.") + filterActiveTxt + (nav ? nav : ""),
           isListing: true,
-          listingTitle: title
+          listingTitle: title,
+          actionGroups
         }]);
         setTimeout(scrollToTop, 0);
       } catch (err: any) {
@@ -1954,6 +1971,31 @@ export const Chat: React.FC = () => {
                           {msg.text}
                         </ReactMarkdown>
                       </div>
+
+                      {msg.isListing && msg.actionGroups && (
+                        <div className="mt-8 pt-6 border-t border-gray-100 space-y-4">
+                          {msg.actionGroups.map((group, gi) => (
+                            <div key={gi} className="space-y-2">
+                              <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">{group.title}</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {group.actions.map((action, ai) => (
+                                  <button
+                                    key={ai}
+                                    onClick={() => handleSend(undefined, action.cmd, true)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shadow-sm ${
+                                      action.active 
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-blue-100' 
+                                        : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                                    }`}
+                                  >
+                                    {action.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       {msg.form && (
                         <MessageForm 
