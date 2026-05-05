@@ -92,8 +92,6 @@ const SHEET_TABS = {
   ARQUIVOS: "Arquivos",
   FAMILIARES: "Familiares",
   SETTINGS: "Configuracoes",
-  HOSPITAIS: "Hospitais",
-  STATUSES: "Statuses",
   STATUS_LOG: "Atividades",
   OPCOES_IMAGENS: "OpcoesImagens",
   STATUS_USER: "Status User",
@@ -634,11 +632,9 @@ app.get("/api/app/patients", async (req, res) => {
 
     // Get base data ranges
     const ranges = [
-      `${SHEET_TABS.CADASTRO}!A:K`, // Fetch patient data
+      `${SHEET_TABS.CADASTRO}!A:W`, // Fetch full range to include Hospitals (N:O) and Statuses
       `${SHEET_TABS.STATUS_USER}!A:E`,
-      `${SHEET_TABS.LOCAL_USER}!A:E`,
-      `${SHEET_TABS.HOSPITAIS}!A:Z`, // Fetch wider range to include potentially distant columns
-      `${SHEET_TABS.STATUSES}!A:Z`
+      `${SHEET_TABS.LOCAL_USER}!A:E`
     ];
 
     const batchRes = await sheets.spreadsheets.values.batchGet({
@@ -650,17 +646,15 @@ app.get("/api/app/patients", async (req, res) => {
     const cadRows = vRanges[0]?.values || [];
     const statusHistoryRows = vRanges[1]?.values || [];
     const localRows = vRanges[2]?.values || [];
-    const hospitalRows = vRanges[3]?.values || [];
-    const statusMasterRows = vRanges[4]?.values || [];
     
-    // Parse Hospitals from Hospitais tab (Column N=13, Column O=14)
-    const hospitals = hospitalRows.slice(1)
-      .filter(row => row[13] || row[0]) // Match using Column N (index 13) or ID in A
+    // Parse Hospitals from Cadastro tab columns N (13) and O (14)
+    const hospitals = cadRows.slice(1)
+      .filter(row => row[13]) // Column N
       .map(row => ({
-        id: row[13]?.toString().trim() || row[0]?.toString().trim(),
-        nome: row[14]?.toString().trim() || row[1]?.toString().trim() || row[0]?.toString().trim(), // Display Column O (index 14) or B or A
-        fone: row[2]?.toString().trim(),
-        contatos: [row[3], row[4], row[5], row[6], row[7]].filter(Boolean)
+        id: row[13]?.toString().trim(),
+        nome: row[14]?.toString().trim() || row[13]?.toString().trim(), // Column O
+        fone: row[15]?.toString().trim() || "",
+        contatos: [row[16], row[17], row[18], row[19]].filter(Boolean)
       }));
 
     if (hospitals.length > 0) {
@@ -668,12 +662,12 @@ app.get("/api/app/patients", async (req, res) => {
       RESOURCE_CACHE.hospitals.lastFetch = now;
     }
 
-    // Parse Statuses
-    const statuses = statusMasterRows.slice(1)
-      .filter(row => row[0])
+    // Parse Statuses from Cadastro tab columns V (21) and W (22)
+    const statuses = cadRows.slice(1)
+      .filter(row => row[21])
       .map(row => ({
-        id: row[0]?.toString().trim(),
-        nome: row[1]?.toString().trim() || row[0]?.toString().trim()
+        id: row[21]?.toString().trim(),
+        nome: row[22]?.toString().trim() || row[21]?.toString().trim()
       }));
 
     if (statuses.length > 0) {
