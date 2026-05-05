@@ -8,17 +8,49 @@ import { Readable } from "stream";
 import Stripe from "stripe";
 import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
-import firebaseConfig from "../firebase-applet-config.json";
 
 dotenv.config();
 
-// Initialize Firebase Admin
-if (!admin.apps.length) {
-  admin.initializeApp({
-    projectId: firebaseConfig.projectId,
-  });
+let firebaseConfig: any = {};
+try {
+  const firebaseConfigPath = path.resolve(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(firebaseConfigPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf8"));
+  } else {
+    console.warn("[Firebase] Config file not found at:", firebaseConfigPath);
+  }
+} catch (e) {
+  console.error("[Firebase] Failed to load config:", e);
 }
-const db = getFirestore(firebaseConfig.firestoreDatabaseId);
+
+// Initialize Firebase Admin lazily or at module level but safely
+if (firebaseConfig.projectId && !admin.apps.length) {
+  try {
+    admin.initializeApp({
+      projectId: firebaseConfig.projectId,
+    });
+    console.log("[Firebase] Admin initialized for project:", firebaseConfig.projectId);
+  } catch (e) {
+    console.error("[Firebase] Admin initialization error:", e);
+  }
+}
+
+const _getDb = () => {
+  if (!firebaseConfig.firestoreDatabaseId) {
+    throw new Error("Firestore Database ID is not configured in firebase-applet-config.json");
+  }
+  return getFirestore(firebaseConfig.firestoreDatabaseId);
+};
+
+// Use a Proxy to make 'db' lazy and avoid module-load crashes
+const db = new Proxy({} as any, {
+  get(target, prop) {
+    if (!target._instance) {
+      target._instance = _getDb();
+    }
+    return target._instance[prop];
+  }
+}) as admin.firestore.Firestore;
 
 let stripe: Stripe | null = null;
 const getStripe = () => {
@@ -434,10 +466,21 @@ app.get("/api/diagnostics", (req, res) => {
 
 app.get("/api/auth/url", (req, res) => {
   try {
+    if (!firebaseConfig || !firebaseConfig.projectId) {
+      console.error("Firebase config is missing or invalid at startup");
+      return res.status(500).json({ 
+        error: "Server configuration error: Firebase configuration not found.",
+        details: "Ensure firebase-applet-config.json is present in the project root."
+      });
+    }
+
     const client = getOAuth2Client(req);
     if (!client) {
       console.error("Auth client initialization failed: missing credentials");
-      return res.status(500).json({ error: "Google OAuth credentials not configured." });
+      return res.status(500).json({ 
+        error: "Google OAuth credentials not configured.",
+        details: "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables."
+      });
     }
 
     const state = Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -631,17 +674,23 @@ app.get("/api/auth/firebase-token", async (req, res) => {
 });
 
 app.get("/api/auth/status", (req, res) => {
-  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
-  res.json({ 
-    isAuthenticated: !!token,
-    debug: {
-      hasPartitioned: !!req.cookies[COOKIE_NAME],
-      hasLegacy: !!req.cookies[LEGACY_COOKIE_NAME],
-      cookieCount: Object.keys(req.cookies || {}).length,
-      allCookies: Object.keys(req.cookies || {}),
-      ua: req.headers["user-agent"]
-    }
-  });
+  try {
+    const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
+    res.json({ 
+      isAuthenticated: !!token,
+      debug: {
+        hasPartitioned: !!req.cookies[COOKIE_NAME],
+        hasLegacy: !!req.cookies[LEGACY_COOKIE_NAME],
+        cookieCount: Object.keys(req.cookies || {}).length,
+        allCookies: Object.keys(req.cookies || {}),
+        ua: req.headers["user-agent"],
+        configLoaded: !!firebaseConfig.projectId
+      }
+    });
+  } catch (err: any) {
+    console.error("Error in auth status:", err);
+    res.status(500).json({ error: "Internal server error fetching auth status" });
+  }
 });
 
 app.post("/api/auth/logout", (req, res) => {
