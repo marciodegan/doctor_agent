@@ -111,7 +111,7 @@ let masterSheetInitPromise: Promise<string> | null = null;
 const RESOURCE_CACHE = {
   hospitals: { data: null as any[] | null, lastFetch: 0 },
   statuses: { data: null as any[] | null, lastFetch: 0 },
-  ttl: 120 * 1000 // 2 minutes
+  ttl: parseInt(process.env.RESOURCE_CACHE_TTL_MS || "120000")
 };
 
 const invalidateCache = (type: "hospitals" | "statuses") => {
