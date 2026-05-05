@@ -18,6 +18,8 @@
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "firebase": "^12.12.1",
+    "firebase-admin": "^13.8.0",
     "google-auth-library": "^10.6.2",
     "googleapis": "^171.4.0",
     "lucide-react": "^0.546.0",

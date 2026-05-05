@@ -64,79 +64,6 @@ const listDriveFilesTool: FunctionDeclaration = {
   parameters: { type: Type.OBJECT, properties: {} }
 };
 
-const createSpreadsheetTool: FunctionDeclaration = {
-  name: "create_spreadsheet",
-  description: "Creates a new Google Spreadsheet.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      title: { type: Type.STRING, description: "Title of the spreadsheet" }
-    },
-    required: ["title"]
-  }
-};
-
-const updateSpreadsheetValuesTool: FunctionDeclaration = {
-  name: "update_spreadsheet_values",
-  description: "Updates values in a Google Spreadsheet.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      spreadsheetId: { type: Type.STRING, description: "The ID of the spreadsheet" },
-      range: { type: Type.STRING, description: "The range in A1 notation (e.g., Sheet1!A1:B2)" },
-      values: { 
-        type: Type.ARRAY, 
-        items: { type: Type.ARRAY, items: { type: Type.STRING } },
-        description: "2D array of strings to insert"
-      }
-    },
-    required: ["spreadsheetId", "range", "values"]
-  }
-};
-
-const getSpreadsheetValuesTool: FunctionDeclaration = {
-  name: "get_spreadsheet_values",
-  description: "Reads values from a Google Spreadsheet range.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      spreadsheetId: { type: Type.STRING, description: "The ID of the spreadsheet" },
-      range: { type: Type.STRING, description: "The range in A1 notation" }
-    },
-    required: ["spreadsheetId", "range"]
-  }
-};
-
-const appendSpreadsheetValuesTool: FunctionDeclaration = {
-  name: "append_spreadsheet_values",
-  description: "Appends rows to a spreadsheet.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      spreadsheetId: { type: Type.STRING, description: "The ID of the spreadsheet" },
-      range: { type: Type.STRING, description: "The range to search for a table (e.g., Sheet1!A1)" },
-      values: { 
-        type: Type.ARRAY, 
-        items: { type: Type.ARRAY, items: { type: Type.STRING } },
-        description: "2D array of value arrays"
-      }
-    },
-    required: ["spreadsheetId", "range", "values"]
-  }
-};
-
-const searchSpreadsheetTool: FunctionDeclaration = {
-  name: "search_spreadsheet",
-  description: "Searches for a spreadsheet by its exact name in the user's Drive.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      name: { type: Type.STRING, description: "The exact name of the file" }
-    },
-    required: ["name"]
-  }
-};
-
 const uploadFileToDriveTool: FunctionDeclaration = {
   name: "upload_file_to_drive",
   description: "Uploads a file to Google Drive. If base64Data is not provided, the system will attempt to use the last image sent by the user.",
@@ -160,82 +87,88 @@ const clearMemoryTool: FunctionDeclaration = {
   }
 };
 
+const searchPatientTool: FunctionDeclaration = {
+  name: "search_patient",
+  description: "Searches for a patient in the database by name or partial name.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      query: { type: Type.STRING, description: "Name or ID of the patient" }
+    },
+    required: ["query"]
+  }
+};
+
+const addPatientLogTool: FunctionDeclaration = {
+  name: "add_patient_log",
+  description: "Adds a text log (evolution) to a patient's history.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      patientId: { type: Type.STRING, description: "The ID of the patient" },
+      text: { type: Type.STRING, description: "The log text to add" }
+    },
+    required: ["patientId", "text"]
+  }
+};
+
+const listPatientsTool: FunctionDeclaration = {
+  name: "list_patients",
+  description: "Lists all patients in the system.",
+  parameters: { type: Type.OBJECT, properties: {} }
+};
+
 export const tools = [
   {
     functionDeclarations: [
       listCalendarEventsTool,
       createCalendarEventTool,
       listDriveFilesTool,
-      createSpreadsheetTool,
-      updateSpreadsheetValuesTool,
-      getSpreadsheetValuesTool,
-      appendSpreadsheetValuesTool,
-      searchSpreadsheetTool,
       uploadFileToDriveTool,
+      searchPatientTool,
+      addPatientLogTool,
+      listPatientsTool,
       clearMemoryTool
     ]
   }
 ];
 
 export const createAgent = () => ai.chats.create({
-  model: "gemini-3-flash-preview", // Doctor Pro uses the latest flash model
+  model: "gemini-3-flash-preview", 
   config: {
-    systemInstruction: `You are Doctor Pro, a highly professional workspace assistant. 
-    You have access to the user's Google Calendar, Drive, and Sheets through provided tools.
+    systemInstruction: `You are Doctor Pro, a highly professional medical workspace assistant. 
+    You have access to the user's Google Calendar, Drive, and the Patient Database (Firestore) through provided tools.
     
     TRUST & SECURITY:
-    Your primary goal is to help the user manage their business data with transparency and accuracy.
+    Your primary goal is to help the user manage their medical practice data with transparency and accuracy.
     Mention that documents are processed in real-time and context is cleared for their safety.
-    TOKEN EFFICIENCY: Be concise. Don't repeat user data back unless necessary. Use targeted spreadsheet reads.
+    TOKEN EFFICIENCY: Be concise. Don't repeat user data back unless necessary.
     
-    PATIENT MANAGEMENT (RELATIONAL STRUCTURE):
-    1. The system uses 4 distinct spreadsheets for organization:
-       - "Pacientes - Cadastro": Primary source for patient names and IDs.
-       - "Pacientes - Imagens": Stores image links and transcriptions.
-       - "Pacientes - Áudios": Stores audio analyses and transcriptions.
-       - "Pacientes - Perfil": A dashboard sheet used to aggregate info for ONE specific patient.
+    PATIENT MANAGEMENT (FIRESTORE):
+    1. The system uses a centralized database for patients, logs, and files.
 
-    2. TRANSACTION WORKFLOW (STRICT INTEGRITY - VLOOKUP PATTERN):
-       - Step A: When a file or text log is received, the agent MUST first verify the patient in "Pacientes - Cadastro".
-       - Step B: Use 'search_spreadsheet_files' followed by 'get_spreadsheet_values' on the "Cadastro" sheet.
-       - Step C: Match the user input (e.g., "Paciente 2" or "João") against the "Nome" or "ID" column. 
-       - Step D: If multiple/no matches found, ASK the user to clarify before proceeding. NEVER "guess".
-       - Step E: Once the canonical Name/ID is confirmed from the Master sheet (Cadastro):
-         - Append the row to the target sheet ("Áudios" or "Imagens").
-         - Ensure the "Paciente" column in the target sheet matches EXACTLY the name found in the "Cadastro" sheet.
-       - Step F: Confirm success stating: "Adicionado com sucesso para o paciente [Nome Canônico]".
-       - Step G: IMMEDIATELY call 'clear_local_memory'.
+    2. WORKFLOW (STRICT INTEGRITY):
+       - Step A: When a file or text log is received, you MUST first find the patient using 'search_patient' or 'list_patients'.
+       - Step B: Match the user input (e.g., "Paciente 2" or "João") against the results.
+       - Step C: If multiple/no matches found, ASK the user to clarify before proceeding. NEVER "guess".
+       - Step D: Once the canonical Name/ID is confirmed:
+         - For text logs: Use 'add_patient_log'.
+         - For files: Use 'upload_file_to_drive' (this will also register it in the database via the backend).
+       - Step E: Confirm success stating: "Adicionado com sucesso para o paciente [Nome]".
+       - Step F: IMMEDIATELY call 'clear_local_memory'.
 
     3. PATIENT LISTING:
-       - When asked to list patients, fetch values ONLY from "Pacientes - Cadastro".
-       - Return a clean, formatted list of Name and ID.
-       - This acts as the source of truth for all other operations.
-
-    4. SPECIFIC TEXT LOG PATTERN (PROCV LOGIC):
-       Even if the text says "Paciente 2", perform a quick lookup in the "Cadastro" sheet values to ensure Row 2 (if that's what it means) or ID '2' belongs to the correct person. This acts as a manual VLOOKUP to prevent data collision.
+       - Use 'list_patients' to see everyone in the system.
+       - Return a clean, formatted list.
 
     4. DATA CONSOLIDATION & PROFILE VIEW:
        - When the user asks to see a patient's info, profile, or report:
-         1. Search and fetch info from "Pacientes - Cadastro", "Pacientes - Imagens", and "Pacientes - Áudios".
-         2. Consolidate into a report with these specific sections:
-            - Header: # **[NOME]**, [IDADE] anos \`/edit_name [ID] label:✏️\`
-            - Section: **Contatos:** [List of relatives/family]
-            - Section: **Informações:** [List of logs/evolution text]
-            - Section: **Imagens:** [List of images]
-         3. NEVER include CPF or Telefone fields in the patient profile unless explicitly asked.
-         4. IMMEDIATELY call 'clear_local_memory' after providing the report.
-
-    CONSULTING PATIENT INFO:
-    - If user asks for patient history (like "retornar todas informações"), the agent MUST:
-      1. Search "Pacientes - Cadastro" for basic data (name, phone, etc) for that ID/Number.
-      2. Search "Pacientes - Imagens" for all related images and transcriptions.
-      3. Search "Pacientes - Áudios" for all related audio analyses.
-    - Consolidate all found information into a clean, professional report.
-    - IMPORTANT: For every Google Drive link found, identify the file ID and return it as a markdown image AND a clickable link using the format:
-      - Image: ![Imagem](https://[APP_URL]/api/drive/file/[FILE_ID])
-      - Clickable Link: [Ver no Google Drive](LINK_ORIGINAL)
-    - Replace [APP_URL] with the actual host and [FILE_ID] with the actual ID.
-    - Ensure all URLs are returned as clickable Markdown links.
+         1. Use 'search_patient' and then present the information found.
+         2. Provide a report with:
+            - Header: # **[NOME]**, [IDADE] anos
+            - Section: **Status:** [Status Atual] - [Hospital]
+            - Section: **Informações:** [Last logs/evolution]
+         3. IMMEDIATELY call 'clear_local_memory' after providing the report.
     
     CALENDAR & EFFICIENCY:
     - TIMEZONE: ALWAYS use 'America/Sao_Paulo' (GMT-3) for all calendar operations. 
@@ -298,33 +231,27 @@ export const executeTool = async (name: string, args: any, context?: { lastFile?
     case "list_drive_files":
       const driveRes = await fetch("/api/drive/files");
       return await driveRes.json();
-    case "create_spreadsheet":
-      const sheetRes = await fetch("/api/sheets/create", {
+    case "search_patient": {
+      const res = await fetch("/api/app/patients");
+      const patients = await res.json();
+      const q = args.query.toLowerCase();
+      return patients.filter((p: any) => 
+        p.nome.toLowerCase().includes(q) || 
+        p.id.toLowerCase().includes(q)
+      );
+    }
+    case "list_patients": {
+      const res = await fetch("/api/app/patients");
+      return await res.json();
+    }
+    case "add_patient_log": {
+      const res = await fetch("/api/app/logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: args.title })
+        body: JSON.stringify({ patientId: args.patientId, text: args.text })
       });
-      return await sheetRes.json();
-    case "update_spreadsheet_values":
-      const updateRes = await fetch(`/api/sheets/${args.spreadsheetId}/values`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ range: args.range, values: args.values })
-      });
-      return await updateRes.json();
-    case "get_spreadsheet_values":
-      const getRes = await fetch(`/api/sheets/${args.spreadsheetId}/values?range=${encodeURIComponent(args.range)}`);
-      return await getRes.json();
-    case "append_spreadsheet_values":
-      const appendRes = await fetch(`/api/sheets/${args.spreadsheetId}/append`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ range: args.range, values: args.values })
-      });
-      return await appendRes.json();
-    case "search_spreadsheet":
-      const searchRes = await fetch(`/api/drive/search?name=${encodeURIComponent(args.name)}`);
-      return await searchRes.json();
+      return await res.json();
+    }
     case "upload_file_to_drive":
       let base64 = args.base64Data;
       let mimeType = args.mimeType;

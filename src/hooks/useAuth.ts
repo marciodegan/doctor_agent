@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { auth as fbAuth } from "../lib/firebase";
+import { signInWithCustomToken, signOut as fbSignOut } from "firebase/auth";
 
 export const useAuth = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -20,6 +22,21 @@ export const useAuth = () => {
       
       const data = await res.json();
       console.log("[Auth] Auth status API data:", data);
+      
+      if (data.isAuthenticated && !fbAuth.currentUser) {
+        // Try to get firebase token if we are authenticated with Google but not Firebase
+        try {
+          const fbRes = await fetch("/api/auth/firebase-token", { credentials: 'include' });
+          if (fbRes.ok) {
+            const { customToken } = await fbRes.json();
+            await signInWithCustomToken(fbAuth, customToken);
+            console.log("[Auth] Firebase session restored");
+          }
+        } catch (e) {
+          console.error("[Auth] Failed to restore Firebase session:", e);
+        }
+      }
+
       setIsAuthenticated(data.isAuthenticated);
     } catch (error) {
       clearTimeout(timeoutId);
@@ -47,8 +64,16 @@ export const useAuth = () => {
             body: JSON.stringify({ tokens }),
             credentials: 'include'
           });
+
+          // After session is established, sign in to Firebase
+          const fbRes = await fetch("/api/auth/firebase-token", { credentials: 'include' });
+          if (fbRes.ok) {
+            const { customToken } = await fbRes.json();
+            await signInWithCustomToken(fbAuth, customToken);
+            console.log("[Auth] Signed in to Firebase successfully");
+          }
         } catch (e) {
-          console.error("[Auth] Failed to establish session:", e);
+          console.error("[Auth] Failed to establish session or sign in to Firebase:", e);
         }
       }
       
@@ -176,6 +201,11 @@ export const useAuth = () => {
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST", credentials: 'include' });
+    try {
+      await fbSignOut(fbAuth);
+    } catch (e) {
+      console.error("[Auth] Firebase signout error:", e);
+    }
     setIsAuthenticated(false);
   };
 

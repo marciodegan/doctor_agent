@@ -1,0 +1,134 @@
+{
+  "entities": {
+    "Hospital": {
+      "title": "Hospital",
+      "description": "Information about a hospital",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "contacts": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "name"]
+    },
+    "PatientStatus": {
+      "title": "Patient Status",
+      "description": "Available statuses for patients",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Patient": {
+      "title": "Patient",
+      "description": "Patient basic information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "age": { "type": "string" },
+        "statusId": { "type": "string" },
+        "hospitalId": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "cpf": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name"]
+    },
+    "Log": {
+      "title": "Status Log",
+      "description": "Status update log for a patient",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "File": {
+      "title": "Patient File",
+      "description": "Images or documents linked to a patient",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "patientId": { "type": "string" },
+        "description": { "type": "string" },
+        "link": { "type": "string" },
+        "aiResponse": { "type": "string" }
+      }
+    },
+    "FamilyMember": {
+      "title": "Family Member",
+      "description": "Contact information for a patient's relative",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "relationship": { "type": "string" },
+        "phone": { "type": "string" },
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" }
+      }
+    },
+    "Setting": {
+      "title": "App Setting",
+      "description": "Configuration values",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "value": { "type": "string" }
+      }
+    },
+    "User": {
+      "title": "User",
+      "description": "Application user profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "doctor", "staff"] }
+      }
+    }
+  },
+  "firestore": {
+    "/hospitals/{hospitalId}": {
+      "schema": "Hospital",
+      "description": "List of hospitals"
+    },
+    "/patient_statuses/{statusId}": {
+      "schema": "PatientStatus",
+      "description": "Available status options"
+    },
+    "/patients/{patientId}": {
+      "schema": "Patient",
+      "description": "Patient registry"
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "Activity logs for patients"
+    },
+    "/files/{fileId}": {
+      "schema": "File",
+      "description": "Uploaded files and AI analysis"
+    },
+    "/family_members/{memberId}": {
+      "schema": "FamilyMember",
+      "description": "Patient family contacts"
+    },
+    "/settings/{settingId}": {
+      "schema": "Setting",
+      "description": "App configuration"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Registered users"
+    }
+  }
+}

@@ -6,8 +6,19 @@ import dotenv from "dotenv";
 import fs from "fs";
 import { Readable } from "stream";
 import Stripe from "stripe";
+import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
+import firebaseConfig from "../firebase-applet-config.json";
 
 dotenv.config();
+
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: firebaseConfig.projectId,
+  });
+}
+const db = getFirestore(firebaseConfig.firestoreDatabaseId);
 
 let stripe: Stripe | null = null;
 const getStripe = () => {
@@ -592,6 +603,33 @@ app.post("/api/auth/session", (req, res) => {
   res.json({ success: true });
 });
 
+app.get("/api/auth/firebase-token", async (req, res) => {
+  const authClient = getAuthClient(req);
+  if (!authClient) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const oauth2 = google.oauth2({ version: "v2", auth: authClient });
+    const userRes = await oauth2.userinfo.get();
+    const { id, email, name } = userRes.data;
+
+    if (!id) throw new Error("No user ID found");
+
+    const customToken = await admin.auth().createCustomToken(id, { email });
+    
+    // Also upsert user profile in Firestore
+    await db.collection("users").doc(id).set({
+      uid: id,
+      email: email || "",
+      name: name || "",
+      lastSeen: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    res.json({ customToken });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 app.get("/api/auth/status", (req, res) => {
   const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
   res.json({ 
@@ -618,170 +656,98 @@ app.post("/api/auth/logout", (req, res) => {
 
 // --- Direct App Shortcuts (To save tokens/LLM calls) ---
 
-// Get all patients directly from the master sheet with detailed status and location
+// --- Firestore Data Operations ---
+
+const migrateHospitalsAndStatuses = async (auth: any) => {
+  try {
+    const hospitalsSnap = await db.collection("hospitals").limit(1).get();
+    if (!hospitalsSnap.empty) return;
+
+    console.log("[Firestore] Seeding from Sheets...");
+    const fileId = await getOrCreateMasterSheet(auth);
+    const sheets = google.sheets({ version: "v4", auth });
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.CADASTRO}!A:X`
+    });
+    const rows = res.data.values || [];
+    
+    const hospitals = rows.slice(1)
+      .filter(row => row[13])
+      .map(row => ({
+        id: row[13]?.toString().trim(),
+        name: row[14]?.toString().trim() || row[13]?.toString().trim(),
+        phone: row[15]?.toString().trim() || "",
+        contacts: [row[16], row[17], row[18], row[19]].filter(Boolean)
+      }));
+
+    const statuses = rows.slice(1)
+      .filter(row => row[22])
+      .map(row => ({
+        id: row[22]?.toString().trim(),
+        name: row[23]?.toString().trim() || row[22]?.toString().trim()
+      }));
+
+    const batch = db.batch();
+    hospitals.forEach(h => batch.set(db.collection("hospitals").doc(h.id), h));
+    statuses.forEach(s => batch.set(db.collection("patient_statuses").doc(s.id), s));
+    
+    // Also try to migrate existing patients if Firestore is empty
+    const patientsSnap = await db.collection("patients").limit(1).get();
+    if (patientsSnap.empty) {
+      const patients = rows.slice(1).filter(r => r[0] && r[1]).map(row => ({
+        id: row[0]?.toString().trim(),
+        name: row[1]?.toString().trim(),
+        phone: row[2]?.toString().trim() || "",
+        age: row[3]?.toString().trim() || "",
+        hospitalId: row[6]?.toString().trim() || "",
+        roomNumber: row[7]?.toString().trim() || "",
+        cpf: row[8]?.toString().trim() || "",
+        statusId: row[8]?.toString().trim() || row[4]?.toString().trim() || "5",
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      }));
+      patients.forEach(p => batch.set(db.collection("patients").doc(p.id), p));
+    }
+
+    await batch.commit();
+  } catch (e) {
+    console.error("[Firestore] Migration failed:", e);
+  }
+};
+
+// Get all patients directly from Firestore
 app.get("/api/app/patients", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
-  const sheets = google.sheets({ version: "v4", auth });
-
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
+    // Ensure basic data is migrated
+    await migrateHospitalsAndStatuses(auth);
 
-    const now = Date.now();
+    const [patientsSnap, hospitalsSnap, statusesSnap] = await Promise.all([
+      db.collection("patients").orderBy("name").get(),
+      db.collection("hospitals").get(),
+      db.collection("patient_statuses").get()
+    ]);
 
-    // Get base data ranges
-    const ranges = [
-      `${SHEET_TABS.CADASTRO}!A:X`, // Fetch full range to include Hospitals (N:O) and Statuses (W:X)
-      `${SHEET_TABS.STATUS_USER}!A:E`,
-      `${SHEET_TABS.LOCAL_USER}!A:E`
-    ];
+    const hMap = Object.fromEntries(hospitalsSnap.docs.map(doc => [doc.id, doc.data().name]));
+    const sMap = Object.fromEntries(statusesSnap.docs.map(doc => [doc.id, doc.data().name]));
 
-    const batchRes = await sheets.spreadsheets.values.batchGet({
-      spreadsheetId: fileId,
-      ranges,
-    });
-
-    const vRanges = batchRes.data.valueRanges || [];
-    const cadRows = vRanges[0]?.values || [];
-    const statusHistoryRows = vRanges[1]?.values || [];
-    const localRows = vRanges[2]?.values || [];
-    
-    // Parse Hospitals from Cadastro tab columns N (13) and O (14)
-    const hospitals = cadRows.slice(1)
-      .filter(row => row[13]) // Column N
-      .map(row => ({
-        id: row[13]?.toString().trim(),
-        nome: row[14]?.toString().trim() || row[13]?.toString().trim(), // Column O
-        fone: row[15]?.toString().trim() || "",
-        contatos: [row[16], row[17], row[18], row[19]].filter(Boolean)
-      }));
-
-    if (hospitals.length > 0) {
-      RESOURCE_CACHE.hospitals.data = hospitals;
-      RESOURCE_CACHE.hospitals.lastFetch = now;
-    }
-
-    // Parse Statuses from Cadastro tab columns W (22) and X (23)
-    const statuses = cadRows.slice(1)
-      .filter(row => row[22])
-      .map(row => ({
-        id: row[22]?.toString().trim(),
-        nome: row[23]?.toString().trim() || row[22]?.toString().trim()
-      }));
-
-    if (statuses.length > 0) {
-      RESOURCE_CACHE.statuses.data = statuses;
-      RESOURCE_CACHE.statuses.lastFetch = now;
-    }
-
-    const hData = RESOURCE_CACHE.hospitals.data || [];
-    const sData = RESOURCE_CACHE.statuses.data || [];
-
-    const hMap = Object.fromEntries(hData.map(r => [r.id, r.nome]));
-    const sMap = Object.fromEntries(sData.map(r => [r.id, r.nome]));
-
-    // Reverse maps for name-to-id lookup (robustness)
-    const hNameMap = Object.fromEntries(hData.map(r => [r.nome.toLowerCase(), r.id]));
-    const sNameMap = Object.fromEntries(sData.map(r => [r.nome.toLowerCase(), r.id]));
-
-    // Pre-index status and local data for O(1) lookup
-    const statusMap = new Map<string, string>();
-    statusHistoryRows.slice(1).forEach(r => {
-      const pId = r[3]?.toString().trim();
-      const status = r[2]?.toString().trim();
-      if (pId && status) statusMap.set(pId, status); // Map stores last one seen
-    });
-
-    const localMap = new Map<string, { room: string, hospital: string }>();
-    localRows.slice(1).forEach(r => {
-      const pId = r[3]?.toString().trim();
-      if (pId) {
-        localMap.set(pId, {
-          room: r[1]?.toString().trim() || "",
-          hospital: r[2]?.toString().trim() || ""
-        });
-      }
-    });
-
-    // Map patients basic info
-    const patients = cadRows.slice(1).map(row => {
-      const id = row[0]?.toString().trim();
-      const statusInput = row[8]?.toString().trim() || row[4]?.toString().trim(); // Prioritize Column I (index 8)
-      const hospitalInput = row[6]?.toString().trim(); // Column G
-      
-      // Robust Hospital Mapping
-      let hName = "";
-      let hId = hospitalInput || "";
-      if (hospitalInput) {
-        if (hMap[hospitalInput]) {
-          hName = hMap[hospitalInput];
-        } else if (hNameMap[hospitalInput.toLowerCase()]) {
-          hId = hNameMap[hospitalInput.toLowerCase()];
-          hName = hMap[hId];
-        } else {
-          hName = hospitalInput; // Fallback to raw input
-        }
-      }
-
-      // Robust Status Mapping
-      let sName = "";
-      let sId = statusInput || "";
-      if (statusInput) {
-        if (sMap[statusInput]) {
-          sName = sMap[statusInput];
-        } else if (sNameMap[statusInput.toLowerCase()]) {
-          sId = sNameMap[statusInput.toLowerCase()];
-          sName = sMap[sId];
-        } else {
-          sName = statusInput; // Fallback to raw input
-        }
-      }
-      
-      const p: any = {
-        id: id,
-        nome: row[1]?.toString().trim(),
-        fone: row[2]?.toString().trim(),
-        idade: row[3]?.toString().trim(),
-        statusId: sId,
-        status: sName || "Não informado",
-        hospitalId: hId,
-        hospitalName: hName || "Sem Hospital",
-        roomNumber: row[7]?.toString().trim() || ""
+    const patients = patientsSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        hospitalName: hMap[data.hospitalId] || data.hospitalId || "Sem Hospital",
+        status: sMap[data.statusId] || data.statusId || "Não informado"
       };
-
-      // Enrich with Status User (most recent from Map)
-      if (id && statusMap.has(id)) {
-        p.status = statusMap.get(id);
-      }
-
-      // Enrichment with Local User
-      if (id && localMap.has(id)) {
-        const local = localMap.get(id)!;
-        p.roomNumber = local.room || p.roomNumber;
-        const localHospital = local.hospital;
-        if (localHospital) {
-          // Robust mapping for local hospital too
-          if (hMap[localHospital]) {
-            p.hospitalName = hMap[localHospital];
-            p.hospitalId = localHospital;
-          } else if (hNameMap[localHospital.toLowerCase()]) {
-            p.hospitalId = hNameMap[localHospital.toLowerCase()];
-            p.hospitalName = hMap[p.hospitalId];
-          } else {
-            p.hospitalName = localHospital;
-          }
-        }
-      }
-
-      return p;
     });
 
     if (req.query.full === "true") {
       res.json({
         patients,
-        hospitals: hData,
-        statuses: sData
+        hospitals: hospitalsSnap.docs.map(d => d.data()),
+        statuses: statusesSnap.docs.map(d => d.data())
       });
     } else {
       res.json(patients);
@@ -793,21 +759,11 @@ app.get("/api/app/patients", async (req, res) => {
 
 // Get app settings
 app.get("/api/app/settings", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-    const sheets = google.sheets({ version: "v4", auth });
-    const result = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.SETTINGS}!A:B`,
-    });
-
-    const rows = result.data.values || [];
-    const settings: Record<string, string> = {};
-    rows.slice(1).forEach(row => {
-      if (row[0]) settings[row[0]] = row[1] || "";
+    const settingsSnap = await db.collection("settings").get();
+    const settings: Record<string, any> = {};
+    settingsSnap.forEach(doc => {
+      settings[doc.id] = doc.data().value;
     });
 
     res.json({
@@ -820,46 +776,12 @@ app.get("/api/app/settings", async (req, res) => {
 
 // Update app settings
 app.post("/api/app/settings", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
   const { companyName } = req.body;
 
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-    const sheets = google.sheets({ version: "v4", auth });
-
-    // We only support companyName for now
-    const result = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.SETTINGS}!A:B`,
-    });
-
-    const rows = result.data.values || [];
-    let foundIndex = -1;
-    for (let i = 1; i < rows.length; i++) {
-      if (rows[i][0] === "companyName") {
-        foundIndex = i + 1;
-        break;
-      }
+    if (companyName) {
+      await db.collection("settings").doc("companyName").set({ value: companyName });
     }
-
-    if (foundIndex !== -1) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.SETTINGS}!B${foundIndex}`,
-        valueInputOption: "RAW",
-        requestBody: { values: [[companyName]] }
-      });
-    } else {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.SETTINGS}!A:B`,
-        valueInputOption: "RAW",
-        requestBody: { values: [["companyName", companyName]] }
-      });
-    }
-
     res.json({ status: "ok" });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -917,37 +839,9 @@ app.post("/api/app/backup", async (req, res) => {
 
 // Get all hospitals
 app.get("/api/app/hospitals", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const now = Date.now();
-  if (RESOURCE_CACHE.hospitals.data && (now - RESOURCE_CACHE.hospitals.lastFetch < RESOURCE_CACHE.ttl)) {
-    console.log("[Cache] Hit (direct route): hospitals");
-    return res.json(RESOURCE_CACHE.hospitals.data);
-  }
-  console.log("[Cache] Miss (direct route): hospitals");
-
-  const sheets = google.sheets({ version: "v4", auth });
-
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.HOSPITAIS}!N:U`, // Column N is index 13
-    });
-
-    const rows = valuesRes.data.values || [];
-    const hospitals = rows.slice(1).map(row => ({
-      id: row[0],
-      nome: row[1],
-      fone: row[2],
-      contatos: [row[3], row[4], row[5], row[6], row[7]].filter(Boolean)
-    }));
-
-    RESOURCE_CACHE.hospitals.data = hospitals;
-    RESOURCE_CACHE.hospitals.lastFetch = now;
-
+    const snap = await db.collection("hospitals").get();
+    const hospitals = snap.docs.map(doc => doc.data());
     res.json(hospitals);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -956,40 +850,20 @@ app.get("/api/app/hospitals", async (req, res) => {
 
 // Add a new hospital
 app.post("/api/app/hospitals", express.json(), async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const sheets = google.sheets({ version: "v4", auth });
   const { nome, fone, contatos } = req.body;
 
   if (!nome) return res.status(400).json({ error: "Nome do Hospital é obrigatório." });
 
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.HOSPITAIS}!N:N`,
-    });
-    const nextId = (valuesRes.data.values?.length || 1).toString();
-
-    const c1 = contatos?.[0] || "";
-    const c2 = contatos?.[1] || "";
-    const c3 = contatos?.[2] || "";
-    const c4 = contatos?.[3] || "";
-    const c5 = contatos?.[4] || "";
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.HOSPITAIS}!N:U`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[nextId, nome, fone || "", c1, c2, c3, c4, c5]]
-      }
+    const hospitalRef = db.collection("hospitals").doc();
+    await hospitalRef.set({
+      id: hospitalRef.id,
+      name: nome,
+      phone: fone || "",
+      contacts: contatos || []
     });
 
-    invalidateCache("hospitals");
-    res.json({ success: true, id: nextId });
+    res.json({ success: true, id: hospitalRef.id });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -997,65 +871,13 @@ app.post("/api/app/hospitals", express.json(), async (req, res) => {
 
 // Get image description options
 app.get("/api/app/image-options", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const sheets = google.sheets({ version: "v4", auth });
-
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.OPCOES_IMAGENS}!A:A`,
-    });
-
-    const rows = valuesRes.data.values || [];
-    const options = rows.slice(1).map(row => row[0]).filter(Boolean);
-
-    res.json(options);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Add a new hospital
-app.post("/api/app/hospitals", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const { nome, telefone } = req.body;
-  if (!nome) return res.status(400).json({ error: "Nome é obrigatório." });
-
-  const sheets = google.sheets({ version: "v4", auth });
-
-  try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
-    // Get last ID
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.HOSPITAIS}!N:N`,
-    });
-
-    const rows = valuesRes.data.values || [];
-    let nextId = 1;
-    if (rows.length > 1) {
-      const ids = rows.slice(1).map(r => parseInt(r[0])).filter(n => !isNaN(n));
-      if (ids.length > 0) nextId = Math.max(...ids) + 1;
+    const snap = await db.collection("image_options").get();
+    const options = snap.docs.map(doc => doc.data().name);
+    if (options.length === 0) {
+      return res.json(["Prescrição", "Exame", "Relatório", "Outros"]);
     }
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.HOSPITAIS}!A:C`,
-      valueInputOption: "RAW",
-      requestBody: {
-        values: [[nextId, nome, telefone || ""]]
-      }
-    });
-
-    invalidateCache("hospitals");
-    res.json({ success: true, id: nextId });
+    res.json(options);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -1156,34 +978,25 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
-  const sheets = google.sheets({ version: "v4", auth });
   const { nome, fone, idade, status, cpf, hospitalName, roomNumber } = req.body;
 
   if (!nome) return res.status(400).json({ error: "Nome é obrigatório." });
 
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
-    // Get current rows to determine next ID (Safe Max + 1)
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!A:A`,
-    });
-    const rows = valuesRes.data.values || [];
-    const ids = rows.slice(1).map(r => parseInt(r[0])).filter(n => !isNaN(n));
-    const nextId = (ids.length > 0 ? Math.max(...ids) + 1 : 1).toString();
-
-    // Append new patient: ID, Nome, Telefone, Idade, legacy_status, hospital_id, room_number, paciente_cpf, status_id (Column I)
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!A:I`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[nextId, nome, fone, idade, "", hospitalName || "", roomNumber || "", cpf || "", status || ""]]
-      }
+    const patientRef = db.collection("patients").doc();
+    await patientRef.set({
+      name: nome,
+      phone: fone || "",
+      age: idade || "",
+      statusId: status || "5",
+      cpf: cpf || "",
+      hospitalId: hospitalName || "",
+      roomNumber: roomNumber || "",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    res.json({ success: true, id: nextId });
+    res.json({ success: true, id: patientRef.id });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -1191,76 +1004,49 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
 
 // Update patient status (Zero LLM)
 app.post("/api/app/patients/status", express.json(), async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  const authClient = getAuthClient(req);
+  if (!authClient) return res.status(401).json({ error: "Unauthorized" });
 
-  const sheets = google.sheets({ version: "v4", auth });
-  const oauth2 = google.oauth2({ version: "v2", auth });
   const { patientId, status } = req.body;
 
   if (!patientId || !status) return res.status(400).json({ error: "PatientID e Status são obrigatórios." });
 
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
-    // 1. Get User Info
+    const oauth2 = google.oauth2({ version: "v2", auth: authClient });
     const userInfo = await oauth2.userinfo.get();
-    const userId = userInfo.data.id || "Unknown";
     const userName = userInfo.data.name || userInfo.data.email || "Unknown User";
 
-    // 2. Find row index for the patient ID and get the name
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!A:B`,
-    });
-    const rows = valuesRes.data.values || [];
-    const rowIndex = rows.findIndex(row => row[0] === patientId.toString());
+    const patientRef = db.collection("patients").doc(patientId);
+    const patientDoc = await patientRef.get();
 
-    if (rowIndex === -1) {
+    if (!patientDoc.exists) {
       return res.status(404).json({ error: `Paciente com ID ${patientId} não encontrado.` });
     }
 
-    const patientName = rows[rowIndex][1];
+    const patientData = patientDoc.data()!;
+    const patientName = patientData.name;
 
-    // 3. Update Column I (status_id) at the specific row
-    const rowNumber = rowIndex + 1;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!I${rowNumber}`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[status]]
-      }
-    });
+    await db.runTransaction(async (t) => {
+      t.update(patientRef, { 
+        statusId: status, 
+        updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+      });
 
-    // 4. Log in Log de Status
-    const now = new Date();
-    const dateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.STATUS_LOG}!A:D`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[patientId, patientName, status, dateStr]]
-      }
-    });
-
-    // 5. Log in Status User
-    // format: status_id, status_data, status_atual, paciente_id, paciente_nome
-    const valuesStatusRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.STATUS_USER}!A:A`,
-    });
-    const nextStatusId = (valuesStatusRes.data.values?.length || 1).toString();
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.STATUS_USER}!A:E`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[nextStatusId, dateStr, status, patientId, patientName]]
-      }
+      const logRef = db.collection("logs").doc();
+      t.set(logRef, {
+        patientId,
+        patientName,
+        description: `Status alterado para ${status} por ${userName}`,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      const statusUserRef = db.collection("status_history").doc();
+      t.set(statusUserRef, {
+        patientId,
+        patientName,
+        status,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
     });
 
     res.json({ success: true });
@@ -1274,69 +1060,23 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
-  const sheets = google.sheets({ version: "v4", auth });
   const { id, nome, fone, idade, hospitalName, roomNumber } = req.body;
 
   if (!id) return res.status(400).json({ error: "ID do paciente é obrigatório." });
 
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
-    // Find row index
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!A:A`,
-    });
-    const rows = valuesRes.data.values || [];
-    const rowIndex = rows.findIndex(row => row[0] === id.toString());
-
-    if (rowIndex === -1) {
-      return res.status(404).json({ error: `Paciente com ID ${id} não encontrado.` });
-    }
-
-    const rowNumber = rowIndex + 1;
+    const patientRef = db.collection("patients").doc(id);
+    const updateData: any = {
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
     
-    // Update individual cells if provided
-    if (nome) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.CADASTRO}!B${rowNumber}`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [[nome]] }
-      });
-    }
-    if (fone) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.CADASTRO}!C${rowNumber}`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [[fone]] }
-      });
-    }
-    if (idade) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.CADASTRO}!D${rowNumber}`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [[idade]] }
-      });
-    }
-    if (hospitalName !== undefined) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.CADASTRO}!F${rowNumber}`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [[hospitalName]] }
-      });
-    }
-    if (roomNumber !== undefined) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.CADASTRO}!G${rowNumber}`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [[roomNumber]] }
-      });
-    }
+    if (nome) updateData.name = nome;
+    if (fone) updateData.phone = fone;
+    if (idade) updateData.age = idade;
+    if (hospitalName !== undefined) updateData.hospitalId = hospitalName;
+    if (roomNumber !== undefined) updateData.roomNumber = roomNumber;
+
+    await patientRef.update(updateData);
 
     res.json({ success: true });
   } catch (error) {
@@ -1346,35 +1086,9 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
 
 // Get all allowed statuses
 app.get("/api/app/statuses", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const now = Date.now();
-  if (RESOURCE_CACHE.statuses.data && (now - RESOURCE_CACHE.statuses.lastFetch < RESOURCE_CACHE.ttl)) {
-    console.log("[Cache] Hit (direct route): statuses");
-    return res.json(RESOURCE_CACHE.statuses.data);
-  }
-  console.log("[Cache] Miss (direct route): statuses");
-
-  const sheets = google.sheets({ version: "v4", auth });
-
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.STATUSES}!W:X`, // Statuses are W:X
-    });
-
-    const rows = valuesRes.data.values || [];
-    const statuses = rows.slice(1).map(row => ({
-      id: row[0],
-      nome: row[1] || row[0]
-    })).filter(s => s.nome);
-
-    RESOURCE_CACHE.statuses.data = statuses;
-    RESOURCE_CACHE.statuses.lastFetch = now;
-
+    const statusesSnap = await db.collection("patient_statuses").orderBy("id").get();
+    const statuses = statusesSnap.docs.map(doc => doc.data());
     res.json(statuses);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -1383,31 +1097,16 @@ app.get("/api/app/statuses", async (req, res) => {
 
 // Get family members for a patient
 app.get("/api/app/family-members/:patientId", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const sheets = google.sheets({ version: "v4", auth });
   const { patientId } = req.params;
 
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
+    let query: admin.firestore.Query = db.collection("family_members");
+    if (patientId !== "all") {
+      query = query.where("patientId", "==", patientId);
+    }
 
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.FAMILIARES}!A:F`,
-    });
-
-    const rows = valuesRes.data.values || [];
-    const family = rows.slice(1)
-      .filter(row => row[4] === patientId || row[5] === patientId || patientId === "all")
-      .map(row => ({
-        id: row[0],
-        nome: row[1],
-        relacao: row[2],
-        fone: row[3],
-        pacienteId: row[4],
-        pacienteNome: row[5]
-      }));
+    const snap = await query.get();
+    const family = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     res.json(family);
   } catch (error) {
@@ -1417,108 +1116,69 @@ app.get("/api/app/family-members/:patientId", async (req, res) => {
 
 // Register a new family member
 app.post("/api/app/family-members", express.json(), async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const sheets = google.sheets({ version: "v4", auth });
   const { nome, relacao, fone, patientId, paciente_nome } = req.body;
 
   if (!nome || !patientId) return res.status(400).json({ error: "Nome e ID do Paciente são obrigatórios." });
 
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
     let finalPatientNome = paciente_nome;
     if (!finalPatientNome) {
-      const cadValuesRes = await sheets.spreadsheets.values.get({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.CADASTRO}!A:B`,
-      });
-      const cadRows = cadValuesRes.data.values || [];
-      const patientRow = cadRows.find(row => row[0] === patientId);
-      if (patientRow) {
-        finalPatientNome = patientRow[1];
-      }
+      const patientDoc = await db.collection("patients").doc(patientId).get();
+      finalPatientNome = patientDoc.data()?.name || "Unknown";
     }
 
-    // Determine ID (Safe Max + 1)
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.FAMILIARES}!A:A`,
-    });
-    const rows = valuesRes.data.values || [];
-    const ids = rows.slice(1).map(r => parseInt(r[0])).filter(n => !isNaN(n));
-    const nextId = (ids.length > 0 ? Math.max(...ids) + 1 : 1).toString();
-
-    // Append: [id, nome_familiar, tipo_parentesco, telefone, paciente_id, paciente_nome]
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.FAMILIARES}!A:F`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[nextId, nome, relacao || "Não especificado", fone || "", patientId, finalPatientNome || ""]]
-      }
+    const memberRef = db.collection("family_members").doc();
+    await memberRef.set({
+      name: nome,
+      relationship: relacao || "",
+      phone: fone || "",
+      patientId,
+      patientName: finalPatientNome
     });
 
-    res.json({ success: true, id: nextId });
+    res.json({ success: true, id: memberRef.id });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
 });
-
-// Add a text log directly to "Log de Status" (Zero LLM)
+// Add a log entry for a patient
 app.post("/api/app/logs", express.json(), async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const sheets = google.sheets({ version: "v4", auth });
   const { patientId, text, paciente_nome } = req.body;
 
   if (!patientId || !text) return res.status(400).json({ error: "PatientID e Texto são obrigatórios." });
 
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
     let finalPatientNome = paciente_nome;
     if (!finalPatientNome) {
-      const cadValuesRes = await sheets.spreadsheets.values.get({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.CADASTRO}!A:B`,
-      });
-      const rows = cadValuesRes.data.values || [];
-      const row = rows.find(r => r[0] === patientId.toString());
-      finalPatientNome = row ? row[1] : "Paciente Desconhecido";
+      const patientDoc = await db.collection("patients").doc(patientId).get();
+      finalPatientNome = patientDoc.data()?.name || "Paciente Desconhecido";
     }
 
-    const now = new Date().toLocaleString("pt-BR");
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.LOGS}!A:D`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[now, patientId, finalPatientNome, text]]
-      }
+    const logRef = db.collection("logs").doc();
+    await logRef.set({
+      patientId,
+      patientName: finalPatientNome,
+      description: text,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    res.json({ success: true });
+    res.json({ success: true, id: logRef.id });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
 });
 
-// Upload image/document directly to Drive and link to sheet (Zero LLM)
+// Upload image/document directly to Drive and link to Firestore
 app.post("/api/app/upload-image", express.json({ limit: "10mb" }), async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
   const drive = google.drive({ version: "v3", auth });
-  const sheets = google.sheets({ version: "v4", auth });
   const { patientId, description, fileName, mimeType, base64Data } = req.body;
 
   if (!patientId || !base64Data) return res.status(400).json({ error: "PatientID e Imagem são obrigatórios." });
 
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
     const folderId = await getOrCreateImagesFolder(auth);
 
     // 1. Upload to Drive
@@ -1552,15 +1212,14 @@ app.post("/api/app/upload-image", express.json({ limit: "10mb" }), async (req, r
       console.error("Error setting file permission:", e);
     }
 
-    // 2. Append to master spreadsheet
-    const now = new Date().toLocaleString("pt-BR");
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.ARQUIVOS}!A:D`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[now, patientId, description || "Upload Direto", shareLink]]
-      }
+    // 2. Save metadata to Firestore
+    const fileRef = db.collection("files").doc();
+    await fileRef.set({
+      patientId,
+      description: description || "Upload Direto",
+      link: shareLink || "",
+      driveFileId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
     res.json({ success: true, fileId: driveFileId, link: shareLink });
