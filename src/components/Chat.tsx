@@ -997,8 +997,16 @@ export const Chat: React.FC = () => {
     if (cmd.startsWith("/pacientes")) {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/app/patients");
-        const data = await res.json();
+        const [patientsRes, hospitalsRes, statusesRes] = await Promise.all([
+          fetch("/api/app/patients"),
+          fetch("/api/app/hospitals"),
+          fetch("/api/app/statuses")
+        ]);
+        
+        const data = await patientsRes.json();
+        const masterHospitalsData = await hospitalsRes.json();
+        const masterStatuses = await statusesRes.json();
+
         if (data.error) throw new Error(data.error);
         
         let page = 1;
@@ -1027,8 +1035,8 @@ export const Chat: React.FC = () => {
           filteredData.sort((a, b) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
         }
 
-        const hospitals = Array.from(new Set(data.map((p: any) => p.hospitalName).filter(Boolean))) as string[];
-        const statuses = Array.from(new Set(data.map((p: any) => p.status).filter(Boolean))) as string[];
+        const hospitals = masterHospitalsData.map((h: any) => h.nome).filter(Boolean);
+        const statuses = Array.isArray(masterStatuses) ? masterStatuses.filter(Boolean) : [];
 
         const showHospitals = cmdInput.includes("view:hospitais");
         const showStatuses = cmdInput.includes("view:status");
@@ -1039,22 +1047,22 @@ export const Chat: React.FC = () => {
         // Main Action Buttons Line
         const currentFilters = `${hospitalFilter ? ` hospital:${hospitalFilter}` : ""}${statusFilter ? ` status:${statusFilter}` : ""}`;
         
-        filterAndSortUI += `### 🔍 Filtrar e Ordenar\n`;
-        filterAndSortUI += `[\`🔤 A-Z\`](/pacientes${currentFilters} sort:nome) `;
-        filterAndSortUI += `[\`⏰ Mais Recentes\`](/pacientes${currentFilters} sort:id) `;
-        filterAndSortUI += `[\`📍 Por Status\`](/pacientes${currentFilters} view:status sort:${sort}) `;
-        filterAndSortUI += `[\`🏥 Por Hospital\`](/pacientes${currentFilters} view:hospitais sort:${sort})\n\n`;
+        filterAndSortUI += `### Filtrar e Ordenar\n`;
+        filterAndSortUI += `[\`A-Z\`](/pacientes${currentFilters} sort:nome) `;
+        filterAndSortUI += `[\`Mais Recentes\`](/pacientes${currentFilters} sort:id) `;
+        filterAndSortUI += `[\`Por Status\`](/pacientes${currentFilters} view:status sort:${sort}) `;
+        filterAndSortUI += `[\`Por Hospital\`](/pacientes${currentFilters} view:hospitais sort:${sort})\n\n`;
 
         // Sub-menus
         if (showHospitals && hospitals.length > 0) {
-          filterAndSortUI += `🏨 **Selecione o Hospital:**\n${hospitals.map(h => `[\`${h}\`](/pacientes hospital:${h} sort:${sort})`).join(" ")}\n\n`;
+          filterAndSortUI += `**Selecione o Hospital:**\n${hospitals.map((h: string) => `[\`${h}\`](/pacientes hospital:${h} sort:${sort})`).join(" ")}\n\n`;
         }
         if (showStatuses && statuses.length > 0) {
-          filterAndSortUI += `📍 **Selecione o Status:**\n${statuses.map(s => `[\`${s}\`](/pacientes status:${s} sort:${sort})`).join(" ")}\n\n`;
+          filterAndSortUI += `**Selecione o Status:**\n${statuses.map((s: string) => `[\`${s}\`](/pacientes status:${s} sort:${sort})`).join(" ")}\n\n`;
         }
 
         if (hospitalFilter || statusFilter) {
-          filterAndSortUI += `✅ Filtro Ativo: **${hospitalFilter || ""} ${statusFilter || ""}** [ ❌ Limpar ](/pacientes sort:${sort})\n\n`;
+          filterAndSortUI += `Filtro Ativo: **${hospitalFilter || ""} ${statusFilter || ""}** [ Limpar ](/pacientes sort:${sort})\n\n`;
         }
 
         const PAGE_SIZE = 8;

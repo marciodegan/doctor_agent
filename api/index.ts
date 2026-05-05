@@ -1139,11 +1139,12 @@ app.get("/api/app/statuses", async (req, res) => {
 
     const valuesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: fileId,
-      range: `${SHEET_TABS.STATUSES}!A:A`,
+      range: `${SHEET_TABS.STATUSES}!A:B`,
     });
 
     const rows = valuesRes.data.values || [];
-    const statuses = rows.slice(1).map(row => row[0]).filter(Boolean);
+    // Use column B if available, else A
+    const statuses = rows.slice(1).map(row => row[1] || row[0]).filter(Boolean);
 
     res.json(statuses);
   } catch (error) {
