@@ -114,7 +114,10 @@ const RESOURCE_CACHE = {
   ttl: parseInt(process.env.RESOURCE_CACHE_TTL_MS || "120000")
 };
 
+console.log(`[Cache] Resource Cache TTL initialized: ${RESOURCE_CACHE.ttl}ms`);
+
 const invalidateCache = (type: "hospitals" | "statuses") => {
+  console.log(`[Cache] Invalidating ${type} cache`);
   if (type === "hospitals") RESOURCE_CACHE.hospitals.lastFetch = 0;
   if (type === "statuses") RESOURCE_CACHE.statuses.lastFetch = 0;
 };
@@ -627,6 +630,10 @@ app.get("/api/app/patients", async (req, res) => {
   try {
     const fileId = await getOrCreateMasterSheet(auth);
 
+    const now = Date.now();
+    const useCacheHospitals = RESOURCE_CACHE.hospitals.data && (now - RESOURCE_CACHE.hospitals.lastFetch < RESOURCE_CACHE.ttl);
+    const useCacheStatuses = RESOURCE_CACHE.statuses.data && (now - RESOURCE_CACHE.statuses.lastFetch < RESOURCE_CACHE.ttl);
+
     // Get base data ranges
     const ranges = [
       `${SHEET_TABS.CADASTRO}!A:H`,
@@ -634,39 +641,50 @@ app.get("/api/app/patients", async (req, res) => {
       `${SHEET_TABS.LOCAL_USER}!A:E`
     ];
 
-    // Only fetch hospitals/statuses if not in cache or expired
-    const now = Date.now();
-    const useCacheHospitals = RESOURCE_CACHE.hospitals.data && (now - RESOURCE_CACHE.hospitals.lastFetch < RESOURCE_CACHE.ttl);
-    const useCacheStatuses = RESOURCE_CACHE.statuses.data && (now - RESOURCE_CACHE.statuses.lastFetch < RESOURCE_CACHE.ttl);
+    const rangeMap: Record<string, number> = { cadastro: 0, statusUser: 1, localUser: 2 };
 
-    if (!useCacheHospitals) ranges.push(`${SHEET_TABS.HOSPITAIS}!A:B`);
-    if (!useCacheStatuses) ranges.push(`${SHEET_TABS.STATUSES}!A:B`);
+    if (!useCacheHospitals) {
+      console.log("[Cache] Miss: hospitals (fetching full A:H)");
+      rangeMap.hospitals = ranges.length;
+      ranges.push(`${SHEET_TABS.HOSPITAIS}!A:H`);
+    } else {
+      console.log("[Cache] Hit: hospitals");
+    }
+
+    if (!useCacheStatuses) {
+      console.log("[Cache] Miss: statuses (fetching A:B)");
+      rangeMap.statuses = ranges.length;
+      ranges.push(`${SHEET_TABS.STATUSES}!A:B`);
+    } else {
+      console.log("[Cache] Hit: statuses");
+    }
 
     const batchRes = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: fileId,
       ranges,
     });
 
-    const valueRanges = batchRes.data.valueRanges || [];
-    const cadRows = valueRanges[0]?.values || [];
-    const statusRows = valueRanges[1]?.values || [];
-    const localRows = valueRanges[2]?.values || [];
+    const vRanges = batchRes.data.valueRanges || [];
+    const cadRows = vRanges[rangeMap.cadastro]?.values || [];
+    const statusRows = vRanges[rangeMap.statusUser]?.values || [];
+    const localRows = vRanges[rangeMap.localUser]?.values || [];
     
-    let hospitalsRows = useCacheHospitals ? null : valueRanges[3]?.values;
-    let statusesRows = useCacheStatuses ? null : (useCacheHospitals ? valueRanges[3]?.values : valueRanges[4]?.values);
-
     // Update cache if we fetched fresh data
-    if (!useCacheHospitals && hospitalsRows) {
-      const hospitals = hospitalsRows.slice(1).map(row => ({
+    if (!useCacheHospitals && rangeMap.hospitals !== undefined) {
+      const hRows = vRanges[rangeMap.hospitals]?.values || [];
+      const hospitals = hRows.slice(1).map(row => ({
         id: row[0],
-        nome: row[1]
+        nome: row[1],
+        fone: row[2],
+        contatos: [row[3], row[4], row[5], row[6], row[7]].filter(Boolean)
       }));
       RESOURCE_CACHE.hospitals.data = hospitals;
       RESOURCE_CACHE.hospitals.lastFetch = now;
     }
     
-    if (!useCacheStatuses && statusesRows) {
-      const statuses = statusesRows.slice(1).map(row => ({
+    if (!useCacheStatuses && rangeMap.statuses !== undefined) {
+      const sRows = vRanges[rangeMap.statuses]?.values || [];
+      const statuses = sRows.slice(1).map(row => ({
         id: row[0],
         nome: row[1] || row[0]
       })).filter(s => s.nome);
@@ -869,8 +887,10 @@ app.get("/api/app/hospitals", async (req, res) => {
 
   const now = Date.now();
   if (RESOURCE_CACHE.hospitals.data && (now - RESOURCE_CACHE.hospitals.lastFetch < RESOURCE_CACHE.ttl)) {
+    console.log("[Cache] Hit (direct route): hospitals");
     return res.json(RESOURCE_CACHE.hospitals.data);
   }
+  console.log("[Cache] Miss (direct route): hospitals");
 
   const sheets = google.sheets({ version: "v4", auth });
 
@@ -1296,8 +1316,10 @@ app.get("/api/app/statuses", async (req, res) => {
 
   const now = Date.now();
   if (RESOURCE_CACHE.statuses.data && (now - RESOURCE_CACHE.statuses.lastFetch < RESOURCE_CACHE.ttl)) {
+    console.log("[Cache] Hit (direct route): statuses");
     return res.json(RESOURCE_CACHE.statuses.data);
   }
+  console.log("[Cache] Miss (direct route): statuses");
 
   const sheets = google.sheets({ version: "v4", auth });
 
