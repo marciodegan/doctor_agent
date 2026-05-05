@@ -28,6 +28,8 @@ interface Message {
     submitLabel: string;
     commandPrefix: string;
   };
+  isListing?: boolean;
+  listingTitle?: string;
 }
 
 const MessageForm: React.FC<{ 
@@ -1037,22 +1039,22 @@ export const Chat: React.FC = () => {
         // Main Action Buttons Line
         const currentFilters = `${hospitalFilter ? ` hospital:${hospitalFilter}` : ""}${statusFilter ? ` status:${statusFilter}` : ""}`;
         
-        filterAndSortUI += `**Filtrar e Ordenar:**\n`;
+        filterAndSortUI += `### 🔍 Filtrar e Ordenar\n`;
         filterAndSortUI += `[\`🔤 A-Z\`](/pacientes${currentFilters} sort:nome) `;
-        filterAndSortUI += `[\`⏰ Recentes\`](/pacientes${currentFilters} sort:id) `;
-        filterAndSortUI += `[\`📍 Status\`](/pacientes${currentFilters} view:status sort:${sort}) `;
-        filterAndSortUI += `[\`🏥 Hospitais\`](/pacientes${currentFilters} view:hospitais sort:${sort})\n\n`;
+        filterAndSortUI += `[\`⏰ Mais Recentes\`](/pacientes${currentFilters} sort:id) `;
+        filterAndSortUI += `[\`📍 Por Status\`](/pacientes${currentFilters} view:status sort:${sort}) `;
+        filterAndSortUI += `[\`🏥 Por Hospital\`](/pacientes${currentFilters} view:hospitais sort:${sort})\n\n`;
 
         // Sub-menus
         if (showHospitals && hospitals.length > 0) {
-          filterAndSortUI += `🏨 **Selecionar Hospital:**\n${hospitals.map(h => `[\`${h}\`](/pacientes hospital:${h} sort:${sort})`).join(" ")}\n\n`;
+          filterAndSortUI += `🏨 **Selecione o Hospital:**\n${hospitals.map(h => `[\`${h}\`](/pacientes hospital:${h} sort:${sort})`).join(" ")}\n\n`;
         }
         if (showStatuses && statuses.length > 0) {
-          filterAndSortUI += `📍 **Selecionar Status:**\n${statuses.map(s => `[\`${s}\`](/pacientes status:${s} sort:${sort})`).join(" ")}\n\n`;
+          filterAndSortUI += `📍 **Selecione o Status:**\n${statuses.map(s => `[\`${s}\`](/pacientes status:${s} sort:${sort})`).join(" ")}\n\n`;
         }
 
         if (hospitalFilter || statusFilter) {
-          filterAndSortUI += `✅ Filtrado por: **${hospitalFilter || statusFilter}** [ Limpar ❌ ](/pacientes sort:${sort})\n\n`;
+          filterAndSortUI += `✅ Filtro Ativo: **${hospitalFilter || ""} ${statusFilter || ""}** [ ❌ Limpar ](/pacientes sort:${sort})\n\n`;
         }
 
         const PAGE_SIZE = 8;
@@ -1082,17 +1084,16 @@ export const Chat: React.FC = () => {
           if (pageToView < totalPages) nav += ` \`${cmdName}${currentFilters} pag:${pageToView + 1} sort:${sort}\` `;
         }
 
-        let title = `📂 **Cadastro de Pacientes (${data.length} total)**`;
+        let title = `📂 Cadastro de Pacientes (${data.length})`;
         if (hospitalFilter || statusFilter) {
-          title = `🔍 **Resultados (${filteredData.length})**`;
+          title = `🔍 Resultados (${filteredData.length})`;
         }
-
-        // Simulating right-alignment in standard markdown with a header and action block
-        const topHeader = `### ${title}\n\`/iniciarcadastro label:➕ NOVO PACIENTE\`\n\n---\n`;
 
         setMessages([{ 
           role: "model", 
-          text: `${topHeader}${filterAndSortUI}${list || "Nenhum paciente encontrado."}${nav}` 
+          text: `${list || "Nenhum paciente encontrado."}\n\n---\n${filterAndSortUI}${nav}`,
+          isListing: true,
+          listingTitle: title
         }]);
         setTimeout(scrollToTop, 0);
       } catch (err: any) {
@@ -1818,6 +1819,18 @@ export const Chat: React.FC = () => {
             >
               <div className="flex gap-3 w-full">
                 <div className={`p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full overflow-hidden ${msg.isProfile ? 'pt-0 ring-1 ring-blue-100' : ''}`}>
+                  {msg.isListing && msg.listingTitle && (
+                    <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
+                      <h3 className="text-base font-extrabold text-gray-800 tracking-tight">{msg.listingTitle}</h3>
+                      <button 
+                        onClick={() => handleSend(undefined, "/iniciarcadastro", true)}
+                        className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm shadow-blue-100 hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                      >
+                        <Plus size={14} />
+                        NOVO PACIENTE
+                      </button>
+                    </div>
+                  )}
                   {msg.isProfile && msg.profileData && (
                     <div className="bg-blue-50 -mx-4 -mt-4 mb-6 p-10 flex flex-col items-center justify-center border-b border-blue-100 shadow-sm relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100/30 rounded-full -mr-16 -mt-16 blur-2xl"></div>

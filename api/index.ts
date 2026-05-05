@@ -114,7 +114,7 @@ const getOrCreateMasterSheet = async (auth: any) => {
 
     // Initialize Headers
     await Promise.all([
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status", "paciente_cpf", "hospital_nome", "room_number"]] } }),
+      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "Status", "hospital_nome", "room_number", "paciente_cpf"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "paciente_nome", "descricao"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link", "ai_resposta"]] } }),
       sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["id", "nome_familiar", "tipo_parentesco", "telefone", "paciente_id", "paciente_nome"]] } }),
@@ -557,8 +557,8 @@ app.get("/api/app/patients", async (req, res) => {
       fone: row[2],
       idade: row[3],
       status: row[4] || "Não informado",
-      hospitalName: row[6] || "",
-      roomNumber: row[7] || ""
+      hospitalName: row[5] || "",
+      roomNumber: row[6] || ""
     }));
 
     // Enrich with Status User (most recent)
@@ -956,13 +956,13 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
     const ids = rows.slice(1).map(r => parseInt(r[0])).filter(n => !isNaN(n));
     const nextId = (ids.length > 0 ? Math.max(...ids) + 1 : 1).toString();
 
-    // Append new patient: ID, Nome, Telefone, Idade, Status, paciente_cpf, hospital_nome, room_number
+    // Append new patient: ID, Nome, Telefone, Idade, Status, hospital_nome, room_number, paciente_cpf
     await sheets.spreadsheets.values.append({
       spreadsheetId: fileId,
       range: `${SHEET_TABS.CADASTRO}!A:H`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: [[nextId, nome, fone, idade, status || "Não informado", cpf || "", hospitalName || "", roomNumber || ""]]
+        values: [[nextId, nome, fone, idade, status || "Não informado", hospitalName || "", roomNumber || "", cpf || ""]]
       }
     });
 
@@ -1107,7 +1107,7 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
     if (hospitalName !== undefined) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: fileId,
-        range: `${SHEET_TABS.CADASTRO}!G${rowNumber}`,
+        range: `${SHEET_TABS.CADASTRO}!F${rowNumber}`,
         valueInputOption: "USER_ENTERED",
         requestBody: { values: [[hospitalName]] }
       });
@@ -1115,7 +1115,7 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
     if (roomNumber !== undefined) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: fileId,
-        range: `${SHEET_TABS.CADASTRO}!H${rowNumber}`,
+        range: `${SHEET_TABS.CADASTRO}!G${rowNumber}`,
         valueInputOption: "USER_ENTERED",
         requestBody: { values: [[roomNumber]] }
       });
