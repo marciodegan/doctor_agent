@@ -24,6 +24,23 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
 
+// Quota usage middleware
+app.use(async (req, res, next) => {
+  if (req.path.startsWith("/api/app/")) {
+    try {
+      const auth = getAuthClient(req);
+      if (auth) {
+        // Try to get email from tokens if possible (it's often in id_token part of response if requested)
+        // or just log the userId if we had it. For now, just mark as authenticated.
+        logQuotaUsage(auth, req.path, req.method).catch(() => {});
+      }
+    } catch (e) {
+      // Ignore auth errors in middleware to allow normal flow
+    }
+  }
+  next();
+});
+
 const getRedirectUri = (req?: express.Request) => {
   // Allow explicit override via environment variable
   if (process.env.GOOGLE_REDIRECT_URL) {
@@ -81,107 +98,148 @@ const SHEET_TABS = {
   OPCOES_IMAGENS: "OpcoesImagens",
   STATUS_USER: "Status User",
   LOCAL_USER: "Local User",
-  AI_USAGE: "AI_Usage"
+  AI_USAGE: "AI_Usage",
+  QUOTA_USAGE: "QuotaUsage"
 };
+
+// Cache for Master Sheet ID and verification status to reduce quota consumption
+let cachedMasterFileId: string | null = null;
+let masterSheetTabsVerified = false;
+let masterSheetInitPromise: Promise<string> | null = null;
 
 // --- Helper for Unifying Databases ---
 const getOrCreateMasterSheet = async (auth: any) => {
-  const drive = google.drive({ version: "v3", auth });
-  const sheets = google.sheets({ version: "v4", auth });
-
-  console.log(`[Drive] Searching for master sheet: ${MASTER_SHEET_NAME}`);
-  const search = await drive.files.list({
-    q: `name = '${MASTER_SHEET_NAME}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
-    fields: "files(id, name, owners, shared)",
-  });
-
-  const files = search.data.files || [];
-  console.log(`[Drive] Found ${files.length} potential master sheets.`);
-
-  // If multiple exist, try to pick one that is NOT owned by the current user if they are a "guest" or just the first one
-  // For now, we'll just take the first one found, but broadening the scope ensures we see shared ones.
-  let fileId = files[0]?.id;
-
-  if (!fileId) {
-    console.log(`[Drive] Master sheet not found. Creating a new one...`);
-    const createRes = await sheets.spreadsheets.create({
-      requestBody: {
-        properties: { title: MASTER_SHEET_NAME },
-        sheets: Object.values(SHEET_TABS).map(title => ({ properties: { title } }))
-      }
-    });
-    fileId = createRes.data.spreadsheetId;
-
-    // Initialize Headers
-    await Promise.all([
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "status_id", "hospital_id", "room_number", "paciente_cpf"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "paciente_nome", "descricao"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link", "ai_resposta"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["id", "nome_familiar", "tipo_parentesco", "telefone", "paciente_id", "paciente_nome"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.HOSPITAIS}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome do Hospital", "Telefone", "Contato 1", "Contato 2", "Contato 3", "Contato 4", "Contato 5"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:B7`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome"], ["1", "Pré-operatorio"], ["2", "Pós-operatorio"], ["3", "Acompanhamento"], ["4", "Alta"], ["5", "Não informado"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } }),
-      sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.AI_USAGE}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Data", "UsageCount"]] } })
-    ]);
-  } else {
-    // Ensure all tabs exist
-    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: fileId });
-    const existingTabs = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
-    const missingTabs = Object.values(SHEET_TABS).filter(t => !existingTabs.includes(t));
-
-    if (missingTabs.length > 0) {
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: fileId,
-        requestBody: {
-          requests: missingTabs.map(title => ({
-            addSheet: { properties: { title } }
-          }))
-        }
-      });
-
-      // Initialize missing headers if needed
-      for (const tab of missingTabs) {
-        if (tab === SHEET_TABS.STATUSES) {
-          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUSES}!A1:A6`, valueInputOption: "RAW", requestBody: { values: [["Nome"], ["Pré-operatorio"], ["Pós-operatorio"], ["Acompanhamento"], ["Alta"], ["Não informado"]] } });
-        }
-        if (tab === SHEET_TABS.STATUS_LOG) {
-          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } });
-        }
-        if (tab === SHEET_TABS.OPCOES_IMAGENS) {
-          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } });
-        }
-        if (tab === SHEET_TABS.STATUS_USER) {
-          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } });
-        }
-        if (tab === SHEET_TABS.LOCAL_USER) {
-          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } });
-        }
-        if (tab === SHEET_TABS.AI_USAGE) {
-          await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.AI_USAGE}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Data", "UsageCount"]] } });
-        }
-      }
-      console.log(`[Drive] Added missing tabs: ${missingTabs.join(", ")}`);
-    }
-
-    // Ensure AI_Resposta column exists in ARQUIVOS
-    const range = `${SHEET_TABS.ARQUIVOS}!1:1`;
-    const headersRes = await sheets.spreadsheets.values.get({ spreadsheetId: fileId, range });
-    const headers = headersRes.data.values?.[0] || [];
-    if (!headers.includes("ai_resposta")) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.ARQUIVOS}!E1`,
-        valueInputOption: "RAW",
-        requestBody: { values: [["ai_resposta"]] }
-      });
-    }
+  // If already verified in this process life, return immediately
+  if (cachedMasterFileId && masterSheetTabsVerified) {
+    return cachedMasterFileId;
   }
-  
-  return fileId as string;
+
+  // Prevent race conditions with a shared promise
+  if (masterSheetInitPromise) {
+    return masterSheetInitPromise;
+  }
+
+  masterSheetInitPromise = (async () => {
+    try {
+      const drive = google.drive({ version: "v3", auth });
+      const sheets = google.sheets({ version: "v4", auth });
+
+      let fileId = cachedMasterFileId;
+
+      if (!fileId) {
+        console.log(`[Drive] Searching for master sheet: ${MASTER_SHEET_NAME}`);
+        const search = await drive.files.list({
+          q: `name = '${MASTER_SHEET_NAME}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
+          fields: "files(id, name, owners, shared)",
+        });
+
+        const files = search.data.files || [];
+        console.log(`[Drive] Found ${files.length} potential master sheets.`);
+        fileId = files[0]?.id;
+      }
+
+      if (!fileId) {
+        console.log(`[Drive] Master sheet not found. Creating a new one...`);
+        const createRes = await sheets.spreadsheets.create({
+          requestBody: {
+            properties: { title: MASTER_SHEET_NAME },
+            sheets: Object.values(SHEET_TABS).map(title => ({ properties: { title } }))
+          }
+        });
+        fileId = createRes.data.spreadsheetId;
+
+        if (!fileId) throw new Error("Failed to create master sheet");
+
+        // Initialize Headers
+        await Promise.all([
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "status_id", "hospital_id", "room_number", "paciente_cpf"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "paciente_nome", "descricao"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link", "ai_resposta"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["id", "nome_familiar", "tipo_parentesco", "telefone", "paciente_id", "paciente_nome"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.HOSPITAIS}!A1:H1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome do Hospital", "Telefone", "Contato 1", "Contato 2", "Contato 3", "Contato 4", "Contato 5"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUSES}!A1:B7`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome"], ["1", "Pré-operatorio"], ["2", "Pós-operatorio"], ["3", "Acompanhamento"], ["4", "Alta"], ["5", "Não informado"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.AI_USAGE}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Data", "UsageCount"]] } }),
+          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.QUOTA_USAGE}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["Timestamp", "Endpoint", "Method", "User"]] } })
+        ]);
+        masterSheetTabsVerified = true;
+      } else if (!masterSheetTabsVerified) {
+        // Ensure all tabs exist in the existing sheet
+        console.log(`[Drive] Verifying tabs for master sheet: ${fileId}`);
+        const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: fileId });
+        const existingTabs = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
+        const requiredTabs = Object.values(SHEET_TABS);
+        const missingTabs = requiredTabs.filter(t => !existingTabs.includes(t));
+
+        if (missingTabs.length > 0) {
+          console.log(`[Drive] Adding missing tabs: ${missingTabs.join(", ")}`);
+          await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: fileId,
+            requestBody: {
+              requests: missingTabs.map(title => ({
+                addSheet: { properties: { title } }
+              }))
+            }
+          });
+
+          // Initialize missing headers
+          for (const tab of missingTabs) {
+            console.log(`[Drive] Initializing headers for missing tab: ${tab}`);
+            if (tab === SHEET_TABS.STATUSES) {
+              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUSES}!A1:B7`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome"], ["1", "Pré-operatorio"], ["2", "Pós-operatorio"], ["3", "Acompanhamento"], ["4", "Alta"], ["5", "Não informado"]] } });
+            }
+            if (tab === SHEET_TABS.STATUS_LOG) {
+              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } });
+            }
+            if (tab === SHEET_TABS.OPCOES_IMAGENS) {
+              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } });
+            }
+            if (tab === SHEET_TABS.STATUS_USER) {
+              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } });
+            }
+            if (tab === SHEET_TABS.LOCAL_USER) {
+              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } });
+            }
+            if (tab === SHEET_TABS.AI_USAGE) {
+              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.AI_USAGE}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Data", "UsageCount"]] } });
+            }
+            if (tab === SHEET_TABS.QUOTA_USAGE) {
+              console.log("[Drive] Initializing QuotaUsage headers...");
+              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.QUOTA_USAGE}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["Timestamp", "Endpoint", "Method", "User"]] } });
+            }
+          }
+        }
+
+        // Ensure AI_Resposta column exists in ARQUIVOS
+        const range = `${SHEET_TABS.ARQUIVOS}!1:1`;
+        const headersRes = await sheets.spreadsheets.values.get({ spreadsheetId: fileId, range });
+        const headers = headersRes.data.values?.[0] || [];
+        if (!headers.includes("ai_resposta")) {
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: fileId,
+            range: `${SHEET_TABS.ARQUIVOS}!E1`,
+            valueInputOption: "RAW",
+            requestBody: { values: [["ai_resposta"]] }
+          });
+        }
+        masterSheetTabsVerified = true;
+      }
+      
+      cachedMasterFileId = fileId as string;
+      return fileId as string;
+    } catch (err) {
+      console.error("[Drive] masterSheetInitPromise error:", err);
+      throw err;
+    } finally {
+      masterSheetInitPromise = null;
+    }
+  })();
+
+  return masterSheetInitPromise;
 };
 
 const checkAndIncrementAIUsage = async (auth: any) => {
@@ -216,6 +274,30 @@ const checkAndIncrementAIUsage = async (auth: any) => {
       valueInputOption: "RAW",
       requestBody: { values: [[today, 1]] }
     });
+  }
+};
+
+const logQuotaUsage = async (auth: any, endpoint: string, method: string, userEmail?: string) => {
+  try {
+    const fileId = await getOrCreateMasterSheet(auth);
+    const sheets = google.sheets({ version: "v4", auth });
+    const timestamp = new Date().toISOString();
+    
+    // Fire and forget, but with a simple log
+    sheets.spreadsheets.values.append({
+      spreadsheetId: fileId,
+      range: `${SHEET_TABS.QUOTA_USAGE}!A:D`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [[timestamp, endpoint, method, userEmail || "authenticated_user"]]
+      }
+    }).then(() => {
+      // console.log(`[Quota] Logged usage for ${endpoint}`);
+    }).catch(e => {
+      console.error(`[Quota] Failed to log usage for ${endpoint}:`, e.message);
+    });
+  } catch (err) {
+    // Silent fail for logs to not break UI
   }
 };
 
@@ -533,11 +615,13 @@ app.get("/api/app/patients", async (req, res) => {
   try {
     const fileId = await getOrCreateMasterSheet(auth);
 
-    // Get values from Cadastro, Status User, and Local User tabs
+    // Get values from Cadastro, Status User, and Local User tabs + Master Hospitals and Statuses to combine requests
     const ranges = [
       `${SHEET_TABS.CADASTRO}!A:H`,
       `${SHEET_TABS.STATUS_USER}!A:E`,
-      `${SHEET_TABS.LOCAL_USER}!A:E`
+      `${SHEET_TABS.LOCAL_USER}!A:E`,
+      `${SHEET_TABS.HOSPITAIS}!A:B`,
+      `${SHEET_TABS.STATUSES}!A:B`
     ];
 
     const batchRes = await sheets.spreadsheets.values.batchGet({
@@ -549,22 +633,39 @@ app.get("/api/app/patients", async (req, res) => {
     const cadRows = valueRanges[0]?.values || [];
     const statusRows = valueRanges[1]?.values || [];
     const localRows = valueRanges[2]?.values || [];
+    const hospitalsRows = valueRanges[3]?.values || [];
+    const statusesRows = valueRanges[4]?.values || [];
 
-    // Also get master hospitals and statuses to resolve IDs to names
-    const masterRes = await sheets.spreadsheets.values.batchGet({
-      spreadsheetId: fileId,
-      ranges: [`${SHEET_TABS.HOSPITAIS}!A:B`, `${SHEET_TABS.STATUSES}!A:B`]
+    const hMap = Object.fromEntries(hospitalsRows.slice(1).map(r => [r[0], r[1]]));
+    const sMap = Object.fromEntries(statusesRows.slice(1).map(r => [r[0], r[1]]));
+
+    // Pre-index status and local data for O(1) lookup
+    const statusMap = new Map<string, string>();
+    statusRows.slice(1).forEach(r => {
+      const pId = r[3]?.toString().trim();
+      const status = r[2]?.toString().trim();
+      if (pId && status) statusMap.set(pId, status); // Map stores last one seen
     });
-    const masterValueRanges = masterRes.data.valueRanges || [];
-    const hMap = Object.fromEntries((masterValueRanges[0]?.values || []).slice(1).map(r => [r[0], r[1]]));
-    const sMap = Object.fromEntries((masterValueRanges[1]?.values || []).slice(1).map(r => [r[0], r[1]]));
+
+    const localMap = new Map<string, { room: string, hospital: string }>();
+    localRows.slice(1).forEach(r => {
+      const pId = r[3]?.toString().trim();
+      if (pId) {
+        localMap.set(pId, {
+          room: r[1]?.toString().trim() || "",
+          hospital: r[2]?.toString().trim() || ""
+        });
+      }
+    });
 
     // Map patients basic info
     const patients = cadRows.slice(1).map(row => {
+      const id = row[0]?.toString().trim();
       const statusId = row[4]?.toString().trim();
       const hospitalId = row[5]?.toString().trim();
-      return {
-        id: row[0]?.toString().trim(),
+      
+      const p: any = {
+        id: id,
         nome: row[1]?.toString().trim(),
         fone: row[2]?.toString().trim(),
         idade: row[3]?.toString().trim(),
@@ -574,25 +675,20 @@ app.get("/api/app/patients", async (req, res) => {
         hospitalName: hMap[hospitalId] || hospitalId || "",
         roomNumber: row[6]?.toString().trim() || ""
       };
-    });
 
-    // Enrich with Status User (most recent)
-    // format: status_id, status_data, status_atual, paciente_id, paciente_nome
-    patients.forEach(p => {
-      const pStatusRows = statusRows.slice(1).filter(r => r[3]?.toString().trim() === p.id);
-      if (pStatusRows.length > 0) {
-        // Last row is usually the most recent if appended
-        const lastStatus = pStatusRows[pStatusRows.length - 1];
-        p.status = lastStatus[2]?.toString().trim() || p.status;
+      // Enrich with Status User (most recent from Map)
+      if (id && statusMap.has(id)) {
+        p.status = statusMap.get(id);
       }
 
       // Enrichment with Local User
-      // format: local_id, local_room_number, local_hospital, paciente_id, paciente_nome
-      const pLocalRow = localRows.slice(1).find(r => r[3]?.toString().trim() === p.id);
-      if (pLocalRow) {
-        p.roomNumber = pLocalRow[1]?.toString().trim() || p.roomNumber;
-        p.hospitalName = pLocalRow[2]?.toString().trim() || p.hospitalName;
+      if (id && localMap.has(id)) {
+        const local = localMap.get(id)!;
+        p.roomNumber = local.room || p.roomNumber;
+        p.hospitalName = local.hospital || p.hospitalName;
       }
+
+      return p;
     });
 
     res.json(patients);
