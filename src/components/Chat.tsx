@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
 
 interface Message {
@@ -1899,6 +1900,7 @@ export const Chat: React.FC = () => {
                     <>
                       <div className="markdown-body prose prose-sm max-w-none">
                         <ReactMarkdown
+                          rehypePlugins={[rehypeRaw]}
                           components={{
                             code({ children, ...props }) {
                               const content = String(children);
