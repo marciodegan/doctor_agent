@@ -634,9 +634,11 @@ app.get("/api/app/patients", async (req, res) => {
 
     // Get base data ranges
     const ranges = [
-      `${SHEET_TABS.CADASTRO}!A:W`, // Fetch wider range to include Hospitals (M:T) and Statuses (V:W)
+      `${SHEET_TABS.CADASTRO}!A:K`, // Fetch patient data
       `${SHEET_TABS.STATUS_USER}!A:E`,
-      `${SHEET_TABS.LOCAL_USER}!A:E`
+      `${SHEET_TABS.LOCAL_USER}!A:E`,
+      `${SHEET_TABS.HOSPITAIS}!A:O`, // Fetch hospital master data (up to column O)
+      `${SHEET_TABS.STATUSES}!A:B`
     ];
 
     const batchRes = await sheets.spreadsheets.values.batchGet({
@@ -646,37 +648,37 @@ app.get("/api/app/patients", async (req, res) => {
 
     const vRanges = batchRes.data.valueRanges || [];
     const cadRows = vRanges[0]?.values || [];
-    const statusRows = vRanges[1]?.values || [];
+    const statusHistoryRows = vRanges[1]?.values || [];
     const localRows = vRanges[2]?.values || [];
+    const hospitalRows = vRanges[3]?.values || [];
+    const statusMasterRows = vRanges[4]?.values || [];
     
-    // Parse Hospitals from Cadastro columns M:T (indices 12 to 19)
-    const hospitals = cadRows.slice(1)
-      .filter(row => row[12]) // Must have an ID in column M
+    // Parse Hospitals from Hospitais tab (Column N=13, Column O=14)
+    const hospitals = hospitalRows.slice(1)
+      .filter(row => row[13]) // Column N
       .map(row => ({
-        id: row[12]?.toString().trim(),
-        nome: (row[14] || row[13])?.toString().trim(), // User said column O (index 14) is hospital_nome
-        fone: row[15]?.toString().trim(), // Shifted phone to index 15
-        contatos: [row[16], row[17], row[18], row[19]].filter(Boolean)
+        id: row[13]?.toString().trim(),
+        nome: row[14]?.toString().trim() || row[13]?.toString().trim(), // Column O
+        fone: row[2]?.toString().trim(),
+        contatos: [row[3], row[4], row[5], row[6], row[7]].filter(Boolean)
       }));
 
     if (hospitals.length > 0) {
       RESOURCE_CACHE.hospitals.data = hospitals;
       RESOURCE_CACHE.hospitals.lastFetch = now;
-      console.log(`[Cache] Updated hospitals cache from Cadastro sheet (${hospitals.length} items)`);
     }
 
-    // Parse Statuses from Cadastro columns V:W (indices 21 to 22)
-    const statuses = cadRows.slice(1)
-      .filter(row => row[21]) // Must have an ID in column V
+    // Parse Statuses
+    const statuses = statusMasterRows.slice(1)
+      .filter(row => row[0])
       .map(row => ({
-        id: row[21]?.toString().trim(),
-        nome: row[22]?.toString().trim() || row[21]?.toString().trim()
+        id: row[0]?.toString().trim(),
+        nome: row[1]?.toString().trim() || row[0]?.toString().trim()
       }));
 
     if (statuses.length > 0) {
       RESOURCE_CACHE.statuses.data = statuses;
       RESOURCE_CACHE.statuses.lastFetch = now;
-      console.log(`[Cache] Updated statuses cache from Cadastro sheet (${statuses.length} items)`);
     }
 
     const hData = RESOURCE_CACHE.hospitals.data || [];
@@ -691,7 +693,7 @@ app.get("/api/app/patients", async (req, res) => {
 
     // Pre-index status and local data for O(1) lookup
     const statusMap = new Map<string, string>();
-    statusRows.slice(1).forEach(r => {
+    statusHistoryRows.slice(1).forEach(r => {
       const pId = r[3]?.toString().trim();
       const status = r[2]?.toString().trim();
       if (pId && status) statusMap.set(pId, status); // Map stores last one seen
