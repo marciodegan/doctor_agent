@@ -26,16 +26,35 @@ try {
 // Initialize Firebase Admin lazily or at module level but safely
 if (firebaseConfig.projectId && !admin.apps.length) {
   try {
-    admin.initializeApp({
-      projectId: firebaseConfig.projectId,
-    });
-    console.log("[Firebase] Admin initialized for project:", firebaseConfig.projectId);
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (serviceAccount) {
+      try {
+        const cert = JSON.parse(serviceAccount);
+        admin.initializeApp({
+          credential: admin.credential.cert(cert),
+          projectId: firebaseConfig.projectId,
+        });
+        console.log("[Firebase] Admin initialized with service account from env.");
+      } catch (jsonErr) {
+        console.error("[Firebase] FIREBASE_SERVICE_ACCOUNT parsing error:", jsonErr);
+        // Fallback to default
+        admin.initializeApp({ projectId: firebaseConfig.projectId });
+      }
+    } else {
+      admin.initializeApp({
+        projectId: firebaseConfig.projectId,
+      });
+      console.log("[Firebase] Admin initialized with projectId (ADC):", firebaseConfig.projectId);
+    }
   } catch (e) {
     console.error("[Firebase] Admin initialization error:", e);
   }
 }
 
 const _getDb = () => {
+  if (!admin.apps.length) {
+    throw new Error("Firebase Admin not initialized. Ensure firebase-applet-config.json exists or FIREBASE_SERVICE_ACCOUNT is set in environment.");
+  }
   if (!firebaseConfig.firestoreDatabaseId) {
     throw new Error("Firestore Database ID is not configured in firebase-applet-config.json");
   }
@@ -668,8 +687,12 @@ app.get("/api/auth/firebase-token", async (req, res) => {
     }, { merge: true });
 
     res.json({ customToken });
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+  } catch (err: any) {
+    console.error("[Firebase] Error in /api/auth/firebase-token:", err);
+    res.status(500).json({ 
+      error: err.message, 
+      details: "This error usually means the Firebase Admin SDK is not correctly initialized with a Service Account which is required for createCustomToken on external platforms like Vercel."
+    });
   }
 });
 
@@ -684,7 +707,8 @@ app.get("/api/auth/status", (req, res) => {
         cookieCount: Object.keys(req.cookies || {}).length,
         allCookies: Object.keys(req.cookies || {}),
         ua: req.headers["user-agent"],
-        configLoaded: !!firebaseConfig.projectId
+        configLoaded: !!firebaseConfig.projectId,
+        hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT
       }
     });
   } catch (err: any) {
@@ -764,6 +788,25 @@ const migrateHospitalsAndStatuses = async (auth: any) => {
   }
 };
 
+const handleApiError = (res: express.Response, error: any, context: string) => {
+  console.error(`[API Error] ${context}:`, error);
+  const errorMessage = error.message || "Internal Server Error";
+  
+  let details = undefined;
+  if (errorMessage.includes("credentials") || 
+      errorMessage.includes("initialized") || 
+      errorMessage.includes("no-app") ||
+      error.code === "ERR_OSSL_PEM_NO_START_LINE") {
+    details = "Firebase initialization error. This usually means the Service Account is missing or invalid. On Vercel, set the FIREBASE_SERVICE_ACCOUNT environment variable to the JSON content of your service account key.";
+  }
+
+  res.status(500).json({ 
+    error: errorMessage,
+    context,
+    details
+  });
+};
+
 // Get all patients directly from Firestore
 app.get("/api/app/patients", async (req, res) => {
   const auth = getAuthClient(req);
@@ -802,7 +845,7 @@ app.get("/api/app/patients", async (req, res) => {
       res.json(patients);
     }
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Fetching patients");
   }
 });
 
@@ -819,7 +862,7 @@ app.get("/api/app/settings", async (req, res) => {
       companyName: settings["companyName"] || "Doctor Pro"
     });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Fetching settings");
   }
 });
 
@@ -833,7 +876,7 @@ app.post("/api/app/settings", async (req, res) => {
     }
     res.json({ status: "ok" });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Updating settings");
   }
 });
 
@@ -893,7 +936,7 @@ app.get("/api/app/hospitals", async (req, res) => {
     const hospitals = snap.docs.map(doc => doc.data());
     res.json(hospitals);
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Fetching hospitals");
   }
 });
 
@@ -914,7 +957,7 @@ app.post("/api/app/hospitals", express.json(), async (req, res) => {
 
     res.json({ success: true, id: hospitalRef.id });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Adding hospital");
   }
 });
 
@@ -928,7 +971,7 @@ app.get("/api/app/image-options", async (req, res) => {
     }
     res.json(options);
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Fetching image options");
   }
 });
 
@@ -1047,7 +1090,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
 
     res.json({ success: true, id: patientRef.id });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Registering patient");
   }
 });
 
@@ -1100,7 +1143,7 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Updating patient status");
   }
 });
 
@@ -1129,7 +1172,7 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Updating patient info");
   }
 });
 
@@ -1140,7 +1183,7 @@ app.get("/api/app/statuses", async (req, res) => {
     const statuses = statusesSnap.docs.map(doc => doc.data());
     res.json(statuses);
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Fetching statuses");
   }
 });
 
@@ -1159,7 +1202,7 @@ app.get("/api/app/family-members/:patientId", async (req, res) => {
 
     res.json(family);
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Fetching family members");
   }
 });
 
@@ -1187,7 +1230,7 @@ app.post("/api/app/family-members", express.json(), async (req, res) => {
 
     res.json({ success: true, id: memberRef.id });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Adding family member");
   }
 });
 // Add a log entry for a patient
@@ -1213,7 +1256,7 @@ app.post("/api/app/logs", express.json(), async (req, res) => {
 
     res.json({ success: true, id: logRef.id });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Adding log entry");
   }
 });
 
@@ -1273,7 +1316,7 @@ app.post("/api/app/upload-image", express.json({ limit: "10mb" }), async (req, r
 
     res.json({ success: true, fileId: driveFileId, link: shareLink });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    handleApiError(res, error, "Uploading image");
   }
 });
 

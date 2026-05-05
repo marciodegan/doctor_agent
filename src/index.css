@@ -12,9 +12,13 @@
 
   .markdown-body {
     @apply leading-relaxed;
+    font-size: 14px; /* Default */
   }
   .markdown-body a {
     @apply text-blue-600 hover:underline font-medium;
+  }
+  .markdown-body strong {
+    font-size: 15px; /* Patient names or bold highlights */
   }
   .markdown-body p {
     @apply mb-2 last:mb-0;
