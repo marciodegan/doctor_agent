@@ -841,11 +841,11 @@ app.get("/api/app/patients", async (req, res) => {
         patients,
         hospitals: hospitalsSnap.docs.map(d => {
           const hData = d.data();
-          return { ...hData, nome: hData.name };
+          return { id: d.id, ...hData, nome: hData.name };
         }),
         statuses: statusesSnap.docs.map(d => {
           const sData = d.data();
-          return { ...sData, nome: sData.name };
+          return { id: d.id, ...sData, nome: sData.name };
         })
       });
     } else {
@@ -942,7 +942,7 @@ app.get("/api/app/hospitals", async (req, res) => {
     const snap = await db.collection("hospitals").get();
     const hospitals = snap.docs.map(doc => {
       const data = doc.data();
-      return { ...data, nome: data.name };
+      return { id: doc.id, ...data, nome: data.name };
     });
     res.json(hospitals);
   } catch (error) {
@@ -1192,7 +1192,7 @@ app.get("/api/app/statuses", async (req, res) => {
     const statusesSnap = await db.collection("patient_statuses").orderBy("id").get();
     const statuses = statusesSnap.docs.map(doc => {
       const data = doc.data();
-      return { ...data, nome: data.name };
+      return { id: doc.id, ...data, nome: data.name };
     });
     res.json(statuses);
   } catch (error) {
