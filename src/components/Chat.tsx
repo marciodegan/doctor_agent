@@ -676,7 +676,7 @@ export const Chat: React.FC = () => {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
-        const list = data.map((s: string) => `• ${s}`).join("\n");
+        const list = data.map((s: any) => `• ${typeof s === 'string' ? s : s.nome || s.name}`).join("\n");
         setMessages(prev => [...prev, { 
           role: "model", 
           text: `🏷️ **Status Disponíveis:**\n\n${list || "Nenhum status encontrado."}` 

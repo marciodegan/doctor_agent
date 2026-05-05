@@ -830,6 +830,7 @@ app.get("/api/app/patients", async (req, res) => {
       return {
         id: doc.id,
         ...data,
+        nome: data.name, // Map name to nome for frontend
         hospitalName: hMap[data.hospitalId] || data.hospitalId || "Sem Hospital",
         status: sMap[data.statusId] || data.statusId || "Não informado"
       };
@@ -838,8 +839,14 @@ app.get("/api/app/patients", async (req, res) => {
     if (req.query.full === "true") {
       res.json({
         patients,
-        hospitals: hospitalsSnap.docs.map(d => d.data()),
-        statuses: statusesSnap.docs.map(d => d.data())
+        hospitals: hospitalsSnap.docs.map(d => {
+          const hData = d.data();
+          return { ...hData, nome: hData.name };
+        }),
+        statuses: statusesSnap.docs.map(d => {
+          const sData = d.data();
+          return { ...sData, nome: sData.name };
+        })
       });
     } else {
       res.json(patients);
@@ -933,7 +940,10 @@ app.post("/api/app/backup", async (req, res) => {
 app.get("/api/app/hospitals", async (req, res) => {
   try {
     const snap = await db.collection("hospitals").get();
-    const hospitals = snap.docs.map(doc => doc.data());
+    const hospitals = snap.docs.map(doc => {
+      const data = doc.data();
+      return { ...data, nome: data.name };
+    });
     res.json(hospitals);
   } catch (error) {
     handleApiError(res, error, "Fetching hospitals");
@@ -1180,7 +1190,10 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
 app.get("/api/app/statuses", async (req, res) => {
   try {
     const statusesSnap = await db.collection("patient_statuses").orderBy("id").get();
-    const statuses = statusesSnap.docs.map(doc => doc.data());
+    const statuses = statusesSnap.docs.map(doc => {
+      const data = doc.data();
+      return { ...data, nome: data.name };
+    });
     res.json(statuses);
   } catch (error) {
     handleApiError(res, error, "Fetching statuses");
