@@ -1022,15 +1022,17 @@ export const Chat: React.FC = () => {
 
         let filteredData = [...data];
         if (hospitalFilter) {
+          const hFilter = hospitalFilter.toLowerCase().trim();
           filteredData = filteredData.filter((p: any) => 
-            p.hospitalId?.toString() === hospitalFilter || 
-            p.hospitalName?.toLowerCase() === hospitalFilter.toLowerCase()
+            p.hospitalId?.toString().toLowerCase().trim() === hFilter || 
+            p.hospitalName?.toLowerCase().trim() === hFilter
           );
         }
         if (statusFilter) {
+          const sFilter = statusFilter.toLowerCase().trim();
           filteredData = filteredData.filter((p: any) => 
-            p.statusId?.toString() === statusFilter || 
-            p.status?.toLowerCase() === statusFilter.toLowerCase()
+            p.statusId?.toString().toLowerCase().trim() === sFilter || 
+            p.status?.toLowerCase().trim() === sFilter
           );
         }
 
@@ -1077,10 +1079,8 @@ export const Chat: React.FC = () => {
         let listText = `<div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">\n\n[➕ Novo Paciente](/iniciarcadastro)\n\n</div>\n\n`;
 
         Object.entries(hospitalsGrouped).forEach(([hName, group]) => {
-          // Hide hospital header if specifically filtering by hospital
-          if (!hospitalFilter) {
-            listText += `<div style="font-size: 18px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: 24px; margin-bottom: 12px; display: block; border-left: 4px solid #3b82f6;">${hName}</div>`;
-          }
+          // Always show hospital header as requested
+          listText += `<div style="font-size: 18px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: 24px; margin-bottom: 12px; display: block; border-left: 4px solid #3b82f6;">${hName}</div>`;
           
           // Sort statuses by their ID numerically
           const sortedStatuses = Object.values(group.statuses).sort((a, b) => {
@@ -1090,8 +1090,8 @@ export const Chat: React.FC = () => {
           });
 
           sortedStatuses.forEach(({ name: sName, patients }, statusIdx) => {
-            // Increased spacing between status groupings (twice the previous 24px = 48px, but only if not the very first one in the container)
-            const marginTop = (statusIdx === 0 && !hospitalFilter) ? "10px" : "40px";
+            // Spacing between status groupings
+            const marginTop = (statusIdx === 0) ? "10px" : "44px";
             listText += `<div style="font-size: 17px; font-weight: bold; color: #374151; margin-left: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
             patients.forEach(p => {
               const roomDisplay = p.roomNumber ? ` - ${p.roomNumber}` : "";
