@@ -119,10 +119,10 @@ export function Calendar() {
     fetchProcedures();
   }, []);
 
-  const [viewMode, setViewMode] = useState<"month" | "day">("month");
+  const [viewMode, setViewMode] = useState<"month" | "list">("month");
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split("T")[0]);
 
-  // Handle month navigation for day view too
+  // Handle month navigation for list view too
   const goToNextDay = () => {
     const d = new Date(selectedDay);
     d.setDate(d.getDate() + 1);
@@ -264,7 +264,7 @@ export function Calendar() {
           onClick={() => {
             const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
             setSelectedDay(dateStr);
-            setViewMode("day");
+            setViewMode("list");
           }}
           className={`h-24 sm:h-32 border-t border-l border-gray-100 p-1 sm:p-2 relative flex cursor-pointer flex-col hover:bg-gray-50/80 transition-colors ${isToday ? "bg-blue-50/30" : "bg-white"}`}
         >
@@ -332,7 +332,7 @@ export function Calendar() {
     setFormData({
       evento: "",
       data: dateStr || today.toISOString().split("T")[0],
-      hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }).replace(/^24/, "00"),
       descricao: "",
       tipo: "ELETIVA",
       sala: "SALA 1",
@@ -407,11 +407,7 @@ export function Calendar() {
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-black text-gray-900 tracking-tight">
-                {viewMode === "month" ? (
-                  `${MONTHS[currentDate.getMonth()]} ${currentDate.getFullYear()}`
-                ) : (
-                  new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long" }).format(new Date(selectedDay + "T12:00:00"))
-                )}
+                {`${MONTHS[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
               </h2>
               <div className="flex bg-gray-100 p-1 rounded-xl">
                 <button 
@@ -421,15 +417,15 @@ export function Calendar() {
                   MÊS
                 </button>
                 <button 
-                  onClick={() => setViewMode("day")}
-                  className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${viewMode === "day" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400"}`}
+                  onClick={() => setViewMode("list")}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${viewMode === "list" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400"}`}
                 >
-                  DIA
+                  LISTA
                 </button>
               </div>
             </div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-              {viewMode === "month" ? "Calendário Mensal" : "Programação Diária"}
+              {viewMode === "month" ? "Calendário Mensal" : "Lista de Procedimentos"}
             </p>
           </div>
         </div>
@@ -479,22 +475,22 @@ export function Calendar() {
 
           <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
             <button 
-              onClick={viewMode === "month" ? handlePrevMonth : goToPrevDay}
+              onClick={handlePrevMonth}
               className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
             >
               <ChevronLeft size={20} />
             </button>
             <button 
               onClick={() => {
-                if (viewMode === "month") setCurrentDate(new Date());
-                else setSelectedDay(new Date().toISOString().split("T")[0]);
+                setCurrentDate(new Date());
+                setSelectedDay(new Date().toISOString().split("T")[0]);
               }}
               className="px-3 text-xs font-bold text-gray-600 hover:text-blue-600"
             >
               Hoje
             </button>
             <button 
-              onClick={viewMode === "month" ? handleNextMonth : goToNextDay}
+              onClick={handleNextMonth}
               className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
             >
               <ChevronRight size={20} />
@@ -502,7 +498,7 @@ export function Calendar() {
           </div>
 
           <button 
-            onClick={() => openAddModal(viewMode === "day" ? selectedDay : undefined)}
+            onClick={() => openAddModal(viewMode === "list" ? selectedDay : undefined)}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
           >
             <Plus size={18} />
@@ -524,84 +520,118 @@ export function Calendar() {
           </div>
         ) : (
           <div className="max-w-4xl mx-auto p-4 sm:p-8">
-            {filteredEvents.filter(e => e.data === selectedDay).length === 0 ? (
-              <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-100">
-                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CalendarIcon className="text-gray-300" size={32} />
-                </div>
-                <h3 className="text-lg font-bold text-gray-700">Nenhum evento neste dia</h3>
-                <p className="text-gray-400 text-sm mt-1">Utilize o botão "+" para adicionar novos procedimentos.</p>
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {filteredEvents.filter(e => e.data === selectedDay).map(event => {
-                  const isSelected = selectedEventIds.has(event.id);
-                  const hosp = hospitalOptions.find(h => h.id === event.hospitalId);
-                  return (
-                    <motion.div 
-                      key={event.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`bg-white p-6 rounded-3xl border-2 transition-all flex items-center gap-6 ${isSelected ? "border-emerald-500 shadow-xl shadow-emerald-50" : "border-gray-50 hover:border-blue-100 shadow-sm"}`}
-                    >
-                      <button
-                        onClick={(e) => toggleEventSelection(e, event.id)}
-                        className={`shrink-0 w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all ${
-                          isSelected 
-                            ? "bg-emerald-500 border-emerald-500 text-white shadow-lg" 
-                            : "bg-white border-gray-100 text-transparent hover:border-emerald-300 shadow-inner"
-                        }`}
-                      >
-                        <Check size={20} strokeWidth={4} />
-                      </button>
-                      
-                      <div className="flex-1 cursor-pointer" onClick={() => openEditModal(event)}>
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-xs font-black text-blue-600 font-mono tracking-tighter bg-blue-50 px-3 py-1 rounded-lg">
-                            {event.hora}
-                          </span>
-                          {event.sala && (
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-lg">
-                              {event.sala}
-                            </span>
-                          )}
-                          {event.tipo && (
-                            <span className={`text-[10px] font-black px-3 py-1 rounded-lg ${event.tipo === "URGÊNCIA" ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-500"}`}>
-                              {event.tipo}
-                            </span>
-                          )}
-                        </div>
-                        <h4 className="text-xl font-bold text-gray-800 leading-tight">{event.evento}</h4>
-                        <div className="flex flex-wrap items-center gap-4 mt-3">
-                          {hosp && (
-                            <div className="flex items-center gap-2 text-gray-500 bg-gray-50 px-3 py-1 rounded-full">
-                              <Building2 size={14} className="text-gray-400" />
-                              <span className="text-xs font-bold">{hosp.nome}</span>
+            {(() => {
+              const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+              const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+              const currentMonthEvents = filteredEvents.filter(e => {
+                const eventDate = new Date(e.data + "T12:00:00");
+                return eventDate >= monthStart && eventDate <= monthEnd;
+              }).sort((a, b) => a.data.localeCompare(b.data) || a.hora.localeCompare(b.hora));
+
+              if (currentMonthEvents.length === 0) {
+                return (
+                  <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-100">
+                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CalendarIcon className="text-gray-300" size={32} />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-700">Nenhum evento neste mês</h3>
+                    <p className="text-gray-400 text-sm mt-1">Utilize o botão "+" para adicionar novos procedimentos.</p>
+                  </div>
+                );
+              }
+
+              // Group by date
+              const grouped = currentMonthEvents.reduce((acc, e) => {
+                if (!acc[e.data]) acc[e.data] = [];
+                acc[e.data].push(e);
+                return acc;
+              }, {} as Record<string, CalendarEvent[]>);
+
+              return Object.entries(grouped).map(([date, dailyEvents]) => {
+                const [y, m, d] = date.split("-");
+                const dateObj = new Date(date + "T12:00:00");
+                const dayName = DAYS[dateObj.getDay()];
+                
+                return (
+                  <div key={date} className="mb-8 last:mb-0">
+                    <div className="flex items-center gap-4 mb-4 ml-2">
+                       <div className="flex flex-col items-center">
+                          <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{dayName}</span>
+                          <span className="text-2xl font-black text-gray-900 leading-none">{d}</span>
+                       </div>
+                       <div className="h-px flex-1 bg-gray-100"></div>
+                       <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{MONTHS[parseInt(m) - 1]}</span>
+                    </div>
+                    <div className="grid gap-4">
+                      {dailyEvents.map(event => {
+                        const isSelected = selectedEventIds.has(event.id);
+                        const hosp = hospitalOptions.find(h => h.id === event.hospitalId);
+                        return (
+                          <motion.div 
+                            key={event.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className={`bg-white p-5 rounded-3xl border-2 transition-all flex items-center gap-5 ${isSelected ? "border-emerald-500 shadow-xl shadow-emerald-50" : "border-gray-50 hover:border-blue-100 shadow-sm"}`}
+                          >
+                            <button
+                              onClick={(e) => toggleEventSelection(e, event.id)}
+                              className={`shrink-0 w-9 h-9 rounded-2xl border-2 flex items-center justify-center transition-all ${
+                                isSelected 
+                                  ? "bg-emerald-500 border-emerald-500 text-white shadow-lg" 
+                                  : "bg-white border-gray-100 text-transparent hover:border-emerald-300 shadow-inner"
+                              }`}
+                            >
+                              <Check size={18} strokeWidth={4} />
+                            </button>
+                            
+                            <div className="flex-1 cursor-pointer" onClick={() => openEditModal(event)}>
+                              <div className="flex items-center gap-3 mb-1.5">
+                                <span className="text-[11px] font-black text-blue-600 font-mono tracking-tighter bg-blue-50 px-2.5 py-1 rounded-lg">
+                                  {event.hora}
+                                </span>
+                                {event.sala && (
+                                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2.5 py-1 rounded-lg">
+                                    {event.sala}
+                                  </span>
+                                )}
+                                {event.tipo && (
+                                  <span className={`text-[9px] font-black px-2.5 py-1 rounded-lg ${event.tipo === "URGÊNCIA" ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-500"}`}>
+                                    {event.tipo}
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-lg font-bold text-gray-800 leading-tight">{event.evento}</h4>
+                              <div className="flex flex-wrap items-center gap-4 mt-2.5">
+                                {hosp && (
+                                  <div className="flex items-center gap-1.5 text-gray-500 bg-gray-50 px-2.5 py-0.5 rounded-full">
+                                    <Building2 size={12} className="text-gray-400" />
+                                    <span className="text-[10px] font-bold">{hosp.nome}</span>
+                                  </div>
+                                )}
+                                {event.descricao && (
+                                  <div className="flex items-center gap-1.5 text-gray-400">
+                                    <FileText size={12} />
+                                    <span className="text-[10px] font-medium truncate max-w-[200px]">{event.descricao}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
-                          {event.descricao && (
-                            <div className="flex items-center gap-2 text-gray-400">
-                              <FileText size={14} />
-                              <span className="text-xs font-medium truncate max-w-[200px]">{event.descricao}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col gap-2">
-                        <button 
-                          onClick={() => openEditModal(event)}
-                          className="p-3 hover:bg-blue-50 hover:text-blue-600 rounded-2xl text-gray-400 transition-all active:scale-95"
-                          title="Editar"
-                        >
-                          <Edit3 size={20} />
-                        </button>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
+                            
+                            <button 
+                              onClick={() => openEditModal(event)}
+                              className="p-2.5 hover:bg-blue-50 hover:text-blue-600 rounded-2xl text-gray-300 transition-all active:scale-95"
+                              title="Editar"
+                            >
+                              <Edit3 size={18} />
+                            </button>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
       </div>
