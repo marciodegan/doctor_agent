@@ -21,10 +21,18 @@ interface Group {
   status?: "active" | "pending";
 }
 
+interface GroupMember {
+  userId: string;
+  userEmail: string;
+  role: string;
+  status: "active" | "pending";
+}
+
 interface GroupContextType {
   groups: Group[];
   invites: Group[];
   activeGroup: Group | null;
+  activeGroupMembers: GroupMember[];
   loading: boolean;
   companyName: string;
   whatsappNumber: string;
@@ -34,6 +42,7 @@ interface GroupContextType {
   createGroup: (name: string) => Promise<string>;
   inviteUser: (groupId: string, email: string) => Promise<void>;
   acceptInvite: (groupId: string) => Promise<void>;
+  declineInvite: (groupId: string) => Promise<void>;
 }
 
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
@@ -43,6 +52,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [invites, setInvites] = useState<Group[]>([]);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
+  const [activeGroupMembers, setActiveGroupMembers] = useState<GroupMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState("Doctor Pro");
   const [whatsappNumber, setWhatsappNumber] = useState("");
@@ -59,8 +69,11 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (!activeGroup) return;
-    
+    if (!activeGroup) {
+      setActiveGroupMembers([]);
+      return;
+    }
+
     // Fetch Settings for active group
     apiFetch("/api/app/settings")
       .then(res => res.json())
@@ -69,6 +82,15 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         setWhatsappNumber(data.whatsappNumber || "");
       })
       .catch(err => console.error("Failed to fetch settings", err));
+
+    // Listen to group members
+    const membersPath = `groups/${activeGroup.id}/members`;
+    const unsubscribeMembers = onSnapshot(collection(db, membersPath), (snapshot) => {
+      const members = snapshot.docs.map(doc => doc.data() as GroupMember);
+      setActiveGroupMembers(members);
+    });
+
+    return () => unsubscribeMembers();
   }, [activeGroup?.id]);
 
   useEffect(() => {
@@ -290,6 +312,33 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const declineInvite = async (groupId: string) => {
+    if (!user) throw new Error("Must be logged in");
+    try {
+      // 1. Update target user's membership status to cancelled
+      await setDoc(doc(db, `users/${user.uid}/memberships`, groupId), {
+        status: "cancelled"
+      }, { merge: true });
+
+      // 2. Update group members status to cancelled
+      await setDoc(doc(db, `groups/${groupId}/members`, user.uid), {
+        status: "cancelled"
+      }, { merge: true });
+
+      // 3. Update the global invitation record
+      const invId = `${groupId}_${user.email?.replace(/\./g, '_')}`;
+      await setDoc(doc(db, "group_invitations", invId), {
+        status: "declined",
+        declinedAt: serverTimestamp()
+      }, { merge: true });
+
+      // Remove from local list
+      setInvites(prev => prev.filter(i => i.id !== groupId));
+    } catch (err) {
+      console.error("Failed to decline invite", err);
+    }
+  };
+
   const updateSettings = async (name: string, wa: string) => {
     try {
       const res = await apiFetch("/api/app/settings", {
@@ -324,6 +373,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       groups, 
       invites, 
       activeGroup, 
+      activeGroupMembers,
       loading, 
       companyName,
       whatsappNumber,
@@ -332,7 +382,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       setActiveGroupId, 
       createGroup, 
       inviteUser, 
-      acceptInvite 
+      acceptInvite,
+      declineInvite
     }}>
       {children}
     </GroupContext.Provider>
