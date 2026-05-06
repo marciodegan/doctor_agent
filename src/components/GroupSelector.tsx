@@ -396,7 +396,7 @@ export function GroupSelector() {
                       member.status === 'cancelled' ? 'text-red-600' : 'text-amber-600'
                     }`}>
                       {member.status === 'active' ? 'Aceitou' : 
-                       member.status === 'cancelled' ? 'Recusou' : 'Pendente'}
+                       member.status === (('cancelled' as any)) ? 'Recusou' : 'Pendente'}
                     </span>
                   </div>
                 ))}

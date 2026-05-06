@@ -25,7 +25,7 @@ interface GroupMember {
   userId: string;
   userEmail: string;
   role: string;
-  status: "active" | "pending";
+  status: "active" | "pending" | "cancelled";
 }
 
 interface GroupContextType {
@@ -57,8 +57,23 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [companyName, setCompanyName] = useState("Doctor Pro");
   const [whatsappNumber, setWhatsappNumber] = useState("");
 
+  const safeLocalStorage = {
+    getItem: (key: string) => {
+      try {
+        return localStorage.getItem(key);
+      } catch (e) {
+        return null;
+      }
+    },
+    setItem: (key: string, value: string) => {
+      try {
+        localStorage.setItem(key, value);
+      } catch (e) {}
+    }
+  };
+
   const apiFetch = (url: string, init?: RequestInit) => {
-    const groupId = activeGroup?.id || localStorage.getItem("activeGroupId") || "";
+    const groupId = activeGroup?.id || safeLocalStorage.getItem("activeGroupId") || "";
     return fetch(url, {
       ...init,
       headers: {
@@ -111,12 +126,25 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         const membershipPromises = snapshot.docs.map(async (membershipDoc) => {
           const groupId = membershipDoc.id;
           const mData = membershipDoc.data();
-          const groupDoc = await getDocs(query(collection(db, "groups"), where("id", "==", groupId)));
           
           let groupInfo: Group;
-          if (!groupDoc.empty) {
-            groupInfo = { id: groupId, ...groupDoc.docs[0].data(), status: mData.status || "active" } as Group;
-          } else {
+          try {
+            // Using getDocs query for backward compatibility with some docs that have 'id' field,
+            // but preferring direct doc lookup if possible
+            const groupQuery = query(collection(db, "groups"), where("id", "==", groupId));
+            const groupSnap = await getDocs(groupQuery);
+            
+            if (!groupSnap.empty) {
+              groupInfo = { id: groupId, ...groupSnap.docs[0].data(), status: mData.status || "active" } as Group;
+            } else {
+              groupInfo = { 
+                id: groupId, 
+                name: mData.groupName || "Group " + groupId, 
+                createdBy: "", 
+                status: mData.status || "active" 
+              } as Group;
+            }
+          } catch (e) {
             groupInfo = { 
               id: groupId, 
               name: mData.groupName || "Group " + groupId, 
@@ -144,7 +172,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         });
 
         // Restore active group
-        const savedGroupId = localStorage.getItem("activeGroupId");
+        const savedGroupId = safeLocalStorage.getItem("activeGroupId");
         const found = activeGroups.find(g => g.id === savedGroupId);
         if (found) {
           setActiveGroup(found);
@@ -193,7 +221,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     const group = groups.find(g => g.id === id);
     if (group) {
       setActiveGroup(group);
-      localStorage.setItem("activeGroupId", id);
+      safeLocalStorage.setItem("activeGroupId", id);
     }
   };
 
