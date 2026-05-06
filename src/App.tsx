@@ -3,6 +3,7 @@ import { useAuth } from "./hooks/useAuth";
 import { useGroup } from "./contexts/GroupContext";
 import { Chat } from "./components/Chat";
 import { Calendar as FirestoreCalendar } from "./components/Calendar";
+import { GoogleAgenda } from "./components/GoogleAgenda";
 import { Debug } from "./components/Debug";
 import { Pricing } from "./components/Pricing";
 import { GroupSelector } from "./components/GroupSelector";
@@ -38,7 +39,7 @@ export default function App() {
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar">("workspace");
+  const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar" | "agenda">("workspace");
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileGroupsOpen, setIsMobileGroupsOpen] = useState(false);
@@ -80,7 +81,7 @@ export default function App() {
     }
   };
 
-  const navigateAndAction = (view: "workspace" | "calendar", command?: string) => {
+  const navigateAndAction = (view: "workspace" | "calendar" | "agenda", command?: string) => {
     setCurrentView(view);
     setIsMobileMenuOpen(false);
     if (command) {
@@ -294,6 +295,12 @@ export default function App() {
                   active={currentView === "calendar"}
                   onClick={() => navigateAndAction("calendar")}
                 />
+                <NavItem 
+                  icon={<Calendar size={18} className="text-blue-500" />} 
+                  label="Agenda" 
+                  active={currentView === "agenda"}
+                  onClick={() => navigateAndAction("agenda")}
+                />
                 <NavItem icon={<FileText size={18} />} label="Drive & Files" />
                 
                 <div className="pt-8 space-y-1">
@@ -420,6 +427,12 @@ export default function App() {
             label="Calendário" 
             active={currentView === "calendar"}
             onClick={() => setCurrentView("calendar")}
+          />
+          <NavItem 
+            icon={<Calendar size={18} className="text-blue-500" />} 
+            label="Agenda" 
+            active={currentView === "agenda"}
+            onClick={() => setCurrentView("agenda")}
           />
           <NavItem icon={<FileText size={18} />} label="Drive & Files" />
           
@@ -615,6 +628,8 @@ export default function App() {
                     <Pricing onBack={() => setCurrentView("workspace")} />
                   ) : currentView === "calendar" ? (
                     <FirestoreCalendar />
+                  ) : currentView === "agenda" ? (
+                    <GoogleAgenda />
                   ) : (
                     <Chat 
                       onNavigateToCalendar={() => setCurrentView("calendar")} 
@@ -629,13 +644,13 @@ export default function App() {
                   {[
                     { label: "👤 Pacientes", prompt: "/pacientes", view: "workspace" as const },
                     { label: "📅 Calendário", prompt: "/open_calendar", view: "calendar" as const },
-                    { label: "📅 Agenda", prompt: "/agenda", view: "workspace" as const },
+                    { label: "📅 Agenda", prompt: "/agenda", view: "agenda" as const },
                   ].map((s, i) => (
                     <button
                       key={i}
                       onClick={() => navigateAndAction(s.view, s.prompt)}
                       className={`text-[10px] font-bold px-3 py-1.5 border rounded-full transition-all uppercase tracking-wide shadow-sm ${
-                        (s.view === currentView && (s.prompt !== "/open_calendar" || currentView === "calendar"))
+                        (s.view === currentView)
                         ? "border-blue-600 text-blue-600 bg-blue-50" 
                         : "border-blue-600 text-blue-600 bg-white hover:bg-blue-50"
                       }`}

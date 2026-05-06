@@ -7,6 +7,7 @@ import {
   doc, 
   setDoc, 
   addDoc, 
+  deleteDoc,
   serverTimestamp,
   getDocs
 } from "firebase/firestore";
@@ -196,7 +197,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     // Listen to invitations by email (for users who were invited before joining)
     let unsubscribeInvitations = () => {};
     if (user.email) {
-      const invitationsQuery = query(collection(db, "group_invitations"), where("email", "==", user.email), where("status", "==", "pending"));
+      const cleanEmail = user.email.trim().toLowerCase();
+      const invitationsQuery = query(collection(db, "group_invitations"), where("email", "==", cleanEmail), where("status", "==", "pending"));
       unsubscribeInvitations = onSnapshot(invitationsQuery, (snapshot) => {
         const emailInvites = snapshot.docs.map(doc => {
           const data = doc.data();
@@ -224,10 +226,10 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   }, [user, user?.email]);
 
   const setActiveGroupId = (id: string) => {
+    safeLocalStorage.setItem("activeGroupId", id);
     const group = groups.find(g => g.id === id);
     if (group) {
       setActiveGroup(group);
-      safeLocalStorage.setItem("activeGroupId", id);
     }
   };
 
@@ -262,6 +264,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         status: "active"
       });
 
+      // Set as active
+      setActiveGroupId(groupId);
+
       return groupId;
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, "groups");
@@ -271,12 +276,13 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
   const inviteUser = async (groupId: string, email: string) => {
     if (!user) throw new Error("Must be logged in");
+    const cleanEmail = email.trim().toLowerCase();
+    
     try {
        // 1. Always create a record in group_invitations by email
-       // This handles users who are not yet in the system
-       const invId = `${groupId}_${email.replace(/\./g, '_')}`;
+       const invId = `${groupId}_${cleanEmail.replace(/\./g, '_')}`;
        await setDoc(doc(db, "group_invitations", invId), {
-         email,
+         email: cleanEmail,
          groupId,
          groupName: activeGroup?.name || "Novo Grupo",
          inviterId: user.uid,
@@ -285,29 +291,43 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
          createdAt: serverTimestamp()
        }, { merge: true });
 
-       // 2. Try to find user to notify them directly if they exist
-       const userQuery = query(collection(db, "users"), where("email", "==", email));
-       const userSnap = await getDocs(userQuery);
-       
-       if (!userSnap.empty) {
-         const targetUid = userSnap.docs[0].id;
-         
-         // Add to group members
-         await setDoc(doc(db, `groups/${groupId}/members`, targetUid), {
-           userId: targetUid,
-           userEmail: email,
-           role: "member",
-           status: "pending",
-           joinedAt: serverTimestamp()
-         });
+       // 2. Add to group members list so owner can see status in UI
+       const memberDocId = `invite_${cleanEmail.replace(/\./g, '_')}`;
+       await setDoc(doc(db, `groups/${groupId}/members`, memberDocId), {
+         userId: "", 
+         userEmail: cleanEmail,
+         role: "member",
+         status: "pending",
+         invitedAt: serverTimestamp()
+       }, { merge: true });
 
-         // Add to target user's memberships
-         await setDoc(doc(db, `users/${targetUid}/memberships`, groupId), {
-           groupId,
-           groupName: activeGroup?.name || "Novo Grupo",
-           role: "member",
-           status: "pending"
-         });
+       // 3. Try to notify user directly if they exist
+       try {
+         const userQuery = query(collection(db, "users"), where("email", "==", cleanEmail));
+         const userSnap = await getDocs(userQuery);
+         
+         if (!userSnap.empty) {
+           const targetUid = userSnap.docs[0].id;
+           
+           // Also add with real UID to group members
+           await setDoc(doc(db, `groups/${groupId}/members`, targetUid), {
+             userId: targetUid,
+             userEmail: cleanEmail,
+             role: "member",
+             status: "pending",
+             joinedAt: serverTimestamp()
+           });
+
+           // Add to target user's memberships
+           await setDoc(doc(db, `users/${targetUid}/memberships`, groupId), {
+             groupId,
+             groupName: activeGroup?.name || "Novo Grupo",
+             role: "member",
+             status: "pending"
+           });
+         }
+       } catch (e) {
+         console.warn("Could not link invite to existing user profile during creation", e);
        }
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `group_invitations`);
@@ -316,8 +336,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
   const acceptInvite = async (groupId: string) => {
     if (!user) throw new Error("Must be logged in");
+    const cleanEmail = user.email?.trim().toLowerCase() || "";
     try {
-      // 1. Update membership status (record might not exist yet if they were invited by email)
+      // 1. Update membership status
       await setDoc(doc(db, `users/${user.uid}/memberships`, groupId), {
         groupId,
         groupName: invites.find(i => i.id === groupId)?.name || "Novo Grupo",
@@ -334,11 +355,19 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       }, { merge: true });
 
       // 3. Mark invitation as completed
-      const invId = `${groupId}_${user.email?.replace(/\./g, '_')}`;
+      const invId = `${groupId}_${cleanEmail.replace(/\./g, '_')}`;
       await setDoc(doc(db, "group_invitations", invId), {
         status: "accepted",
         acceptedAt: serverTimestamp()
       }, { merge: true });
+
+      // 4. Try to cleanup the "invite_..." record from group members
+      const inviteMemberId = `invite_${cleanEmail.replace(/\./g, '_')}`;
+      try {
+        await deleteDoc(doc(db, `groups/${groupId}/members`, inviteMemberId));
+      } catch (e) {
+        console.warn("Could not cleanup invite record from group members", e);
+      }
 
       setActiveGroupId(groupId);
     } catch (err) {
@@ -348,6 +377,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
   const declineInvite = async (groupId: string) => {
     if (!user) throw new Error("Must be logged in");
+    const cleanEmail = user.email?.trim().toLowerCase() || "";
     try {
       // 1. Update target user's membership status to cancelled
       await setDoc(doc(db, `users/${user.uid}/memberships`, groupId), {
@@ -360,11 +390,21 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       }, { merge: true });
 
       // 3. Update the global invitation record
-      const invId = `${groupId}_${user.email?.replace(/\./g, '_')}`;
+      const invId = `${groupId}_${cleanEmail.replace(/\./g, '_')}`;
       await setDoc(doc(db, "group_invitations", invId), {
         status: "declined",
         declinedAt: serverTimestamp()
       }, { merge: true });
+
+      // 4. Try to cleanup/update the "invite_..." record from group members
+      const inviteMemberId = `invite_${cleanEmail.replace(/\./g, '_')}`;
+      try {
+        await setDoc(doc(db, `groups/${groupId}/members`, inviteMemberId), {
+          status: "cancelled"
+        }, { merge: true });
+      } catch (e) {
+        console.warn("Could not update invite record from group members", e);
+      }
 
       // Remove from local list
       setInvites(prev => prev.filter(i => i.id !== groupId));

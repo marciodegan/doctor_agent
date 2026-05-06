@@ -24,7 +24,9 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn() && (request.auth.uid == userId || resource.data.email == request.auth.token.email);
+      allow list: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
       
       match /memberships/{groupId} {
         allow read: if isSignedIn() && request.auth.uid == userId;

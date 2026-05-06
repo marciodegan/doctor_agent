@@ -2408,54 +2408,6 @@ export const Chat: React.FC<{
         </AnimatePresence>
       </div>
 
-      {/* Image Preview */}
-      {selectedImage && (
-        <div className="px-4 py-2 bg-gray-50 border-t flex flex-wrap gap-3">
-          <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-            <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
-            <button 
-              onClick={() => setSelectedImage(null)}
-              className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-lg"
-            >
-              <X size={12} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Input Area */}
-      <div className="p-4 bg-white border-t border-gray-100 shrink-0">
-        <form onSubmit={(e) => handleSend(e)} className="relative flex items-center bg-gray-50 rounded-2xl border border-gray-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-50 transition-all">
-          <button 
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="p-3 text-gray-400 hover:text-blue-600 transition-colors"
-          >
-            <ImageIcon size={20} />
-          </button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleImageSelect} 
-            className="hidden" 
-            accept="image/*" 
-          />
-          <input 
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Digite sua mensagem ou comando..."
-            className="flex-1 bg-transparent py-4 px-1 text-sm outline-none text-gray-900 placeholder:text-gray-400"
-            disabled={isLoading}
-          />
-          <button 
-            type="submit"
-            disabled={(!input.trim() && !selectedImage) || isLoading}
-            className="m-1.5 p-2.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-30 disabled:shadow-none transition-all active:scale-95 flex items-center justify-center"
-          >
-            {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-          </button>
-        </form>
-      </div>
     </div>
   );
 };
