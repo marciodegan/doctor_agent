@@ -220,7 +220,7 @@ export const Chat: React.FC<{
   initialCommand?: string | null,
   onCommandExecuted?: () => void
 }> = ({ onNavigateToCalendar, initialCommand, onCommandExecuted }) => {
-  const { activeGroup } = useGroup();
+  const { activeGroup, companyName, whatsappNumber } = useGroup();
   const apiFetch = (url: string, init?: RequestInit) => {
     const groupId = activeGroup?.id || localStorage.getItem("activeGroupId") || "";
     return fetch(url, {
@@ -239,12 +239,6 @@ export const Chat: React.FC<{
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [showSecurityInfo, setShowSecurityInfo] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [companyName, setCompanyName] = useState("");
-  const [whatsappNumber, setWhatsappNumber] = useState("");
-  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
-  const [isBackingUp, setIsBackingUp] = useState(false);
   const [procedureOptions, setProcedureOptions] = useState<string[]>([]);
   const [hospitalOptions, setHospitalOptions] = useState<{id: string, nome: string}[]>([]);
   const [statusOptions, setStatusOptions] = useState<{id: string, nome: string}[]>([]);
@@ -304,32 +298,17 @@ export const Chat: React.FC<{
   }, []);
 
   useEffect(() => {
-    // Fetch Settings
-    apiFetch("/api/app/settings")
-      .then(res => res.json())
-      .then(data => {
-        const name = data.companyName || "Doctor Pro";
-        const wa = data.whatsappNumber || "";
-        setCompanyName(name);
-        setWhatsappNumber(wa);
-        setMessages([
-          { 
-            role: "model", 
-            text: `<div class="text-base font-medium">Hello ${name} ❤️<br/><br/>Hoje é um lindo dia para salvar vidas.</div>`
-          }
-        ]);
-      })
-      .catch(err => {
-        console.error("Failed to fetch settings", err);
-        setMessages([
-          { role: "model", text: "Hello! Como posso ajudar você hoje?" }
-        ]);
-      });
+    setMessages([
+      { 
+        role: "model", 
+        text: `<div class="text-base font-medium">Hello ${companyName} ❤️<br/><br/>Hoje é um lindo dia para salvar vidas.</div>`
+      }
+    ]);
 
     import("../lib/gemini").then(({ createAgent }) => {
       if (!agentRef.current) agentRef.current = createAgent();
     });
-  }, []);
+  }, [companyName]);
 
   useEffect(() => {
     if (initialCommand && agentRef.current) {
@@ -337,46 +316,6 @@ export const Chat: React.FC<{
       onCommandExecuted?.();
     }
   }, [initialCommand, agentRef.current]);
-
-  const updateSettings = async (name: string, wa: string) => {
-    setIsUpdatingSettings(true);
-    try {
-      const res = await apiFetch("/api/app/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyName: name, whatsappNumber: wa })
-      });
-      if (res.ok) {
-        setCompanyName(name);
-        setWhatsappNumber(wa);
-        setShowSettings(false);
-      }
-    } catch (err) {
-      console.error("Failed to update settings", err);
-    } finally {
-      setIsUpdatingSettings(false);
-    }
-  };
-
-  const handleBackup = async () => {
-    setIsBackingUp(true);
-    try {
-      const res = await apiFetch("/api/app/backup", { method: "POST" });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      
-      setMessages(prev => [...prev, { 
-        role: "model", 
-        text: `✅ **Backup realizado com sucesso!**\nNovo arquivo: **${data.name}**` 
-      }]);
-      setShowSettings(false);
-    } catch (err: any) {
-      console.error("Backup failed", err);
-      setMessages(prev => [...prev, { role: "model", text: `❌ Falha no backup: ${err.message}` }]);
-    } finally {
-      setIsBackingUp(false);
-    }
-  };
 
   const resetAgent = async () => {
     const { createAgent } = await import("../lib/gemini");
@@ -2214,157 +2153,9 @@ export const Chat: React.FC<{
 
   return (
     <div id="nexus-chat" className="flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative">
-      {/* Header */}
-      <div className="p-4 border-b bg-gray-50 flex items-center justify-between border-gray-100 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-sm shadow-blue-200">
-            <Sparkles size={18} />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 leading-tight">Doctor Pro</h3>
-            <div className="flex items-center gap-2">
-              <p className="text-[10px] text-green-600 font-bold flex items-center gap-1 uppercase tracking-wider">
-                <span className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span>
-                Online
-              </p>
-              <span className="text-[10px] text-gray-300">|</span>
-              <button 
-                onClick={() => setShowSecurityInfo(true)}
-                className="text-[10px] text-blue-600 font-medium hover:underline flex items-center gap-0.5"
-              >
-                <Shield size={10} /> Conexão Segura
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-1">
-          <button 
-            onClick={() => setShowSettings(true)}
-            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            title="Configurar Empresa"
-          >
-            <Settings size={18} />
-          </button>
-          <button 
-            onClick={handleLogout}
-            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors group relative"
-            title="Desconectar Google"
-          >
-            <LogOut size={18} />
-            <span className="absolute right-0 top-full mt-2 hidden group-hover:block bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-50">
-              Desconectar Google
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* Settings Modal */}
-      <AnimatePresence>
-        {showSettings && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
-            >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between font-sans">
-                <div className="flex items-center gap-2 text-gray-900 font-bold">
-                  <Settings size={20} className="text-blue-600" />
-                  Configurações
-                </div>
-                <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-gray-100 rounded-full">
-                  <X size={18} className="text-gray-400" />
-                </button>
-              </div>
-              <div className="p-6 space-y-4 font-sans">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Nome da Empresa</label>
-                  <input 
-                    type="text" 
-                    value={companyName} 
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="Ex: Doctor Pro"
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">WhatsApp (para Agenda)</label>
-                  <input 
-                    type="text" 
-                    value={whatsappNumber} 
-                    onChange={(e) => setWhatsappNumber(e.target.value)}
-                    placeholder="Ex: 5511999999999"
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => updateSettings(companyName, whatsappNumber)}
-                    disabled={isUpdatingSettings || isBackingUp}
-                    className="flex-[2] py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {isUpdatingSettings ? <Loader2 size={18} className="animate-spin" /> : "Salvar"}
-                  </button>
-                  <button 
-                    onClick={handleBackup}
-                    disabled={isUpdatingSettings || isBackingUp}
-                    className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 disabled:opacity-50"
-                    title="Realizar backup do banco de dados"
-                  >
-                    {isBackingUp ? <Loader2 size={18} className="animate-spin" /> : "Backup"}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Security Overlay */}
-      <AnimatePresence>
-        {showSecurityInfo && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm p-6 flex flex-col items-center justify-center text-center"
-          >
-            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
-              <Lock size={32} />
-            </div>
-            <h4 className="text-lg font-bold text-gray-900 mb-2">Privacidade & Soberania</h4>
-            <div className="space-y-4 text-sm text-gray-600 mb-8 max-w-xs">
-              <p className="flex items-start gap-2 text-left">
-                <Shield size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                <span>Seus documentos do Drive e Calendar <strong>nunca</strong> são armazenados em nossos servidores.</span>
-              </p>
-              <p className="flex items-start gap-2 text-left">
-                <Shield size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                <span>O acesso é feito via token oficial do Google (OAuth2) que expira automaticamente.</span>
-              </p>
-              <p className="flex items-start gap-2 text-left">
-                <Shield size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                <span>A memória da IA é limpa automaticamente após cada tarefa de salvamento de dados.</span>
-              </p>
-            </div>
-            <button 
-              onClick={() => setShowSecurityInfo(false)}
-              className="px-6 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
-            >
-              Entendi, continuar
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Messages */}
       <div ref={scrollRef} className="px-2 sm:px-6 py-4 space-y-6">
+
         <AnimatePresence initial={false}>
           {messages.filter(m => m.role === "model").map((msg, i) => (
             <motion.div

@@ -26,6 +26,10 @@ interface GroupContextType {
   invites: Group[];
   activeGroup: Group | null;
   loading: boolean;
+  companyName: string;
+  whatsappNumber: string;
+  updateSettings: (name: string, wa: string) => Promise<void>;
+  handleBackup: () => Promise<any>;
   setActiveGroupId: (id: string) => void;
   createGroup: (name: string) => Promise<string>;
   inviteUser: (groupId: string, email: string) => Promise<void>;
@@ -40,6 +44,32 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [invites, setInvites] = useState<Group[]>([]);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
+  const [companyName, setCompanyName] = useState("Doctor Pro");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+
+  const apiFetch = (url: string, init?: RequestInit) => {
+    const groupId = activeGroup?.id || localStorage.getItem("activeGroupId") || "";
+    return fetch(url, {
+      ...init,
+      headers: {
+        ...init?.headers,
+        "x-group-id": groupId
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (!activeGroup) return;
+    
+    // Fetch Settings for active group
+    apiFetch("/api/app/settings")
+      .then(res => res.json())
+      .then(data => {
+        setCompanyName(data.companyName || "Doctor Pro");
+        setWhatsappNumber(data.whatsappNumber || "");
+      })
+      .catch(err => console.error("Failed to fetch settings", err));
+  }, [activeGroup?.id]);
 
   useEffect(() => {
     if (!user) {
@@ -256,8 +286,50 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateSettings = async (name: string, wa: string) => {
+    try {
+      const res = await apiFetch("/api/app/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyName: name, whatsappNumber: wa })
+      });
+      if (res.ok) {
+        setCompanyName(name);
+        setWhatsappNumber(wa);
+      }
+    } catch (err) {
+      console.error("Failed to update settings", err);
+      throw err;
+    }
+  };
+
+  const handleBackup = async () => {
+    try {
+      const res = await apiFetch("/api/app/backup", { method: "POST" });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      return data;
+    } catch (err) {
+      console.error("Backup failed", err);
+      throw err;
+    }
+  };
+
   return (
-    <GroupContext.Provider value={{ groups, invites, activeGroup, loading, setActiveGroupId, createGroup, inviteUser, acceptInvite }}>
+    <GroupContext.Provider value={{ 
+      groups, 
+      invites, 
+      activeGroup, 
+      loading, 
+      companyName,
+      whatsappNumber,
+      updateSettings,
+      handleBackup,
+      setActiveGroupId, 
+      createGroup, 
+      inviteUser, 
+      acceptInvite 
+    }}>
       {children}
     </GroupContext.Provider>
   );
