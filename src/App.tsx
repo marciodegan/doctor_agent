@@ -20,10 +20,14 @@ import {
   Smartphone,
   Sparkles,
   Shield,
+  Users,
   Zap,
-  TrendingUp
+  TrendingUp,
+  Menu,
+  X,
+  ChevronLeft
 } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
   const { isAuthenticated, login, logout } = useAuth();
@@ -33,9 +37,12 @@ export default function App() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar">("workspace");
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileGroupsOpen, setIsMobileGroupsOpen] = useState(false);
 
   const navigateAndAction = (view: "workspace" | "calendar", command?: string) => {
     setCurrentView(view);
+    setIsMobileMenuOpen(false);
     if (command) {
       setPendingCommand(command);
     }
@@ -160,7 +167,164 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900 pt-[calc(env(safe-area-inset-top,0px)+8px)]">
+    <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
+      {/* Mobile Top Header */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 z-40">
+        <button 
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="p-2 -ml-2 text-gray-500 hover:text-black transition-colors"
+        >
+          <Menu size={24} />
+        </button>
+        
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-black rounded-lg flex items-center justify-center text-white">
+            <Command size={14} />
+          </div>
+          <span className="font-bold text-lg tracking-tight">Doctor Pro</span>
+        </div>
+
+        <button 
+          onClick={() => setIsMobileGroupsOpen(true)}
+          className="p-2 -mr-2 text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1"
+        >
+          <Users size={20} />
+          {activeGroup && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>}
+        </button>
+      </header>
+
+      {/* Mobile Menu Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60] lg:hidden"
+            />
+            <motion.aside 
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed left-0 top-0 bottom-0 w-72 bg-white z-[70] flex flex-col p-6 lg:hidden"
+            >
+              <div className="flex items-center justify-between mb-10">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white">
+                    <Command size={18} />
+                  </div>
+                  <h1 className="font-bold text-xl tracking-tight">Doctor Pro</h1>
+                </div>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-gray-400">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <nav className="flex-1 space-y-1">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Workspace</div>
+                <NavItem 
+                  icon={<Layout size={18} />} 
+                  label="Agent Dashboard" 
+                  active={currentView === "workspace"} 
+                  onClick={() => navigateAndAction("workspace")}
+                />
+                <NavItem 
+                  icon={<Calendar size={18} />} 
+                  label="Calendário" 
+                  active={currentView === "calendar"}
+                  onClick={() => navigateAndAction("calendar")}
+                />
+                <NavItem icon={<FileText size={18} />} label="Drive & Files" />
+                
+                <div className="pt-8 space-y-1">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Account</div>
+                  <NavItem 
+                    icon={<Zap size={18} className="text-blue-600" />} 
+                    label="Assinatura Pro" 
+                    active={currentView === "pricing"}
+                    onClick={() => {
+                      setCurrentView("pricing");
+                      setIsMobileMenuOpen(false);
+                    }}
+                  />
+                </div>
+              </nav>
+
+              <div className="mt-auto">
+                <button 
+                  onClick={logout}
+                  className="flex items-center gap-3 w-full p-3 text-sm text-gray-500 hover:text-red-600 transition-colors bg-gray-50 rounded-2xl"
+                >
+                  <LogOut size={16} />
+                  <span className="font-medium">Disconnect</span>
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Groups & Info Drawer */}
+      <AnimatePresence>
+        {isMobileGroupsOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileGroupsOpen(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60] lg:hidden"
+            />
+            <motion.div 
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed right-0 top-0 bottom-0 w-[85%] max-w-sm bg-white z-[70] flex flex-col overflow-y-auto lg:hidden"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+                <div className="flex items-center gap-2">
+                  <Users size={18} className="text-blue-600" />
+                  <h2 className="font-bold text-lg">Ambientes</h2>
+                </div>
+                <button onClick={() => setIsMobileGroupsOpen(false)} className="p-2 text-gray-400">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-8">
+                <motion.div 
+                  onClick={() => {
+                    setCurrentView("pricing");
+                    setIsMobileGroupsOpen(false);
+                  }}
+                  className="bg-zinc-900 rounded-3xl p-6 text-white cursor-pointer hover:bg-zinc-800 transition-all border border-zinc-700"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-2 bg-blue-600 rounded-xl">
+                      <Zap size={20} />
+                    </div>
+                  </div>
+                  <h4 className="font-bold text-sm mb-1">Doctor Pro Business</h4>
+                  <p className="text-[10px] text-zinc-400 mb-4 line-clamp-2">Acesso total a automações, IA avançada e relatórios personalizados.</p>
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-widest">
+                    <span>Assinar agora</span>
+                    <TrendingUp size={14} />
+                  </div>
+                </motion.div>
+
+                <div className="bg-white border border-gray-100 rounded-3xl p-6">
+                  <GroupSelector />
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar - Desktop Only */}
       <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-20">
         <div className="flex items-center gap-2 mb-10 px-2">
@@ -223,7 +387,7 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`lg:pl-64 flex flex-col ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0" : ""}`}>
+      <main className={`lg:pl-64 flex flex-col pt-16 lg:pt-0 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0" : ""}`}>
         {/* Hero / Dashboard Area */}
         <div id="main-scroll-container" className={`p-2 sm:p-4 flex flex-col gap-6 w-full ${isFullscreen ? "h-screen overflow-hidden" : ""}`}>
           {!isAuthenticated ? (
