@@ -132,7 +132,7 @@ export function GroupSelector() {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold uppercase">
-                    {invite.name.charAt(0)}
+                    {(invite.name || "G").charAt(0)}
                   </div>
                   <div className="font-bold text-gray-900 uppercase text-sm">{invite.name}</div>
                 </div>
@@ -247,7 +247,7 @@ export function GroupSelector() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold text-xl">
-                        {invite.name.charAt(0).toUpperCase()}
+                        {(invite.name || "G").charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1">
                         <div className="font-bold text-sm text-gray-900 uppercase">{invite.name}</div>
@@ -301,7 +301,7 @@ export function GroupSelector() {
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
                     activeGroup?.id === group.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-400 group-hover:bg-gray-200"
                   }`}>
-                    {group.name.charAt(0).toUpperCase()}
+                    {(group.name || "G").charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 text-left">
                     <div className="font-bold text-sm text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{group.name}</div>
@@ -330,8 +330,8 @@ export function GroupSelector() {
             {activeGroupMembers.length > 0 && (
               <div className="flex -space-x-2">
                 {activeGroupMembers.slice(0, 3).map((m, i) => (
-                  <div key={i} title={m.userEmail} className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[8px] font-bold ${m.status === 'active' ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                    {m.userEmail.charAt(0).toUpperCase()}
+                  <div key={i} title={m.userEmail || "Membro"} className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[8px] font-bold ${m.status === 'active' ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                    {(m.userEmail || "M").charAt(0).toUpperCase()}
                   </div>
                 ))}
                 {activeGroupMembers.length > 3 && (
@@ -389,7 +389,7 @@ export function GroupSelector() {
                   <div key={member.userId + member.userEmail} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-2">
                        <div className={`w-1.5 h-1.5 rounded-full ${member.status === 'active' ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-                       <span className="text-[11px] font-medium text-gray-700 truncate max-w-[120px]">{member.userEmail}</span>
+                       <span className="text-[11px] font-medium text-gray-700 truncate max-w-[120px]">{member.userEmail || "Sem email"}</span>
                     </div>
                     <span className={`text-[9px] font-bold uppercase tracking-wider ${
                       member.status === 'active' ? 'text-emerald-600' : 

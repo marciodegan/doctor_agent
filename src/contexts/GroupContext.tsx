@@ -101,7 +101,13 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     // Listen to group members
     const membersPath = `groups/${activeGroup.id}/members`;
     const unsubscribeMembers = onSnapshot(collection(db, membersPath), (snapshot) => {
-      const members = snapshot.docs.map(doc => doc.data() as GroupMember);
+      const members = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          userEmail: data.userEmail || ""
+        } as GroupMember;
+      });
       setActiveGroupMembers(members);
     });
 
@@ -242,7 +248,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       // Add self as member
       await setDoc(doc(db, `groups/${groupId}/members`, user.uid), {
         userId: user.uid,
-        userEmail: user.email,
+        userEmail: user.email || "",
         role: "owner",
         status: "active",
         joinedAt: serverTimestamp()
@@ -322,7 +328,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       // 2. Update group member status
       await setDoc(doc(db, `groups/${groupId}/members`, user.uid), {
         userId: user.uid,
-        userEmail: user.email,
+        userEmail: user.email || "",
         status: "active",
         joinedAt: serverTimestamp()
       }, { merge: true });
