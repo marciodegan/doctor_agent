@@ -29,6 +29,14 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar">("workspace");
+  const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+
+  const navigateAndAction = (view: "workspace" | "calendar", command?: string) => {
+    setCurrentView(view);
+    if (command) {
+      setPendingCommand(command);
+    }
+  };
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -244,14 +252,41 @@ export default function App() {
           ) : (
             <div className={`grid grid-cols-1 xl:grid-cols-4 gap-6 h-full max-w-[1600px] mx-auto w-full ${isFullscreen ? "max-w-none" : ""}`}>
               {/* Chat column */}
-              <div className="xl:col-span-3 flex flex-col min-h-0">
-                {currentView === "pricing" ? (
-                  <Pricing onBack={() => setCurrentView("workspace")} />
-                ) : currentView === "calendar" ? (
-                  <FirestoreCalendar />
-                ) : (
-                  <Chat onNavigateToCalendar={() => setCurrentView("calendar")} />
-                )}
+              <div className="xl:col-span-3 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex-1 min-h-0">
+                  {currentView === "pricing" ? (
+                    <Pricing onBack={() => setCurrentView("workspace")} />
+                  ) : currentView === "calendar" ? (
+                    <FirestoreCalendar />
+                  ) : (
+                    <Chat 
+                      onNavigateToCalendar={() => setCurrentView("calendar")} 
+                      initialCommand={pendingCommand}
+                      onCommandExecuted={() => setPendingCommand(null)}
+                    />
+                  )}
+                </div>
+
+                {/* Persistent Bottom Navigation */}
+                <div className="px-4 py-3 flex flex-wrap gap-2 shrink-0 border-t bg-gray-50/50 backdrop-blur-sm">
+                  {[
+                    { label: "👤 Pacientes", prompt: "/pacientes", view: "workspace" as const },
+                    { label: "📅 Calendário", prompt: "/open_calendar", view: "calendar" as const },
+                    { label: "📅 Agenda", prompt: "/agenda", view: "workspace" as const },
+                  ].map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => navigateAndAction(s.view, s.prompt)}
+                      className={`text-[11px] font-bold px-3.5 py-2 border rounded-full transition-all uppercase tracking-wide shadow-sm bg-white ${
+                        (s.view === currentView && (s.prompt !== "/open_calendar" || currentView === "calendar"))
+                        ? "border-blue-600 text-blue-600 shadow-blue-50" 
+                        : "border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Sidebar Info column */}

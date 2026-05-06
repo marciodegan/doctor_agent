@@ -27,12 +27,14 @@ import {
 import { db, auth } from "../lib/firebase";
 import { motion, AnimatePresence } from "motion/react";
 
-interface CalendarEvent {
+  interface CalendarEvent {
   id: string;
   evento: string;
   data: string; // YYYY-MM-DD
   hora: string; // HH:mm
   descricao: string;
+  tipo?: string; // ELETIVA / URGÊNCIA
+  sala?: string; // SALA 1 / SALA 2
   groupId: string;
   createdBy: string;
   createdAt: any;
@@ -53,13 +55,16 @@ export function Calendar() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [procedureOptions, setProcedureOptions] = useState<string[]>([]);
   
   // Form State
   const [formData, setFormData] = useState({
     evento: "",
     data: "",
     hora: "",
-    descricao: ""
+    descricao: "",
+    tipo: "ELETIVA",
+    sala: "SALA 1"
   });
 
   const today = new Date();
@@ -85,6 +90,22 @@ export function Calendar() {
 
     return () => unsubscribe();
   }, [auth.currentUser]);
+
+  useEffect(() => {
+    const fetchProcedures = async () => {
+      try {
+        const { getDocs } = await import("firebase/firestore");
+        const q = query(collection(db, "procedureOptions"), orderBy("nome"));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          setProcedureOptions(snapshot.docs.map(d => d.data().nome));
+        }
+      } catch (e) {
+        console.error("Error fetching procedures:", e);
+      }
+    };
+    fetchProcedures();
+  }, []);
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
@@ -133,7 +154,10 @@ export function Calendar() {
                 className="w-full text-left p-1 rounded bg-white border border-blue-100 shadow-sm hover:border-blue-300 transition-all group"
               >
                 <div className="text-[9px] sm:text-[10px] font-bold text-blue-600 truncate">{event.evento}</div>
-                <div className="text-[8px] sm:text-[9px] text-gray-400 font-medium">{event.hora}</div>
+                <div className="flex items-center justify-between mt-0.5">
+                  <div className="text-[8px] sm:text-[9px] text-gray-400 font-medium">{event.hora}</div>
+                  {event.sala && <div className="text-[7px] font-black text-blue-400/80 uppercase">{event.sala}</div>}
+                </div>
               </button>
             ))}
           </div>
@@ -150,7 +174,9 @@ export function Calendar() {
       evento: "",
       data: dateStr || today.toISOString().split("T")[0],
       hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-      descricao: ""
+      descricao: "",
+      tipo: "ELETIVA",
+      sala: "SALA 1"
     });
     setIsModalOpen(true);
   };
@@ -161,7 +187,9 @@ export function Calendar() {
       evento: event.evento,
       data: event.data,
       hora: event.hora,
-      descricao: event.descricao
+      descricao: event.descricao || "",
+      tipo: event.tipo || "ELETIVA",
+      sala: event.sala || "SALA 1"
     });
     setIsModalOpen(true);
   };
@@ -312,6 +340,45 @@ export function Calendar() {
                       placeholder="Ex: Cirurgia Cardíaca"
                       className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                     />
+                  </div>
+                  {procedureOptions.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {procedureOptions.map(opt => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, evento: opt })}
+                          className="text-[9px] font-bold px-2.5 py-1.5 bg-white border border-gray-100 rounded-xl text-gray-500 hover:border-blue-200 hover:text-blue-600 transition-all uppercase tracking-tight"
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Categoria</label>
+                    <select 
+                      value={formData.tipo}
+                      onChange={e => setFormData({ ...formData, tipo: e.target.value })}
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                    >
+                      <option value="ELETIVA">ELETIVA</option>
+                      <option value="URGÊNCIA">URGÊNCIA</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Sala</label>
+                    <select 
+                      value={formData.sala}
+                      onChange={e => setFormData({ ...formData, sala: e.target.value })}
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                    >
+                      <option value="SALA 1">SALA 1</option>
+                      <option value="SALA 2">SALA 2</option>
+                    </select>
                   </div>
                 </div>
 

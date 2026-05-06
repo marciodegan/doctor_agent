@@ -1079,13 +1079,14 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       `${SHEET_TABS.FAMILIARES}!A:F`
     ];
 
-    const [batchRes, contactsSnap, logsSnap] = await Promise.all([
+    const [batchRes, contactsSnap, logsSnap, patientSnap] = await Promise.all([
       sheets.spreadsheets.values.batchGet({
         spreadsheetId: fileId,
         ranges
       }),
       db.collection("patients_contacts").where("patientId", "==", id).get(),
-      db.collection("patient_logs").where("patientId", "==", id).orderBy("createdAt", "desc").get()
+      db.collection("patient_logs").where("patientId", "==", id).orderBy("createdAt", "desc").get(),
+      db.collection("patients").doc(id).get()
     ]);
 
     const valueRanges = batchRes.data.valueRanges || [];
@@ -1103,12 +1104,33 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
         acc[col] = cadData[idx];
         return acc;
       }, {});
+    } else if (patientSnap.exists) {
+      const pData = patientSnap.data()!;
+      report.cadastro = {
+        ID: id,
+        Nome: pData.name,
+        Telefone: pData.phone,
+        Idade: pData.age,
+        Status: pData.statusId || pData.status
+      };
     } else {
       return res.status(404).json({ error: `Paciente '${id}' não encontrado.` });
     }
 
-    const patientName = cadData[1];
-    const patientId = cadData[0];
+    // Override with Firestore data if available
+    if (patientSnap.exists) {
+      const pData = patientSnap.data()!;
+      if (!report.cadastro) report.cadastro = {};
+      
+      // Map Firestore fields to uppercase used in report
+      report.cadastro.Nome = pData.name || report.cadastro.Nome;
+      report.cadastro.Telefone = pData.phone || report.cadastro.Telefone;
+      report.cadastro.Idade = pData.age || report.cadastro.Idade;
+      report.cadastro.Status = pData.statusId || pData.status || report.cadastro.Status || report.cadastro.status_id;
+    }
+
+    const patientName = report.cadastro.Nome || cadData?.[1];
+    const patientId = report.cadastro.ID || cadData?.[0];
 
     // Process Logs/Audios (Evoluções - Log de Status)
     if (logRows.length > 0) {

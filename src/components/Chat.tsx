@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings } from "lucide-react";
+import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
+import { auth, db } from "../lib/firebase";
 
 interface Message {
   role: "user" | "model";
@@ -151,15 +152,43 @@ const MessageForm: React.FC<{
               ))}
             </div>
           )}
-          <input 
-            type={field.type}
-            value={values[field.name]}
-            onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
-            placeholder={field.placeholder}
-            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            required
-            {...(field.type === "number" ? { inputMode: "numeric" } : {})}
-          />
+          {field.type === "select" ? (
+            <select
+              value={values[field.name]}
+              onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
+              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer"
+              required
+            >
+              <option value="" disabled>Selecione uma opção</option>
+              {field.options?.map((opt: string) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          ) : (
+            <input 
+              type={field.type}
+              value={values[field.name]}
+              onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
+              placeholder={field.placeholder}
+              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              required
+              {...(field.type === "number" ? { inputMode: "numeric" } : {})}
+            />
+          )}
+          {field.suggestions && field.suggestions.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2 ml-1">
+              {field.suggestions.map((opt: string) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setValues(prev => ({ ...prev, [field.name]: opt }))}
+                  className="px-2 py-1 bg-white border border-gray-200 rounded-lg text-[9px] font-bold text-gray-400 hover:border-blue-200 hover:text-blue-600 transition-all uppercase"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       ))}
       
@@ -174,7 +203,11 @@ const MessageForm: React.FC<{
   );
 };
 
-export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNavigateToCalendar }) => {
+export const Chat: React.FC<{ 
+  onNavigateToCalendar?: () => void,
+  initialCommand?: string | null,
+  onCommandExecuted?: () => void
+}> = ({ onNavigateToCalendar, initialCommand, onCommandExecuted }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -188,9 +221,43 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
   const [companyName, setCompanyName] = useState("");
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [procedureOptions, setProcedureOptions] = useState<string[]>([]);
   
   // Create a mutable reference for the agent so we can reset it
   const agentRef = useRef<any>(null);
+
+  useEffect(() => {
+    const fetchProcedures = async () => {
+      try {
+        const { collection, getDocs, query, orderBy, addDoc, serverTimestamp } = await import("firebase/firestore");
+        const { db, auth } = await import("../lib/firebase");
+        const q = query(collection(db, "procedureOptions"), orderBy("nome"));
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty && auth.currentUser) {
+          const initial = [
+            "Revasc do miocárdio",
+            "Retirada de tumor intracardíaco",
+            "Fechamento de CIA",
+            "Troca Valvar + Revasc do miocário",
+            "Implante de prótese valvar + CoAo"
+          ];
+          for (const nome of initial) {
+            await addDoc(collection(db, "procedureOptions"), {
+              nome,
+              createdAt: serverTimestamp()
+            });
+          }
+          setProcedureOptions(initial);
+        } else {
+          setProcedureOptions(snapshot.docs.map(d => d.data().nome));
+        }
+      } catch (e) {
+        console.error("Error fetching procedures:", e);
+      }
+    };
+    fetchProcedures();
+  }, [auth.currentUser]);
 
   useEffect(() => {
     // Fetch Settings
@@ -202,7 +269,7 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
         setMessages([
           { 
             role: "model", 
-            text: `# Hello ${name}.\n\n### Hoje é um lindo dia para salvar vidas.`
+            text: `<div class="text-base font-medium">Hello ${name} ❤️<br/><br/>Hoje é um lindo dia para salvar vidas.</div>`
           }
         ]);
       })
@@ -217,6 +284,13 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
       if (!agentRef.current) agentRef.current = createAgent();
     });
   }, []);
+
+  useEffect(() => {
+    if (initialCommand && agentRef.current) {
+      handleSend(undefined, initialCommand, true);
+      onCommandExecuted?.();
+    }
+  }, [initialCommand, agentRef.current]);
 
   const updateSettings = async (name: string) => {
     setIsUpdatingSettings(true);
@@ -260,7 +334,7 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
   const resetAgent = async () => {
     const { createAgent } = await import("../lib/gemini");
     agentRef.current = createAgent();
-    setMessages([{ role: "model", text: `Hello ${companyName}.\n\nHoje é um lindo dia para salvar vidas.` }]);
+    setMessages([{ role: "model", text: `Hello ${companyName} ❤️\n\nHoje é um lindo dia para salvar vidas.` }]);
     setSelectedImage(null);
     setLastProcessedFile(null);
     setTimeout(scrollToTop, 0);
@@ -280,12 +354,6 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
     }
     window.location.reload();
   };
-
-  const suggestions = [
-    { label: "👤 Pacientes", prompt: "/pacientes" },
-    { label: "📅 Calendário", prompt: "/open_calendar" },
-    { label: "📅 Agenda", prompt: "/agenda" },
-  ];
 
   useEffect(() => {
     window.scrollTo({
@@ -347,7 +415,7 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
   const generatePatientReport = (data: any) => {
     const cad = data.cadastro;
     const audios = data.audios.map((a: any) => `
-<div style="margin-left: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
+<div style="margin-left: 24px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
   <div style="margin-bottom: 2px;">${a.conteudo}</div>
   <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${a.data}</div>
 </div>`).join("");
@@ -361,7 +429,7 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
       }
       
       return `
-<div style="margin-left: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
+<div style="margin-left: 24px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
   <div style="margin-bottom: 2px;">${i.descricao}${aiPart}</div>
   <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${i.data}${downloadText}</div>
 </div>`;
@@ -370,9 +438,11 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
     const fams = data.familiares.map((f: any) => {
       const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
       const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
-      const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
+      const foneLink = waNumber 
+        ? `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: none;">📞 <b>${f.fone}</b></a>` 
+        : "📞 Sem fone";
       return `
-<div style="margin-left: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
+<div style="margin-left: 24px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
   <div style="margin-bottom: 2px;">${f.nome} (${f.relacao})</div>
   <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${foneLink}</div>
 </div>`;
@@ -381,14 +451,24 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
     const cadFone = cad.Telefone;
     const cleanCadFone = cadFone ? cadFone.replace(/\D/g, "") : "";
     const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
-    const cadFoneLink = waCadNumber ? `[📞 **${cadFone}**](https://wa.me/${waCadNumber})` : "";
+    const cadFoneLink = waCadNumber 
+      ? `<a href="https://wa.me/${waCadNumber}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: none;">📞 <b>${cadFone}</b></a>` 
+      : "";
     const patientContact = cadFoneLink ? `
-<div style="margin-left: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
+<div style="margin-left: 24px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
   <div style="margin-bottom: 2px;">Paciente (Próprio)</div>
   <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${cadFoneLink}</div>
 </div>` : "";
 
-    return `📍 **Status:** ${cad.Status || "Não informado"} \`/status_alterar ${cad.ID}\`\n\n\n\n\n\n\n\n\n\n` +
+    const statusText = cad.Status || "Não informado";
+    const statusLine = `
+<div style="text-align: right; margin-bottom: 24px;">
+  <a href="/status_alterar ${cad.ID}" style="font-size: 15px; font-weight: bold; color: #1f2937; text-decoration: none; display: inline-block;">
+    ${statusText} ✏️
+  </a>
+</div>\n\n`;
+
+    return statusLine +
       `\`/novofamiliar id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Contatos:**\n\n${patientContact}${fams || (patientContact ? "" : "Nenhum registro")}\n\n\n\n\n\n\n\n\n\n` +
       `\`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Informações:**\n\n${audios || "Nenhum registro"}\n\n\n\n\n\n\n\n\n\n` +
       `\`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Imagens:**\n\n${docs || "Nenhum registro"}`;
@@ -415,6 +495,11 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
         evento = parts.evento || "";
         hora = parts.hora || "";
         dataStr = parts.data || "";
+        const tipo = parts.tipo || "";
+        const sala = parts.sala || "";
+        if (tipo || sala) {
+          evento += ` [${tipo}] [${sala}]`;
+        }
       }
 
       if (!evento && (hora || dataStr)) {
@@ -581,6 +666,62 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
       return true;
     }
 
+    if (cmd.startsWith("/calendario_add")) {
+      const rawText = cmdInput.slice("/calendario_add".length).trim();
+      const parts: Record<string, string> = {};
+      const pairs = rawText.split(",");
+      pairs.forEach(p => {
+        const partsArr = p.split(":");
+        const k = partsArr[0]?.trim();
+        const v = partsArr.slice(1).join(":").trim();
+        if (k && v) parts[k.toLowerCase()] = v;
+      });
+
+      const evento = parts.evento || "";
+      const dataStr = parts.data || "";
+      const hora = parts.hora || "";
+      const categoria = parts.categoria || "";
+      const sala = parts.sala || "";
+
+      if (!evento || !dataStr || !hora) {
+        setMessages(prev => [...prev, { role: "model", text: "❌ Dados incompletos para o calendário." }]);
+        return true;
+      }
+
+      setIsLoading(true);
+      try {
+        const { collection, addDoc, serverTimestamp } = await import("firebase/firestore");
+        const { db, auth } = await import("../lib/firebase");
+        if (!auth.currentUser) throw new Error("Usuário não autenticado");
+
+        const GROUP_ID = "main-group";
+        const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
+        
+        await addDoc(eventsRef, {
+          evento,
+          data: dataStr,
+          hora,
+          tipo: categoria,
+          sala,
+          descricao: `Categoria: ${categoria}, Sala: ${sala}`,
+          groupId: GROUP_ID,
+          createdBy: auth.currentUser.uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        setMessages(prev => [...prev, { 
+          role: "model", 
+          text: `✅ **Evento adicionado ao Calendário!**\n\n📅 **${evento}**\n🕒 ${dataStr} às ${hora}\n📍 ${sala} (${categoria})` 
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao salvar: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
     if (cmd === "/iniciaragenda") {
       const today = new Date();
       const pad = (n: number) => n.toString().padStart(2, "0");
@@ -589,16 +730,52 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
       
       setMessages(prev => [...prev, { 
         role: "model", 
-        text: "📅 **Novo Agendamento**\n\nPreencha os detalhes do compromisso:",
+        text: "📅 **Novo Agendamento (Google Agenda)**\n\nPreencha os detalhes do compromisso:",
         form: {
           title: "Agendar Compromisso",
           fields: [
+            // @ts-ignore
             { label: "Evento / Descrição", name: "evento", type: "text", placeholder: "Ex: Consulta de Retorno" },
             { label: "Data", name: "data", type: "date", defaultValue: hojeStrIso },
             { label: "Horário", name: "hora", type: "time", defaultValue: agoraStr },
           ],
           submitLabel: "Adicionar à Agenda",
           commandPrefix: "/agendar"
+        }
+      }]);
+      return true;
+    }
+
+    if (cmd.startsWith("/calendario_form")) {
+      let patientName = cmdInput.match(/paciente:\s*(.+)/i)?.[1]?.trim() || "";
+      const today = new Date();
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const hojeStrIso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`; 
+      const agoraStr = `${pad(today.getHours())}:00`;
+      
+      setMessages(prev => [...prev, { 
+        role: "model", 
+        text: "📅 **Novo Eventio no Calendário**\n\nPreencha os detalhes do evento:",
+        form: {
+          title: "Novo Evento",
+          fields: [
+            { 
+              label: "Evento / Descrição", 
+              name: "evento", 
+              type: "text", 
+              placeholder: "Ex: Cirurgia de Quadril", 
+              defaultValue: patientName ? `Cirurgia - ${patientName}` : "",
+              // @ts-ignore
+              suggestions: procedureOptions
+            },
+            // @ts-ignore
+            { label: "Categoria", name: "categoria", type: "select", options: ["ELETIVA", "URGÊNCIA"], defaultValue: "ELETIVA" },
+            { label: "Sala", name: "sala", type: "select", options: ["SALA 1", "SALA 2"], defaultValue: "SALA 1" },
+            { label: "Data", name: "data", type: "date", defaultValue: hojeStrIso },
+            { label: "Horário", name: "hora", type: "time", defaultValue: agoraStr }
+          ],
+          submitLabel: "Adicionar ao Calendário",
+          commandPrefix: "/calendario_add"
         }
       }]);
       return true;
@@ -1386,7 +1563,9 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
       const list = data.map((f: any) => {
         const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
         const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
-        const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
+        const foneLink = waNumber 
+          ? `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: none;">📞 <b>${f.fone}</b></a>` 
+          : "📞 Sem fone";
         return `• **${f.nome}** (${f.relacao})\n  ${foneLink}\n  👤 Paciente: ${f.pacienteNome} (ID: ${f.pacienteId})`;
       }).join("\n\n");
       setMessages(prev => [...prev, { 
@@ -1648,6 +1827,65 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
         await handleDirectCommand("/agenda");
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao remover evento: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/status_alterar")) {
+      const patId = cmdInput.split(" ")[1];
+      if (!patId) return true;
+
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/app/statuses");
+        const statuses = await res.json();
+        
+        setMessages(prev => [...prev, {
+          role: "model",
+          text: "🏷️ **Alterar Status**\n\nEscolha o novo status para o paciente:",
+          actionGroups: [
+            {
+              title: "Selecione o Status",
+              actions: statuses.map((s: any) => ({
+                label: s.nome,
+                cmd: `/status_apply pac: ${patId}, status: ${s.nome}`
+              }))
+            }
+          ]
+        }]);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar status: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/status_apply")) {
+      const pacId = cmdInput.match(/pac:\s*([\w-]+)/i)?.[1]?.trim();
+      const status = cmdInput.match(/status:\s*(.+)/i)?.[1]?.trim();
+
+      if (!pacId || !status) {
+        setMessages(prev => [...prev, { role: "model", text: "❌ Parâmetros inválidos para alteração de status." }]);
+        return true;
+      }
+
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/app/patients/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patientId: pacId, status })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        setMessages([]); // Clear to refresh with report
+        await handleDirectCommand(`/p ${pacId}`);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao atualizar status: ${err.message}` }]);
       } finally {
         setIsLoading(false);
         return true;
@@ -1987,16 +2225,28 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
                     </div>
                   )}
                   {msg.isProfile && msg.profileData && (
-                    <div className="bg-blue-50 -mx-4 -mt-2 mb-4 pt-6 pb-4 px-4 flex flex-row items-center justify-start border-b border-blue-100 shadow-sm relative overflow-hidden">
+                    <div className="bg-blue-50 -mx-4 -mt-2 mb-4 pt-6 pb-4 px-4 flex flex-row items-center justify-between border-b border-blue-100 shadow-sm relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-24 h-24 bg-blue-100/30 rounded-full -mr-12 -mt-12 blur-xl"></div>
                       
+                      <div className="flex flex-col items-start gap-1 relative z-10">
+                        <h2 className="text-[18px] font-bold text-blue-800 tracking-tight leading-tight">{msg.profileData.nome}</h2>
+                        <div className="flex flex-row items-center gap-2">
+                          <span className="text-[15px] font-medium text-blue-600">{msg.profileData.idade} anos</span>
+                          <button 
+                            onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
+                            className="text-[10px] font-bold uppercase tracking-wider text-white bg-blue-500 px-2 py-0.5 rounded-full hover:bg-blue-600 transition-colors"
+                          >
+                            Editar
+                          </button>
+                        </div>
+                      </div>
+
                       <button 
-                        onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
-                        className="group flex flex-row items-center gap-1.5 hover:scale-[1.02] transition-transform relative z-10"
+                        onClick={() => handleDirectCommand(`/calendario_form paciente: ${msg.profileData?.nome}`)}
+                        className="bg-emerald-600 text-white p-2.5 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all relative z-10"
+                        title="Novo Evento no Calendário"
                       >
-                        <span className="text-[17px] font-bold text-blue-800 group-hover:text-blue-900 transition-colors tracking-tight leading-none">{msg.profileData.nome}</span>
-                        <span className="text-[17px] font-medium text-blue-600 leading-none">| {msg.profileData.idade} anos</span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-white bg-blue-500 px-2 py-0.5 rounded-full group-hover:bg-blue-600 transition-colors ml-0.5">Editar</span>
+                        <CalendarPlus size={20} />
                       </button>
                     </div>
                   )}
@@ -2024,12 +2274,15 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
                                       const shouldClear = isNovoBtn ||
                                                           href.startsWith("/p") || 
                                                           href.startsWith("/edit") || 
-                                                          href.startsWith("/pacientes");
+                                                          href.startsWith("/pacientes") ||
+                                                          href.startsWith("/status_alterar");
                                       handleSend(undefined, href, shouldClear);
                                     }}
                                     className={isNovoBtn 
                                       ? "bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-200 hover:bg-blue-700 cursor-pointer inline-flex items-center gap-2 not-prose"
-                                      : "text-blue-600 hover:underline cursor-pointer font-normal"
+                                      : href.startsWith("/status_alterar")
+                                        ? "text-gray-900 font-bold text-[15px] cursor-pointer hover:text-blue-700"
+                                        : "text-blue-600 hover:underline cursor-pointer font-normal"
                                     }
                                   >
                                     {children}
@@ -2201,20 +2454,7 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
         </div>
       )}
 
-      {/* Suggested Actions */}
-      {!isLoading && (
-        <div className="px-4 pb-4 flex flex-wrap gap-2 shrink-0 border-t pt-4 bg-gray-100/30">
-          {suggestions.map((s, i) => (
-            <button
-              key={i}
-              onClick={() => handleSend(undefined, s.prompt, true)}
-              className="text-[12px] font-bold px-4 py-2.5 bg-white border border-gray-200 rounded-full text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all uppercase tracking-wide shadow-sm"
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Suggested Actions Removed - Now in App.tsx */}
     </div>
   );
 };

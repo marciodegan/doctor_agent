@@ -122,6 +122,8 @@
         "data": { "type": "string", "description": "YYYY-MM-DD" },
         "hora": { "type": "string", "description": "HH:mm" },
         "descricao": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["ELETIVA", "URGÊNCIA"], "description": "Categoria do evento" },
+        "sala": { "type": "string", "enum": ["SALA 1", "SALA 2"] },
         "groupId": { "type": "string" },
         "createdBy": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
@@ -139,9 +141,23 @@
         "name": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "doctor", "staff"] }
       }
+    },
+    "ProcedureOption": {
+      "title": "Opção de Procedimento",
+      "description": "Opção predefinida para o campo de evento/procedimento",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nome"]
     }
   },
   "firestore": {
+    "/procedureOptions/{optionId}": {
+      "schema": "ProcedureOption",
+      "description": "Lista de procedimentos cirúrgicos frequentes"
+    },
     "/hospitals/{hospitalId}": {
       "schema": "Hospital",
       "description": "List of hospitals"
