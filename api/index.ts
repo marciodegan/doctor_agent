@@ -934,7 +934,8 @@ app.get("/api/app/settings", async (req, res) => {
     });
 
     res.json({
-      companyName: settings["companyName"] || "Doctor Pro"
+      companyName: settings["companyName"] || "Doctor Pro",
+      whatsappNumber: settings["whatsappNumber"] || ""
     });
   } catch (error) {
     handleApiError(res, error, "Fetching settings");
@@ -943,12 +944,17 @@ app.get("/api/app/settings", async (req, res) => {
 
 // Update app settings
 app.post("/api/app/settings", async (req, res) => {
-  const { companyName } = req.body;
+  const { companyName, whatsappNumber } = req.body;
 
   try {
+    const batch = db.batch();
     if (companyName) {
-      await db.collection("settings").doc("companyName").set({ value: companyName });
+      batch.set(db.collection("settings").doc("companyName"), { value: companyName });
     }
+    if (whatsappNumber !== undefined) {
+      batch.set(db.collection("settings").doc("whatsappNumber"), { value: whatsappNumber });
+    }
+    await batch.commit();
     res.json({ status: "ok" });
   } catch (error) {
     handleApiError(res, error, "Updating settings");

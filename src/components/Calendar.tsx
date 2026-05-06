@@ -60,6 +60,7 @@ export function Calendar() {
   const [procedureOptions, setProcedureOptions] = useState<string[]>([]);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [waError, setWaError] = useState<string | null>(null);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -135,10 +136,18 @@ export function Calendar() {
       newSelected.add(id);
     }
     setSelectedEventIds(newSelected);
+    if (waError) setWaError(null);
   };
 
   const handleSendToWhatsApp = () => {
     if (selectedEventIds.size === 0) return;
+
+    const cleanPhone = whatsappNumber.replace(/\D/g, "");
+    if (!cleanPhone) {
+      setWaError("Configure seu WhatsApp no ícone de engrenagem do Chat");
+      console.warn("WhatsApp number missing in settings");
+      return;
+    }
 
     const selectedEvents = events
       .filter(e => selectedEventIds.has(e.id))
@@ -162,14 +171,22 @@ export function Calendar() {
       if (idx < selectedEvents.length - 1) message += `\n---\n\n`;
     });
 
-    const cleanPhone = whatsappNumber.replace(/\D/g, "");
-    if (!cleanPhone) {
-      alert("Por favor, configure seu número de WhatsApp nas configurações do Chat.");
-      return;
-    }
-
     const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank");
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+    
+    // Try window.open first
+    const waWindow = window.open(waUrl, "_blank");
+    
+    // Fallback if blocked
+    if (!waWindow || waWindow.closed || typeof waWindow.closed === "undefined") {
+      const link = document.createElement("a");
+      link.href = waUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const handlePrevMonth = () => {
@@ -336,15 +353,26 @@ export function Calendar() {
 
         <div className="flex items-center gap-2">
           {selectedEventIds.size > 0 && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              onClick={handleSendToWhatsApp}
-              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all mr-2"
-            >
-              <Share2 size={18} />
-              <span className="hidden sm:inline">WhatsApp ({selectedEventIds.size})</span>
-            </motion.button>
+            <div className="flex flex-col items-end">
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={handleSendToWhatsApp}
+                className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all"
+              >
+                <Share2 size={18} />
+                <span className="hidden sm:inline">WhatsApp ({selectedEventIds.size})</span>
+              </motion.button>
+              {waError && (
+                <motion.span 
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-[10px] text-red-500 font-bold mt-1 mr-1 text-right max-w-[200px]"
+                >
+                  {waError}
+                </motion.span>
+              )}
+            </div>
           )}
 
           <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
