@@ -18,15 +18,18 @@ interface Group {
   id: string;
   name: string;
   createdBy: string;
+  status?: "active" | "pending";
 }
 
 interface GroupContextType {
   groups: Group[];
+  invites: Group[];
   activeGroup: Group | null;
   loading: boolean;
   setActiveGroupId: (id: string) => void;
   createGroup: (name: string) => Promise<string>;
   inviteUser: (groupId: string, email: string) => Promise<void>;
+  acceptInvite: (groupId: string) => Promise<void>;
 }
 
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
@@ -34,12 +37,14 @@ const GroupContext = createContext<GroupContextType | undefined>(undefined);
 export function GroupProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
+  const [invites, setInvites] = useState<Group[]>([]);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
       setGroups([]);
+      setInvites([]);
       setActiveGroup(null);
       setLoading(false);
       return;
@@ -48,34 +53,44 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     
     // We need to find groups where the user is a member
-    // Since we can't easily query across depth 2 subcollections in some cases without collectionGroups
-    // let's assume we have a top level "userGroups" mapping or we query collection group "members"
-    // For simplicity and following the rules (no collectionGroup mentioned), 
-    // let's try a different approach: store direct memberships in /users/{userId}/memberships/{groupId}
-    
     const membershipsPath = `users/${user.uid}/memberships`;
     const unsubscribe = onSnapshot(collection(db, membershipsPath), async (snapshot) => {
       try {
-        const groupPromises = snapshot.docs.map(async (membershipDoc) => {
+        const membershipPromises = snapshot.docs.map(async (membershipDoc) => {
           const groupId = membershipDoc.id;
+          const mData = membershipDoc.data();
           const groupDoc = await getDocs(query(collection(db, "groups"), where("id", "==", groupId)));
+          
+          let groupInfo: Group;
           if (!groupDoc.empty) {
-            return { id: groupId, ...groupDoc.docs[0].data() } as Group;
+            groupInfo = { id: groupId, ...groupDoc.docs[0].data(), status: mData.status || "active" } as Group;
+          } else {
+            // Fallback for direct doc access if ID matches doc name
+            groupInfo = { 
+              id: groupId, 
+              name: mData.groupName || "Group " + groupId, 
+              createdBy: "", 
+              status: mData.status || "active" 
+            } as Group;
           }
-          // Fallback for direct doc access if ID matches doc name
-          return { id: groupId, name: membershipDoc.data().groupName || "Group " + groupId, createdBy: "" } as Group;
+          return groupInfo;
         });
 
-        const fetchedGroups = await Promise.all(groupPromises);
-        setGroups(fetchedGroups);
+        const fetchedMemberships = await Promise.all(membershipPromises);
+        
+        const activeGroups = fetchedMemberships.filter(m => m.status === "active");
+        const pendingGroups = fetchedMemberships.filter(m => m.status === "pending");
 
-        // Restore active group from localStorage or pick first
+        setGroups(activeGroups);
+        setInvites(pendingGroups);
+
+        // Restore active group from localStorage or pick first active
         const savedGroupId = localStorage.getItem("activeGroupId");
-        const found = fetchedGroups.find(g => g.id === savedGroupId);
+        const found = activeGroups.find(g => g.id === savedGroupId);
         if (found) {
           setActiveGroup(found);
-        } else if (fetchedGroups.length > 0) {
-          setActiveGroup(fetchedGroups[0]);
+        } else if (activeGroups.length > 0) {
+          setActiveGroup(activeGroups[0]);
         } else {
           setActiveGroup(null);
         }
@@ -124,7 +139,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, `users/${user.uid}/memberships`, groupId), {
         groupId,
         groupName: name,
-        role: "owner"
+        role: "owner",
+        status: "active"
       });
 
       return groupId;
@@ -152,6 +168,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
          userId: targetUid,
          userEmail: email,
          role: "member",
+         status: "pending",
          joinedAt: serverTimestamp()
        });
 
@@ -159,15 +176,34 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
        await setDoc(doc(db, `users/${targetUid}/memberships`, groupId), {
          groupId,
          groupName: groups.find(g => g.id === groupId)?.name || "New Group",
-         role: "member"
+         role: "member",
+         status: "pending"
        });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `groups/${groupId}/members`);
     }
   };
 
+  const acceptInvite = async (groupId: string) => {
+    if (!user) throw new Error("Must be logged in");
+    try {
+      // Update membership status
+      await setDoc(doc(db, `users/${user.uid}/memberships`, groupId), {
+        status: "active"
+      }, { merge: true });
+
+      // Update group member status
+      await setDoc(doc(db, `groups/${groupId}/members`, user.uid), {
+        status: "active",
+        joinedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/memberships/${groupId}`);
+    }
+  };
+
   return (
-    <GroupContext.Provider value={{ groups, activeGroup, loading, setActiveGroupId, createGroup, inviteUser }}>
+    <GroupContext.Provider value={{ groups, invites, activeGroup, loading, setActiveGroupId, createGroup, inviteUser, acceptInvite }}>
       {children}
     </GroupContext.Provider>
   );

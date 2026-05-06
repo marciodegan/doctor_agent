@@ -15,13 +15,14 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 
 export function GroupSelector() {
-  const { groups, activeGroup, setActiveGroupId, createGroup, inviteUser, loading } = useGroup();
+  const { groups, invites, activeGroup, setActiveGroupId, createGroup, inviteUser, acceptInvite, loading } = useGroup();
   const { user, logout } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [error, setError] = useState("");
+  const [isAccepting, setIsAccepting] = useState<string | null>(null);
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +34,17 @@ export function GroupSelector() {
       setIsCreating(false);
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleAcceptInvite = async (groupId: string) => {
+    try {
+      setIsAccepting(groupId);
+      await acceptInvite(groupId);
+      setIsAccepting(null);
+    } catch (err: any) {
+      setError(err.message);
+      setIsAccepting(null);
     }
   };
 
@@ -58,8 +70,8 @@ export function GroupSelector() {
     );
   }
 
-  // If no groups, force creation
-  if (groups.length === 0 && !isCreating) {
+  // If no groups AND no invites, force creation
+  if (groups.length === 0 && invites.length === 0 && !isCreating) {
     return (
       <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-xl shadow-blue-500/5 max-w-md mx-auto">
         <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mb-6 mx-auto">
@@ -139,30 +151,72 @@ export function GroupSelector() {
             key="group-list"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="space-y-2"
+            className="space-y-4"
           >
-            {groups.map((group) => (
-              <button
-                key={group.id}
-                onClick={() => setActiveGroupId(group.id)}
-                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all border-2 group ${
-                  activeGroup?.id === group.id 
-                    ? "bg-blue-50 border-blue-600 shadow-sm" 
-                    : "bg-white border-transparent hover:border-gray-100 hover:bg-gray-50"
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                  activeGroup?.id === group.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-400 group-hover:bg-gray-200"
-                }`}>
-                  {group.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 text-left">
-                  <div className="font-bold text-sm text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{group.name}</div>
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{activeGroup?.id === group.id ? "Ativo no momento" : "Clique para entrar"}</div>
-                </div>
-                {activeGroup?.id === group.id && <Check size={18} className="text-blue-600" />}
-              </button>
-            ))}
+            {/* Invitations Section */}
+            {invites.length > 0 && (
+              <div className="space-y-3">
+                <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest px-2">Convites Pendentes</div>
+                {invites.map((invite) => (
+                  <motion.div
+                    key={invite.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-blue-50 border border-blue-100 p-4 rounded-2xl flex flex-col gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold">
+                        {invite.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm text-gray-900 uppercase">{invite.name}</div>
+                        <div className="text-[10px] text-blue-600 font-bold uppercase tracking-tight">Você foi convidado</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleAcceptInvite(invite.id)}
+                      disabled={isAccepting === invite.id}
+                      className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold text-xs hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                    >
+                      {isAccepting === invite.id ? (
+                        <Loader2 className="animate-spin" size={14} />
+                      ) : (
+                        <Check size={14} />
+                      )}
+                      ENTRAR NO GRUPO {invite.name.toUpperCase()}
+                    </button>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+
+            {/* Active Groups List */}
+            <div className="space-y-2">
+              {groups.length > 0 && <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2">Meus Grupos</div>}
+              {groups.map((group) => (
+                <button
+                  key={group.id}
+                  onClick={() => setActiveGroupId(group.id)}
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all border-2 group ${
+                    activeGroup?.id === group.id 
+                      ? "bg-blue-50 border-blue-600 shadow-sm" 
+                      : "bg-white border-transparent hover:border-gray-100 hover:bg-gray-50"
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                    activeGroup?.id === group.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-400 group-hover:bg-gray-200"
+                  }`}>
+                    {group.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <div className="font-bold text-sm text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{group.name}</div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{activeGroup?.id === group.id ? "Ativo no momento" : "Clique para entrar"}</div>
+                  </div>
+                  {activeGroup?.id === group.id && <Check size={18} className="text-blue-600" />}
+                </button>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
