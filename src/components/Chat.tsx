@@ -202,16 +202,7 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
         setMessages([
           { 
             role: "model", 
-            text: `Hello ${name}.\n\nHoje é um lindo dia para salvar vidas.`,
-            actionGroups: [
-              {
-                title: "Acesso Rápido",
-                actions: [
-                  { label: "📅 CALENDÁRIO", cmd: "/open_calendar" },
-                  { label: "📋 Pacientes", cmd: "/pacientes" }
-                ]
-              }
-            ]
+            text: `# Hello ${name}.\n\n### Hoje é um lindo dia para salvar vidas.`
           }
         ]);
       })
@@ -292,12 +283,8 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
 
   const suggestions = [
     { label: "👤 Pacientes", prompt: "/pacientes" },
-    { label: "🔍 Buscar", prompt: "/edit_menu" },
-    { label: "👤 Novo", prompt: "/iniciarcadastro" },
-    { label: "📅 Agendar", prompt: "/iniciaragenda" },
+    { label: "📅 Calendário", prompt: "/open_calendar" },
     { label: "📅 Agenda", prompt: "/agenda" },
-    { label: "⚙️ Config", prompt: "/config_menu" },
-    { label: "❓ Ajuda", prompt: "/ajuda" },
   ];
 
   useEffect(() => {
@@ -502,6 +489,7 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
         if (resData.error) throw new Error(resData.error);
 
         setMessages(prev => [...prev, { role: "model", text: `✅ **Agendado com sucesso!**\n\n📅 **${evento}**\n🕒 ${eventDate.toLocaleString("pt-BR")}` }]);
+        await handleDirectCommand("/agenda");
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao agendar: ${err.message}` }]);
       } finally {
@@ -549,12 +537,22 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
         const tomorrowList = tomorrowEvents.map(formatEvent).join("\n\n");
 
         const fullAgenda = 
-          `\`/iniciaragenda label:➕ NOVO EVENTO\`\n\n` +
           `**📅 Sua Agenda (${formatDate(today)}):**\n\n${todayList || "Sem compromissos."}\n\n` +
           `**📅 Sua Agenda (${formatDate(tomorrow)}):**\n\n${tomorrowList || "Sem compromissos."}\n\n` +
           `*Nota: Esta agenda é pessoal e visível apenas para você.*`;
 
-        setMessages([{ role: "model", text: fullAgenda }]);
+        setMessages([{ 
+          role: "model", 
+          text: fullAgenda,
+          actionGroups: [
+            {
+              title: "Ações",
+              actions: [
+                { label: "➕ Novo Agendamento", cmd: "/iniciaragenda" }
+              ]
+            }
+          ]
+        }]);
         setTimeout(scrollToTop, 0);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar agenda: ${err.message}` }]);
@@ -1166,15 +1164,22 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
           if (pageToView < totalPages) nav += ` [\`Próximo ➡️\`](/pacientes${currentFilters} pag:${pageToView + 1} sort:${sort}) `;
         }
 
-        const actionGroups = [
-          {
-            title: "Ordenar",
-            actions: [
-              { label: "A-Z", cmd: `/pacientes hospital:${hospitalFilter ?? ""} status:${statusFilter ?? ""} sort:nome` },
-              { label: "Mais Recentes", cmd: `/pacientes hospital:${hospitalFilter ?? ""} status:${statusFilter ?? ""} sort:id` },
-            ]
-          }
-        ];
+        const actionGroups = [];
+        if (hospitals.length > 0) {
+          const sortedMasterHospitals = [...masterHospitalsData].sort((a, b) => a.nome.localeCompare(b.nome));
+          const hospitalActions = sortedMasterHospitals.map((h: any) => {
+            const hId = h.id.toString();
+            return { 
+              label: h.nome, 
+              cmd: `/pacientes hospital:${hId} sort:${sort}`
+            };
+          });
+
+          actionGroups.push({
+            title: "Filtrar por Hospital",
+            actions: hospitalActions
+          });
+        }
 
         if (statuses.length > 0) {
           const sortedMasterStatuses = [...masterStatuses].sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
@@ -1190,22 +1195,6 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
           actionGroups.push({
             title: "Filtrar por Status",
             actions: statusActions
-          });
-        }
-
-        if (hospitals.length > 0) {
-          const sortedMasterHospitals = [...masterHospitalsData].sort((a, b) => a.nome.localeCompare(b.nome));
-          const hospitalActions = sortedMasterHospitals.map((h: any) => {
-            const hId = h.id.toString();
-            return { 
-              label: h.nome, 
-              cmd: `/pacientes hospital:${hId} sort:${sort}`
-            };
-          });
-
-          actionGroups.push({
-            title: "Filtrar por Hospital",
-            actions: hospitalActions
           });
         }
 
@@ -1306,11 +1295,9 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
             if (pageToView < totalPages) nav += ` \`/buscar ${searchBase} pag:${pageToView + 1} sort:${sort}\` `;
           }
 
-          const sortOptions = `\n\n🎯 **Ordenar por:**\n• \`/buscar ${termo ? `termo:${termo} ` : ""}sort:nome\` (A-Z)\n• \`/buscar ${termo ? `termo:${termo} ` : ""}sort:id\` (Mais recentes)`;
-
           setMessages([{ 
             role: "model", 
-            text: `🔍 **Resultados para "${termo || "todos"}":**\n\n${list}${nav}${sortOptions}` 
+            text: `🔍 **Resultados para "${termo || "todos"}":**\n\n${list}${nav}` 
           }]);
           setTimeout(scrollToTop, 0);
         }
@@ -1658,6 +1645,7 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
         if (data.error) throw new Error(data.error);
         
         setMessages(prev => [...prev, { role: "model", text: "✅ Evento removido com sucesso!" }]);
+        await handleDirectCommand("/agenda");
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao remover evento: ${err.message}` }]);
       } finally {
@@ -1999,7 +1987,7 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
                     </div>
                   )}
                   {msg.isProfile && msg.profileData && (
-                    <div className="bg-blue-50 -mx-4 -mt-4 mb-4 p-4 flex flex-row items-center justify-start border-b border-blue-100 shadow-sm relative overflow-hidden">
+                    <div className="bg-blue-50 -mx-4 -mt-2 mb-4 pt-6 pb-4 px-4 flex flex-row items-center justify-start border-b border-blue-100 shadow-sm relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-24 h-24 bg-blue-100/30 rounded-full -mr-12 -mt-12 blur-xl"></div>
                       
                       <button 
@@ -2139,8 +2127,8 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
                         </ReactMarkdown>
                       </div>
 
-                      {msg.isListing && msg.actionGroups && (
-                        <div className="mt-8 pt-6 border-t border-gray-100 space-y-4">
+                      {msg.actionGroups && (
+                        <div className="mt-6 pt-6 -mx-3 -mb-3 p-4 bg-gray-50/70 border-t border-gray-100 space-y-4">
                           {msg.actionGroups.map((group, gi) => (
                             <div key={gi} className="space-y-2">
                               <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">{group.title}</h4>
@@ -2215,12 +2203,12 @@ export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNaviga
 
       {/* Suggested Actions */}
       {!isLoading && (
-        <div className="px-4 pb-4 flex flex-wrap gap-2 shrink-0 border-t pt-4 bg-gray-50/50">
+        <div className="px-4 pb-4 flex flex-wrap gap-2 shrink-0 border-t pt-4 bg-gray-100/30">
           {suggestions.map((s, i) => (
             <button
               key={i}
               onClick={() => handleSend(undefined, s.prompt, true)}
-              className="text-[11px] font-bold px-3 py-1.5 bg-white border border-gray-200 rounded-full text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all uppercase tracking-wide shadow-sm"
+              className="text-[12px] font-bold px-4 py-2.5 bg-white border border-gray-200 rounded-full text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all uppercase tracking-wide shadow-sm"
             >
               {s.label}
             </button>
