@@ -17,6 +17,7 @@ interface Message {
     nome: string;
     idade: string;
     status?: string;
+    hospitalId?: string;
   };
   form?: {
     title?: string;
@@ -727,6 +728,10 @@ export const Chat: React.FC<{
       const hora = parts.hora || "";
       const categoria = parts.categoria || "";
       const sala = parts.sala || "";
+      const hospName = parts.hospitalid || ""; // form fields use names as values for selects often, but let's check
+      
+      const selectedHospital = hospitalOptions.find(h => h.nome === hospName || h.id === hospName);
+      const hostIdResolved = selectedHospital ? selectedHospital.id : "";
 
       const pid = parts.pid || "";
 
@@ -753,6 +758,7 @@ export const Chat: React.FC<{
           descricao: `Categoria: ${categoria}, Sala: ${sala}`,
           groupId: GROUP_ID,
           patientId: pid,
+          hospitalId: hostIdResolved,
           createdBy: auth.currentUser.uid,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
@@ -802,6 +808,8 @@ export const Chat: React.FC<{
     if (cmd.startsWith("/calendario_form")) {
       let patientName = cmdInput.match(/paciente:\s*([^,]+)/i)?.[1]?.trim() || "";
       let pid = cmdInput.match(/pid:\s*([\w-]+)/i)?.[1]?.trim() || "";
+      let hospId = cmdInput.match(/hospId:\s*([\w-]+)/i)?.[1]?.trim() || "";
+      
       const today = new Date();
       const pad = (n: number) => n.toString().padStart(2, "0");
       const hojeStrIso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`; 
@@ -822,6 +830,13 @@ export const Chat: React.FC<{
               defaultValue: patientName ? `Cirurgia - ${patientName}` : "",
               // @ts-ignore
               suggestions: procedureOptions
+            },
+            { 
+              label: "Hospital", 
+              name: "hospitalId", 
+              type: "select", 
+              options: hospitalOptions.map(h => h.nome),
+              defaultValue: hospitalOptions.find(h => h.id === hospId)?.nome || ""
             },
             // @ts-ignore
             { label: "Categoria", name: "categoria", type: "select", options: ["ELETIVA", "URGÊNCIA"], defaultValue: "ELETIVA" },
@@ -1233,7 +1248,8 @@ export const Chat: React.FC<{
             id: cad.ID.toString(),
             nome: cad.Nome,
             idade: cad.Idade ? cad.Idade.toString() : "N/A",
-            status: cad.Status
+            status: cad.Status,
+            hospitalId: cad.hospitalId
           }
         }]);
         setTimeout(scrollToTop, 0);
@@ -1772,7 +1788,8 @@ export const Chat: React.FC<{
               id: pData.id,
               nome: pData.cadastro.Nome,
               idade: pData.cadastro.Idade,
-              status: pData.cadastro.Status
+              status: pData.cadastro.Status,
+              hospitalId: pData.cadastro.hospitalId
             }
           }]);
           setTimeout(scrollToTop, 0);
@@ -2347,43 +2364,45 @@ export const Chat: React.FC<{
                     </div>
                   )}
                   {msg.isProfile && msg.profileData && (
-                    <div className="bg-blue-50 -mx-4 -mt-2 mb-4 pt-6 pb-4 px-4 flex flex-row items-center justify-between border-b border-blue-100 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-blue-100/30 rounded-full -mr-12 -mt-12 blur-xl"></div>
-                      
-                      <div className="flex flex-col items-start gap-1 relative z-10">
-                        <h2 className="text-[18px] font-bold text-blue-800 tracking-tight leading-tight">{msg.profileData.nome}</h2>
-                        <div className="flex flex-row items-center gap-2">
-                          <span className="text-[15px] font-medium text-blue-600">{msg.profileData.idade} anos</span>
-                          <button 
-                            onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
-                            className="text-[10px] font-bold uppercase tracking-wider text-white bg-blue-500 px-2 py-0.5 rounded-full hover:bg-blue-600 transition-colors"
-                          >
-                            Editar
-                          </button>
+                    <>
+                      <div className="bg-blue-50 -mx-4 -mt-2 mb-0 pt-6 pb-4 px-4 flex flex-row items-center justify-between border-b border-blue-100 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-blue-100/30 rounded-full -mr-12 -mt-12 blur-xl"></div>
+                        
+                        <div className="flex flex-col items-start gap-1.5 relative z-10">
+                          <h2 className="text-[20px] font-black text-blue-900 tracking-tight leading-tight">{msg.profileData.nome}</h2>
+                          <div className="flex flex-row items-center gap-3">
+                            <span className="text-[14px] font-bold text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-lg">{msg.profileData.idade} anos</span>
+                            <button 
+                              onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
+                              className="text-[11px] font-black uppercase tracking-widest text-white bg-blue-600 px-3 py-1 rounded-lg hover:bg-blue-700 transition-all shadow-sm active:scale-95"
+                            >
+                              Editar
+                            </button>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-3 relative z-10">
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">Status Atual</span>
+                        <div className="flex flex-col items-end gap-1 relative z-10">
+                          <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Status</span>
                           <button 
                             onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
-                            className="bg-white px-2 py-1.5 rounded-lg border border-blue-600 text-blue-900 text-sm font-bold shadow-sm hover:bg-blue-50 transition-all flex items-center gap-1.5"
+                            className="bg-white px-3 py-2 rounded-xl border-2 border-blue-600 text-blue-900 text-[13px] font-black shadow-md hover:bg-blue-50 transition-all flex items-center gap-2 active:scale-95"
                           >
                             {msg.profileData?.status || "PENDENTE"}
-                            <Edit3 size={12} className="text-blue-400" />
+                            <Edit3 size={14} className="text-blue-500" />
                           </button>
                         </div>
+                      </div>
 
+                      <div className="px-4 py-4 bg-white border-b border-gray-100">
                         <button 
-                          onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}`)}
-                          className="bg-emerald-600 text-white px-3 py-2 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center gap-2"
+                          onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}`)}
+                          className="w-full bg-emerald-600 text-white px-6 py-3.5 rounded-2xl shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
                         >
-                          <CalendarPlus size={18} />
-                          <span className="text-[11px] font-extrabold uppercase tracking-tight">Novo Evento</span>
+                          <CalendarPlus size={22} className="text-emerald-100" />
+                          <span className="text-[12px] font-black uppercase tracking-widest">Novo Evento no Calendário</span>
                         </button>
                       </div>
-                    </div>
+                    </>
                   )}
                   {msg.image && (
                     <img src={msg.image} alt="User upload" className="max-w-full rounded-lg mb-2 shadow-sm" />

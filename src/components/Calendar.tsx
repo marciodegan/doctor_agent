@@ -11,7 +11,9 @@ import {
   FileText,
   AlertCircle,
   Share2,
-  Check
+  Check,
+  Building2,
+  Filter
 } from "lucide-react";
 import { 
   collection, 
@@ -24,7 +26,8 @@ import {
   doc, 
   serverTimestamp,
   orderBy,
-  Timestamp
+  Timestamp,
+  getDocs
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import { motion, AnimatePresence } from "motion/react";
@@ -37,6 +40,7 @@ import { motion, AnimatePresence } from "motion/react";
   descricao: string;
   tipo?: string; // ELETIVA / URGÊNCIA
   sala?: string; // SALA 1 / SALA 2
+  hospitalId?: string;
   groupId: string;
   createdBy: string;
   createdAt: any;
@@ -61,6 +65,8 @@ export function Calendar() {
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [waError, setWaError] = useState<string | null>(null);
+  const [hospitalOptions, setHospitalOptions] = useState<{id: string, nome: string}[]>([]);
+  const [selectedHospitalFilter, setSelectedHospitalFilter] = useState<string>("all");
   
   // Form State
   const [formData, setFormData] = useState({
@@ -69,7 +75,8 @@ export function Calendar() {
     hora: "",
     descricao: "",
     tipo: "ELETIVA",
-    sala: "SALA 1"
+    sala: "SALA 1",
+    hospitalId: ""
   });
 
   const today = new Date();
@@ -112,6 +119,37 @@ export function Calendar() {
     fetchProcedures();
   }, []);
 
+  const [viewMode, setViewMode] = useState<"month" | "day">("month");
+  const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split("T")[0]);
+
+  // Handle month navigation for day view too
+  const goToNextDay = () => {
+    const d = new Date(selectedDay);
+    d.setDate(d.getDate() + 1);
+    setSelectedDay(d.toISOString().split("T")[0]);
+  };
+  const goToPrevDay = () => {
+    const d = new Date(selectedDay);
+    d.setDate(d.getDate() - 1);
+    setSelectedDay(d.toISOString().split("T")[0]);
+  };
+
+  useEffect(() => {
+    const fetchHospitals = async () => {
+      try {
+        const res = await fetch("/api/app/hospitals");
+        const data = await res.json();
+        setHospitalOptions(data);
+      } catch (e) {
+        console.error("Error fetching hospitals:", e);
+      }
+    };
+    fetchHospitals();
+  }, []);
+
+  const filteredEvents = selectedHospitalFilter === "all" 
+    ? events 
+    : events.filter(e => e.hospitalId === selectedHospitalFilter);
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -162,9 +200,12 @@ export function Calendar() {
     selectedEvents.forEach((e, idx) => {
       const [y, m, d] = e.data.split("-");
       const dateFormatted = `${d}/${m}/${y}`;
+      const hosp = hospitalOptions.find(h => h.id === e.hospitalId)?.nome || "";
+      
       message += `🔹 *${e.evento}*\n`;
       message += `📅 ${dateFormatted}\n`;
       message += `🕒 ${e.hora}\n`;
+      if (hosp) message += `🏥 ${hosp}\n`;
       if (e.tipo) message += `🏷️ ${e.tipo}\n`;
       if (e.sala) message += `📍 ${e.sala}\n`;
       if (e.descricao) message += `📝 ${e.descricao}\n`;
@@ -214,49 +255,67 @@ export function Calendar() {
 
     for (let day = 1; day <= totalDays; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      const dayEvents = events.filter(e => e.data === dateStr);
+      const dayEvents = filteredEvents.filter(e => e.data === dateStr);
       const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
 
       days.push(
         <div 
           key={day} 
-          className={`h-24 sm:h-32 border-t border-l border-gray-100 p-1 sm:p-2 relative hover:bg-gray-50/80 transition-colors ${isToday ? "bg-blue-50/30" : "bg-white"}`}
+          onClick={() => {
+            const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            setSelectedDay(dateStr);
+            setViewMode("day");
+          }}
+          className={`h-24 sm:h-32 border-t border-l border-gray-100 p-1 sm:p-2 relative flex cursor-pointer flex-col hover:bg-gray-50/80 transition-colors ${isToday ? "bg-blue-50/30" : "bg-white"}`}
         >
-          <div className={`flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm font-bold mb-1 ${
-            isToday ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "text-gray-500"
-          }`}>
-            {day}
+          <div className="flex items-center justify-between mb-1 shrink-0">
+            <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+              isToday ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "text-gray-500"
+            }`}>
+              {day}
+            </div>
+            {dayEvents.length > 0 && (
+              <span className="text-[9px] font-black text-gray-300 uppercase tracking-tighter">{dayEvents.length} ev</span>
+            )}
           </div>
           
-          <div className="space-y-1 overflow-y-auto max-h-[calc(100%-2rem)] custom-scrollbar">
+          <div className="flex-1 space-y-1 overflow-y-auto custom-scrollbar pr-0.5">
             {dayEvents.map(event => {
               const isSelected = selectedEventIds.has(event.id);
               return (
-                <div key={event.id} className="relative group/item">
-                  <button
-                    onClick={() => openEditModal(event)}
-                    className={`w-full text-left p-1 rounded border transition-all ${
-                      isSelected 
-                        ? "bg-blue-50 border-blue-400 shadow-sm" 
-                        : "bg-white border-blue-100 hover:border-blue-300"
-                    }`}
-                  >
-                    <div className="text-[9px] sm:text-[10px] font-bold text-blue-600 truncate">{event.evento}</div>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <div className="text-[8px] sm:text-[9px] text-gray-400 font-medium">{event.hora}</div>
-                      {event.sala && <div className="text-[7px] font-black text-blue-400/80 uppercase">{event.sala}</div>}
-                    </div>
-                  </button>
-                  <button
-                    onClick={(e) => toggleEventSelection(e, event.id)}
-                    className={`absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full border flex items-center justify-center transition-all z-10 ${
-                      isSelected 
-                        ? "bg-emerald-500 border-emerald-500 text-white scale-110" 
-                        : "bg-white border-gray-200 text-transparent group-hover/item:text-gray-400 group-hover/item:border-blue-300"
-                    }`}
-                  >
-                    <Check size={10} strokeWidth={4} />
-                  </button>
+                <div key={event.id} className="relative group/item mb-1 last:mb-0">
+                  <div className="flex items-start gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleEventSelection(e, event.id);
+                      }}
+                      className={`shrink-0 w-4 h-4 mt-1 rounded border flex items-center justify-center transition-all ${
+                        isSelected 
+                          ? "bg-emerald-500 border-emerald-500 text-white shadow-sm" 
+                          : "bg-white border-blue-200 text-transparent hover:border-blue-400"
+                      }`}
+                    >
+                      <Check size={10} strokeWidth={4} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(event);
+                      }}
+                      className={`flex-1 text-left p-1.5 rounded-lg border transition-all ${
+                        isSelected 
+                          ? "bg-blue-50/50 border-blue-400/50" 
+                          : "bg-white border-blue-50 hover:border-blue-200 hover:shadow-sm"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-0.5">
+                        <div className="text-[8px] font-black text-gray-400 font-mono tracking-tighter">{event.hora}</div>
+                        {event.sala && <div className="text-[7px] font-black text-blue-400 uppercase tracking-tight">{event.sala}</div>}
+                      </div>
+                      <div className="text-[10px] font-bold text-gray-700 leading-tight truncate">{event.evento}</div>
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -276,7 +335,8 @@ export function Calendar() {
       hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
       descricao: "",
       tipo: "ELETIVA",
-      sala: "SALA 1"
+      sala: "SALA 1",
+      hospitalId: selectedHospitalFilter !== "all" ? selectedHospitalFilter : ""
     });
     setIsModalOpen(true);
   };
@@ -289,7 +349,8 @@ export function Calendar() {
       hora: event.hora,
       descricao: event.descricao || "",
       tipo: event.tipo || "ELETIVA",
-      sala: event.sala || "SALA 1"
+      sala: event.sala || "SALA 1",
+      hospitalId: event.hospitalId || ""
     });
     setIsModalOpen(true);
   };
@@ -344,14 +405,55 @@ export function Calendar() {
             <CalendarIcon size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-gray-900 tracking-tight">
-              {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
-            </h2>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Calendário de Cirurgias</p>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-black text-gray-900 tracking-tight">
+                {viewMode === "month" ? (
+                  `${MONTHS[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+                ) : (
+                  new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long" }).format(new Date(selectedDay + "T12:00:00"))
+                )}
+              </h2>
+              <div className="flex bg-gray-100 p-1 rounded-xl">
+                <button 
+                  onClick={() => setViewMode("month")}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${viewMode === "month" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400"}`}
+                >
+                  MÊS
+                </button>
+                <button 
+                  onClick={() => setViewMode("day")}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${viewMode === "day" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400"}`}
+                >
+                  DIA
+                </button>
+              </div>
+            </div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+              {viewMode === "month" ? "Calendário Mensal" : "Programação Diária"}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          {hospitalOptions.length > 0 && (
+            <div className="flex items-center gap-2 mr-2">
+              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-black text-gray-400">
+                <Filter size={12} />
+                <span>FILTRAR:</span>
+              </div>
+              <select
+                value={selectedHospitalFilter}
+                onChange={(e) => setSelectedHospitalFilter(e.target.value)}
+                className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-bold text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <option value="all">Todos Hospitais</option>
+                {hospitalOptions.map(h => (
+                  <option key={h.id} value={h.id}>{h.nome}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {selectedEventIds.size > 0 && (
             <div className="flex flex-col items-end">
               <motion.button
@@ -377,19 +479,22 @@ export function Calendar() {
 
           <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
             <button 
-              onClick={handlePrevMonth}
+              onClick={viewMode === "month" ? handlePrevMonth : goToPrevDay}
               className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
             >
               <ChevronLeft size={20} />
             </button>
             <button 
-              onClick={() => setCurrentDate(new Date())}
+              onClick={() => {
+                if (viewMode === "month") setCurrentDate(new Date());
+                else setSelectedDay(new Date().toISOString().split("T")[0]);
+              }}
               className="px-3 text-xs font-bold text-gray-600 hover:text-blue-600"
             >
               Hoje
             </button>
             <button 
-              onClick={handleNextMonth}
+              onClick={viewMode === "month" ? handleNextMonth : goToNextDay}
               className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
             >
               <ChevronRight size={20} />
@@ -397,25 +502,108 @@ export function Calendar() {
           </div>
 
           <button 
-            onClick={() => openAddModal()}
+            onClick={() => openAddModal(viewMode === "day" ? selectedDay : undefined)}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
           >
             <Plus size={18} />
-            <span className="hidden sm:inline">Adicionar evento</span>
+            <span className="hidden sm:inline">Novo evento</span>
           </button>
         </div>
       </div>
 
-      {/* Calendar Grid */}
+      {/* Calendar Content */}
       <div className="flex-1 overflow-auto bg-gray-50/30">
-        <div className="min-w-[600px] grid grid-cols-7 h-full">
-          {DAYS.map(day => (
-            <div key={day} className="py-2 text-center text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white border-b border-gray-100">
-              {day}
-            </div>
-          ))}
-          {renderDays()}
-        </div>
+        {viewMode === "month" ? (
+          <div className="min-w-[600px] grid grid-cols-7 h-full">
+            {DAYS.map(day => (
+              <div key={day} className="py-2 text-center text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white border-b border-gray-100">
+                {day}
+              </div>
+            ))}
+            {renderDays()}
+          </div>
+        ) : (
+          <div className="max-w-4xl mx-auto p-4 sm:p-8">
+            {filteredEvents.filter(e => e.data === selectedDay).length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-100">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CalendarIcon className="text-gray-300" size={32} />
+                </div>
+                <h3 className="text-lg font-bold text-gray-700">Nenhum evento neste dia</h3>
+                <p className="text-gray-400 text-sm mt-1">Utilize o botão "+" para adicionar novos procedimentos.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {filteredEvents.filter(e => e.data === selectedDay).map(event => {
+                  const isSelected = selectedEventIds.has(event.id);
+                  const hosp = hospitalOptions.find(h => h.id === event.hospitalId);
+                  return (
+                    <motion.div 
+                      key={event.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`bg-white p-6 rounded-3xl border-2 transition-all flex items-center gap-6 ${isSelected ? "border-emerald-500 shadow-xl shadow-emerald-50" : "border-gray-50 hover:border-blue-100 shadow-sm"}`}
+                    >
+                      <button
+                        onClick={(e) => toggleEventSelection(e, event.id)}
+                        className={`shrink-0 w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all ${
+                          isSelected 
+                            ? "bg-emerald-500 border-emerald-500 text-white shadow-lg" 
+                            : "bg-white border-gray-100 text-transparent hover:border-emerald-300 shadow-inner"
+                        }`}
+                      >
+                        <Check size={20} strokeWidth={4} />
+                      </button>
+                      
+                      <div className="flex-1 cursor-pointer" onClick={() => openEditModal(event)}>
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-xs font-black text-blue-600 font-mono tracking-tighter bg-blue-50 px-3 py-1 rounded-lg">
+                            {event.hora}
+                          </span>
+                          {event.sala && (
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-lg">
+                              {event.sala}
+                            </span>
+                          )}
+                          {event.tipo && (
+                            <span className={`text-[10px] font-black px-3 py-1 rounded-lg ${event.tipo === "URGÊNCIA" ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-500"}`}>
+                              {event.tipo}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xl font-bold text-gray-800 leading-tight">{event.evento}</h4>
+                        <div className="flex flex-wrap items-center gap-4 mt-3">
+                          {hosp && (
+                            <div className="flex items-center gap-2 text-gray-500 bg-gray-50 px-3 py-1 rounded-full">
+                              <Building2 size={14} className="text-gray-400" />
+                              <span className="text-xs font-bold">{hosp.nome}</span>
+                            </div>
+                          )}
+                          {event.descricao && (
+                            <div className="flex items-center gap-2 text-gray-400">
+                              <FileText size={14} />
+                              <span className="text-xs font-medium truncate max-w-[200px]">{event.descricao}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2">
+                        <button 
+                          onClick={() => openEditModal(event)}
+                          className="p-3 hover:bg-blue-50 hover:text-blue-600 rounded-2xl text-gray-400 transition-all active:scale-95"
+                          title="Editar"
+                        >
+                          <Edit3 size={20} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal */}
@@ -478,6 +666,25 @@ export function Calendar() {
                       ))}
                     </div>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Hospital</label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <Building2 size={18} />
+                    </div>
+                    <select 
+                      value={formData.hospitalId}
+                      onChange={e => setFormData({ ...formData, hospitalId: e.target.value })}
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none"
+                    >
+                      <option value="">Selecione um hospital</option>
+                      {hospitalOptions.map(h => (
+                        <option key={h.id} value={h.id}>{h.nome}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
