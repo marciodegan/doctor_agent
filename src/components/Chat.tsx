@@ -407,11 +407,11 @@ export const Chat: React.FC<{
 </div>`).join("");
     
     const docs = data.imagens.map((i: any) => {
-      const downloadText = i.link ? ` <a href="${i.link}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; margin-left: 8px; text-decoration: none; font-weight: bold;">[Baixar Arquivo]</a>` : "";
+      const downloadText = i.link ? ` <a href="${i.link}" target="_blank" rel="noopener noreferrer" className="ml-2 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px] font-bold hover:bg-blue-100 transition-colors inline-block no-underline">Baixar Arquivo</a>` : "";
       
       let aiPart = "";
       if (i.aiResposta) {
-        aiPart = `<div style="margin-top: 4px; color: #3b82f6;">🤖 <b>AI:</b> ${i.aiResposta}</div>`;
+        aiPart = `<div className="mt-1 text-blue-600">🤖 <b>AI:</b> ${i.aiResposta}</div>`;
       }
 
       let driveId = i.driveFileId;
@@ -420,16 +420,15 @@ export const Chat: React.FC<{
         if (match) driveId = match[1];
       }
 
-      // Using a more reliable view endpoint for Drive images
       const imgTag = driveId 
-        ? `<div style="margin-top: 8px; margin-bottom: 8px;"><img src="https://lh3.googleusercontent.com/d/${driveId}=w1000" alt="${i.descricao}" style="max-width: 100%; border-radius: 12px; border: 1px solid #efefef; display: block;" referrerPolicy="no-referrer" /></div>`
+        ? `<div className="my-2"><img src="https://lh3.googleusercontent.com/d/${driveId}=w1000" alt="${i.descricao}" className="max-w-full rounded-xl border border-gray-100 shadow-sm block" referrerPolicy="no-referrer" /></div>`
         : "";
       
       return `
-<div style="margin-left: 24px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
-  <div style="margin-bottom: 2px;"><b>${i.descricao}</b>${aiPart}</div>
+<div className="ml-6 mb-3 pb-3 border-b border-gray-100">
+  <div className="mb-0.5"><b>${i.descricao}</b>${aiPart}</div>
   ${imgTag}
-  <div style="font-size: 11px; font-weight: 500; color: #6b7280;">${i.data}${downloadText}</div>
+  <div className="text-[10px] font-medium text-gray-500">${i.data}${downloadText}</div>
 </div>`;
     }).join("");
 
@@ -2412,11 +2411,11 @@ export const Chat: React.FC<{
       {/* Image Preview */}
       {selectedImage && (
         <div className="px-4 py-2 bg-gray-50 border-t flex flex-wrap gap-3">
-          <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
+          <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
             <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
             <button 
               onClick={() => setSelectedImage(null)}
-              className="absolute top-0 right-0 p-1 bg-black/50 text-white hover:bg-black/70"
+              className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-lg"
             >
               <X size={12} />
             </button>
@@ -2424,7 +2423,39 @@ export const Chat: React.FC<{
         </div>
       )}
 
-      {/* Suggested Actions Removed - Now in App.tsx */}
+      {/* Input Area */}
+      <div className="p-4 bg-white border-t border-gray-100 shrink-0">
+        <form onSubmit={(e) => handleSend(e)} className="relative flex items-center bg-gray-50 rounded-2xl border border-gray-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-50 transition-all">
+          <button 
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="p-3 text-gray-400 hover:text-blue-600 transition-colors"
+          >
+            <ImageIcon size={20} />
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleImageSelect} 
+            className="hidden" 
+            accept="image/*" 
+          />
+          <input 
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Digite sua mensagem ou comando..."
+            className="flex-1 bg-transparent py-4 px-1 text-sm outline-none text-gray-900 placeholder:text-gray-400"
+            disabled={isLoading}
+          />
+          <button 
+            type="submit"
+            disabled={(!input.trim() && !selectedImage) || isLoading}
+            className="m-1.5 p-2.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-30 disabled:shadow-none transition-all active:scale-95 flex items-center justify-center"
+          >
+            {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+          </button>
+        </form>
+      </div>
     </div>
   );
 };

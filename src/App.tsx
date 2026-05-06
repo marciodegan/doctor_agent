@@ -208,29 +208,46 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
-      {/* Mobile Top Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 z-40">
-        <button 
-          onClick={() => setIsMobileMenuOpen(true)}
-          className="p-2 -ml-2 text-gray-500 hover:text-black transition-colors"
-        >
-          <Menu size={24} />
-        </button>
-        
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-black rounded-lg flex items-center justify-center text-white">
-            <Command size={14} />
+      {/* Top Header - Both Mobile and Desktop */}
+      <header className={`fixed top-0 left-0 lg:left-64 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 z-40 ${isFullscreen ? 'hidden' : ''}`}>
+        <div className="flex items-center gap-2 lg:hidden">
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 -ml-2 text-gray-500 hover:text-black transition-colors"
+          >
+            <Menu size={24} />
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-black rounded-lg flex items-center justify-center text-white">
+              <Command size={14} />
+            </div>
+            <span className="font-bold text-lg tracking-tight">Doctor Pro</span>
           </div>
-          <span className="font-bold text-lg tracking-tight">Doctor Pro</span>
         </div>
 
-        <button 
-          onClick={() => setIsMobileGroupsOpen(true)}
-          className="p-2 -mr-2 text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1"
-        >
-          <Users size={20} />
-          {activeGroup && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>}
-        </button>
+        <div className="hidden lg:flex items-center gap-4">
+           {/* Desktop can show active group name or something breadcrumb-like */}
+           {activeGroup && (
+             <div className="flex items-center gap-2 text-sm font-bold text-gray-400 uppercase tracking-widest">
+               <Users size={14} className="text-blue-600" />
+               <span>{activeGroup.name}</span>
+             </div>
+           )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Settings Trigger - Desktop might want it in sidebar, but mobile needs it here too maybe? 
+              Actually user asked: "move the gear icon to the left sidebar"
+          */}
+          <button 
+            onClick={() => setIsMobileGroupsOpen(true)}
+            className="p-2 text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1"
+          >
+            <Users size={20} />
+            {activeGroup && <div className="w-1.5 h-1.5 bg-blue-50 rounded-full"></div>}
+          </button>
+        </div>
       </header>
 
       {/* Mobile Menu Drawer */}
@@ -374,12 +391,20 @@ export default function App() {
       </AnimatePresence>
 
       {/* Sidebar - Desktop Only */}
-      <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-20">
-        <div className="flex items-center gap-2 mb-10 px-2">
-          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white">
-            <Command size={18} />
+      <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-50">
+        <div className="flex items-center justify-between mb-10 px-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white">
+              <Command size={18} />
+            </div>
+            <h1 className="font-bold text-xl tracking-tight">Doctor Pro</h1>
           </div>
-          <h1 className="font-bold text-xl tracking-tight">Doctor Pro</h1>
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+          >
+            <Settings size={20} />
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1">
@@ -405,11 +430,6 @@ export default function App() {
               label="Assinatura Pro" 
               active={currentView === "pricing"}
               onClick={() => setCurrentView("pricing")}
-            />
-            <NavItem 
-              icon={<Settings size={18} />} 
-              label="Configurações" 
-              onClick={() => setShowSettings(true)}
             />
           </div>
         </nav>
@@ -440,7 +460,7 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`lg:pl-64 flex flex-col pt-16 lg:pt-0 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0" : ""}`}>
+      <main className={`lg:pl-64 flex flex-col pt-16 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0" : ""}`}>
         
         {/* Global Modals (Settings & Security) */}
         <AnimatePresence>
@@ -628,43 +648,6 @@ export default function App() {
 
               {/* Sidebar Info column */}
               <div className="space-y-8 hidden xl:block pr-2">
-                <div className="bg-blue-600 rounded-3xl p-8 text-white shadow-xl shadow-blue-200">
-                  <h3 className="text-xl font-bold mb-2">Doctor Pro Tips</h3>
-                  <p className="text-blue-100 text-sm mb-6 leading-relaxed">
-                    Try asking: "What's on my calendar today?" or "Create a new spreadsheet for my budget."
-                  </p>
-                  <div className="bg-white/10 rounded-2xl p-4 flex items-center gap-3 border border-white/10">
-                    <div className="p-2 bg-white/20 rounded-lg">
-                      <Sparkles size={20} />
-                    </div>
-                    <span className="text-xs font-medium">Gemini 3.1 Pro Powered</span>
-                  </div>
-                </div>
-
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  onClick={() => setCurrentView("pricing")}
-                  className="bg-zinc-900 rounded-3xl p-6 text-white cursor-pointer hover:bg-zinc-800 transition-all border border-zinc-700 group"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-2 bg-blue-600 rounded-xl group-hover:scale-110 transition-transform">
-                      <Zap size={20} />
-                    </div>
-                    <div className="flex -space-x-2">
-                       {[1,2,3].map(i => (
-                         <div key={i} className="w-6 h-6 rounded-full border-2 border-zinc-900 bg-zinc-700" />
-                       ))}
-                    </div>
-                  </div>
-                  <h4 className="font-bold text-sm mb-1">Doctor Pro Business</h4>
-                  <p className="text-[10px] text-zinc-400 mb-4 line-clamp-2">Acesso total a automações, IA avançada e relatórios personalizados.</p>
-                  <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-widest">
-                    <span>Assinar agora</span>
-                    <TrendingUp size={14} />
-                  </div>
-                </motion.div>
-
                 <div className="bg-white border border-gray-100 rounded-3xl p-6">
                   <GroupSelector />
                 </div>

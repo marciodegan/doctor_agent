@@ -138,25 +138,28 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Listen to invitations by email (for users who were invited before joining)
-    const invitationsQuery = query(collection(db, "group_invitations"), where("email", "==", user.email), where("status", "==", "pending"));
-    const unsubscribeInvitations = onSnapshot(invitationsQuery, (snapshot) => {
-      const emailInvites = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: data.groupId,
-          name: data.groupName || "Novo Grupo",
-          createdBy: data.inviterId,
-          status: "pending" as const
-        };
-      });
+    let unsubscribeInvitations = () => {};
+    if (user.email) {
+      const invitationsQuery = query(collection(db, "group_invitations"), where("email", "==", user.email), where("status", "==", "pending"));
+      unsubscribeInvitations = onSnapshot(invitationsQuery, (snapshot) => {
+        const emailInvites = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: data.groupId,
+            name: data.groupName || "Novo Grupo",
+            createdBy: data.inviterId,
+            status: "pending" as const
+          };
+        });
 
-      setInvites(prev => {
-        // Merge: get unique group IDs
-        const existingIds = new Set(prev.map(p => p.id));
-        const newOnes = emailInvites.filter(ei => !existingIds.has(ei.id));
-        return [...prev, ...newOnes];
+        setInvites(prev => {
+          // Merge: get unique group IDs
+          const existingIds = new Set(prev.map(p => p.id));
+          const newOnes = emailInvites.filter(ei => !existingIds.has(ei.id));
+          return [...prev, ...newOnes];
+        });
       });
-    });
+    }
 
     return () => {
       unsubscribeMemberships();
@@ -191,6 +194,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         userId: user.uid,
         userEmail: user.email,
         role: "owner",
+        status: "active",
         joinedAt: serverTimestamp()
       });
 

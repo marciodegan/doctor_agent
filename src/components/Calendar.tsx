@@ -85,7 +85,8 @@ export function Calendar() {
   today.setHours(0, 0, 0, 0);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    const GROUP_ID = activeGroup?.id;
+    if (!GROUP_ID || !auth.currentUser) return;
 
     const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
     const q = query(eventsRef, orderBy("data"), orderBy("hora"));
@@ -103,7 +104,7 @@ export function Calendar() {
     });
 
     return () => unsubscribe();
-  }, [auth.currentUser]);
+  }, [auth.currentUser, activeGroup?.id]);
 
   useEffect(() => {
     const fetchProcedures = async () => {

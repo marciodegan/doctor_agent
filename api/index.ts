@@ -676,17 +676,38 @@ app.get("/api/auth/firebase-token", async (req, res) => {
   try {
     const oauth2 = google.oauth2({ version: "v2", auth: authClient });
     const userRes = await oauth2.userinfo.get();
-    const { id, email, name } = userRes.data;
+    const { id, email, name, picture } = userRes.data;
 
     if (!id) throw new Error("No user ID found");
 
-    const customToken = await admin.auth().createCustomToken(id, { email });
+    // Ensure User exists in Firebase Auth with correct metadata
+    try {
+      await admin.auth().updateUser(id, {
+        email: email || undefined,
+        displayName: name || undefined,
+        photoURL: picture || undefined,
+        emailVerified: true
+      });
+    } catch (e: any) {
+      if (e.code === 'auth/user-not-found') {
+        await admin.auth().createUser({
+          uid: id,
+          email: email || undefined,
+          displayName: name || undefined,
+          photoURL: picture || undefined,
+          emailVerified: true
+        });
+      }
+    }
+
+    const customToken = await admin.auth().createCustomToken(id, { email, name });
     
     // Also upsert user profile in Firestore
     await db.collection("users").doc(id).set({
       uid: id,
       email: email || "",
       name: name || "",
+      photoURL: picture || "",
       lastSeen: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
@@ -1200,16 +1221,27 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
     }
 
     // Process Imagens/Arquivos (Arquivos)
-    if (imgRows.length > 0) {
-      report.imagens = imgRows.slice(1)
+    const googleImgs = imgRows.length > 0 ? imgRows.slice(1)
         .filter(row => row[1] === patientId.toString())
         .map(row => ({ 
           data: row[0], 
           descricao: row[2], 
           link: row[3],
           aiResposta: row[4] 
-        }));
-    }
+        })) : [];
+
+    const firestoreImgs = filesSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        data: data.timestamp ? data.timestamp.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "Recent",
+        descricao: data.description || "Arquivo",
+        link: data.link,
+        aiResposta: data.aiAnalysis || "",
+        driveFileId: data.driveFileId
+      };
+    });
+
+    report.imagens = [...firestoreImgs, ...googleImgs];
 
     // Process Familiares
     if (famRows.length > 0) {
