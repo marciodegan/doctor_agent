@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { Chat } from "./components/Chat";
+import { Calendar as FirestoreCalendar } from "./components/Calendar";
 import { Debug } from "./components/Debug";
 import { Pricing } from "./components/Pricing";
 import { 
@@ -27,7 +28,7 @@ export default function App() {
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [currentView, setCurrentView] = useState<"workspace" | "pricing">("workspace");
+  const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar">("workspace");
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -158,7 +159,12 @@ export default function App() {
             active={currentView === "workspace"} 
             onClick={() => setCurrentView("workspace")}
           />
-          <NavItem icon={<Calendar size={18} />} label="Calendar" />
+          <NavItem 
+            icon={<Calendar size={18} />} 
+            label="Calendário" 
+            active={currentView === "calendar"}
+            onClick={() => setCurrentView("calendar")}
+          />
           <NavItem icon={<FileText size={18} />} label="Drive & Files" />
           
           <div className="pt-8 space-y-1">
@@ -241,8 +247,10 @@ export default function App() {
               <div className="xl:col-span-3 flex flex-col min-h-0">
                 {currentView === "pricing" ? (
                   <Pricing onBack={() => setCurrentView("workspace")} />
+                ) : currentView === "calendar" ? (
+                  <FirestoreCalendar />
                 ) : (
-                  <Chat />
+                  <Chat onNavigateToCalendar={() => setCurrentView("calendar")} />
                 )}
               </div>
 

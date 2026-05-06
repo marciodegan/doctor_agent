@@ -174,7 +174,7 @@ const MessageForm: React.FC<{
   );
 };
 
-export const Chat: React.FC = () => {
+export const Chat: React.FC<{ onNavigateToCalendar?: () => void }> = ({ onNavigateToCalendar }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -200,7 +200,19 @@ export const Chat: React.FC = () => {
         const name = data.companyName || "Doctor Pro";
         setCompanyName(name);
         setMessages([
-          { role: "model", text: `Hello ${name}.\n\nHoje é um lindo dia para salvar vidas.\n\nGerencie os **[📋 Pacientes](/pacientes)**, busque por **[🔍 Nome](/edit_menu)** ou veja sua **[📅 Agenda](/agenda)**.` }
+          { 
+            role: "model", 
+            text: `Hello ${name}.\n\nHoje é um lindo dia para salvar vidas.`,
+            actionGroups: [
+              {
+                title: "Acesso Rápido",
+                actions: [
+                  { label: "📅 CALENDÁRIO", cmd: "/open_calendar" },
+                  { label: "📋 Pacientes", cmd: "/pacientes" }
+                ]
+              }
+            ]
+          }
         ]);
       })
       .catch(err => {
@@ -343,6 +355,56 @@ export const Chat: React.FC = () => {
       const compressedDataUrl = await resizeImage(file);
       setSelectedImage(compressedDataUrl);
     }
+  };
+
+  const generatePatientReport = (data: any) => {
+    const cad = data.cadastro;
+    const audios = data.audios.map((a: any) => `
+<div style="margin-left: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
+  <div style="margin-bottom: 2px;">${a.conteudo}</div>
+  <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${a.data}</div>
+</div>`).join("");
+    
+    const docs = data.imagens.map((i: any) => {
+      const downloadText = i.link ? ` [[Baixar Arquivo](${i.link})]` : "";
+      
+      let aiPart = "";
+      if (i.aiResposta) {
+        aiPart = `<div style="margin-top: 4px; color: #3b82f6;">🤖 **AI:** ${i.aiResposta}</div>`;
+      }
+      
+      return `
+<div style="margin-left: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
+  <div style="margin-bottom: 2px;">${i.descricao}${aiPart}</div>
+  <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${i.data}${downloadText}</div>
+</div>`;
+    }).join("");
+
+    const fams = data.familiares.map((f: any) => {
+      const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
+      const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
+      const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
+      return `
+<div style="margin-left: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
+  <div style="margin-bottom: 2px;">${f.nome} (${f.relacao})</div>
+  <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${foneLink}</div>
+</div>`;
+    }).join("");
+
+    const cadFone = cad.Telefone;
+    const cleanCadFone = cadFone ? cadFone.replace(/\D/g, "") : "";
+    const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
+    const cadFoneLink = waCadNumber ? `[📞 **${cadFone}**](https://wa.me/${waCadNumber})` : "";
+    const patientContact = cadFoneLink ? `
+<div style="margin-left: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
+  <div style="margin-bottom: 2px;">Paciente (Próprio)</div>
+  <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${cadFoneLink}</div>
+</div>` : "";
+
+    return `📍 **Status:** ${cad.Status || "Não informado"} \`/status_alterar ${cad.ID}\`\n\n\n\n\n\n\n\n\n\n` +
+      `\`/novofamiliar id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Contatos:**\n\n${patientContact}${fams || (patientContact ? "" : "Nenhum registro")}\n\n\n\n\n\n\n\n\n\n` +
+      `\`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Informações:**\n\n${audios || "Nenhum registro"}\n\n\n\n\n\n\n\n\n\n` +
+      `\`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Imagens:**\n\n${docs || "Nenhum registro"}`;
   };
 
   const handleDirectCommand = async (command: string) => {
@@ -778,51 +840,53 @@ export const Chat: React.FC = () => {
     }
 
 
-    if (cmd.startsWith("/novo_familiar")) {
+    if (cmd.startsWith("/novofamiliar") || cmd.startsWith("/novo_familiar")) {
       const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.split(" ")[1];
-      const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
+      let nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
+      
+      // Remove any trailing label part if present in the name match
+      if (nome && nome.includes("label:")) {
+        nome = nome.split("label:")[0].trim();
+      }
 
       if (id) {
         setMessages([{
           role: "model",
-          text: `👪 **Novo Familiar**\n\n📌 **Paciente:** ${nome ? `${nome} (ID: ${id})` : `ID: ${id}`}`,
+          text: `👪 **Novo Contato**\n\n📌 **Paciente:** ${nome || id}`,
           form: {
-            title: "Dados do Familiar",
+            title: "",
             fields: [
-              { label: "Nome do Familiar", name: "nome_familiar", type: "text" },
-              { label: "Grau de Parentesco", name: "tipo_parentesco", type: "text", placeholder: "Ex: Filho(a), Esposa..." },
-              { label: "Telefone", name: "telefone", type: "number" },
+              { label: "Nome", name: "name", type: "text" },
+              { label: "Afinidade", name: "relationship", type: "text", placeholder: "Ex: Filho(a), Esposa..." },
+              { label: "Telefone", name: "phone", type: "text", placeholder: "(xx) xxxxx-xxxx" },
             ],
-            submitLabel: "Salvar Familiar",
-            commandPrefix: `/registrar_familiar id: ${id}, paciente_nome: ${nome || ""},`
+            submitLabel: "+Salvar",
+            commandPrefix: `/salvarfamiliar patientId: ${id},`
           }
         }]);
         return true;
-      } else {
-        setInput("/novo_familiar ");
-        setMessages([{ 
-          role: "model", 
-          text: "👪 **Novo Familiar**\n\nComplete o comando com o ID do paciente:\n`/novo_familiar [ID]`" 
-        }]);
-        return "PREFILL";
       }
     }
 
     if (cmd.startsWith("/logpac")) {
       const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.split(" ")[1];
-      const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
+      let nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
+      
+      if (nome && nome.includes("label:")) {
+        nome = nome.split("label:")[0].trim();
+      }
 
       if (id) {
         setMessages([{
           role: "model",
-          text: `📝 **Adicionar Log**\n\n📌 **Paciente:** ${nome ? `${nome} (ID: ${id})` : `ID: ${id}`}`,
+          text: `📝 **Adicionar Info**\n\n📌 **Paciente:** ${nome || id}`,
           form: {
-            title: "Texto do Log",
+            title: "",
             fields: [
-              { label: "O que aconteceu?", name: "texto", type: "text", placeholder: "Descreva a atualização..." }
+              { label: "Informação", name: "text", type: "textarea", placeholder: "Digite aqui..." }
             ],
-            submitLabel: "Salvar Evolução",
-            commandPrefix: `/log id: ${id}, p_nome: ${nome || ""},`
+            submitLabel: "+Salvar",
+            commandPrefix: `/salvarlog patientId: ${id},`
           }
         }]);
         return true;
@@ -929,36 +993,7 @@ export const Chat: React.FC = () => {
         if (data.error) throw new Error(data.error);
 
         const cad = data.cadastro;
-        const audios = data.audios.map((a: any) => `• **${a.data}**\n  ${a.conteudo}`).join("\n\n");
-        
-        const docs = data.imagens.map((i: any) => {
-          const downloadText = i.link ? ` [[Baixar Arquivo](${i.link})]` : "";
-          const fileIdMatch = i.link?.match(/id=([^&]+)/) || i.link?.match(/\/file\/d\/([^/]+)/);
-          const fileId = fileIdMatch ? fileIdMatch[1] : "";
-          
-          let aiPart = "";
-          if (i.aiResposta) {
-            aiPart = `\n🤖 **AI Resposta:** ${i.aiResposta}`;
-          }
-          
-          return `• [${i.data}]${downloadText}\n\n${i.descricao}${aiPart}`;
-        }).join("\n\n");
-
-        const fams = data.familiares.map((f: any) => {
-          const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
-          const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
-          const foneLink = waNumber ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` : "📞 Sem fone";
-          return `• **${f.nome}** (${f.relacao})\n  ${foneLink}`;
-        }).join("\n\n");
-
-        const cleanCadFone = cad.Telefone ? cad.Telefone.replace(/\D/g, "") : "";
-        const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
-        const foneCadLink = waCadNumber ? `[📞 **${cad.Telefone}**](https://wa.me/${waCadNumber})` : "N/A";
-
-        const reportText = `📍 **Status:** ${cad.Status || "Não informado"} \`/status_alterar ${cad.ID}\`\n\n` +
-          `**Contatos:** \`/novo_familiar id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${fams || "Nenhum registro"}\n\n` +
-          `**Informações:** \`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${audios || "Nenhum registro"}\n\n` +
-          `**Imagens:** \`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:➕\`\n\n${docs || "Nenhum registro"}`;
+        const reportText = generatePatientReport(data);
 
         setMessages([{ 
           role: "model", 
@@ -999,7 +1034,25 @@ export const Chat: React.FC = () => {
     if (cmd.startsWith("/pacientes")) {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/app/patients?full=true");
+        const getFilterValue = (key: string) => {
+          const regex = new RegExp(`\\b${key}:\\s*([^\\s]*)`, 'i');
+          const match = cmdInput.match(regex);
+          if (!match) return undefined;
+          return match[1].trim();
+        };
+
+        const hospitalFilter = getFilterValue('hospital');
+        const statusFilter = getFilterValue('status');
+
+        let apiUrl = "/api/app/patients?full=true";
+        if (hospitalFilter !== undefined) {
+          apiUrl += `&hospitalId=${encodeURIComponent(hospitalFilter)}`;
+        }
+        if (statusFilter !== undefined) {
+          apiUrl += `&statusId=${encodeURIComponent(statusFilter)}`;
+        }
+
+        const res = await fetch(apiUrl);
         const json = await res.json();
         
         if (json.error) throw new Error(json.error);
@@ -1017,24 +1070,8 @@ export const Chat: React.FC = () => {
         const sortMatch = cmdInput.match(/sort:\s*(\w+)/i);
         if (sortMatch) sort = sortMatch[1].toLowerCase();
 
-        const hospitalFilter = cmdInput.match(/hospital:\s*(.+?)(?=\s+\w+:|$)/i)?.[1]?.trim();
-        const statusFilter = cmdInput.match(/status:\s*(.+?)(?=\s+\w+:|$)/i)?.[1]?.trim();
-
         let filteredData = [...data];
-        if (hospitalFilter) {
-          const hFilter = hospitalFilter.toLowerCase().trim();
-          filteredData = filteredData.filter((p: any) => 
-            p.hospitalId?.toString().toLowerCase().trim() === hFilter || 
-            p.hospitalName?.toLowerCase().trim() === hFilter
-          );
-        }
-        if (statusFilter) {
-          const sFilter = statusFilter.toLowerCase().trim();
-          filteredData = filteredData.filter((p: any) => 
-            p.statusId?.toString().toLowerCase().trim() === sFilter || 
-            p.status?.toLowerCase().trim() === sFilter
-          );
-        }
+        // Data is now filtered on the server via hospitalId and statusId query parameters.
 
         if (sort === "nome") {
           filteredData.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -1045,9 +1082,6 @@ export const Chat: React.FC = () => {
         const hospitals = masterHospitalsData.map((h: any) => h.nome).filter(Boolean);
         const statuses = Array.isArray(masterStatuses) ? masterStatuses.filter(Boolean) : [];
 
-        const showHospitals = cmdInput.includes("view:hospitais");
-        const showStatuses = cmdInput.includes("view:status");
-
         const PAGE_SIZE = 10;
         const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
         const pageToView = Math.max(1, Math.min(page, totalPages || 1));
@@ -1055,50 +1089,68 @@ export const Chat: React.FC = () => {
         const end = start + PAGE_SIZE;
         const pageData = filteredData.slice(start, end);
 
-        // Group pageData by Hospital, then by Status (using statusId for sorting)
-        const hospitalsGrouped: Record<string, { 
-          id: string, 
-          statuses: Record<string, { id: string, name: string, patients: any[] }> 
-        }> = {};
-        
-        pageData.forEach((p: any) => {
-          const hName = p.hospitalName || "Sem Hospital";
-          const hId = p.hospitalId || "-";
-          const sName = p.status || "Sem Status";
-          const sId = p.statusId?.toString() || "999";
-          
-          if (!hospitalsGrouped[hName]) {
-            hospitalsGrouped[hName] = { id: hId, statuses: {} };
-          }
-          if (!hospitalsGrouped[hName].statuses[sId]) {
-            hospitalsGrouped[hName].statuses[sId] = { id: sId, name: sName, patients: [] };
-          }
-          hospitalsGrouped[hName].statuses[sId].patients.push(p);
-        });
-
         let listText = `<div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">\n\n[➕ Novo Paciente](/iniciarcadastro)\n\n</div>\n\n`;
 
-        Object.entries(hospitalsGrouped).forEach(([hName, group]) => {
-          // Always show hospital header as requested
-          listText += `<div style="font-size: 18px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: 24px; margin-bottom: 12px; display: block; border-left: 4px solid #3b82f6;">${hName}</div>`;
-          
-          // Sort statuses by their ID numerically
-          const sortedStatuses = Object.values(group.statuses).sort((a, b) => {
-            const idA = parseInt(a.id) || 0;
-            const idB = parseInt(b.id) || 0;
-            return idA - idB;
+        const isHospFiltered = hospitalFilter && hospitalFilter !== "1";
+        const isStatusFiltered = statusFilter && statusFilter !== "1";
+
+        if (isHospFiltered) {
+          const selectedHospital = masterHospitalsData.find((h: any) => h.id.toString() === hospitalFilter);
+          if (selectedHospital) {
+            listText += `<div style="font-size: 20px; font-weight: 800; color: #111827; margin-top: 10px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center;"><span style="color: #3b82f6; margin-right: 10px;">🏥</span> ${selectedHospital.nome}</div>\n\n`;
+          }
+        }
+        if (isStatusFiltered) {
+          const selectedStatus = masterStatuses.find((s: any) => s.id.toString() === statusFilter);
+          if (selectedStatus) {
+            listText += `<div style="font-size: 20px; font-weight: 800; color: #111827; margin-top: ${isHospFiltered ? "0" : "10"}px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center;"><span style="color: #3b82f6; margin-right: 10px;">📋</span> ${selectedStatus.nome}</div>\n\n`;
+          }
+        }
+
+        if (isStatusFiltered && !isHospFiltered) {
+          // GROUP BY HOSPITAL
+          const hospitalGrouped: Record<string, { id: string, name: string, patients: any[] }> = {};
+          pageData.forEach((p: any) => {
+            const hName = p.hospitalName || "Sem Hospital";
+            const hId = p.hospitalId?.toString() || "999";
+            if (!hospitalGrouped[hId]) {
+              hospitalGrouped[hId] = { id: hId, name: hName, patients: [] };
+            }
+            hospitalGrouped[hId].patients.push(p);
           });
 
-          sortedStatuses.forEach(({ name: sName, patients }, statusIdx) => {
-            // Spacing between status groupings
-            const marginTop = (statusIdx === 0) ? "10px" : "44px";
-            listText += `<div style="font-size: 17px; font-weight: bold; color: #374151; margin-left: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
+          const sortedHospitals = Object.values(hospitalGrouped).sort((a, b) => a.name.localeCompare(b.name));
+          sortedHospitals.forEach(({ name: hName, patients }, hIdx) => {
+            const marginTop = (hIdx === 0) ? "0px" : "24px";
+            listText += `<div style="font-size: 17px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center; border-left: 4px solid #3b82f6;"><span style="margin-right: 6px;">🏥</span> ${hName}</div>`;
             patients.forEach(p => {
               const roomDisplay = p.roomNumber ? ` - ${p.roomNumber}` : "";
-              listText += `<div style="margin-left: 24px; margin-bottom: 4px; font-size: 15px; font-weight: normal;">• <a href="/p ${p.id}">${p.nome}</a>${roomDisplay}</div>`;
+              listText += `<div style="padding: 4px 12px; border-bottom: 1px solid #f3f4f6; font-size: 15px;">• <a href="/p ${p.id}"><strong>${p.nome}</strong></a>${roomDisplay}</div>`;
             });
           });
-        });
+        } else {
+          // GROUP BY STATUS
+          const statusGrouped: Record<string, { id: string, name: string, patients: any[] }> = {};
+          pageData.forEach((p: any) => {
+            const sName = p.status || "Sem Status";
+            const sId = p.statusId?.toString() || "999";
+            if (!statusGrouped[sId]) {
+              statusGrouped[sId] = { id: sId, name: sName, patients: [] };
+            }
+            statusGrouped[sId].patients.push(p);
+          });
+
+          const sortedStatuses = Object.values(statusGrouped).sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+          sortedStatuses.forEach(({ name: sName, patients }, statusIdx) => {
+            const marginTop = (statusIdx === 0) ? "0px" : "24px";
+            listText += `<div style="font-size: 17px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center; border-left: 4px solid #3b82f6;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
+            patients.forEach(p => {
+              const roomDisplay = p.roomNumber ? ` - ${p.roomNumber}` : "";
+              const hDisplay = p.hospitalName && !isHospFiltered ? ` <span style="color: #6b7280; font-size: 13px;">(${p.hospitalName})</span>` : "";
+              listText += `<div style="padding: 4px 12px; border-bottom: 1px solid #f3f4f6; font-size: 15px;">• <a href="/p ${p.id}"><strong>${p.nome}</strong></a>${roomDisplay}${hDisplay}</div>`;
+            });
+          });
+        }
 
         if (pageData.length === 0) {
           listText += "_Nenhum paciente encontrado._\n";
@@ -1106,7 +1158,7 @@ export const Chat: React.FC = () => {
 
         let nav = "";
         const cmdName = "/pacientes";
-        const currentFilters = `${hospitalFilter ? ` hospital:${hospitalFilter}` : ""}${statusFilter ? ` status:${statusFilter}` : ""}`;
+        const currentFilters = ` hospital:${hospitalFilter || ""} status:${statusFilter || ""}`;
         
         if (totalPages > 1) {
           nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
@@ -1118,42 +1170,48 @@ export const Chat: React.FC = () => {
           {
             title: "Ordenar",
             actions: [
-              { label: "A-Z", cmd: `/pacientes${currentFilters} sort:nome`, active: sort === "nome" },
-              { label: "Mais Recentes", cmd: `/pacientes${currentFilters} sort:id`, active: sort === "id" },
+              { label: "A-Z", cmd: `/pacientes hospital:${hospitalFilter ?? ""} status:${statusFilter ?? ""} sort:nome` },
+              { label: "Mais Recentes", cmd: `/pacientes hospital:${hospitalFilter ?? ""} status:${statusFilter ?? ""} sort:id` },
             ]
           }
         ];
 
         if (statuses.length > 0) {
+          const sortedMasterStatuses = [...masterStatuses].sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+          const statusActions = sortedMasterStatuses.map((s: any) => {
+            const sId = typeof s === 'string' ? s : s.id.toString();
+            const sLabel = typeof s === 'string' ? s : s.nome;
+            return { 
+              label: sLabel, 
+              cmd: `/pacientes status:${sId} sort:${sort}`
+            };
+          });
+
           actionGroups.push({
             title: "Filtrar por Status",
-            actions: masterStatuses.map((s: any) => ({ 
-              label: typeof s === 'string' ? s : s.nome, 
-              cmd: `/pacientes hospital:${hospitalFilter || ""} status:${typeof s === 'string' ? s : s.id} sort:${sort}`,
-              active: statusFilter === (typeof s === 'string' ? s : s.id.toString())
-            }))
+            actions: statusActions
           });
         }
 
         if (hospitals.length > 0) {
+          const sortedMasterHospitals = [...masterHospitalsData].sort((a, b) => a.nome.localeCompare(b.nome));
+          const hospitalActions = sortedMasterHospitals.map((h: any) => {
+            const hId = h.id.toString();
+            return { 
+              label: h.nome, 
+              cmd: `/pacientes hospital:${hId} sort:${sort}`
+            };
+          });
+
           actionGroups.push({
             title: "Filtrar por Hospital",
-            actions: masterHospitalsData.map((h: any) => ({ 
-              label: h.nome, 
-              cmd: `/pacientes hospital:${h.id} status:${statusFilter || ""} sort:${sort}`,
-              active: hospitalFilter === h.id.toString()
-            }))
+            actions: hospitalActions
           });
-        }
-
-        let filterActiveTxt = "";
-        if (hospitalFilter || statusFilter) {
-          filterActiveTxt = `\n\nFiltro Ativo: **${hospitalFilter || ""} ${statusFilter || ""}** [\`Limpar\`](/pacientes sort:${sort})`;
         }
 
         setMessages([{ 
           role: "model", 
-          text: listText + filterActiveTxt + (nav ? nav : ""),
+          text: listText + (nav ? nav : ""),
           isListing: true,
           listingTitle: "", // User wants to remove the title
           actionGroups
@@ -1399,21 +1457,20 @@ export const Chat: React.FC = () => {
       }
     }
 
-    if (cmd.startsWith("/registrar_familiar")) {
+    if (cmd.startsWith("/salvarfamiliar") || cmd.startsWith("/registrar_familiar")) {
       setIsLoading(true);
       try {
-        const patientId = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
-        const patientNome = cmdInput.match(/paciente_nome:\s*([^,]+)/i)?.[1]?.trim();
-        const nomeParaApi = cmdInput.match(/nome_familiar:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/familiar_nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
-        const relacaoParaApi = cmdInput.match(/tipo_parentesco:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/relacao:\s*([^,]+)/i)?.[1]?.trim();
-        const foneParaApi = cmdInput.match(/telefone:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/fone:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/fone:\s*(.+)/i)?.[1]?.trim();
+        const patientId = cmdInput.match(/patientId:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
+        const name = cmdInput.match(/name:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome_familiar:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
+        const relationship = cmdInput.match(/relationship:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/tipo_parentesco:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/relacao:\s*([^,]+)/i)?.[1]?.trim();
+        const phone = cmdInput.match(/phone:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/telefone:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/fone:\s*(.+)/i)?.[1]?.trim();
 
-        if (!patientId || !nomeParaApi) throw new Error("Use: /registrar_familiar id: [ID], nome_familiar: [NOME], tipo_parentesco: [TIPO], telefone: [FONE]");
+        if (!patientId || !name) throw new Error("ID do paciente e Nome são obrigatórios.");
 
-        const res = await fetch("/api/app/family-members", {
+        const res = await fetch("/api/app/patient-contacts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ patientId, nome: nomeParaApi, relacao: relacaoParaApi, fone: foneParaApi, paciente_nome: patientNome })
+          body: JSON.stringify({ patientId, name, relationship, phone })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -1426,6 +1483,46 @@ export const Chat: React.FC = () => {
         setIsLoading(false);
         return true;
       }
+    }
+
+    if (cmd.startsWith("/salvarlog")) {
+      setIsLoading(true);
+      try {
+        const patientId = cmdInput.match(/patientId:\s*([^,]+)/i)?.[1]?.trim();
+        const text = cmdInput.match(/text:\s*(.+)/i)?.[1]?.trim();
+
+        if (!patientId || !text) throw new Error("ID do paciente e Texto são obrigatórios.");
+
+        const res = await fetch("/api/app/patient-logs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patientId, text })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        const pRes = await fetch(`/api/app/patient-report/${patientId}`);
+        const pData = await pRes.json();
+        if (pData.id) {
+          const reportText = generatePatientReport(pData);
+          setMessages([{ 
+            role: "model", 
+            text: reportText,
+            isProfile: true,
+            profileData: {
+              id: pData.id,
+              nome: pData.cadastro.Nome,
+              idade: pData.cadastro.Idade
+            }
+          }]);
+          setTimeout(scrollToTop, 0);
+        }
+      } catch (error) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${(error as Error).message}` }]);
+      } finally {
+        setIsLoading(false);
+      }
+      return true;
     }
 
     if (cmd.startsWith("/log")) {
@@ -1455,6 +1552,13 @@ export const Chat: React.FC = () => {
         setIsLoading(false);
         return true;
       }
+    }
+
+    if (cmd.startsWith("/open_calendar")) {
+      if (onNavigateToCalendar) {
+        onNavigateToCalendar();
+      }
+      return true;
     }
 
     if (cmd.startsWith("/img")) {
@@ -1895,20 +1999,16 @@ export const Chat: React.FC = () => {
                     </div>
                   )}
                   {msg.isProfile && msg.profileData && (
-                    <div className="bg-blue-50 -mx-4 -mt-4 mb-6 p-10 flex flex-col items-center justify-center border-b border-blue-100 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100/30 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-100/30 rounded-full -ml-12 -mb-12 blur-2xl"></div>
+                    <div className="bg-blue-50 -mx-4 -mt-4 mb-4 p-4 flex flex-row items-center justify-start border-b border-blue-100 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-blue-100/30 rounded-full -mr-12 -mt-12 blur-xl"></div>
                       
                       <button 
                         onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
-                        className="group flex flex-col items-center hover:scale-105 transition-transform relative z-10"
+                        className="group flex flex-row items-center gap-1.5 hover:scale-[1.02] transition-transform relative z-10"
                       >
-                        <h2 className="text-2xl font-extrabold text-blue-700 group-hover:text-blue-900 transition-colors tracking-tight text-center leading-tight">{msg.profileData.nome}</h2>
-                        <div className="flex items-center gap-2 mt-1">
-                          <p className="text-lg font-bold text-blue-500 group-hover:text-blue-700 transition-colors">{msg.profileData.idade} anos</p>
-                          <div className="w-1 h-1 bg-blue-300 rounded-full"></div>
-                          <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 group-hover:text-blue-600 transition-colors">Editar</span>
-                        </div>
+                        <span className="text-[17px] font-bold text-blue-800 group-hover:text-blue-900 transition-colors tracking-tight leading-none">{msg.profileData.nome}</span>
+                        <span className="text-[17px] font-medium text-blue-600 leading-none">| {msg.profileData.idade} anos</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-white bg-blue-500 px-2 py-0.5 rounded-full group-hover:bg-blue-600 transition-colors ml-0.5">Editar</span>
                       </button>
                     </div>
                   )}
@@ -2008,24 +2108,28 @@ export const Chat: React.FC = () => {
                                   else label = content;
                                 }
 
-                                return (
-                                  <button
-                                    onClick={() => {
-                                      const shouldClear = content.startsWith("/p") || 
-                                                          content.startsWith("/edit_name") || 
-                                                          content.startsWith("/pacientes") || 
-                                                          content.startsWith("/cadastro") ||
-                                                          content.startsWith("/status_alterar") ||
-                                                          content.startsWith("/buscar") ||
-                                                          content.startsWith("/hospitais") ||
-                                                          content.startsWith("/agenda");
-                                      handleSend(undefined, content, shouldClear);
-                                    }}
-                                    className="not-prose bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-mono font-bold hover:bg-blue-100 transition-colors cursor-pointer border border-blue-100 mx-0.5"
-                                  >
-                                    {label}
-                                  </button>
-                                );
+                                  const isPlusLabel = label === "+";
+                                  return (
+                                    <button
+                                      onClick={() => {
+                                        const shouldClear = content.startsWith("/p") || 
+                                                            content.startsWith("/edit_name") || 
+                                                            content.startsWith("/pacientes") || 
+                                                            content.startsWith("/cadastro") ||
+                                                            content.startsWith("/status_alterar") ||
+                                                            content.startsWith("/buscar") ||
+                                                            content.startsWith("/hospitais") ||
+                                                            content.startsWith("/agenda");
+                                        handleSend(undefined, content, shouldClear);
+                                      }}
+                                      className={isPlusLabel 
+                                        ? "not-prose bg-blue-600 text-white w-6 h-6 inline-flex items-center justify-center rounded-full font-bold hover:bg-blue-700 transition-colors cursor-pointer shadow-sm mx-0.5"
+                                        : "not-prose bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-mono font-bold hover:bg-blue-100 transition-colors cursor-pointer border border-blue-100 mx-0.5"
+                                      }
+                                    >
+                                      {label}
+                                    </button>
+                                  );
                               }
                               return <code {...props}>{children}</code>;
                             }

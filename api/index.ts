@@ -808,6 +808,60 @@ const handleApiError = (res: express.Response, error: any, context: string) => {
 };
 
 // Get all patients directly from Firestore
+app.get("/api/app/patient-contacts/:patientId", async (req, res) => {
+  const { patientId } = req.params;
+  try {
+    const snap = await db.collection("patients_contacts").where("patientId", "==", patientId).get();
+    const contacts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json(contacts);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.post("/api/app/patient-logs", express.json(), async (req, res) => {
+  const { patientId, text } = req.body;
+  if (!patientId || !text) {
+    return res.status(400).json({ error: "patientId and text are required" });
+  }
+  try {
+    const docRef = db.collection("patient_logs").doc();
+    const newLog = {
+      id: docRef.id,
+      patientId: patientId.toString(),
+      text,
+      type: "text",
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    await docRef.set(newLog);
+    res.json(newLog);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.post("/api/app/patient-contacts", express.json(), async (req, res) => {
+  const { patientId, name, relationship, phone } = req.body;
+  if (!patientId || !name) {
+    return res.status(400).json({ error: "patientId and name are required" });
+  }
+  try {
+    const docRef = db.collection("patients_contacts").doc();
+    const newContact = {
+      id: docRef.id,
+      patientId: patientId.toString(),
+      name,
+      relationship: relationship || "",
+      phone: phone || "",
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    await docRef.set(newContact);
+    res.json(newContact);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 app.get("/api/app/patients", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
@@ -816,8 +870,20 @@ app.get("/api/app/patients", async (req, res) => {
     // Ensure basic data is migrated
     await migrateHospitalsAndStatuses(auth);
 
+    let patientsQuery: admin.firestore.Query = db.collection("patients");
+    const hFilter = req.query.hospitalId?.toString();
+    const sFilter = req.query.statusId?.toString();
+
+    if (hFilter && hFilter !== "1") {
+      patientsQuery = patientsQuery.where("hospitalId", "==", hFilter);
+      // Exclude statusId 5 by default when filtering by hospital
+      patientsQuery = patientsQuery.where("statusId", "!=", "5");
+    } else if (sFilter && sFilter !== "1") {
+      patientsQuery = patientsQuery.where("statusId", "==", sFilter);
+    }
+
     const [patientsSnap, hospitalsSnap, statusesSnap] = await Promise.all([
-      db.collection("patients").orderBy("name").get(),
+      patientsQuery.get(),
       db.collection("hospitals").get(),
       db.collection("patient_statuses").get()
     ]);
@@ -837,16 +903,18 @@ app.get("/api/app/patients", async (req, res) => {
     });
 
     if (req.query.full === "true") {
+      const sortedStatuses = statusesSnap.docs.map(d => {
+        const sData = d.data();
+        return { id: d.id, ...sData, nome: sData.name };
+      }).sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+
       res.json({
         patients,
         hospitals: hospitalsSnap.docs.map(d => {
           const hData = d.data();
           return { id: d.id, ...hData, nome: hData.name };
         }),
-        statuses: statusesSnap.docs.map(d => {
-          const sData = d.data();
-          return { id: d.id, ...sData, nome: sData.name };
-        })
+        statuses: sortedStatuses
       });
     } else {
       res.json(patients);
@@ -1011,10 +1079,14 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       `${SHEET_TABS.FAMILIARES}!A:F`
     ];
 
-    const batchRes = await sheets.spreadsheets.values.batchGet({
-      spreadsheetId: fileId,
-      ranges
-    });
+    const [batchRes, contactsSnap, logsSnap] = await Promise.all([
+      sheets.spreadsheets.values.batchGet({
+        spreadsheetId: fileId,
+        ranges
+      }),
+      db.collection("patients_contacts").where("patientId", "==", id).get(),
+      db.collection("patient_logs").where("patientId", "==", id).orderBy("createdAt", "desc").get()
+    ]);
 
     const valueRanges = batchRes.data.valueRanges || [];
     const cadRows = valueRanges[0]?.values || [];
@@ -1067,6 +1139,36 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
           relacao: row[2],
           fone: row[3]
         }));
+    }
+
+    // Add Firestore contacts
+    if (!contactsSnap.empty) {
+      contactsSnap.docs.forEach(doc => {
+        const data = doc.data();
+        // Avoid duplicates by simple ID check or name check
+        if (!report.familiares.some((f: any) => f.id === doc.id || (f.nome === data.name && f.fone === data.phone))) {
+          report.familiares.push({
+            id: doc.id,
+            nome: data.name,
+            relacao: data.relationship,
+            fone: data.phone
+          });
+        }
+      });
+    }
+
+    // Add Firestore logs
+    if (!logsSnap.empty) {
+      logsSnap.docs.forEach(doc => {
+        const data = doc.data();
+        const dateStr = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString('pt-BR') : "";
+        report.audios.push({
+          id: doc.id,
+          tipo: "texto",
+          conteudo: data.text,
+          data: dateStr
+        });
+      });
     }
 
     res.json(report);

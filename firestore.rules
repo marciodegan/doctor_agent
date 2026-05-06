@@ -25,6 +25,10 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    match /groups/{groupId}/calendario/{eventId} {
+      allow read, write: if isSignedIn();
+    }
+
     match /hospitals/{hospitalId} {
       allow read, write: if isSignedIn();
     }
@@ -39,6 +43,14 @@ service cloud.firestore {
     }
 
     match /family_members/{memberId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /patients_contacts/{contactId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /patient_logs/{logId} {
       allow read, write: if isSignedIn();
     }
 

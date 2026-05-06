@@ -76,6 +76,33 @@
         "patientName": { "type": "string" }
       }
     },
+    "PatientContact": {
+      "title": "Patient Contact",
+      "description": "Contact information for a patient relative or associate",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "relationship": { "type": "string" },
+        "phone": { "type": "string" },
+        "patientId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "patientId"]
+    },
+    "PatientLog": {
+      "title": "Patient Log",
+      "description": "Clinical log or observation for a patient",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "text": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "audio"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "patientId", "text"]
+    },
     "Setting": {
       "title": "App Setting",
       "description": "Configuration values",
@@ -84,6 +111,23 @@
         "key": { "type": "string" },
         "value": { "type": "string" }
       }
+    },
+    "CalendarEvent": {
+      "title": "Calendar Event",
+      "description": "Surgery or procedure scheduled in the shared group calendar",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "evento": { "type": "string" },
+        "data": { "type": "string", "description": "YYYY-MM-DD" },
+        "hora": { "type": "string", "description": "HH:mm" },
+        "descricao": { "type": "string" },
+        "groupId": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["evento", "data", "hora", "groupId", "createdBy"]
     },
     "User": {
       "title": "User",
@@ -122,9 +166,21 @@
       "schema": "FamilyMember",
       "description": "Patient family contacts"
     },
+    "/patients_contacts/{contactId}": {
+      "schema": "PatientContact",
+      "description": "Patient family and associate contacts"
+    },
+    "/patient_logs/{logId}": {
+      "schema": "PatientLog",
+      "description": "Clinical logs and observations"
+    },
     "/settings/{settingId}": {
       "schema": "Setting",
       "description": "App configuration"
+    },
+    "/groups/{groupId}/calendario/{eventId}": {
+      "schema": "CalendarEvent",
+      "description": "Shared group calendar events"
     },
     "/users/{userId}": {
       "schema": "User",
