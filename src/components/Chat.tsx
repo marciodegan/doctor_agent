@@ -468,17 +468,29 @@ export const Chat: React.FC<{
 </div>`).join("");
     
     const docs = data.imagens.map((i: any) => {
-      const downloadText = i.link ? ` [[Baixar Arquivo](${i.link})]` : "";
+      const downloadText = i.link ? ` <a href="${i.link}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; margin-left: 8px; text-decoration: none; font-weight: bold;">[Baixar Arquivo]</a>` : "";
       
       let aiPart = "";
       if (i.aiResposta) {
-        aiPart = `<div style="margin-top: 4px; color: #3b82f6;">🤖 **AI:** ${i.aiResposta}</div>`;
+        aiPart = `<div style="margin-top: 4px; color: #3b82f6;">🤖 <b>AI:</b> ${i.aiResposta}</div>`;
       }
+
+      let driveId = i.driveFileId;
+      if (!driveId && i.link) {
+        const match = i.link.match(/\/d\/([^/]+)/);
+        if (match) driveId = match[1];
+      }
+
+      // Using a more reliable view endpoint for Drive images
+      const imgTag = driveId 
+        ? `<div style="margin-top: 8px; margin-bottom: 8px;"><img src="https://lh3.googleusercontent.com/d/${driveId}=w1000" alt="${i.descricao}" style="max-width: 100%; border-radius: 12px; border: 1px solid #efefef; display: block;" referrerPolicy="no-referrer" /></div>`
+        : "";
       
       return `
 <div style="margin-left: 24px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
-  <div style="margin-bottom: 2px;">${i.descricao}${aiPart}</div>
-  <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${i.data}${downloadText}</div>
+  <div style="margin-bottom: 2px;"><b>${i.descricao}</b>${aiPart}</div>
+  ${imgTag}
+  <div style="font-size: 11px; font-weight: 500; color: #6b7280;">${i.data}${downloadText}</div>
 </div>`;
     }).join("");
 

@@ -1126,13 +1126,14 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       `${SHEET_TABS.FAMILIARES}!A:F`
     ];
 
-    const [batchRes, contactsSnap, logsSnap, patientSnap, statusesSnap] = await Promise.all([
+    const [batchRes, contactsSnap, logsSnap, filesSnap, patientSnap, statusesSnap] = await Promise.all([
       sheets.spreadsheets.values.batchGet({
         spreadsheetId: fileId,
         ranges
       }),
       db.collection("patients_contacts").where("patientId", "==", id).get(),
       db.collection("patient_logs").where("patientId", "==", id).orderBy("createdAt", "desc").get(),
+      db.collection("files").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
       db.collection("patients").doc(id).get(),
       db.collection("patient_statuses").get()
     ]);
@@ -1249,6 +1250,25 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
           conteudo: data.text,
           data: dateStr
         });
+      });
+    }
+
+    // Add Firestore files
+    if (!filesSnap.empty) {
+      filesSnap.docs.forEach(doc => {
+        const data = doc.data();
+        const dateStr = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString('pt-BR') : "";
+        // Avoid duplicates by link
+        if (!report.imagens.some((img: any) => img.link === data.link)) {
+          report.imagens.push({
+            id: doc.id,
+            data: dateStr,
+            descricao: data.description,
+            link: data.link,
+            driveFileId: data.driveFileId,
+            aiResposta: data.aiResposta || ""
+          });
+        }
       });
     }
 
@@ -1528,6 +1548,25 @@ app.post("/api/app/upload-image", express.json({ limit: "10mb" }), async (req, r
       driveFileId,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
+
+    // 3. Save to Google Sheets (ARQUIVOS tab) for legacy/sync
+    try {
+      const sheets = google.sheets({ version: "v4", auth });
+      const masterFileId = await getOrCreateMasterSheet(auth);
+      const timestampStr = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: masterFileId,
+        range: `${SHEET_TABS.ARQUIVOS}!A:E`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [[timestampStr, patientId, description || "Upload Direto", shareLink || "", ""]]
+        }
+      });
+    } catch (sheetErr) {
+      console.error("[SheetsSync] Error appending to ARQUIVOS sheet:", sheetErr);
+      // Don't fail the whole upload if just sheet sync fails (we have Firestore as backup now)
+    }
 
     res.json({ success: true, fileId: driveFileId, link: shareLink });
   } catch (error) {
