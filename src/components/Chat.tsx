@@ -219,6 +219,7 @@ export const Chat: React.FC<{
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [companyName, setCompanyName] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [procedureOptions, setProcedureOptions] = useState<string[]>([]);
@@ -265,7 +266,9 @@ export const Chat: React.FC<{
       .then(res => res.json())
       .then(data => {
         const name = data.companyName || "Doctor Pro";
+        const wa = data.whatsappNumber || "";
         setCompanyName(name);
+        setWhatsappNumber(wa);
         setMessages([
           { 
             role: "model", 
@@ -292,16 +295,17 @@ export const Chat: React.FC<{
     }
   }, [initialCommand, agentRef.current]);
 
-  const updateSettings = async (name: string) => {
+  const updateSettings = async (name: string, wa: string) => {
     setIsUpdatingSettings(true);
     try {
       const res = await fetch("/api/app/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyName: name })
+        body: JSON.stringify({ companyName: name, whatsappNumber: wa })
       });
       if (res.ok) {
         setCompanyName(name);
+        setWhatsappNumber(wa);
         setShowSettings(false);
       }
     } catch (err) {
@@ -2139,9 +2143,19 @@ export const Chat: React.FC<{
                     className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">WhatsApp (para Agenda)</label>
+                  <input 
+                    type="text" 
+                    value={whatsappNumber} 
+                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                    placeholder="Ex: 5511999999999"
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
+                  />
+                </div>
                 <div className="flex gap-2">
                   <button 
-                    onClick={() => updateSettings(companyName)}
+                    onClick={() => updateSettings(companyName, whatsappNumber)}
                     disabled={isUpdatingSettings || isBackingUp}
                     className="flex-[2] py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50"
                   >

@@ -9,7 +9,9 @@ import {
   Calendar as CalendarIcon,
   Clock,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Share2,
+  Check
 } from "lucide-react";
 import { 
   collection, 
@@ -56,6 +58,8 @@ export function Calendar() {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [procedureOptions, setProcedureOptions] = useState<string[]>([]);
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   
   // Form State
   const [formData, setFormData] = useState({
@@ -107,6 +111,67 @@ export function Calendar() {
     fetchProcedures();
   }, []);
 
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch("/api/app/settings");
+        const data = await res.json();
+        if (data.whatsappNumber) {
+          setWhatsappNumber(data.whatsappNumber);
+        }
+      } catch (err) {
+        console.error("Failed to fetch settings", err);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const toggleEventSelection = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const newSelected = new Set(selectedEventIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedEventIds(newSelected);
+  };
+
+  const handleSendToWhatsApp = () => {
+    if (selectedEventIds.size === 0) return;
+
+    const selectedEvents = events
+      .filter(e => selectedEventIds.has(e.id))
+      .sort((a, b) => {
+        const dateA = new Date(`${a.data}T${a.hora}`);
+        const dateB = new Date(`${b.data}T${b.hora}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+    let message = `🏥 *AGENDA DE CIRURGIAS*\n\n`;
+    
+    selectedEvents.forEach((e, idx) => {
+      const [y, m, d] = e.data.split("-");
+      const dateFormatted = `${d}/${m}/${y}`;
+      message += `🔹 *${e.evento}*\n`;
+      message += `📅 Data: ${dateFormatted}\n`;
+      message += `🕒 Hora: ${e.hora}\n`;
+      if (e.tipo) message += `🏷️ Categoria: ${e.tipo}\n`;
+      if (e.sala) message += `📍 Sala: ${e.sala}\n`;
+      if (e.descricao) message += `📝 Obs: ${e.descricao}\n`;
+      if (idx < selectedEvents.length - 1) message += `\n---\n\n`;
+    });
+
+    const cleanPhone = whatsappNumber.replace(/\D/g, "");
+    if (!cleanPhone) {
+      alert("Por favor, configure seu número de WhatsApp nas configurações do Chat.");
+      return;
+    }
+
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank");
+  };
+
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
@@ -147,19 +212,37 @@ export function Calendar() {
           </div>
           
           <div className="space-y-1 overflow-y-auto max-h-[calc(100%-2rem)] custom-scrollbar">
-            {dayEvents.map(event => (
-              <button
-                key={event.id}
-                onClick={() => openEditModal(event)}
-                className="w-full text-left p-1 rounded bg-white border border-blue-100 shadow-sm hover:border-blue-300 transition-all group"
-              >
-                <div className="text-[9px] sm:text-[10px] font-bold text-blue-600 truncate">{event.evento}</div>
-                <div className="flex items-center justify-between mt-0.5">
-                  <div className="text-[8px] sm:text-[9px] text-gray-400 font-medium">{event.hora}</div>
-                  {event.sala && <div className="text-[7px] font-black text-blue-400/80 uppercase">{event.sala}</div>}
+            {dayEvents.map(event => {
+              const isSelected = selectedEventIds.has(event.id);
+              return (
+                <div key={event.id} className="relative group/item">
+                  <button
+                    onClick={() => openEditModal(event)}
+                    className={`w-full text-left p-1 rounded border transition-all ${
+                      isSelected 
+                        ? "bg-blue-50 border-blue-400 shadow-sm" 
+                        : "bg-white border-blue-100 hover:border-blue-300"
+                    }`}
+                  >
+                    <div className="text-[9px] sm:text-[10px] font-bold text-blue-600 truncate">{event.evento}</div>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <div className="text-[8px] sm:text-[9px] text-gray-400 font-medium">{event.hora}</div>
+                      {event.sala && <div className="text-[7px] font-black text-blue-400/80 uppercase">{event.sala}</div>}
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => toggleEventSelection(e, event.id)}
+                    className={`absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full border flex items-center justify-center transition-all z-10 ${
+                      isSelected 
+                        ? "bg-emerald-500 border-emerald-500 text-white scale-110" 
+                        : "bg-white border-gray-200 text-transparent group-hover/item:text-gray-400 group-hover/item:border-blue-300"
+                    }`}
+                  >
+                    <Check size={10} strokeWidth={4} />
+                  </button>
                 </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       );
@@ -252,6 +335,18 @@ export function Calendar() {
         </div>
 
         <div className="flex items-center gap-2">
+          {selectedEventIds.size > 0 && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={handleSendToWhatsApp}
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all mr-2"
+            >
+              <Share2 size={18} />
+              <span className="hidden sm:inline">WhatsApp ({selectedEventIds.size})</span>
+            </motion.button>
+          )}
+
           <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
             <button 
               onClick={handlePrevMonth}
