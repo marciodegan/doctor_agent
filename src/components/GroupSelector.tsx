@@ -91,6 +91,51 @@ export function GroupSelector() {
     );
   }
 
+  // If no groups but has invites - show them prominently
+  if (groups.length === 0 && invites.length > 0 && !isCreating) {
+    return (
+      <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-xl shadow-blue-500/5 max-w-md mx-auto">
+        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mb-6 mx-auto">
+          <Users size={32} />
+        </div>
+        <h2 className="text-2xl font-black text-gray-900 text-center mb-2">Convites Encontrados!</h2>
+        <p className="text-gray-500 text-center mb-8">Você foi convidado para participar dos seguintes grupos:</p>
+        
+        <div className="space-y-3 mb-8">
+          {invites.map((invite) => (
+            <div key={invite.id} className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold uppercase">
+                    {invite.name.charAt(0)}
+                  </div>
+                  <div className="font-bold text-gray-900 uppercase text-sm">{invite.name}</div>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleAcceptInvite(invite.id)}
+                disabled={isAccepting === invite.id}
+                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-md active:scale-95"
+              >
+                {isAccepting === invite.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                ENTRAR NO GRUPO {invite.name.toUpperCase()}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="pt-6 border-t border-gray-100">
+           <button 
+            onClick={() => setIsCreating(true)}
+            className="w-full text-gray-400 font-bold text-xs hover:text-blue-600 transition-colors py-2 uppercase tracking-widest"
+          >
+            Ou crie seu próprio grupo
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">

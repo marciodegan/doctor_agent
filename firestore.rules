@@ -66,6 +66,15 @@ service cloud.firestore {
       }
     }
 
+    // Group Invitations
+    match /group_invitations/{invId} {
+      allow read: if isSignedIn() && request.auth.token.email == existing().email;
+      allow create: if isMember(incoming().groupId);
+      allow update: if (isSignedIn() && request.auth.token.email == existing().email && incoming().status == "accepted") ||
+                      isMember(existing().groupId);
+      allow delete: if isMember(existing().groupId);
+    }
+
     // Procedure Options
     match /procedureOptions/{optionId} {
       allow read: if isSignedIn();

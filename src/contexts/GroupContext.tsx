@@ -52,9 +52,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
     setLoading(true);
     
-    // We need to find groups where the user is a member
+    // Listen to memberships
     const membershipsPath = `users/${user.uid}/memberships`;
-    const unsubscribe = onSnapshot(collection(db, membershipsPath), async (snapshot) => {
+    const unsubscribeMemberships = onSnapshot(collection(db, membershipsPath), async (snapshot) => {
       try {
         const membershipPromises = snapshot.docs.map(async (membershipDoc) => {
           const groupId = membershipDoc.id;
@@ -65,7 +65,6 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           if (!groupDoc.empty) {
             groupInfo = { id: groupId, ...groupDoc.docs[0].data(), status: mData.status || "active" } as Group;
           } else {
-            // Fallback for direct doc access if ID matches doc name
             groupInfo = { 
               id: groupId, 
               name: mData.groupName || "Group " + groupId, 
@@ -78,21 +77,27 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
         const fetchedMemberships = await Promise.all(membershipPromises);
         
+        // We will merge this with invitations by email later
         const activeGroups = fetchedMemberships.filter(m => m.status === "active");
         const pendingGroups = fetchedMemberships.filter(m => m.status === "pending");
 
         setGroups(activeGroups);
-        setInvites(pendingGroups);
+        
+        // Set pending groups from memberships (existing users)
+        setInvites(prev => {
+          // Merge logic: prefer memberships for now, but keep email-only invites if not in memberships
+          const merged = [...pendingGroups];
+          // We'll update invites fully in the other listener
+          return merged;
+        });
 
-        // Restore active group from localStorage or pick first active
+        // Restore active group
         const savedGroupId = localStorage.getItem("activeGroupId");
         const found = activeGroups.find(g => g.id === savedGroupId);
         if (found) {
           setActiveGroup(found);
-        } else if (activeGroups.length > 0) {
+        } else if (activeGroups.length > 0 && !activeGroup) {
           setActiveGroup(activeGroups[0]);
-        } else {
-          setActiveGroup(null);
         }
         setLoading(false);
       } catch (err) {
@@ -102,8 +107,32 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       handleFirestoreError(error, OperationType.GET, membershipsPath);
     });
 
-    return () => unsubscribe();
-  }, [user]);
+    // Listen to invitations by email (for users who were invited before joining)
+    const invitationsQuery = query(collection(db, "group_invitations"), where("email", "==", user.email), where("status", "==", "pending"));
+    const unsubscribeInvitations = onSnapshot(invitationsQuery, (snapshot) => {
+      const emailInvites = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: data.groupId,
+          name: data.groupName || "Novo Grupo",
+          createdBy: data.inviterId,
+          status: "pending" as const
+        };
+      });
+
+      setInvites(prev => {
+        // Merge: get unique group IDs
+        const existingIds = new Set(prev.map(p => p.id));
+        const newOnes = emailInvites.filter(ei => !existingIds.has(ei.id));
+        return [...prev, ...newOnes];
+      });
+    });
+
+    return () => {
+      unsubscribeMemberships();
+      unsubscribeInvitations();
+    };
+  }, [user, user?.email]);
 
   const setActiveGroupId = (id: string) => {
     const group = groups.find(g => g.id === id);
@@ -151,52 +180,77 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   };
 
   const inviteUser = async (groupId: string, email: string) => {
-     try {
-       // In a real app, this would send an invite or use a cloud function to find UID by email
-       // For this demo, we'll assume we know the email and search for the user in our 'users' collection
+    if (!user) throw new Error("Must be logged in");
+    try {
+       // 1. Always create a record in group_invitations by email
+       // This handles users who are not yet in the system
+       const invId = `${groupId}_${email.replace(/\./g, '_')}`;
+       await setDoc(doc(db, "group_invitations", invId), {
+         email,
+         groupId,
+         groupName: activeGroup?.name || "Novo Grupo",
+         inviterId: user.uid,
+         inviterEmail: user.email,
+         status: "pending",
+         createdAt: serverTimestamp()
+       }, { merge: true });
+
+       // 2. Try to find user to notify them directly if they exist
        const userQuery = query(collection(db, "users"), where("email", "==", email));
        const userSnap = await getDocs(userQuery);
        
-       if (userSnap.empty) {
-         throw new Error("User not found. They must login to the app first.");
+       if (!userSnap.empty) {
+         const targetUid = userSnap.docs[0].id;
+         
+         // Add to group members
+         await setDoc(doc(db, `groups/${groupId}/members`, targetUid), {
+           userId: targetUid,
+           userEmail: email,
+           role: "member",
+           status: "pending",
+           joinedAt: serverTimestamp()
+         });
+
+         // Add to target user's memberships
+         await setDoc(doc(db, `users/${targetUid}/memberships`, groupId), {
+           groupId,
+           groupName: activeGroup?.name || "Novo Grupo",
+           role: "member",
+           status: "pending"
+         });
        }
-
-       const targetUid = userSnap.docs[0].id;
-
-       // Add to group members
-       await setDoc(doc(db, `groups/${groupId}/members`, targetUid), {
-         userId: targetUid,
-         userEmail: email,
-         role: "member",
-         status: "pending",
-         joinedAt: serverTimestamp()
-       });
-
-       // Add to target user's memberships
-       await setDoc(doc(db, `users/${targetUid}/memberships`, groupId), {
-         groupId,
-         groupName: groups.find(g => g.id === groupId)?.name || "New Group",
-         role: "member",
-         status: "pending"
-       });
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `groups/${groupId}/members`);
+      handleFirestoreError(err, OperationType.WRITE, `group_invitations`);
     }
   };
 
   const acceptInvite = async (groupId: string) => {
     if (!user) throw new Error("Must be logged in");
     try {
-      // Update membership status
+      // 1. Update membership status (record might not exist yet if they were invited by email)
       await setDoc(doc(db, `users/${user.uid}/memberships`, groupId), {
+        groupId,
+        groupName: invites.find(i => i.id === groupId)?.name || "Novo Grupo",
+        role: "member",
         status: "active"
       }, { merge: true });
 
-      // Update group member status
+      // 2. Update group member status
       await setDoc(doc(db, `groups/${groupId}/members`, user.uid), {
+        userId: user.uid,
+        userEmail: user.email,
         status: "active",
         joinedAt: serverTimestamp()
       }, { merge: true });
+
+      // 3. Mark invitation as completed
+      const invId = `${groupId}_${user.email?.replace(/\./g, '_')}`;
+      await setDoc(doc(db, "group_invitations", invId), {
+        status: "accepted",
+        acceptedAt: serverTimestamp()
+      }, { merge: true });
+
+      setActiveGroupId(groupId);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/memberships/${groupId}`);
     }
