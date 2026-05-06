@@ -277,10 +277,10 @@ export default function App() {
                     <button
                       key={i}
                       onClick={() => navigateAndAction(s.view, s.prompt)}
-                      className={`text-[11px] font-bold px-3.5 py-2 border rounded-full transition-all uppercase tracking-wide shadow-sm bg-white ${
+                      className={`text-[10px] font-bold px-3 py-1.5 border rounded-full transition-all uppercase tracking-wide shadow-sm ${
                         (s.view === currentView && (s.prompt !== "/open_calendar" || currentView === "calendar"))
-                        ? "border-blue-600 text-blue-600 shadow-blue-50" 
-                        : "border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600"
+                        ? "border-blue-600 text-blue-600 bg-blue-50" 
+                        : "border-blue-600 text-blue-600 bg-white hover:bg-blue-50"
                       }`}
                     >
                       {s.label}

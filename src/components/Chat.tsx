@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus } from "lucide-react";
+import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
@@ -16,6 +16,7 @@ interface Message {
     id: string;
     nome: string;
     idade: string;
+    status?: string;
   };
   form?: {
     title?: string;
@@ -164,6 +165,10 @@ const MessageForm: React.FC<{
                 <option key={opt} value={opt}>{opt}</option>
               ))}
             </select>
+          ) : field.readOnly ? (
+            <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 font-medium">
+              {values[field.name] || <span className="text-gray-400">{field.placeholder}</span>}
+            </div>
           ) : (
             <input 
               type={field.type}
@@ -182,7 +187,11 @@ const MessageForm: React.FC<{
                   key={opt}
                   type="button"
                   onClick={() => setValues(prev => ({ ...prev, [field.name]: opt }))}
-                  className="px-2 py-1 bg-white border border-gray-200 rounded-lg text-[9px] font-bold text-gray-400 hover:border-blue-200 hover:text-blue-600 transition-all uppercase"
+                  className={`px-2 py-1 rounded-lg text-[9px] font-bold transition-all uppercase border ${
+                    values[field.name] === opt 
+                      ? "bg-blue-600 border-blue-600 text-white shadow-sm" 
+                      : "bg-white border-gray-200 text-gray-400 hover:border-blue-200 hover:text-blue-600"
+                  }`}
                 >
                   {opt}
                 </button>
@@ -223,6 +232,8 @@ export const Chat: React.FC<{
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [procedureOptions, setProcedureOptions] = useState<string[]>([]);
+  const [hospitalOptions, setHospitalOptions] = useState<{id: string, nome: string}[]>([]);
+  const [statusOptions, setStatusOptions] = useState<{id: string, nome: string}[]>([]);
   
   // Create a mutable reference for the agent so we can reset it
   const agentRef = useRef<any>(null);
@@ -259,6 +270,24 @@ export const Chat: React.FC<{
     };
     fetchProcedures();
   }, [auth.currentUser]);
+
+  useEffect(() => {
+    const fetchHospitalsAndStatuses = async () => {
+      try {
+        const [hRes, sRes] = await Promise.all([
+          fetch("/api/app/hospitals"),
+          fetch("/api/app/statuses")
+        ]);
+        const hData = await hRes.json();
+        const sData = await sRes.json();
+        setHospitalOptions(hData);
+        setStatusOptions(sData);
+      } catch (e) {
+        console.error("Error fetching hospitals/statuses:", e);
+      }
+    };
+    fetchHospitalsAndStatuses();
+  }, []);
 
   useEffect(() => {
     // Fetch Settings
@@ -464,15 +493,9 @@ export const Chat: React.FC<{
   <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${cadFoneLink}</div>
 </div>` : "";
 
-    const statusText = cad.Status || "Não informado";
-    const statusLine = `
-<div style="text-align: right; margin-bottom: 24px;">
-  <a href="/status_alterar ${cad.ID}" style="font-size: 15px; font-weight: bold; color: #1f2937; text-decoration: none; display: inline-block;">
-    ${statusText} ✏️
-  </a>
-</div>\n\n`;
+    const calendarLine = "";
 
-    return statusLine +
+    return calendarLine +
       `\`/novofamiliar id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Contatos:**\n\n${patientContact}${fams || (patientContact ? "" : "Nenhum registro")}\n\n\n\n\n\n\n\n\n\n` +
       `\`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Informações:**\n\n${audios || "Nenhum registro"}\n\n\n\n\n\n\n\n\n\n` +
       `\`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Imagens:**\n\n${docs || "Nenhum registro"}`;
@@ -659,8 +682,26 @@ export const Chat: React.FC<{
           title: "Novo Paciente",
           fields: [
             { label: "Nome do Paciente", name: "nome", type: "text", placeholder: "Ex: João Silva" },
-            { label: "Idade", name: "idade", type: "text", placeholder: "Ex: 30" },
-            { label: "Hospital", name: "hospitalName", type: "text", placeholder: "Ex: Hospital São Lucas" },
+            { label: "Idade", name: "idade", type: "number", placeholder: "Ex: 30" },
+            { 
+              label: "Hospital", 
+              name: "hospitalName", 
+              type: "text", 
+              placeholder: "Toque em um hospital abaixo",
+              // @ts-ignore
+              readOnly: true,
+              suggestions: hospitalOptions.map(h => h.nome)
+            },
+            { 
+              label: "Status Inicial", 
+              name: "status", 
+              type: "text", 
+              placeholder: "Toque em um status abaixo",
+              // @ts-ignore
+              readOnly: true,
+              suggestions: statusOptions.map(s => s.nome),
+              defaultValue: "Pré-operatorio"
+            },
             { label: "Quarto/Leito", name: "roomNumber", type: "text", placeholder: "Ex: 402B" },
           ],
           submitLabel: "Registrar Paciente",
@@ -687,6 +728,8 @@ export const Chat: React.FC<{
       const categoria = parts.categoria || "";
       const sala = parts.sala || "";
 
+      const pid = parts.pid || "";
+
       if (!evento || !dataStr || !hora) {
         setMessages(prev => [...prev, { role: "model", text: "❌ Dados incompletos para o calendário." }]);
         return true;
@@ -709,15 +752,21 @@ export const Chat: React.FC<{
           sala,
           descricao: `Categoria: ${categoria}, Sala: ${sala}`,
           groupId: GROUP_ID,
+          patientId: pid,
           createdBy: auth.currentUser.uid,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
 
-        setMessages(prev => [...prev, { 
-          role: "model", 
-          text: `✅ **Evento adicionado ao Calendário!**\n\n📅 **${evento}**\n🕒 ${dataStr} às ${hora}\n📍 ${sala} (${categoria})` 
-        }]);
+        if (pid) {
+          setMessages([]);
+          await handleDirectCommand(`/p ${pid}`);
+        } else {
+          setMessages(prev => [...prev, { 
+            role: "model", 
+            text: `✅ **Evento adicionado ao Calendário!**\n\n📅 **${evento}**\n🕒 ${dataStr} às ${hora}\n📍 ${sala} (${categoria})` 
+          }]);
+        }
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao salvar: ${err.message}` }]);
       } finally {
@@ -751,15 +800,17 @@ export const Chat: React.FC<{
     }
 
     if (cmd.startsWith("/calendario_form")) {
-      let patientName = cmdInput.match(/paciente:\s*(.+)/i)?.[1]?.trim() || "";
+      let patientName = cmdInput.match(/paciente:\s*([^,]+)/i)?.[1]?.trim() || "";
+      let pid = cmdInput.match(/pid:\s*([\w-]+)/i)?.[1]?.trim() || "";
       const today = new Date();
       const pad = (n: number) => n.toString().padStart(2, "0");
       const hojeStrIso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`; 
       const agoraStr = `${pad(today.getHours())}:00`;
       
-      setMessages(prev => [...prev, { 
+      setMessages([]); // NEW VIEW
+      setMessages([{ 
         role: "model", 
-        text: "📅 **Novo Eventio no Calendário**\n\nPreencha os detalhes do evento:",
+        text: "📅 **Novo Evento no Calendário**\n\nPreencha os detalhes do evento:",
         form: {
           title: "Novo Evento",
           fields: [
@@ -779,7 +830,7 @@ export const Chat: React.FC<{
             { label: "Horário", name: "hora", type: "time", defaultValue: agoraStr }
           ],
           submitLabel: "Adicionar ao Calendário",
-          commandPrefix: "/calendario_add"
+          commandPrefix: pid ? `/calendario_add pid: ${pid},` : "/calendario_add"
         }
       }]);
       return true;
@@ -1181,7 +1232,8 @@ export const Chat: React.FC<{
           profileData: {
             id: cad.ID.toString(),
             nome: cad.Nome,
-            idade: cad.Idade ? cad.Idade.toString() : "N/A"
+            idade: cad.Idade ? cad.Idade.toString() : "N/A",
+            status: cad.Status
           }
         }]);
         setTimeout(scrollToTop, 0);
@@ -1501,6 +1553,10 @@ export const Chat: React.FC<{
         if (pData.error) throw new Error(pData.error);
         
         const p = pData.cadastro;
+
+        // Resolve Names for Display
+        const currentHospital = hospitalOptions.find(h => h.id === p.hospitalId || h.nome === p.hospital_nome);
+        const currentStatus = statusOptions.find(s => s.id === p.Status || s.nome === p.Status);
         
         setMessages([{ 
           role: "model", 
@@ -1509,9 +1565,26 @@ export const Chat: React.FC<{
             title: "Atualizar Dados",
             fields: [
               { label: "Nome", name: "nome", type: "text", defaultValue: p.Nome },
-              { label: "Idade", name: "idade", type: "text", defaultValue: p.Idade || "" },
-              { label: "Hospital", name: "hospitalName", type: "text", defaultValue: p.hospital_nome || "" },
-              { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.room_number || "" },
+              { label: "Idade", name: "idade", type: "number", defaultValue: p.Idade || "" },
+              { 
+                label: "Hospital", 
+                name: "hospitalName", 
+                type: "text", 
+                defaultValue: currentHospital?.nome || p.hospital_nome || "",
+                // @ts-ignore
+                readOnly: true,
+                suggestions: hospitalOptions.map(h => h.nome)
+              },
+              { 
+                label: "Status", 
+                name: "status", 
+                type: "text", 
+                defaultValue: currentStatus?.nome || p.Status || "",
+                // @ts-ignore
+                readOnly: true,
+                suggestions: statusOptions.map(s => s.nome)
+              },
+              { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.roomNumber || p.room_number || "" },
             ],
             submitLabel: "Salvar Alterações",
             commandPrefix: `/update_patient id: ${id},`
@@ -1536,13 +1609,29 @@ export const Chat: React.FC<{
         const idade = cmdInput.match(/idade:\s*([^,]+)/i)?.[1]?.trim();
         const hospitalName = cmdInput.match(/hospitalName:\s*([^,]+)/i)?.[1]?.trim();
         const roomNumber = cmdInput.match(/roomNumber:\s*([^,]+)/i)?.[1]?.trim();
+        const status = cmdInput.match(/status:\s*([^,]+)/i)?.[1]?.trim();
 
         if (!id) throw new Error("ID não identificado.");
+
+        // Resolve Names to IDs
+        const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName);
+        const resolvedHospitalId = selectedHospital ? selectedHospital.id : hospitalName;
+
+        const selectedStatus = statusOptions.find(s => s.nome === status);
+        const resolvedStatusId = selectedStatus ? selectedStatus.id : status;
 
         const res = await fetch("/api/app/patients/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, nome, fone, idade, hospitalName, roomNumber })
+          body: JSON.stringify({ 
+            id, 
+            nome, 
+            fone, 
+            idade, 
+            hospitalName: resolvedHospitalId, 
+            roomNumber,
+            status: resolvedStatusId
+          })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -1682,7 +1771,8 @@ export const Chat: React.FC<{
             profileData: {
               id: pData.id,
               nome: pData.cadastro.Nome,
-              idade: pData.cadastro.Idade
+              idade: pData.cadastro.Idade,
+              status: pData.cadastro.Status
             }
           }]);
           setTimeout(scrollToTop, 0);
@@ -1796,13 +1886,29 @@ export const Chat: React.FC<{
         const cpf = getVal("cpf");
         const hospitalName = getVal("hospitalName");
         const roomNumber = getVal("roomNumber");
+        const status = getVal("status");
 
         if (!nome) throw new Error("O campo 'nome:' é obrigatório.");
+
+        // Resolve Names to IDs
+        const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName);
+        const resolvedHospitalId = selectedHospital ? selectedHospital.id : hospitalName;
+
+        const selectedStatus = statusOptions.find(s => s.nome === status);
+        const resolvedStatusId = selectedStatus ? selectedStatus.id : status;
 
         const res = await fetch("/api/app/patients", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nome, fone, idade, cpf, hospitalName, roomNumber })
+          body: JSON.stringify({ 
+            nome, 
+            fone, 
+            idade, 
+            cpf, 
+            hospitalName: resolvedHospitalId, 
+            roomNumber,
+            status: resolvedStatusId
+          })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -1846,7 +1952,8 @@ export const Chat: React.FC<{
         const res = await fetch("/api/app/statuses");
         const statuses = await res.json();
         
-        setMessages(prev => [...prev, {
+        setMessages([]); // NEW VIEW
+        setMessages([{
           role: "model",
           text: "🏷️ **Alterar Status**\n\nEscolha o novo status para o paciente:",
           actionGroups: [
@@ -1854,7 +1961,7 @@ export const Chat: React.FC<{
               title: "Selecione o Status",
               actions: statuses.map((s: any) => ({
                 label: s.nome,
-                cmd: `/status_apply pac: ${patId}, status: ${s.nome}`
+                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome}`
               }))
             }
           ]
@@ -1869,9 +1976,10 @@ export const Chat: React.FC<{
 
     if (cmd.startsWith("/status_apply")) {
       const pacId = cmdInput.match(/pac:\s*([\w-]+)/i)?.[1]?.trim();
-      const status = cmdInput.match(/status:\s*(.+)/i)?.[1]?.trim();
+      const statusId = cmdInput.match(/sid:\s*([\w-]+)/i)?.[1]?.trim();
+      const sname = cmdInput.match(/sname:\s*(.+)/i)?.[1]?.trim();
 
-      if (!pacId || !status) {
+      if (!pacId || !statusId) {
         setMessages(prev => [...prev, { role: "model", text: "❌ Parâmetros inválidos para alteração de status." }]);
         return true;
       }
@@ -1881,7 +1989,7 @@ export const Chat: React.FC<{
         const res = await fetch("/api/app/patients/status", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ patientId: pacId, status })
+          body: JSON.stringify({ patientId: pacId, status: statusId, statusName: sname })
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -2255,13 +2363,26 @@ export const Chat: React.FC<{
                         </div>
                       </div>
 
-                      <button 
-                        onClick={() => handleDirectCommand(`/calendario_form paciente: ${msg.profileData?.nome}`)}
-                        className="bg-emerald-600 text-white p-2.5 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all relative z-10"
-                        title="Novo Evento no Calendário"
-                      >
-                        <CalendarPlus size={20} />
-                      </button>
+                      <div className="flex items-center gap-3 relative z-10">
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">Status Atual</span>
+                          <button 
+                            onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
+                            className="bg-white px-2 py-1.5 rounded-lg border border-blue-600 text-blue-900 text-sm font-bold shadow-sm hover:bg-blue-50 transition-all flex items-center gap-1.5"
+                          >
+                            {msg.profileData?.status || "PENDENTE"}
+                            <Edit3 size={12} className="text-blue-400" />
+                          </button>
+                        </div>
+
+                        <button 
+                          onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}`)}
+                          className="bg-emerald-600 text-white px-3 py-2 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center gap-2"
+                        >
+                          <CalendarPlus size={18} />
+                          <span className="text-[11px] font-extrabold uppercase tracking-tight">Novo Evento</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                   {msg.image && (
@@ -2379,7 +2500,7 @@ export const Chat: React.FC<{
                                       }}
                                       className={isPlusLabel 
                                         ? "not-prose bg-blue-600 text-white w-6 h-6 inline-flex items-center justify-center rounded-full font-bold hover:bg-blue-700 transition-colors cursor-pointer shadow-sm mx-0.5"
-                                        : "not-prose bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-mono font-bold hover:bg-blue-100 transition-colors cursor-pointer border border-blue-100 mx-0.5"
+                                        : "not-prose bg-white text-blue-600 px-2 py-0.5 rounded-lg text-[10px] font-bold hover:bg-blue-50 transition-all cursor-pointer border border-blue-600 mx-0.5 shadow-sm"
                                       }
                                     >
                                       {label}
@@ -2404,10 +2525,10 @@ export const Chat: React.FC<{
                                   <button
                                     key={ai}
                                     onClick={() => handleSend(undefined, action.cmd, true)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shadow-sm ${
+                                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all border shadow-sm ${
                                       action.active 
                                         ? 'bg-blue-600 text-white border-blue-600 shadow-blue-100' 
-                                        : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                                        : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'
                                     }`}
                                   >
                                     {action.label}

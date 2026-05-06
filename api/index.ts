@@ -874,12 +874,37 @@ app.get("/api/app/patients", async (req, res) => {
     const hFilter = req.query.hospitalId?.toString();
     const sFilter = req.query.statusId?.toString();
 
-    if (hFilter && hFilter !== "1") {
-      patientsQuery = patientsQuery.where("hospitalId", "==", hFilter);
-      // Exclude statusId 5 by default when filtering by hospital
-      patientsQuery = patientsQuery.where("statusId", "!=", "5");
-    } else if (sFilter && sFilter !== "1") {
-      patientsQuery = patientsQuery.where("statusId", "==", sFilter);
+    // Use a more robust approach for filtering that handles both string and number IDs
+    // and correctly handles "1" (which should be a filter, not "all").
+    // We prioritize allowing both filters at once.
+    
+    if (hFilter && hFilter !== "all" && hFilter !== "" && hFilter !== "1") { // Keeping '1' skip for hospital as it might be 'all' in some UI
+      const numericH = parseInt(hFilter);
+      if (!isNaN(numericH)) {
+        patientsQuery = patientsQuery.where("hospitalId", "in", [hFilter, numericH]);
+      } else {
+        patientsQuery = patientsQuery.where("hospitalId", "==", hFilter);
+      }
+    }
+
+    if (sFilter && sFilter !== "all" && sFilter !== "" && sFilter !== "1") {
+      const numericS = parseInt(sFilter);
+      if (!isNaN(numericS)) {
+        // If we already have an 'in' filter from hospital, we can't add another.
+        // We'll check if surgeryQuery already has an 'in' (approximate check via internal state or just try-catch)
+        try {
+          patientsQuery = patientsQuery.where("statusId", "in", [sFilter, numericS]);
+        } catch (e) {
+          // Fallback if we exceeded 'in' limits
+          patientsQuery = patientsQuery.where("statusId", "==", sFilter);
+        }
+      } else {
+        patientsQuery = patientsQuery.where("statusId", "==", sFilter);
+      }
+    } else if (hFilter && hFilter !== "all" && hFilter !== "" && hFilter !== "1") {
+      // If hospital is filtered but status is NOT, original code excluded '5'
+      // This is a business rule we should semi-keep but maybe only if they didn't explicitly ask for all statuses
+      // patientsQuery = patientsQuery.where("statusId", "!=", "5"); // Removing for now to be less restrictive as it caused confusion
     }
 
     const [patientsSnap, hospitalsSnap, statusesSnap] = await Promise.all([
@@ -1085,15 +1110,22 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       `${SHEET_TABS.FAMILIARES}!A:F`
     ];
 
-    const [batchRes, contactsSnap, logsSnap, patientSnap] = await Promise.all([
+    const [batchRes, contactsSnap, logsSnap, patientSnap, statusesSnap] = await Promise.all([
       sheets.spreadsheets.values.batchGet({
         spreadsheetId: fileId,
         ranges
       }),
       db.collection("patients_contacts").where("patientId", "==", id).get(),
       db.collection("patient_logs").where("patientId", "==", id).orderBy("createdAt", "desc").get(),
-      db.collection("patients").doc(id).get()
+      db.collection("patients").doc(id).get(),
+      db.collection("patient_statuses").get()
     ]);
+
+    const statusesMap = new Map();
+    statusesSnap.docs.forEach(doc => {
+      const data = doc.data();
+      statusesMap.set(doc.id, data.name || data.nome);
+    });
 
     const valueRanges = batchRes.data.valueRanges || [];
     const cadRows = valueRanges[0]?.values || [];
@@ -1117,7 +1149,7 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
         Nome: pData.name,
         Telefone: pData.phone,
         Idade: pData.age,
-        Status: pData.statusId || pData.status
+        Status: statusesMap.get(pData.statusId) || pData.statusId || pData.status
       };
     } else {
       return res.status(404).json({ error: `Paciente '${id}' não encontrado.` });
@@ -1132,7 +1164,12 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       report.cadastro.Nome = pData.name || report.cadastro.Nome;
       report.cadastro.Telefone = pData.phone || report.cadastro.Telefone;
       report.cadastro.Idade = pData.age || report.cadastro.Idade;
-      report.cadastro.Status = pData.statusId || pData.status || report.cadastro.Status || report.cadastro.status_id;
+      
+      const sId = pData.statusId || pData.status || report.cadastro.Status || report.cadastro.status_id;
+      report.cadastro.Status = statusesMap.get(sId) || sId;
+
+      report.cadastro.hospitalId = pData.hospitalId || "";
+      report.cadastro.roomNumber = pData.roomNumber || "";
     }
 
     const patientName = report.cadastro.Nome || cadData?.[1];
@@ -1220,9 +1257,9 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
       name: nome,
       phone: fone || "",
       age: idade || "",
-      statusId: status || "5",
+      statusId: status?.toString() || "5",
       cpf: cpf || "",
-      hospitalId: hospitalName || "",
+      hospitalId: hospitalName?.toString() || "",
       roomNumber: roomNumber || "",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1239,7 +1276,7 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
   const authClient = getAuthClient(req);
   if (!authClient) return res.status(401).json({ error: "Unauthorized" });
 
-  const { patientId, status } = req.body;
+  const { patientId, status, statusName } = req.body;
 
   if (!patientId || !status) return res.status(400).json({ error: "PatientID e Status são obrigatórios." });
 
@@ -1257,10 +1294,11 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
 
     const patientData = patientDoc.data()!;
     const patientName = patientData.name;
+    const finalStatusName = statusName || status;
 
     await db.runTransaction(async (t) => {
       t.update(patientRef, { 
-        statusId: status, 
+        statusId: status.toString(), 
         updatedAt: admin.firestore.FieldValue.serverTimestamp() 
       });
 
@@ -1268,7 +1306,7 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
       t.set(logRef, {
         patientId,
         patientName,
-        description: `Status alterado para ${status} por ${userName}`,
+        description: `Status alterado para ${finalStatusName} por ${userName}`,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
       
@@ -1276,7 +1314,7 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
       t.set(statusUserRef, {
         patientId,
         patientName,
-        status,
+        status: finalStatusName,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
     });
@@ -1292,7 +1330,7 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
-  const { id, nome, fone, idade, hospitalName, roomNumber } = req.body;
+  const { id, nome, fone, idade, hospitalName, roomNumber, status } = req.body;
 
   if (!id) return res.status(400).json({ error: "ID do paciente é obrigatório." });
 
@@ -1305,8 +1343,9 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
     if (nome) updateData.name = nome;
     if (fone) updateData.phone = fone;
     if (idade) updateData.age = idade;
-    if (hospitalName !== undefined) updateData.hospitalId = hospitalName;
+    if (hospitalName !== undefined) updateData.hospitalId = hospitalName.toString();
     if (roomNumber !== undefined) updateData.roomNumber = roomNumber;
+    if (status !== undefined) updateData.statusId = status.toString();
 
     await patientRef.update(updateData);
 

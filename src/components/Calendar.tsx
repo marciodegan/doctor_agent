@@ -163,11 +163,11 @@ export function Calendar() {
       const [y, m, d] = e.data.split("-");
       const dateFormatted = `${d}/${m}/${y}`;
       message += `🔹 *${e.evento}*\n`;
-      message += `📅 Data: ${dateFormatted}\n`;
-      message += `🕒 Hora: ${e.hora}\n`;
-      if (e.tipo) message += `🏷️ Categoria: ${e.tipo}\n`;
-      if (e.sala) message += `📍 Sala: ${e.sala}\n`;
-      if (e.descricao) message += `📝 Obs: ${e.descricao}\n`;
+      message += `📅 ${dateFormatted}\n`;
+      message += `🕒 ${e.hora}\n`;
+      if (e.tipo) message += `🏷️ ${e.tipo}\n`;
+      if (e.sala) message += `📍 ${e.sala}\n`;
+      if (e.descricao) message += `📝 ${e.descricao}\n`;
       if (idx < selectedEvents.length - 1) message += `\n---\n\n`;
     });
 
