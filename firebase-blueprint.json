@@ -1,5 +1,29 @@
 {
   "entities": {
+    "Group": {
+      "title": "Group",
+      "description": "Collaborative group sharing patients and calendar",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "createdBy"]
+    },
+    "GroupMember": {
+      "title": "Group Member",
+      "description": "User membership in a group",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "role": { "type": "string", "enum": ["owner", "member"] },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "role"]
+    },
     "Hospital": {
       "title": "Hospital",
       "description": "Information about a hospital",
@@ -7,6 +31,7 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
+        "groupId": { "type": "string" },
         "phone": { "type": "string" },
         "contacts": { "type": "array", "items": { "type": "string" } }
       },
@@ -29,6 +54,7 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
+        "groupId": { "type": "string" },
         "phone": { "type": "string" },
         "age": { "type": "string" },
         "statusId": { "type": "string" },
@@ -109,7 +135,8 @@
       "type": "object",
       "properties": {
         "key": { "type": "string" },
-        "value": { "type": "string" }
+        "value": { "type": "string" },
+        "groupId": { "type": "string" }
       }
     },
     "CalendarEvent": {
@@ -154,6 +181,14 @@
     }
   },
   "firestore": {
+    "/groups/{groupId}": {
+      "schema": "Group",
+      "description": "Collaborative groups"
+    },
+    "/groups/{groupId}/members/{memberId}": {
+      "schema": "GroupMember",
+      "description": "Group members and roles"
+    },
     "/procedureOptions/{optionId}": {
       "schema": "ProcedureOption",
       "description": "Lista de procedimentos cirúrgicos frequentes"

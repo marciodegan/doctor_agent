@@ -194,17 +194,25 @@ export const createAgent = () => ai.chats.create({
 });
 
 export const executeTool = async (name: string, args: any, context?: { lastFile?: string | null }) => {
+  const groupId = localStorage.getItem("activeGroupId");
+  const commonHeaders = groupId ? { "x-group-id": groupId } : {};
+
   switch (name) {
     case "list_calendar_events":
       const queryParams = new URLSearchParams();
       if (args.timeMin) queryParams.append("timeMin", args.timeMin);
       if (args.timeMax) queryParams.append("timeMax", args.timeMax);
-      const calRes = await fetch(`/api/calendar/events?${queryParams.toString()}`);
+      const calRes = await fetch(`/api/calendar/events?${queryParams.toString()}`, {
+        headers: { ...commonHeaders }
+      });
       return await calRes.json();
     case "create_calendar_event":
       const createCalRes = await fetch("/api/calendar/events", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...commonHeaders
+        },
         body: JSON.stringify({
           summary: args.summary,
           start: { 
@@ -229,10 +237,14 @@ export const executeTool = async (name: string, args: any, context?: { lastFile?
       });
       return await createCalRes.json();
     case "list_drive_files":
-      const driveRes = await fetch("/api/drive/files");
+      const driveRes = await fetch("/api/drive/files", {
+        headers: { ...commonHeaders }
+      });
       return await driveRes.json();
     case "search_patient": {
-      const res = await fetch("/api/app/patients");
+      const res = await fetch("/api/app/patients", {
+        headers: { ...commonHeaders }
+      });
       const patients = await res.json();
       const q = args.query.toLowerCase();
       return patients.filter((p: any) => 
@@ -241,13 +253,18 @@ export const executeTool = async (name: string, args: any, context?: { lastFile?
       );
     }
     case "list_patients": {
-      const res = await fetch("/api/app/patients");
+      const res = await fetch("/api/app/patients", {
+        headers: { ...commonHeaders }
+      });
       return await res.json();
     }
     case "add_patient_log": {
       const res = await fetch("/api/app/logs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...commonHeaders
+        },
         body: JSON.stringify({ patientId: args.patientId, text: args.text })
       });
       return await res.json();
@@ -266,7 +283,10 @@ export const executeTool = async (name: string, args: any, context?: { lastFile?
 
       const uploadRes = await fetch("/api/drive/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...commonHeaders
+        },
         body: JSON.stringify({
           name: args.name,
           mimeType: mimeType || "image/jpeg",

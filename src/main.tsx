@@ -2,11 +2,17 @@ import React, {StrictMode, useState, useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { AuthProvider } from './hooks/useAuth';
+import { GroupProvider } from './contexts/GroupContext';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <AuthProvider>
+        <GroupProvider>
+          <App />
+        </GroupProvider>
+      </AuthProvider>
     </ErrorBoundary>
   </StrictMode>,
 );

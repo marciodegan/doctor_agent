@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth";
+import { useGroup } from "./contexts/GroupContext";
 import { Chat } from "./components/Chat";
 import { Calendar as FirestoreCalendar } from "./components/Calendar";
 import { Debug } from "./components/Debug";
 import { Pricing } from "./components/Pricing";
+import { GroupSelector } from "./components/GroupSelector";
 import { 
   Calendar, 
   FileText, 
@@ -25,6 +27,7 @@ import { motion } from "motion/react";
 
 export default function App() {
   const { isAuthenticated, login, logout } = useAuth();
+  const { activeGroup } = useGroup();
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -144,6 +147,14 @@ export default function App() {
           </div>
           <p className="text-gray-400 font-medium tracking-tight">Initializing Doctor Pro...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated && !activeGroup) {
+    return (
+      <div className="min-h-screen bg-[#FDFDFD] flex items-center justify-center p-6">
+        <GroupSelector />
       </div>
     );
   }
@@ -328,14 +339,8 @@ export default function App() {
                   </div>
                 </motion.div>
 
-                <div className="bg-white border border-gray-100 rounded-3xl p-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-gray-900 tracking-tight">Active Connected Services</h4>
-                    <span className="text-[10px] bg-gray-50 text-gray-400 font-bold px-2 py-1 rounded">HEALTHY</span>
-                  </div>
-                  <ServiceStatus label="Google Calendar" active />
-                  <ServiceStatus label="Google Drive" active />
-                  <ServiceStatus label="Google Sheets" active />
+                <div className="bg-white border border-gray-100 rounded-3xl p-6">
+                  <GroupSelector />
                 </div>
               </div>
             </div>

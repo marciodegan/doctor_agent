@@ -6,73 +6,113 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Auth helpers
+    // Basic helpers
     function isSignedIn() {
       return request.auth != null;
     }
-    
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isMember(groupId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
     }
 
     // User profiles
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      
+      match /memberships/{groupId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow write: if isSignedIn() && (
+          request.auth.uid == userId || 
+          isMember(groupId) // Allow existing members to add group to someone else
+        );
+      }
     }
 
-    // Main entities
+    // Groups
+    match /groups/{groupId} {
+      allow get: if isMember(groupId) || (isSignedIn() && existing().createdBy == request.auth.uid);
+      allow list: if isSignedIn(); 
+      allow create: if isSignedIn() && incoming().createdBy == request.auth.uid;
+      allow update: if isMember(groupId) || (isSignedIn() && existing().createdBy == request.auth.uid); 
+      
+      match /members/{memberId} {
+        allow read: if isMember(groupId) || (isSignedIn() && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid);
+        allow create: if isSignedIn() && (
+          request.auth.uid == memberId || 
+          isMember(groupId) || 
+          get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid
+        );
+        allow update, delete: if isMember(groupId) || (isSignedIn() && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid);
+      }
+      
+      match /calendario/{eventId} {
+        allow read, write: if isMember(groupId);
+      }
+    }
+
+    // Procedure Options
+    match /procedureOptions/{optionId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Entities linked by groupId
     match /patients/{patientId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /groups/{groupId}/calendario/{eventId} {
-      allow read, write: if isSignedIn();
+      allow read: if isMember(existing().groupId);
+      allow create: if isMember(incoming().groupId);
+      allow update: if isMember(existing().groupId) && isMember(incoming().groupId);
+      allow delete: if isMember(existing().groupId);
     }
 
     match /hospitals/{hospitalId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /patient_statuses/{statusId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /logs/{logId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /family_members/{memberId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /patients_contacts/{contactId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /patient_logs/{logId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /files/{fileId} {
-      allow read, write: if isSignedIn();
+      allow read: if isMember(existing().groupId);
+      allow create: if isMember(incoming().groupId);
+      allow update: if isMember(existing().groupId) && isMember(incoming().groupId);
+      allow delete: if isMember(existing().groupId);
     }
 
     match /settings/{settingId} {
-      allow read, write: if isSignedIn();
+      allow read: if isMember(existing().groupId);
+      allow create: if isMember(incoming().groupId);
+      allow update: if isMember(existing().groupId) && isMember(incoming().groupId);
     }
 
-    match /status_history/{historyId} {
-      allow read, write: if isSignedIn();
+    // Sub-entities related to patients (relational sync)
+    function canAccessPatient(patientId) {
+      return isMember(get(/databases/$(database)/documents/patients/$(patientId)).data.groupId);
     }
-    
-    match /activities/{activityId} {
-      allow read, write: if isSignedIn();
+
+    match /family_members/{memberId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && canAccessPatient(existing().patientId)) ||
+        (request.resource != null && canAccessPatient(incoming().patientId))
+      );
     }
-    
-    match /image_options/{optionId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+
+    match /patients_contacts/{contactId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && canAccessPatient(existing().patientId)) ||
+        (request.resource != null && canAccessPatient(incoming().patientId))
+      );
+    }
+
+    match /patient_logs/{logId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && canAccessPatient(existing().patientId)) ||
+        (request.resource != null && canAccessPatient(incoming().patientId))
+      );
+    }
+
+    match /files/{fileId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && canAccessPatient(existing().patientId)) ||
+        (request.resource != null && canAccessPatient(incoming().patientId))
+      );
     }
   }
 }

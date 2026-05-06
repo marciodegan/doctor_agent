@@ -31,6 +31,8 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import { motion, AnimatePresence } from "motion/react";
+import { useGroup } from "../contexts/GroupContext";
+import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 
   interface CalendarEvent {
   id: string;
@@ -53,9 +55,9 @@ const MONTHS = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
-const GROUP_ID = "main-group"; // Fallback shared group as per instruction/existence
-
 export function Calendar() {
+  const { activeGroup } = useGroup();
+  const GROUP_ID = activeGroup?.id || "main-group";
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -96,7 +98,7 @@ export function Calendar() {
       setEvents(fetchedEvents);
       setIsLoading(false);
     }, (error) => {
-      console.error("Error fetching events:", error);
+      handleFirestoreError(error, OperationType.LIST, `groups/${GROUP_ID}/calendario`);
       setIsLoading(false);
     });
 
@@ -378,8 +380,7 @@ export function Calendar() {
       }
       setIsModalOpen(false);
     } catch (error) {
-      console.error("Error saving event:", error);
-      alert("Erro ao salvar evento. Verifique sua conexão.");
+      handleFirestoreError(error, OperationType.WRITE, `groups/${GROUP_ID}/calendario`);
     }
   };
 

@@ -5,6 +5,8 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
 import { auth, db } from "../lib/firebase";
+import { useGroup } from "../contexts/GroupContext";
+import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 
 interface Message {
   role: "user" | "model";
@@ -218,6 +220,17 @@ export const Chat: React.FC<{
   initialCommand?: string | null,
   onCommandExecuted?: () => void
 }> = ({ onNavigateToCalendar, initialCommand, onCommandExecuted }) => {
+  const { activeGroup } = useGroup();
+  const apiFetch = (url: string, init?: RequestInit) => {
+    const groupId = activeGroup?.id || localStorage.getItem("activeGroupId") || "";
+    return fetch(url, {
+      ...init,
+      headers: {
+        ...init?.headers,
+        "x-group-id": groupId
+      }
+    });
+  };
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -266,7 +279,7 @@ export const Chat: React.FC<{
           setProcedureOptions(snapshot.docs.map(d => d.data().nome));
         }
       } catch (e) {
-        console.error("Error fetching procedures:", e);
+        handleFirestoreError(e, OperationType.LIST, "procedureOptions");
       }
     };
     fetchProcedures();
@@ -276,8 +289,8 @@ export const Chat: React.FC<{
     const fetchHospitalsAndStatuses = async () => {
       try {
         const [hRes, sRes] = await Promise.all([
-          fetch("/api/app/hospitals"),
-          fetch("/api/app/statuses")
+          apiFetch("/api/app/hospitals"),
+          apiFetch("/api/app/statuses")
         ]);
         const hData = await hRes.json();
         const sData = await sRes.json();
@@ -292,7 +305,7 @@ export const Chat: React.FC<{
 
   useEffect(() => {
     // Fetch Settings
-    fetch("/api/app/settings")
+    apiFetch("/api/app/settings")
       .then(res => res.json())
       .then(data => {
         const name = data.companyName || "Doctor Pro";
@@ -328,7 +341,7 @@ export const Chat: React.FC<{
   const updateSettings = async (name: string, wa: string) => {
     setIsUpdatingSettings(true);
     try {
-      const res = await fetch("/api/app/settings", {
+      const res = await apiFetch("/api/app/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyName: name, whatsappNumber: wa })
@@ -348,7 +361,7 @@ export const Chat: React.FC<{
   const handleBackup = async () => {
     setIsBackingUp(true);
     try {
-      const res = await fetch("/api/app/backup", { method: "POST" });
+      const res = await apiFetch("/api/app/backup", { method: "POST" });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       
@@ -746,7 +759,7 @@ export const Chat: React.FC<{
         const { db, auth } = await import("../lib/firebase");
         if (!auth.currentUser) throw new Error("Usuário não autenticado");
 
-        const GROUP_ID = "main-group";
+        const GROUP_ID = activeGroup?.id || "main-group";
         const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
         
         await addDoc(eventsRef, {
@@ -774,7 +787,7 @@ export const Chat: React.FC<{
           }]);
         }
       } catch (err: any) {
-        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao salvar: ${err.message}` }]);
+        handleFirestoreError(err, OperationType.WRITE, `groups/${activeGroup?.id || "main-group"}/calendario`);
       } finally {
         setIsLoading(false);
         return true;
@@ -854,7 +867,7 @@ export const Chat: React.FC<{
     if (cmd === "/enviarimagem") {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/app/patients");
+        const res = await apiFetch("/api/app/patients");
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
@@ -878,7 +891,7 @@ export const Chat: React.FC<{
 
       if (nome) {
         setIsLoading(true);
-        fetch("/api/app/hospitals", {
+        apiFetch("/api/app/hospitals", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ nome, telefone })
@@ -906,7 +919,7 @@ export const Chat: React.FC<{
 
       if (id) {
         setIsLoading(true);
-        fetch("/api/app/image-options")
+        apiFetch("/api/app/image-options")
           .then(res => res.json())
           .then(options => {
             setMessages([{
@@ -979,7 +992,7 @@ export const Chat: React.FC<{
     if (cmd === "/list_statuses") {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/app/statuses");
+        const res = await apiFetch("/api/app/statuses");
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
@@ -999,7 +1012,7 @@ export const Chat: React.FC<{
     if (cmd === "/list_image_options") {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/app/image-options");
+        const res = await apiFetch("/api/app/image-options");
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
@@ -1019,7 +1032,7 @@ export const Chat: React.FC<{
     if (cmd === "/iniciarrelat") {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/app/patients");
+        const res = await apiFetch("/api/app/patients");
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
@@ -1047,7 +1060,7 @@ export const Chat: React.FC<{
     if (cmd === "/iniciarlog") {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/app/patients");
+        const res = await apiFetch("/api/app/patients");
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
@@ -1067,7 +1080,7 @@ export const Chat: React.FC<{
     if (cmd === "/iniciarfamiliar") {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/app/patients");
+        const res = await apiFetch("/api/app/patients");
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
@@ -1161,7 +1174,7 @@ export const Chat: React.FC<{
     if (cmd === "/hospitais") {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/app/hospitals");
+        const res = await apiFetch("/api/app/hospitals");
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
@@ -1201,7 +1214,7 @@ export const Chat: React.FC<{
 
         if (!nome) throw new Error("O campo 'nome:' é obrigatório.");
 
-        const res = await fetch("/api/app/hospitals", {
+        const res = await apiFetch("/api/app/hospitals", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ nome, fone, contatos: [c1, c2, c3, c4, c5].filter(Boolean) })
@@ -1233,7 +1246,7 @@ export const Chat: React.FC<{
 
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/app/patient-report/${id}`);
+        const res = await apiFetch(`/api/app/patient-report/${id}`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
@@ -1299,7 +1312,7 @@ export const Chat: React.FC<{
           apiUrl += `&statusId=${encodeURIComponent(statusFilter)}`;
         }
 
-        const res = await fetch(apiUrl);
+        const res = await apiFetch(apiUrl);
         const json = await res.json();
         
         if (json.error) throw new Error(json.error);
@@ -1494,7 +1507,7 @@ export const Chat: React.FC<{
 
         if (!termo && cmdInput.includes("termo:")) throw new Error("Informe um nome para buscar.");
         
-        const res = await fetch("/api/app/patients");
+        const res = await apiFetch("/api/app/patients");
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
@@ -1564,7 +1577,7 @@ export const Chat: React.FC<{
       
       setIsLoading(true);
       try {
-        const pRes = await fetch(`/api/app/patient-report/${id}`);
+        const pRes = await apiFetch(`/api/app/patient-report/${id}`);
         const pData = await pRes.json();
         if (pData.error) throw new Error(pData.error);
         
@@ -1636,7 +1649,7 @@ export const Chat: React.FC<{
         const selectedStatus = statusOptions.find(s => s.nome === status);
         const resolvedStatusId = selectedStatus ? selectedStatus.id : status;
 
-        const res = await fetch("/api/app/patients/update", {
+        const res = await apiFetch("/api/app/patients/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
@@ -1665,7 +1678,7 @@ export const Chat: React.FC<{
 
     if (cmd.startsWith("/familiares")) {
       const id = cmdInput.split(" ")[1] || "all";
-      const res = await fetch(`/api/app/family-members/${id}`);
+      const res = await apiFetch(`/api/app/family-members/${id}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       
@@ -1689,7 +1702,7 @@ export const Chat: React.FC<{
       try {
         let dbInfoStr = "";
         try {
-          const dbRes = await fetch("/api/app/db-info");
+          const dbRes = await apiFetch("/api/app/db-info");
           const dbInfo = await dbRes.json();
           if (dbInfo.id) {
             dbInfoStr = `\n\n🛡️ **Planilha Conectada:**\n- Nome: ${dbInfo.name}\n- Owner: ${dbInfo.owner}\n- [Link da Planilha](${dbInfo.link})\n\n💡 Se você compartilhou esta planilha com outro usuário, ele deve clicar no link acima enquanto logado na conta Google dele para que o Google Drive dela "conheça" o arquivo.`;
@@ -1742,7 +1755,7 @@ export const Chat: React.FC<{
 
         if (!patientId || !name) throw new Error("ID do paciente e Nome são obrigatórios.");
 
-        const res = await fetch("/api/app/patient-contacts", {
+        const res = await apiFetch("/api/app/patient-contacts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ patientId, name, relationship, phone })
@@ -1768,7 +1781,7 @@ export const Chat: React.FC<{
 
         if (!patientId || !text) throw new Error("ID do paciente e Texto são obrigatórios.");
 
-        const res = await fetch("/api/app/patient-logs", {
+        const res = await apiFetch("/api/app/patient-logs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ patientId, text })
@@ -1776,7 +1789,7 @@ export const Chat: React.FC<{
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        const pRes = await fetch(`/api/app/patient-report/${patientId}`);
+        const pRes = await apiFetch(`/api/app/patient-report/${patientId}`);
         const pData = await pRes.json();
         if (pData.id) {
           const reportText = generatePatientReport(pData);
@@ -1811,7 +1824,7 @@ export const Chat: React.FC<{
 
         if (!patientId || !text) throw new Error("Use: /log id: [ID], texto: [Sua transcrição]");
 
-        const res = await fetch("/api/app/logs", {
+        const res = await apiFetch("/api/app/logs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ patientId, text, paciente_nome: patientNome })
@@ -1853,7 +1866,7 @@ export const Chat: React.FC<{
         const mimeType = selectedImage.split(";")[0].split(":")[1];
         const base64Data = selectedImage.split(",")[1];
 
-        const res = await fetch("/api/app/upload-image", {
+        const res = await apiFetch("/api/app/upload-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1914,7 +1927,7 @@ export const Chat: React.FC<{
         const selectedStatus = statusOptions.find(s => s.nome === status);
         const resolvedStatusId = selectedStatus ? selectedStatus.id : status;
 
-        const res = await fetch("/api/app/patients", {
+        const res = await apiFetch("/api/app/patients", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 

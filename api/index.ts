@@ -456,6 +456,10 @@ const getAuthClient = (req: express.Request) => {
   return client;
 };
 
+const getGroupId = (req: express.Request) => {
+  return req.headers["x-group-id"]?.toString() || null;
+};
+
 // --- Auth Routes ---
 app.get("/api/ping", (req, res) => {
   res.json({ 
@@ -766,7 +770,7 @@ const migrateHospitalsAndStatuses = async (auth: any) => {
     statuses.forEach(s => batch.set(db.collection("patient_statuses").doc(s.id), s));
     
     // Also try to migrate existing patients if Firestore is empty
-    const patientsSnap = await db.collection("patients").limit(1).get();
+    const patientsSnap = await db.collection("patients").where("groupId", "==", "main-group").limit(1).get();
     if (patientsSnap.empty) {
       const patients = rows.slice(1).filter(r => r[0] && r[1]).map(row => ({
         id: row[0]?.toString().trim(),
@@ -777,6 +781,7 @@ const migrateHospitalsAndStatuses = async (auth: any) => {
         roomNumber: row[7]?.toString().trim() || "",
         cpf: row[8]?.toString().trim() || "",
         statusId: row[8]?.toString().trim() || row[4]?.toString().trim() || "5",
+        groupId: "main-group",
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       }));
       patients.forEach(p => batch.set(db.collection("patients").doc(p.id), p));
@@ -866,11 +871,14 @@ app.get("/api/app/patients", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
   try {
     // Ensure basic data is migrated
     await migrateHospitalsAndStatuses(auth);
 
-    let patientsQuery: admin.firestore.Query = db.collection("patients");
+    let patientsQuery: admin.firestore.Query = db.collection("patients").where("groupId", "==", groupId);
     const hFilter = req.query.hospitalId?.toString();
     const sFilter = req.query.statusId?.toString();
 
@@ -951,16 +959,16 @@ app.get("/api/app/patients", async (req, res) => {
 
 // Get app settings
 app.get("/api/app/settings", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
   try {
-    const settingsSnap = await db.collection("settings").get();
-    const settings: Record<string, any> = {};
-    settingsSnap.forEach(doc => {
-      settings[doc.id] = doc.data().value;
-    });
+    const doc = await db.collection("settings").doc(groupId).get();
+    const data = doc.data() || {};
 
     res.json({
-      companyName: settings["companyName"] || "Doctor Pro",
-      whatsappNumber: settings["whatsappNumber"] || ""
+      companyName: data.companyName || "Doctor Pro",
+      whatsappNumber: data.whatsappNumber || ""
     });
   } catch (error) {
     handleApiError(res, error, "Fetching settings");
@@ -970,16 +978,15 @@ app.get("/api/app/settings", async (req, res) => {
 // Update app settings
 app.post("/api/app/settings", async (req, res) => {
   const { companyName, whatsappNumber } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
-    const batch = db.batch();
-    if (companyName) {
-      batch.set(db.collection("settings").doc("companyName"), { value: companyName });
-    }
-    if (whatsappNumber !== undefined) {
-      batch.set(db.collection("settings").doc("whatsappNumber"), { value: whatsappNumber });
-    }
-    await batch.commit();
+    await db.collection("settings").doc(groupId).set({
+      companyName: companyName || "",
+      whatsappNumber: whatsappNumber || "",
+      groupId
+    }, { merge: true });
     res.json({ status: "ok" });
   } catch (error) {
     handleApiError(res, error, "Updating settings");
@@ -1037,8 +1044,11 @@ app.post("/api/app/backup", async (req, res) => {
 
 // Get all hospitals
 app.get("/api/app/hospitals", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
   try {
-    const snap = await db.collection("hospitals").get();
+    const snap = await db.collection("hospitals").where("groupId", "==", groupId).get();
     const hospitals = snap.docs.map(doc => {
       const data = doc.data();
       return { id: doc.id, ...data, nome: data.name };
@@ -1052,6 +1062,8 @@ app.get("/api/app/hospitals", async (req, res) => {
 // Add a new hospital
 app.post("/api/app/hospitals", express.json(), async (req, res) => {
   const { nome, fone, contatos } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   if (!nome) return res.status(400).json({ error: "Nome do Hospital é obrigatório." });
 
@@ -1061,7 +1073,8 @@ app.post("/api/app/hospitals", express.json(), async (req, res) => {
       id: hospitalRef.id,
       name: nome,
       phone: fone || "",
-      contacts: contatos || []
+      contacts: contatos || [],
+      groupId
     });
 
     res.json({ success: true, id: hospitalRef.id });
@@ -1088,6 +1101,9 @@ app.get("/api/app/image-options", async (req, res) => {
 app.get("/api/app/patient-report/:id", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   const sheets = google.sheets({ version: "v4", auth });
   const { id } = req.params;
@@ -1247,6 +1263,9 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
   const { nome, fone, idade, status, cpf, hospitalName, roomNumber } = req.body;
 
   if (!nome) return res.status(400).json({ error: "Nome é obrigatório." });
@@ -1261,6 +1280,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
       cpf: cpf || "",
       hospitalId: hospitalName?.toString() || "",
       roomNumber: roomNumber || "",
+      groupId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
@@ -1357,6 +1377,8 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
 
 // Get all allowed statuses
 app.get("/api/app/statuses", async (req, res) => {
+  const groupId = getGroupId(req);
+  // Statuses could be global, but if they have groupId and rules check it, we need to filter or allow global
   try {
     const statusesSnap = await db.collection("patient_statuses").orderBy("id").get();
     const statuses = statusesSnap.docs.map(doc => {
@@ -1372,11 +1394,17 @@ app.get("/api/app/statuses", async (req, res) => {
 // Get family members for a patient
 app.get("/api/app/family-members/:patientId", async (req, res) => {
   const { patientId } = req.params;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
     let query: admin.firestore.Query = db.collection("family_members");
     if (patientId !== "all") {
       query = query.where("patientId", "==", patientId);
+    } else {
+      // If listing all, we should probably still filter by groupId if we had it there
+      // But rules will catch it. For better performance/safety:
+      // query = query.where("groupId", "==", groupId); // If we add groupId to family_members
     }
 
     const snap = await query.get();
@@ -1418,6 +1446,8 @@ app.post("/api/app/family-members", express.json(), async (req, res) => {
 // Add a log entry for a patient
 app.post("/api/app/logs", express.json(), async (req, res) => {
   const { patientId, text, paciente_nome } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   if (!patientId || !text) return res.status(400).json({ error: "PatientID e Texto são obrigatórios." });
 
@@ -1425,7 +1455,9 @@ app.post("/api/app/logs", express.json(), async (req, res) => {
     let finalPatientNome = paciente_nome;
     if (!finalPatientNome) {
       const patientDoc = await db.collection("patients").doc(patientId).get();
-      finalPatientNome = patientDoc.data()?.name || "Paciente Desconhecido";
+      const pData = patientDoc.data();
+      if (pData?.groupId !== groupId) throw new Error("Unauthorized group access");
+      finalPatientNome = pData?.name || "Paciente Desconhecido";
     }
 
     const logRef = db.collection("logs").doc();
@@ -1433,6 +1465,7 @@ app.post("/api/app/logs", express.json(), async (req, res) => {
       patientId,
       patientName: finalPatientNome,
       description: text,
+      groupId,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
