@@ -240,17 +240,7 @@ export const Chat: React.FC<{
   initialCommand?: string | null,
   onCommandExecuted?: () => void
 }> = ({ onNavigateToCalendar, initialCommand, onCommandExecuted }) => {
-  const { activeGroup, companyName, whatsappNumber } = useGroup();
-  const apiFetch = (url: string, init?: RequestInit) => {
-    const groupId = activeGroup?.id || localStorage.getItem("activeGroupId") || "";
-    return fetch(url, {
-      ...init,
-      headers: {
-        ...init?.headers,
-        "x-group-id": groupId
-      }
-    });
-  };
+  const { activeGroup, companyName, whatsappNumber, apiFetch } = useGroup();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);

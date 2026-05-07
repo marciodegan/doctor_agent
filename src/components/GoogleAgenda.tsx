@@ -37,7 +37,7 @@ const MONTHS = [
 ];
 
 export function GoogleAgenda() {
-  const { companyName } = useGroup();
+  const { companyName, apiFetch } = useGroup();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<GoogleEvent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,7 +61,7 @@ export function GoogleAgenda() {
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
       
-      const res = await fetch(`/api/calendar/events?timeMin=${startOfMonth.toISOString()}&timeMax=${endOfMonth.toISOString()}`);
+      const res = await apiFetch(`/api/calendar/events?timeMin=${startOfMonth.toISOString()}&timeMax=${endOfMonth.toISOString()}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setEvents(data);
@@ -172,7 +172,7 @@ export function GoogleAgenda() {
         end: { dateTime: end.toISOString(), timeZone: "America/Sao_Paulo" }
       };
 
-      const res = await fetch("/api/calendar/events", {
+      const res = await apiFetch("/api/calendar/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
@@ -192,7 +192,7 @@ export function GoogleAgenda() {
   const handleDelete = async (eventId: string) => {
     if (!confirm("Tem certeza que deseja remover este compromisso?")) return;
     try {
-      const res = await fetch(`/api/calendar/events/${eventId}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/calendar/events/${eventId}`, { method: "DELETE" });
       if (res.ok) {
         fetchEvents();
       }

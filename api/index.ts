@@ -545,10 +545,19 @@ const handleApiError = (res: express.Response, error: any, context: string) => {
   });
 };
 
-// Get all patients directly from Firestore
+// Get all patient contacts directly from Firestore
 app.get("/api/app/patient-contacts/:patientId", async (req, res) => {
   const { patientId } = req.params;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
   try {
+    // Verify patient belongs to group
+    const patientDoc = await db.collection("patients").doc(patientId).get();
+    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access to this patient" });
+    }
+
     const snap = await db.collection("patients_contacts").where("patientId", "==", patientId).get();
     const contacts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.json(contacts);
@@ -557,18 +566,28 @@ app.get("/api/app/patient-contacts/:patientId", async (req, res) => {
   }
 });
 
-app.post("/api/app/patient-logs", express.json(), async (req, res) => {
+app.post("/api/app/patient-logs", async (req, res) => {
   const { patientId, text } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
   if (!patientId || !text) {
     return res.status(400).json({ error: "patientId and text are required" });
   }
   try {
+    // Verify patient belongs to group
+    const patientDoc = await db.collection("patients").doc(patientId).get();
+    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access to this patient" });
+    }
+
     const docRef = db.collection("patient_logs").doc();
     const newLog = {
       id: docRef.id,
       patientId: patientId.toString(),
       text,
       type: "text",
+      groupId,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     };
     await docRef.set(newLog);
@@ -578,12 +597,21 @@ app.post("/api/app/patient-logs", express.json(), async (req, res) => {
   }
 });
 
-app.post("/api/app/patient-contacts", express.json(), async (req, res) => {
+app.post("/api/app/patient-contacts", async (req, res) => {
   const { patientId, name, relationship, phone } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
   if (!patientId || !name) {
     return res.status(400).json({ error: "patientId and name are required" });
   }
   try {
+    // Verify patient belongs to group
+    const patientDoc = await db.collection("patients").doc(patientId).get();
+    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access to this patient" });
+    }
+
     const docRef = db.collection("patients_contacts").doc();
     const newContact = {
       id: docRef.id,
@@ -591,6 +619,7 @@ app.post("/api/app/patient-contacts", express.json(), async (req, res) => {
       name,
       relationship: relationship || "",
       phone: phone || "",
+      groupId,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     };
     await docRef.set(newContact);
@@ -647,7 +676,7 @@ app.get("/api/app/patients", async (req, res) => {
 
     const [patientsSnap, hospitalsSnap, statusesSnap] = await Promise.all([
       patientsQuery.get(),
-      db.collection("hospitals").get(),
+      db.collection("hospitals").where("groupId", "==", groupId).get(),
       db.collection("patient_statuses").get()
     ]);
 
@@ -788,6 +817,16 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
+    // 1. Verify patient belongs to the active group
+    const patientDoc = await db.collection("patients").doc(id).get();
+    if (!patientDoc.exists) {
+      return res.status(404).json({ error: `Paciente '${id}' não encontrado.` });
+    }
+    
+    if (patientDoc.data()?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access to this patient" });
+    }
+
     const report: any = {
       cadastro: null,
       audios: [],
@@ -795,14 +834,13 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       familiares: []
     };
 
-    const [contactsSnap, logsSnap, filesSnap, patientSnap, statusesSnap, activityLogsSnap, hospitalsSnap] = await Promise.all([
+    const [contactsSnap, logsSnap, filesSnap, statusesSnap, activityLogsSnap, hospitalsSnap] = await Promise.all([
       db.collection("patients_contacts").where("patientId", "==", id).get(),
       db.collection("patient_logs").where("patientId", "==", id).orderBy("createdAt", "desc").get(),
       db.collection("files").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
-      db.collection("patients").doc(id).get(),
       db.collection("patient_statuses").get(),
       db.collection("logs").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
-      db.collection("hospitals").get()
+      db.collection("hospitals").where("groupId", "==", groupId).get()
     ]);
 
     const statusesMap = new Map();
@@ -817,20 +855,16 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       hospitalsMap.set(doc.id, data.name || data.nome);
     });
 
-    if (patientSnap.exists) {
-      const pData = patientSnap.data()!;
-      report.cadastro = {
-        ID: id,
-        Nome: pData.name,
-        Telefone: pData.phone,
-        Idade: pData.age,
-        Status: statusesMap.get(pData.statusId) || pData.statusId || pData.status,
-        hospitalName: hospitalsMap.get(pData.hospitalId) || pData.hospitalId,
-        roomNumber: pData.roomNumber
-      };
-    } else {
-      return res.status(404).json({ error: `Paciente '${id}' não encontrado.` });
-    }
+    const pData = patientDoc.data()!;
+    report.cadastro = {
+      ID: id,
+      Nome: pData.name,
+      Telefone: pData.phone,
+      Idade: pData.age,
+      Status: statusesMap.get(pData.statusId) || pData.statusId || pData.status,
+      hospitalName: hospitalsMap.get(pData.hospitalId) || pData.hospitalId,
+      roomNumber: pData.roomNumber
+    };
 
     // Process Files/Images
     report.imagens = filesSnap.docs.map(doc => {
@@ -924,6 +958,9 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
   const authClient = getAuthClient(req);
   if (!authClient) return res.status(401).json({ error: "Unauthorized" });
 
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
   const { patientId, status, statusName } = req.body;
 
   if (!patientId || !status) return res.status(400).json({ error: "PatientID e Status são obrigatórios." });
@@ -938,6 +975,10 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
 
     if (!patientDoc.exists) {
       return res.status(404).json({ error: `Paciente com ID ${patientId} não encontrado.` });
+    }
+
+    if (patientDoc.data()?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access to this patient" });
     }
 
     const patientData = patientDoc.data()!;
@@ -955,6 +996,7 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
         patientId,
         patientName,
         description: `Status alterado para ${finalStatusName} por ${userName}`,
+        groupId,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
       
@@ -963,6 +1005,7 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
         patientId,
         patientName,
         status: finalStatusName,
+        groupId,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
     });
@@ -978,12 +1021,25 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
   const { id, nome, fone, idade, hospitalName, roomNumber, status } = req.body;
 
   if (!id) return res.status(400).json({ error: "ID do paciente é obrigatório." });
 
   try {
     const patientRef = db.collection("patients").doc(id);
+    const patientDoc = await patientRef.get();
+
+    if (!patientDoc.exists) {
+      return res.status(404).json({ error: "Paciente não encontrado." });
+    }
+
+    if (patientDoc.data()?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access to this patient" });
+    }
+
     const updateData: any = {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
@@ -1028,11 +1084,14 @@ app.get("/api/app/family-members/:patientId", async (req, res) => {
   try {
     let query: admin.firestore.Query = db.collection("family_members");
     if (patientId !== "all") {
+      // Verify patient belongs to group
+      const patientDoc = await db.collection("patients").doc(patientId).get();
+      if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
+        return res.status(403).json({ error: "Unauthorized group access to this patient" });
+      }
       query = query.where("patientId", "==", patientId);
     } else {
-      // If listing all, we should probably still filter by groupId if we had it there
-      // But rules will catch it. For better performance/safety:
-      // query = query.where("groupId", "==", groupId); // If we add groupId to family_members
+      query = query.where("groupId", "==", groupId);
     }
 
     const snap = await query.get();
@@ -1047,15 +1106,18 @@ app.get("/api/app/family-members/:patientId", async (req, res) => {
 // Register a new family member
 app.post("/api/app/family-members", express.json(), async (req, res) => {
   const { nome, relacao, fone, patientId, paciente_nome } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   if (!nome || !patientId) return res.status(400).json({ error: "Nome e ID do Paciente são obrigatórios." });
 
   try {
-    let finalPatientNome = paciente_nome;
-    if (!finalPatientNome) {
-      const patientDoc = await db.collection("patients").doc(patientId).get();
-      finalPatientNome = patientDoc.data()?.name || "Unknown";
+    const patientDoc = await db.collection("patients").doc(patientId).get();
+    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access to this patient" });
     }
+
+    let finalPatientNome = paciente_nome || patientDoc.data()?.name || "Unknown";
 
     const memberRef = db.collection("family_members").doc();
     await memberRef.set({
@@ -1063,7 +1125,8 @@ app.post("/api/app/family-members", express.json(), async (req, res) => {
       relationship: relacao || "",
       phone: fone || "",
       patientId,
-      patientName: finalPatientNome
+      patientName: finalPatientNome,
+      groupId
     });
 
     res.json({ success: true, id: memberRef.id });
@@ -1104,13 +1167,21 @@ app.post("/api/app/logs", express.json(), async (req, res) => {
 });
 
 // Upload image/document directly to Firebase Storage and link to Firestore
-app.post("/api/app/upload-image", express.json({ limit: "15mb" }), async (req, res) => {
+app.post("/api/app/upload-image", express.json({ limit: "25mb" }), async (req, res) => {
   const { patientId, description, fileName, mimeType, base64Data } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   if (!patientId || !base64Data) return res.status(400).json({ error: "PatientID e Imagem são obrigatórios." });
 
   try {
-    // 1. Upload to Firebase Storage
+    // 1. Verify patient belongs to group
+    const patientDoc = await db.collection("patients").doc(patientId).get();
+    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access to this patient" });
+    }
+
+    // 2. Upload to Firebase Storage
     const buffer = Buffer.from(base64Data, "base64");
     const filename = fileName || `Documento_P${patientId}_${Date.now()}.jpg`;
     const destination = `patients/${patientId}/${filename}`;
@@ -1121,7 +1192,8 @@ app.post("/api/app/upload-image", express.json({ limit: "15mb" }), async (req, r
         contentType: mimeType || "image/jpeg",
         metadata: {
           patientId: patientId,
-          description: description || ""
+          description: description || "",
+          groupId
         }
       }
     });
@@ -1130,13 +1202,14 @@ app.post("/api/app/upload-image", express.json({ limit: "15mb" }), async (req, r
     await file.makePublic();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${encodeURIComponent(destination)}`;
 
-    // 2. Save metadata to Firestore
+    // 3. Save metadata to Firestore
     const fileRef = db.collection("files").doc();
     await fileRef.set({
       patientId,
       description: description || "Upload Direto",
       link: publicUrl,
       storagePath: destination,
+      groupId,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
@@ -1299,10 +1372,22 @@ app.get("/api/ai/check-quota", async (req, res) => {
 
 app.post("/api/ai/save-analysis", async (req, res) => {
   const { fileId, analysis } = req.body;
+  const groupId = getGroupId(req);
   if (!fileId || !analysis) return res.status(400).json({ error: "Missing fileId or analysis" });
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
-    // 1. Quota increment in Firestore
+    // 1. Verify file ownership via parent patient or directly if stored
+    const fileRef = db.collection("files").doc(fileId);
+    const fileDoc = await fileRef.get();
+    if (!fileDoc.exists) return res.status(404).json({ error: "File not found" });
+    
+    const fileData = fileDoc.data();
+    if (fileData?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access to this file" });
+    }
+
+    // 2. Quota increment in Firestore
     const today = new Date().toISOString().split('T')[0];
     const quotaRef = db.collection("ai_usage").doc(today);
     
@@ -1321,7 +1406,6 @@ app.post("/api/ai/save-analysis", async (req, res) => {
     });
 
     // 2. Save analysis to the file document in Firestore
-    const fileRef = db.collection("files").doc(fileId);
     await fileRef.update({
       aiAnalysis: analysis,
       analyzedAt: admin.firestore.FieldValue.serverTimestamp()

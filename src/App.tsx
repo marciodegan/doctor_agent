@@ -29,6 +29,7 @@ import {
   Menu,
   X,
   ChevronLeft,
+  ChevronRight,
   Settings,
   Lock,
   Loader2,
@@ -38,7 +39,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
   const { isAuthenticated, login, logout } = useAuth();
-  const { activeGroup, companyName, whatsappNumber, updateSettings, handleBackup } = useGroup();
+  const { activeGroup, companyName, whatsappNumber, updateSettings, handleBackup, setIsManagementOpen } = useGroup();
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -215,30 +216,37 @@ export default function App() {
     <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Top Header - Both Mobile and Desktop */}
       <header className={`fixed top-0 left-0 lg:left-64 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 z-40 ${isFullscreen ? 'hidden' : ''}`}>
-        <div className="flex items-center gap-2 lg:hidden">
-          <button 
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 -ml-2 text-gray-500 hover:text-blue-600 transition-colors"
-          >
-            <Menu size={24} />
-          </button>
-          
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
-              <Stethoscope size={14} />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 lg:hidden">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-2 -ml-2 text-gray-500 hover:text-blue-600 transition-colors"
+            >
+              <Menu size={24} />
+            </button>
+            
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                <Stethoscope size={14} />
+              </div>
+              <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Doctor Pro</span>
             </div>
-            <span className="font-bold text-lg tracking-tight text-blue-600">Doctor Pro</span>
           </div>
-        </div>
 
-        <div className="hidden lg:flex items-center gap-4">
-           {/* Desktop can show active group name or something breadcrumb-like */}
-           {activeGroup && (
-             <div className="flex items-center gap-2 text-sm font-bold text-gray-400 uppercase tracking-widest">
-               <Users size={14} className="text-blue-600" />
-               <span>{activeGroup.name}</span>
-             </div>
-           )}
+          {/* Combined "Minha Equipe" Button - Now visible on all screens near branding */}
+          {activeGroup && (
+            <button 
+              onClick={() => setIsManagementOpen(true)}
+              className="flex items-center gap-2 bg-emerald-600 text-white px-3 py-1.5 lg:px-4 lg:py-2 rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95 border border-emerald-500 shrink-0"
+            >
+              <Users size={14} className="text-white shrink-0" />
+              <div className="flex flex-col items-start gap-0 lg:gap-0.5 leading-none pr-1 overflow-hidden">
+                <span className="text-[8px] lg:text-[9px] font-black uppercase tracking-wider opacity-80 whitespace-nowrap">Minha Equipe</span>
+                <span className="text-[10px] lg:text-[11px] font-black uppercase tracking-tight truncate max-w-[80px] lg:max-w-[150px]">{activeGroup.name}</span>
+              </div>
+              <ChevronRight size={12} className="opacity-50 shrink-0 hidden sm:block" />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -400,7 +408,7 @@ export default function App() {
                   </div>
                 </motion.div>
 
-                <div className="bg-white border border-gray-100 rounded-3xl p-6">
+                <div className="bg-white border border-gray-100 rounded-2xl p-4">
                   <GroupSelector />
                 </div>
               </div>
@@ -695,9 +703,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Sidebar Info column */}
               <div className="space-y-8 hidden xl:block pr-2">
-                <div className="bg-white border border-gray-100 rounded-3xl p-6">
+                <div className="bg-white border border-gray-100 rounded-2xl p-3">
                   <GroupSelector />
                 </div>
               </div>

@@ -51,6 +51,9 @@ interface GroupContextType {
   removeMember: (groupId: string, userId: string) => Promise<void>;
   cancelInvite: (groupId: string, email: string) => Promise<void>;
   updateProfile: (displayName: string, photoURL: string, whatsapp?: string) => Promise<void>;
+  apiFetch: (url: string, init?: RequestInit) => Promise<Response>;
+  isManagementOpen: boolean;
+  setIsManagementOpen: (open: boolean) => void;
 }
 
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
@@ -64,6 +67,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState("Doctor Pro");
   const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [isManagementOpen, setIsManagementOpen] = useState(false);
 
   const safeLocalStorage = {
     getItem: (key: string) => {
@@ -304,7 +308,19 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
          throw new Error("Apenas o admin pode convidar membros");
        }
 
-       // 1. Always create a record in group_invitations by email
+       // 1. Try to find if a real user exists
+       let targetUid = "";
+       try {
+         const userQuery = query(collection(db, "users"), where("email", "==", cleanEmail));
+         const userSnap = await getDocs(userQuery);
+         if (!userSnap.empty) {
+           targetUid = userSnap.docs[0].id;
+         }
+       } catch (e) {
+         console.warn("Could not check user existence", e);
+       }
+
+       // 2. Always create a record in group_invitations by email
        const invId = `${groupId}_${cleanEmail.replace(/\./g, '_')}`;
        await setDoc(doc(db, "group_invitations", invId), {
          email: cleanEmail,
@@ -316,43 +332,24 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
          createdAt: serverTimestamp()
        }, { merge: true });
 
-       // 2. Add to group members list so owner can see status in UI
-       const memberDocId = `invite_${cleanEmail.replace(/\./g, '_')}`;
+       // 3. Add to group members list so owner can see status in UI (Only one record)
+       const memberDocId = targetUid || `invite_${cleanEmail.replace(/\./g, '_')}`;
        await setDoc(doc(db, `groups/${groupId}/members`, memberDocId), {
-         userId: "", 
+         userId: targetUid, 
          userEmail: cleanEmail,
          role: "member",
          status: "pending",
          invitedAt: serverTimestamp()
        }, { merge: true });
 
-       // 3. Try to notify user directly if they exist
-       try {
-         const userQuery = query(collection(db, "users"), where("email", "==", cleanEmail));
-         const userSnap = await getDocs(userQuery);
-         
-         if (!userSnap.empty) {
-           const targetUid = userSnap.docs[0].id;
-           
-           // Also add with real UID to group members
-           await setDoc(doc(db, `groups/${groupId}/members`, targetUid), {
-             userId: targetUid,
-             userEmail: cleanEmail,
-             role: "member",
-             status: "pending",
-             joinedAt: serverTimestamp()
-           });
-
-           // Add to target user's memberships
-           await setDoc(doc(db, `users/${targetUid}/memberships`, groupId), {
-             groupId,
-             groupName: activeGroup?.name || "Novo Grupo",
-             role: "member",
-             status: "pending"
-           });
-         }
-       } catch (e) {
-         console.warn("Could not link invite to existing user profile during creation", e);
+       // 4. Update target user's memberships if they exist
+       if (targetUid) {
+         await setDoc(doc(db, `users/${targetUid}/memberships`, groupId), {
+           groupId,
+           groupName: activeGroup?.name || "Novo Grupo",
+           role: "member",
+           status: "pending"
+         }, { merge: true });
        }
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `group_invitations`);
@@ -596,7 +593,10 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       declineInvite,
       removeMember,
       cancelInvite,
-      updateProfile
+      updateProfile,
+      apiFetch,
+      isManagementOpen,
+      setIsManagementOpen
     }}>
       {children}
     </GroupContext.Provider>
