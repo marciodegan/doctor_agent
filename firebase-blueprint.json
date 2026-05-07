@@ -19,6 +19,8 @@
       "properties": {
         "userId": { "type": "string" },
         "userEmail": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
         "role": { "type": "string", "enum": ["owner", "member"] },
         "joinedAt": { "type": "string", "format": "date-time" }
       },
@@ -165,7 +167,8 @@
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
-        "name": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "doctor", "staff"] }
       }
     },

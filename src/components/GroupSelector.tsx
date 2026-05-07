@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Shield,
   UserPlus,
+  Maximize,
   X
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -39,6 +40,7 @@ export function GroupSelector() {
   const [isAccepting, setIsAccepting] = useState<string | null>(null);
   const [isDeclining, setIsDeclining] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState<string | null>(null);
+  const [isManagementOpen, setIsManagementOpen] = useState(false);
 
   const currentUserMembership = activeGroupMembers.find(m => m.userId === user?.uid);
   const isOwner = currentUserMembership?.role === "owner";
@@ -339,6 +341,150 @@ export function GroupSelector() {
         )}
       </AnimatePresence>
 
+      {/* Full Management Modal */}
+      <AnimatePresence>
+        {isManagementOpen && activeGroup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-[32px] shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border border-white"
+            >
+              {/* Header */}
+              <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-100">
+                    <Users size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-gray-900 tracking-tight leading-none mb-1 uppercase">{activeGroup.name}</h2>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest leading-none">Gerenciamento de Equipe e Colaboração</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsManagementOpen(false)}
+                  className="p-3 hover:bg-gray-100 rounded-2xl transition-all text-gray-400 hover:text-gray-900"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+                {/* Invite Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                       <UserPlus size={16} className="text-blue-600" />
+                       Convidar Novo Integrante
+                    </h3>
+                  </div>
+                  
+                  {isOwner ? (
+                    <form onSubmit={handleInvite} className="flex gap-2">
+                      <input 
+                        type="email"
+                        placeholder="email@exemplo.com"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        className="flex-1 bg-gray-50 border border-gray-200 px-6 py-4 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                        required
+                      />
+                      <button 
+                        type="submit"
+                        className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95"
+                      >
+                        ENVIAR
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex items-center gap-3 text-amber-700">
+                       <Shield size={18} />
+                       <span className="text-xs font-bold">Somente administradores podem convidar novos membros.</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Member List Section */}
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-gray-50 pb-2">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                       Membros da Equipe ({activeGroupMembers.length})
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {activeGroupMembers.map((member) => (
+                      <div key={(member.userId || '') + member.userEmail} className="bg-gray-50/50 border border-gray-100 p-4 rounded-3xl flex items-center justify-between group/card transition-all hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 pointer-events-auto">
+                        <div className="flex items-center gap-4">
+                          <div className="relative">
+                            <div className={`w-12 h-12 rounded-2xl overflow-hidden shadow-sm flex items-center justify-center transition-all ${member.status === 'active' ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                              {member.photoURL ? (
+                                <img src={member.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-sm font-black">{(member.displayName || member.userEmail || "M").charAt(0).toUpperCase()}</span>
+                              )}
+                            </div>
+                            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${member.status === 'active' ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                          </div>
+                          
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-black text-gray-900 truncate uppercase tracking-tight">
+                              {member.displayName || (member.userEmail?.split('@')[0])}
+                            </span>
+                            <span className="text-[10px] font-bold text-gray-400 truncate">{member.userEmail}</span>
+                            <div className="flex items-center gap-2 mt-1">
+                               <span className={`text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded-md ${member.role === 'owner' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                                  {member.role === 'owner' ? 'Administrador' : 'Membro'}
+                               </span>
+                               <span className={`text-[8px] font-black uppercase tracking-tighter ${
+                                  member.status === 'active' ? 'text-emerald-500' : 
+                                  member.status === (('cancelled' as any)) ? 'text-red-500' : 'text-amber-500'
+                               }`}>
+                                  {member.status === 'active' ? 'Ativo' : 
+                                   member.status === (('cancelled' as any)) ? 'Recusou' : 'Pendente'}
+                               </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {isOwner && member.userId !== user?.uid && (
+                          <button
+                            onClick={() => handleRemoveMember(member.userId, member.userEmail, member.status)}
+                            disabled={isRemoving === (member.userId || member.userEmail)}
+                            className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all opacity-0 group-hover/card:opacity-100"
+                            title={member.status === 'active' ? "Remover do grupo" : "Cancelar convite"}
+                          >
+                            {isRemoving === (member.userId || member.userEmail) ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <LogOut size={18} />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Footer */}
+              <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-center">
+                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] italic">
+                   Doctor Pro Colaboração Segura
+                 </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {activeGroup && (
         <div className="pt-4 border-t border-gray-100 space-y-4">
           <div className="flex items-center justify-between px-2">
@@ -351,18 +497,32 @@ export function GroupSelector() {
                 <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Colaboração</p>
               </div>
             </div>
-            {activeGroupMembers.length > 0 && (
-              <div className="flex -space-x-2">
-                {activeGroupMembers.slice(0, 3).map((m, i) => (
-                  <div key={i} title={m.userEmail || "Membro"} className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[8px] font-bold ${m.status === 'active' ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                    {(m.userEmail || "M").charAt(0).toUpperCase()}
-                  </div>
-                ))}
-                {activeGroupMembers.length > 3 && (
-                  <div className="w-6 h-6 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-[8px] font-bold text-gray-500">
-                    +{activeGroupMembers.length - 3}
-                  </div>
+            <button 
+              onClick={() => setIsManagementOpen(true)}
+              className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-all"
+              title="Abrir Gerenciamento Completo"
+            >
+              <Maximize size={16} />
+            </button>
+          </div>
+
+          <div className="flex -space-x-2 px-2 pb-2">
+            {activeGroupMembers.slice(0, 5).map((m, i) => (
+              <div 
+                key={i} 
+                title={m.userEmail || "Membro"} 
+                className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center overflow-hidden shadow-sm ${m.status === 'active' ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500'}`}
+              >
+                {m.photoURL ? (
+                  <img src={m.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[8px] font-bold uppercase">{(m.displayName || m.userEmail || "M").charAt(0)}</span>
                 )}
+              </div>
+            ))}
+            {activeGroupMembers.length > 5 && (
+              <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-[8px] font-bold text-gray-500 shadow-sm">
+                +{activeGroupMembers.length - 5}
               </div>
             )}
           </div>
@@ -415,47 +575,44 @@ export function GroupSelector() {
             )}
           </div>
 
-          <div className="px-2 space-y-2">
-             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Membros do Grupo</div>
-             <div className="max-h-40 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+            <div className="px-2 space-y-2">
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Membros da Equipe</div>
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
                 {activeGroupMembers.map((member) => (
-                  <div key={(member.userId || '') + member.userEmail} className="flex flex-col p-2 rounded-lg hover:bg-gray-50 transition-colors group/member">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                         <div className={`w-1.5 h-1.5 rounded-full ${member.status === 'active' ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-                         <div className="flex flex-col">
-                            <span className="text-[11px] font-bold text-gray-700 truncate max-w-[120px]">{member.userEmail || "Sem email"}</span>
-                            <span className="text-[8px] font-black uppercase text-gray-400 tracking-tighter">{member.role === 'owner' ? 'Admin' : 'Membro'}</span>
-                         </div>
+                  <div key={(member.userId || '') + member.userEmail} className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 transition-colors group/member">
+                    <div className="flex items-center gap-2.5">
+                      <div className="relative shrink-0">
+                        <div className={`w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center border border-white shadow-sm ${member.status === 'active' ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                          {member.photoURL ? (
+                            <img src={member.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-[10px] font-black">{(member.displayName || member.userEmail || "M").charAt(0).toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${member.status === 'active' ? 'bg-emerald-500' : 'bg-amber-400'}`} />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[9px] font-black uppercase tracking-wider ${
-                          member.status === 'active' ? 'text-emerald-600' : 
-                          member.status === (('cancelled' as any)) ? 'text-red-600' : 'text-amber-600'
-                        }`}>
-                          {member.status === 'active' ? 'Aceitou' : 
-                          member.status === (('cancelled' as any)) ? 'Recusou' : 'Pendente'}
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[11px] font-black text-gray-700 truncate max-w-[100px] uppercase tracking-tight">
+                          {member.displayName || (member.userEmail?.split('@')[0])}
                         </span>
-                        {isOwner && member.userId !== user?.uid && (
-                          <button
-                            onClick={() => handleRemoveMember(member.userId, member.userEmail, member.status)}
-                            disabled={isRemoving === (member.userId || member.userEmail)}
-                            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all sm:opacity-0 group-hover/member:opacity-100"
-                            title={member.status === 'active' ? "Remover do grupo" : "Cancelar convite"}
-                          >
-                            {isRemoving === (member.userId || member.userEmail) ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : (
-                              <X size={12} />
-                            )}
-                          </button>
-                        )}
+                        <span className="text-[8px] font-black uppercase text-gray-400 tracking-tighter">
+                          {member.role === 'owner' ? 'Admin' : 'Membro'}
+                        </span>
                       </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[9px] font-black uppercase tracking-wider ${
+                        member.status === 'active' ? 'text-emerald-600' : 
+                        member.status === (('cancelled' as any)) ? 'text-red-600' : 'text-amber-600'
+                      }`}>
+                        {member.status === 'active' ? '✓' : 
+                        member.status === (('cancelled' as any)) ? '✕' : '...'}
+                      </span>
                     </div>
                   </div>
                 ))}
-             </div>
-          </div>
+              </div>
+            </div>
         </div>
       )}
     </div>

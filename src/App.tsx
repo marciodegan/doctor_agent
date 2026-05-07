@@ -7,6 +7,7 @@ import { GoogleAgenda } from "./components/GoogleAgenda";
 import { Debug } from "./components/Debug";
 import { Pricing } from "./components/Pricing";
 import { GroupSelector } from "./components/GroupSelector";
+import { Profile } from "./components/Profile";
 import { 
   Calendar, 
   FileText, 
@@ -22,6 +23,7 @@ import {
   Sparkles,
   Shield,
   Users,
+  User,
   Zap,
   TrendingUp,
   Menu,
@@ -47,6 +49,7 @@ export default function App() {
   
   const [showSettings, setShowSettings] = useState(false);
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [localCompanyName, setLocalCompanyName] = useState("");
@@ -323,6 +326,14 @@ export default function App() {
                       setIsMobileMenuOpen(false);
                     }}
                   />
+                  <NavItem 
+                    icon={<User size={18} />} 
+                    label="Meu Perfil" 
+                    onClick={() => {
+                      setShowProfile(true);
+                      setIsMobileMenuOpen(false);
+                    }}
+                  />
                 </div>
               </nav>
 
@@ -445,6 +456,11 @@ export default function App() {
               active={currentView === "pricing"}
               onClick={() => setCurrentView("pricing")}
             />
+            <NavItem 
+              icon={<User size={18} />} 
+              label="Meu Perfil" 
+              onClick={() => setShowProfile(true)}
+            />
           </div>
         </nav>
 
@@ -476,8 +492,25 @@ export default function App() {
       {/* Main Content */}
       <main className={`lg:pl-64 flex flex-col pt-16 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0" : ""}`}>
         
-        {/* Global Modals (Settings & Security) */}
+        {/* Global Modals (Settings, Security, Profile) */}
         <AnimatePresence>
+          {showProfile && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                className="w-full max-w-sm"
+              >
+                <Profile onHose={() => setShowProfile(false)} />
+              </motion.div>
+            </motion.div>
+          )}
+
           {showSettings && (
             <motion.div 
               initial={{ opacity: 0 }}

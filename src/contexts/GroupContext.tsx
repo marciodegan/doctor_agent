@@ -5,6 +5,7 @@ import {
   where, 
   onSnapshot, 
   doc, 
+  getDoc,
   setDoc, 
   addDoc, 
   deleteDoc,
@@ -25,6 +26,8 @@ interface Group {
 interface GroupMember {
   userId: string;
   userEmail: string;
+  displayName?: string;
+  photoURL?: string;
   role: string;
   status: "active" | "pending" | "cancelled";
 }
@@ -46,6 +49,7 @@ interface GroupContextType {
   declineInvite: (groupId: string) => Promise<void>;
   removeMember: (groupId: string, userId: string) => Promise<void>;
   cancelInvite: (groupId: string, email: string) => Promise<void>;
+  updateProfile: (displayName: string, photoURL: string) => Promise<void>;
 }
 
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
@@ -239,6 +243,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     if (!user) throw new Error("Must be logged in");
 
     try {
+      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const profile = userSnap.exists() ? userSnap.data() : {};
+
       const groupRef = await addDoc(collection(db, "groups"), {
         name,
         createdBy: user.uid,
@@ -253,6 +260,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, `groups/${groupId}/members`, user.uid), {
         userId: user.uid,
         userEmail: user.email || "",
+        displayName: profile.displayName || "",
+        photoURL: profile.photoURL || "",
         role: "owner",
         status: "active",
         joinedAt: serverTimestamp()
@@ -346,6 +355,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     if (!user) throw new Error("Must be logged in");
     const cleanEmail = user.email?.trim().toLowerCase() || "";
     try {
+      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const profile = userSnap.exists() ? userSnap.data() : {};
+
       // 1. Update membership status
       await setDoc(doc(db, `users/${user.uid}/memberships`, groupId), {
         groupId,
@@ -358,6 +370,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, `groups/${groupId}/members`, user.uid), {
         userId: user.uid,
         userEmail: user.email || "",
+        displayName: profile.displayName || "",
+        photoURL: profile.photoURL || "",
         status: "active",
         joinedAt: serverTimestamp()
       }, { merge: true });
@@ -499,6 +513,44 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateProfile = async (displayName: string, photoURL: string) => {
+    if (!user) return;
+    try {
+      // 1. Update user profile
+      await setDoc(doc(db, "users", user.uid), {
+        displayName,
+        photoURL,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      // 2. Update current membership in active group if exists
+      if (activeGroup) {
+        await setDoc(doc(db, `groups/${activeGroup.id}/members`, user.uid), {
+          displayName,
+          photoURL
+        }, { merge: true });
+      }
+
+      // 3. Update all memberships (async background would be better, but we do it here for simplicity)
+      const membershipsSnap = await getDocs(collection(db, `users/${user.uid}/memberships`));
+      const syncPromises = membershipsSnap.docs.map(async (mDoc) => {
+        const gid = mDoc.id;
+        try {
+          await setDoc(doc(db, `groups/${gid}/members`, user.uid), {
+            displayName,
+            photoURL
+          }, { merge: true });
+        } catch (e) {
+          console.error(`Failed to sync profile to group ${gid}`, e);
+        }
+      });
+      await Promise.all(syncPromises);
+
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
+    }
+  };
+
   return (
     <GroupContext.Provider value={{ 
       groups, 
@@ -516,7 +568,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       acceptInvite,
       declineInvite,
       removeMember,
-      cancelInvite
+      cancelInvite,
+      updateProfile
     }}>
       {children}
     </GroupContext.Provider>
