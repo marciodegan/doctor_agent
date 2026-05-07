@@ -241,6 +241,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     const group = groups.find(g => g.id === id);
     if (group) {
       setActiveGroup(group);
+      // Re-initialize app to ensure all contexts/data are fresh for the new group
+      window.location.reload();
     }
   };
 

@@ -225,9 +225,9 @@ const MessageForm: React.FC<{
 
         <button 
           type="submit"
-          className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
+          className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-blue-100"
         >
-          <Plus size={16} />
+          <Plus size={14} />
           {form.submitLabel}
         </button>
       </div>
@@ -2206,56 +2206,56 @@ export const Chat: React.FC<{
                   )}
                   {msg.isProfile && msg.profileData && (
                     <>
-                      <div className="bg-blue-50 -mx-4 -mt-2 mb-0 pt-6 pb-4 px-4 flex flex-row items-center justify-between border-b border-blue-100 shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-24 h-24 bg-blue-100/30 rounded-full -mr-12 -mt-12 blur-xl"></div>
+                      <div className="bg-blue-50/80 -mx-4 -mt-2 mb-0 pt-6 pb-5 px-4 flex flex-row items-center justify-between border-b border-blue-100 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                         
-                        <div className="flex flex-col items-start gap-1.5 relative z-10">
-                          <h2 className="text-[20px] font-black text-blue-900 tracking-tight leading-tight">{msg.profileData.nome}</h2>
+                        <div className="flex flex-col items-start gap-1 relative z-10 min-w-0 flex-1">
+                          <h3 className="text-[20px] font-black text-blue-900 tracking-tight leading-tight truncate w-full">{msg.profileData.nome}</h3>
                           <div className="flex flex-row items-center gap-3">
-                            <span className="text-[14px] font-bold text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-lg">{msg.profileData.idade} anos</span>
+                            <span className="text-[12px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-lg shrink-0">{msg.profileData.idade} ANOS</span>
                             <button 
                               onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
-                              className="text-[11px] font-black uppercase tracking-widest text-white bg-blue-600 px-3 py-1 rounded-lg hover:bg-blue-700 transition-all shadow-sm active:scale-95"
+                              className="text-[9px] font-black uppercase tracking-wider text-white bg-blue-600/90 px-2 py-0.5 rounded-md hover:bg-blue-700 transition-all shadow-sm active:scale-95 shrink-0"
                             >
                               Editar
                             </button>
                           </div>
                         </div>
 
-                        <div className="flex flex-col items-end gap-1 relative z-10">
-                          <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Status</span>
+                        <div className="flex flex-col items-end gap-1.5 relative z-10 shrink-0 ml-4">
+                          <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none">Status</span>
                           <button 
                             onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
-                            className="bg-white px-3 py-2 rounded-xl border-2 border-blue-600 text-blue-900 text-[13px] font-black shadow-md hover:bg-blue-50 transition-all flex items-center gap-2 active:scale-95"
+                            className="bg-white px-4 py-2.5 rounded-xl border-2 border-blue-600 text-blue-900 text-[14px] font-black shadow-md hover:bg-blue-50 transition-all flex items-center gap-2 active:scale-95"
                           >
                             {msg.profileData?.status || "PENDENTE"}
-                            <Edit3 size={14} className="text-blue-500" />
+                            <Edit3 size={16} className="text-blue-500" />
                           </button>
                         </div>
                       </div>
 
-                      <div className="px-4 py-4 bg-white border-b border-gray-100 flex items-center justify-between gap-4">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Localização</span>
-                          <div className="flex items-center gap-2">
-                            <Building2 size={16} className="text-blue-500 shrink-0" />
-                            <div className="flex flex-col">
-                              <span className="text-[11px] font-extrabold text-gray-700 leading-tight truncate max-w-[120px]">
-                                {msg.profileData?.hospitalNome || "Sem Hospital"}
-                              </span>
-                              <span className="text-[10px] font-bold text-gray-400 leading-none">
-                                {msg.profileData?.roomNumber || "Sala não def."}
-                              </span>
-                            </div>
+                      <div className="px-4 py-5 bg-white border-b border-gray-100 flex flex-col gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100">
+                            <Building2 size={20} className="text-blue-500" />
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Unidade / Leito</span>
+                            <span className="text-[13px] font-bold text-gray-800 leading-tight truncate">
+                              {msg.profileData?.hospitalNome || "Sem Unidade"}
+                            </span>
+                            <span className="text-[11px] font-bold text-gray-400">
+                              {msg.profileData?.roomNumber || "Sala não informada"}
+                            </span>
                           </div>
                         </div>
 
                         <button 
                           onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}`)}
-                          className="bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] shrink-0"
+                          className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg shadow-md shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] w-fit"
                         >
-                          <CalendarPlus size={20} className="text-emerald-100" />
-                          <span className="text-[11px] font-black uppercase tracking-tight">Agendar Novo</span>
+                          <CalendarPlus size={14} className="text-emerald-100" />
+                          <span className="text-[9px] font-black uppercase tracking-tight">Agendar Novo</span>
                         </button>
                       </div>
                     </>
