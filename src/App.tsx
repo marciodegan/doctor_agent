@@ -29,7 +29,8 @@ import {
   ChevronLeft,
   Settings,
   Lock,
-  Loader2
+  Loader2,
+  Stethoscope
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -214,16 +215,16 @@ export default function App() {
         <div className="flex items-center gap-2 lg:hidden">
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 -ml-2 text-gray-500 hover:text-black transition-colors"
+            className="p-2 -ml-2 text-gray-500 hover:text-blue-600 transition-colors"
           >
             <Menu size={24} />
           </button>
           
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-black rounded-lg flex items-center justify-center text-white">
-              <Command size={14} />
+            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
+              <Stethoscope size={14} />
             </div>
-            <span className="font-bold text-lg tracking-tight">Doctor Pro</span>
+            <span className="font-bold text-lg tracking-tight text-blue-600">Doctor Pro</span>
           </div>
         </div>
 
@@ -271,10 +272,10 @@ export default function App() {
             >
               <div className="flex items-center justify-between mb-10">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white">
-                    <Command size={18} />
+                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                    <Stethoscope size={18} />
                   </div>
-                  <h1 className="font-bold text-xl tracking-tight">Doctor Pro</h1>
+                  <h1 className="font-bold text-xl tracking-tight text-blue-600">Doctor Pro</h1>
                 </div>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-gray-400">
                   <X size={20} />
@@ -296,7 +297,7 @@ export default function App() {
                   onClick={() => navigateAndAction("calendar")}
                 />
                 <NavItem 
-                  icon={<Calendar size={18} className="text-blue-500" />} 
+                  icon={<Calendar size={18} className="text-emerald-500" />} 
                   label="Agenda" 
                   active={currentView === "agenda"}
                   onClick={() => navigateAndAction("agenda")}
@@ -373,16 +374,16 @@ export default function App() {
                     setCurrentView("pricing");
                     setIsMobileGroupsOpen(false);
                   }}
-                  className="bg-zinc-900 rounded-3xl p-6 text-white cursor-pointer hover:bg-zinc-800 transition-all border border-zinc-700"
+                  className="bg-blue-600 rounded-3xl p-6 text-white cursor-pointer hover:bg-blue-700 transition-all border border-blue-500 shadow-xl shadow-blue-100"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <div className="p-2 bg-blue-600 rounded-xl">
+                    <div className="p-2 bg-white/20 rounded-xl">
                       <Zap size={20} />
                     </div>
                   </div>
                   <h4 className="font-bold text-sm mb-1">Doctor Pro Business</h4>
-                  <p className="text-[10px] text-zinc-400 mb-4 line-clamp-2">Acesso total a automações, IA avançada e relatórios personalizados.</p>
-                  <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-widest">
+                  <p className="text-[10px] text-blue-50 mb-4 line-clamp-2">Acesso total a automações, IA avançada e relatórios personalizados.</p>
+                  <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest">
                     <span>Assinar agora</span>
                     <TrendingUp size={14} />
                   </div>
@@ -401,10 +402,10 @@ export default function App() {
       <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-50">
         <div className="flex items-center justify-between mb-10 px-2">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white">
-              <Command size={18} />
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
+              <Stethoscope size={18} />
             </div>
-            <h1 className="font-bold text-xl tracking-tight">Doctor Pro</h1>
+            <h1 className="font-bold text-xl tracking-tight text-blue-600">Doctor Pro</h1>
           </div>
           <button 
             onClick={() => setShowSettings(true)}
@@ -429,7 +430,7 @@ export default function App() {
             onClick={() => setCurrentView("calendar")}
           />
           <NavItem 
-            icon={<Calendar size={18} className="text-blue-500" />} 
+            icon={<Calendar size={18} className="text-emerald-500" />} 
             label="Agenda" 
             active={currentView === "agenda"}
             onClick={() => setCurrentView("agenda")}
@@ -575,7 +576,7 @@ export default function App() {
               </div>
               <button 
                 onClick={() => setShowSecurityInfo(false)}
-                className="w-full max-w-[200px] py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-black transition-all active:scale-95"
+                className="w-full max-w-[200px] py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-xl shadow-blue-100"
               >
                 Entendido
               </button>
@@ -606,7 +607,7 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
                 onClick={login}
-                className="flex items-center gap-4 bg-black text-white px-8 py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-all shadow-2xl shadow-blue-500/10 active:scale-95"
+                className="flex items-center gap-4 bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-2xl shadow-blue-500/20 active:scale-95"
               >
                 <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center">
                   <svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
@@ -651,8 +652,8 @@ export default function App() {
                       onClick={() => navigateAndAction(s.view, s.prompt)}
                       className={`text-[10px] font-bold px-3 py-1.5 border rounded-full transition-all uppercase tracking-wide shadow-sm ${
                         (s.view === currentView)
-                        ? "border-blue-600 text-blue-600 bg-blue-50" 
-                        : "border-blue-600 text-blue-600 bg-white hover:bg-blue-50"
+                        ? (s.view === "agenda" ? "border-emerald-600 text-emerald-600 bg-emerald-50" : "border-blue-600 text-blue-600 bg-blue-50")
+                        : (s.view === "agenda" ? "border-emerald-600 text-emerald-600 bg-white hover:bg-emerald-50" : "border-blue-600 text-blue-600 bg-white hover:bg-blue-50")
                       }`}
                     >
                       {s.label}
@@ -681,12 +682,12 @@ function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNo
       onClick={onClick}
       className={`flex items-center gap-3 w-full p-2.5 rounded-xl transition-all ${
       active 
-        ? "bg-black text-white shadow-lg shadow-black/10" 
+        ? "bg-blue-600 text-white shadow-lg shadow-blue-200" 
         : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
     }`}>
       {icon}
       <span className="text-sm font-semibold">{label}</span>
-      {active && <div className="ml-auto w-1.5 h-1.5 bg-blue-400 rounded-full"></div>}
+      {active && <div className="ml-auto w-1.5 h-1.5 bg-white/40 rounded-full"></div>}
     </button>
   );
 }

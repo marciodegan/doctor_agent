@@ -8,6 +8,7 @@ import { Readable } from "stream";
 import Stripe from "stripe";
 import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ if (firebaseConfig.projectId && !admin.apps.length) {
         admin.initializeApp({
           credential: admin.credential.cert(cert),
           projectId: firebaseConfig.projectId,
+          storageBucket: firebaseConfig.storageBucket
         });
         console.log("[Firebase] Admin initialized with service account from env.");
       } catch (jsonErr) {
@@ -43,6 +45,7 @@ if (firebaseConfig.projectId && !admin.apps.length) {
     } else {
       admin.initializeApp({
         projectId: firebaseConfig.projectId,
+        storageBucket: firebaseConfig.storageBucket
       });
       console.log("[Firebase] Admin initialized with projectId (ADC):", firebaseConfig.projectId);
     }
@@ -61,7 +64,14 @@ const _getDb = () => {
   return getFirestore(firebaseConfig.firestoreDatabaseId);
 };
 
-// Use a Proxy to make 'db' lazy and avoid module-load crashes
+const _getStorage = () => {
+  if (!admin.apps.length) {
+    throw new Error("Firebase Admin not initialized.");
+  }
+  return getStorage().bucket();
+};
+
+// Use a Proxy to make 'db' and 'bucket' lazy and avoid module-load crashes
 const db = new Proxy({} as any, {
   get(target, prop) {
     if (!target._instance) {
@@ -70,6 +80,15 @@ const db = new Proxy({} as any, {
     return target._instance[prop];
   }
 }) as admin.firestore.Firestore;
+
+const bucket = new Proxy({} as any, {
+  get(target, prop) {
+    if (!target._instance) {
+      target._instance = _getStorage();
+    }
+    return target._instance[prop];
+  }
+}) as any;
 
 let stripe: Stripe | null = null;
 const getStripe = () => {
@@ -102,6 +121,12 @@ app.use(async (req, res, next) => {
   }
   next();
 });
+
+const logQuotaUsage = async (auth: any, path: string, method: string) => {
+  // Logic to log quota usage by user identity could be implemented here
+  // For now, it's a placeholder to satisfy the middleware calls
+  return;
+};
 
 const getRedirectUri = (req?: express.Request) => {
   // Allow explicit override via environment variable
@@ -140,36 +165,10 @@ const SCOPES = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/calendar.events",
-  "https://www.googleapis.com/auth/spreadsheets",
-  "https://www.googleapis.com/auth/drive.file",
-  "https://www.googleapis.com/auth/drive.metadata.readonly"
+  "https://www.googleapis.com/auth/calendar.events"
 ];
 
-const MASTER_SHEET_NAME = "Doctor Pro - Banco de Dados";
-const IMAGES_FOLDER_NAME = "Doctor Pro - Imagens";
-const SHEET_TABS = {
-  CADASTRO: "Cadastro",
-  LOGS: "Log de Status",
-  ARQUIVOS: "Arquivos",
-  FAMILIARES: "Familiares",
-  SETTINGS: "Configuracoes",
-  HOSPITAIS: "Cadastro", // Hospitals are in specific columns of Cadastro
-  STATUSES: "Cadastro",  // Statuses are in specific columns of Cadastro
-  STATUS_LOG: "Atividades",
-  OPCOES_IMAGENS: "OpcoesImagens",
-  STATUS_USER: "Status User",
-  LOCAL_USER: "Local User",
-  AI_USAGE: "AI_Usage",
-  QUOTA_USAGE: "QuotaUsage"
-};
-
-// Cache for Master Sheet ID and verification status to reduce quota consumption
-let cachedMasterFileId: string | null = null;
-let masterSheetTabsVerified = false;
-let masterSheetInitPromise: Promise<string> | null = null;
-
-// Resource caching to reduce Sheets API quota consumption
+// Resource caching to reduce consumption
 const RESOURCE_CACHE = {
   hospitals: { data: null as any[] | null, lastFetch: 0 },
   statuses: { data: null as any[] | null, lastFetch: 0 },
@@ -184,238 +183,7 @@ const invalidateCache = (type: "hospitals" | "statuses") => {
   if (type === "statuses") RESOURCE_CACHE.statuses.lastFetch = 0;
 };
 
-// --- Helper for Unifying Databases ---
-const getOrCreateMasterSheet = async (auth: any) => {
-  // If already verified in this process life, return immediately
-  if (cachedMasterFileId && masterSheetTabsVerified) {
-    return cachedMasterFileId;
-  }
-
-  // Prevent race conditions with a shared promise
-  if (masterSheetInitPromise) {
-    return masterSheetInitPromise;
-  }
-
-  masterSheetInitPromise = (async () => {
-    try {
-      const drive = google.drive({ version: "v3", auth });
-      const sheets = google.sheets({ version: "v4", auth });
-
-      let fileId = cachedMasterFileId;
-
-      if (!fileId) {
-        console.log(`[Drive] Searching for master sheet: ${MASTER_SHEET_NAME}`);
-        const search = await drive.files.list({
-          q: `name = '${MASTER_SHEET_NAME}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
-          fields: "files(id, name, owners, shared)",
-        });
-
-        const files = search.data.files || [];
-        console.log(`[Drive] Found ${files.length} potential master sheets.`);
-        fileId = files[0]?.id;
-      }
-
-      if (!fileId) {
-        console.log(`[Drive] Master sheet not found. Creating a new one...`);
-        const createRes = await sheets.spreadsheets.create({
-          requestBody: {
-            properties: { title: MASTER_SHEET_NAME },
-            sheets: Object.values(SHEET_TABS).map(title => ({ properties: { title } }))
-          }
-        });
-        fileId = createRes.data.spreadsheetId;
-
-        if (!fileId) throw new Error("Failed to create master sheet");
-
-        // Initialize Headers
-        await Promise.all([
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.CADASTRO}!A1:I1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Telefone", "Idade", "status_id_legacy", "hospital_id", "room_number", "paciente_cpf", "status_id"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOGS}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "paciente_nome", "descricao"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.ARQUIVOS}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["data", "paciente_id", "descricao", "link", "ai_resposta"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.FAMILIARES}!A1:F1`, valueInputOption: "RAW", requestBody: { values: [["id", "nome_familiar", "tipo_parentesco", "telefone", "paciente_id", "paciente_nome"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.SETTINGS}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Chave", "Valor"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.AI_USAGE}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Data", "UsageCount"]] } }),
-          sheets.spreadsheets.values.update({ spreadsheetId: fileId as string, range: `${SHEET_TABS.QUOTA_USAGE}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["Timestamp", "Endpoint", "Method", "User"]] } })
-        ]);
-        masterSheetTabsVerified = true;
-      } else if (!masterSheetTabsVerified) {
-        // Ensure all tabs exist in the existing sheet
-        console.log(`[Drive] Verifying tabs for master sheet: ${fileId}`);
-        const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: fileId });
-        const existingTabs = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
-        const requiredTabs = Array.from(new Set(Object.values(SHEET_TABS)));
-        const missingTabs = requiredTabs.filter(t => !existingTabs.includes(t));
-
-        if (missingTabs.length > 0) {
-          console.log(`[Drive] Adding missing tabs: ${missingTabs.join(", ")}`);
-          await sheets.spreadsheets.batchUpdate({
-            spreadsheetId: fileId,
-            requestBody: {
-              requests: missingTabs.map(title => ({
-                addSheet: { properties: { title } }
-              }))
-            }
-          });
-
-          // Initialize missing headers
-          for (const tab of missingTabs) {
-            console.log(`[Drive] Initializing headers for missing tab: ${tab}`);
-            if (tab === SHEET_TABS.STATUSES) {
-              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUSES}!A1:B7`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome"], ["1", "Pré-operatorio"], ["2", "Pós-operatorio"], ["3", "Acompanhamento"], ["4", "Alta"], ["5", "Não informado"]] } });
-            }
-            if (tab === SHEET_TABS.STATUS_LOG) {
-              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUS_LOG}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["ID", "Nome", "Status", "Data"]] } });
-            }
-            if (tab === SHEET_TABS.OPCOES_IMAGENS) {
-              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.OPCOES_IMAGENS}!A1:A4`, valueInputOption: "RAW", requestBody: { values: [["Opcao"], ["Cirurgia"], ["Evolução saída de sala"], ["Evolução de alta"]] } });
-            }
-            if (tab === SHEET_TABS.STATUS_USER) {
-              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.STATUS_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["status_id", "status_data", "status_atual", "paciente_id", "paciente_nome"]] } });
-            }
-            if (tab === SHEET_TABS.LOCAL_USER) {
-              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.LOCAL_USER}!A1:E1`, valueInputOption: "RAW", requestBody: { values: [["local_id", "local_room_number", "local_hospital", "paciente_id", "paciente_nome"]] } });
-            }
-            if (tab === SHEET_TABS.AI_USAGE) {
-              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.AI_USAGE}!A1:B1`, valueInputOption: "RAW", requestBody: { values: [["Data", "UsageCount"]] } });
-            }
-            if (tab === SHEET_TABS.QUOTA_USAGE) {
-              console.log("[Drive] Initializing QuotaUsage headers...");
-              await sheets.spreadsheets.values.update({ spreadsheetId: fileId, range: `${SHEET_TABS.QUOTA_USAGE}!A1:D1`, valueInputOption: "RAW", requestBody: { values: [["Timestamp", "Endpoint", "Method", "User"]] } });
-            }
-          }
-        }
-
-        // Ensure AI_Resposta column exists in ARQUIVOS
-        const range = `${SHEET_TABS.ARQUIVOS}!1:1`;
-        const headersRes = await sheets.spreadsheets.values.get({ spreadsheetId: fileId, range });
-        const headers = headersRes.data.values?.[0] || [];
-        if (!headers.includes("ai_resposta")) {
-          await sheets.spreadsheets.values.update({
-            spreadsheetId: fileId,
-            range: `${SHEET_TABS.ARQUIVOS}!E1`,
-            valueInputOption: "RAW",
-            requestBody: { values: [["ai_resposta"]] }
-          });
-        }
-        masterSheetTabsVerified = true;
-      }
-      
-      cachedMasterFileId = fileId as string;
-      return fileId as string;
-    } catch (err) {
-      console.error("[Drive] masterSheetInitPromise error:", err);
-      throw err;
-    } finally {
-      masterSheetInitPromise = null;
-    }
-  })();
-
-  return masterSheetInitPromise;
-};
-
-const checkAndIncrementAIUsage = async (auth: any) => {
-  const sheets = google.sheets({ version: "v4", auth });
-  const fileId = await getOrCreateMasterSheet(auth);
-  const today = new Date().toISOString().split('T')[0];
-
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: fileId,
-    range: `${SHEET_TABS.AI_USAGE}!A:B`
-  });
-
-  const rows = res.data.values || [];
-  const todayRowIdx = rows.findIndex(r => r[0] === today);
-  const currentCount = todayRowIdx !== -1 ? parseInt(rows[todayRowIdx][1] || "0") : 0;
-
-  if (currentCount >= 10) {
-    throw new Error("Cota diária de IA (10 análises) atingida. Tente novamente amanhã.");
-  }
-
-  if (todayRowIdx !== -1) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.AI_USAGE}!B${todayRowIdx + 1}`,
-      valueInputOption: "RAW",
-      requestBody: { values: [[currentCount + 1]] }
-    });
-  } else {
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.AI_USAGE}!A:B`,
-      valueInputOption: "RAW",
-      requestBody: { values: [[today, 1]] }
-    });
-  }
-};
-
-const logQuotaUsage = async (auth: any, endpoint: string, method: string, userEmail?: string) => {
-  try {
-    const fileId = await getOrCreateMasterSheet(auth);
-    const sheets = google.sheets({ version: "v4", auth });
-    const timestamp = new Date().toISOString();
-    
-    // Fire and forget, but with a simple log
-    sheets.spreadsheets.values.append({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.QUOTA_USAGE}!A:D`,
-      valueInputOption: "RAW",
-      requestBody: {
-        values: [[timestamp, endpoint, method, userEmail || "authenticated_user"]]
-      }
-    }).then(() => {
-      // console.log(`[Quota] Logged usage for ${endpoint}`);
-    }).catch(e => {
-      console.error(`[Quota] Failed to log usage for ${endpoint}:`, e.message);
-    });
-  } catch (err) {
-    // Silent fail for logs to not break UI
-  }
-};
-
-const getOrCreateImagesFolder = async (auth: any) => {
-  const drive = google.drive({ version: "v3", auth });
-
-  console.log(`[Drive] Searching for images folder: ${IMAGES_FOLDER_NAME}`);
-  const search = await drive.files.list({
-    q: `name = '${IMAGES_FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-    fields: "files(id, name)",
-  });
-
-  let folderId = search.data.files?.[0]?.id;
-
-  if (!folderId) {
-    console.log(`[Drive] Images folder not found. Creating a new one...`);
-    const createRes = await drive.files.create({
-      requestBody: {
-        name: IMAGES_FOLDER_NAME,
-        mimeType: "application/vnd.google-apps.folder",
-      },
-      fields: "id",
-    });
-    folderId = createRes.data.id;
-
-    // Set permission so files inside are accessible to anyone with the link
-    // This allows multi-user visibility for files linked in the sheet.
-    try {
-      await drive.permissions.create({
-        fileId: folderId as string,
-        requestBody: {
-          role: "reader",
-          type: "anyone",
-        },
-      });
-      console.log(`[Drive] Folder permissions set to 'anyone with link'`);
-    } catch (permError) {
-      console.error("[Drive] Failed to set folder permissions:", permError);
-    }
-  }
-
-  return folderId as string;
-};
+// --- Auth Helpers ---
 
 const COOKIE_NAME = "__Secure-nexus-p-v1";
 const LEGACY_COOKIE_NAME = "__Secure-nexus-u-v1";
@@ -756,63 +524,7 @@ app.post("/api/auth/logout", (req, res) => {
 
 // --- Firestore Data Operations ---
 
-const migrateHospitalsAndStatuses = async (auth: any) => {
-  try {
-    const hospitalsSnap = await db.collection("hospitals").limit(1).get();
-    if (!hospitalsSnap.empty) return;
-
-    console.log("[Firestore] Seeding from Sheets...");
-    const fileId = await getOrCreateMasterSheet(auth);
-    const sheets = google.sheets({ version: "v4", auth });
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.CADASTRO}!A:X`
-    });
-    const rows = res.data.values || [];
-    
-    const hospitals = rows.slice(1)
-      .filter(row => row[13])
-      .map(row => ({
-        id: row[13]?.toString().trim(),
-        name: row[14]?.toString().trim() || row[13]?.toString().trim(),
-        phone: row[15]?.toString().trim() || "",
-        contacts: [row[16], row[17], row[18], row[19]].filter(Boolean)
-      }));
-
-    const statuses = rows.slice(1)
-      .filter(row => row[22])
-      .map(row => ({
-        id: row[22]?.toString().trim(),
-        name: row[23]?.toString().trim() || row[22]?.toString().trim()
-      }));
-
-    const batch = db.batch();
-    hospitals.forEach(h => batch.set(db.collection("hospitals").doc(h.id), h));
-    statuses.forEach(s => batch.set(db.collection("patient_statuses").doc(s.id), s));
-    
-    // Also try to migrate existing patients if Firestore is empty
-    const patientsSnap = await db.collection("patients").where("groupId", "==", "main-group").limit(1).get();
-    if (patientsSnap.empty) {
-      const patients = rows.slice(1).filter(r => r[0] && r[1]).map(row => ({
-        id: row[0]?.toString().trim(),
-        name: row[1]?.toString().trim(),
-        phone: row[2]?.toString().trim() || "",
-        age: row[3]?.toString().trim() || "",
-        hospitalId: row[6]?.toString().trim() || "",
-        roomNumber: row[7]?.toString().trim() || "",
-        cpf: row[8]?.toString().trim() || "",
-        statusId: row[8]?.toString().trim() || row[4]?.toString().trim() || "5",
-        groupId: "main-group",
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      }));
-      patients.forEach(p => batch.set(db.collection("patients").doc(p.id), p));
-    }
-
-    await batch.commit();
-  } catch (e) {
-    console.error("[Firestore] Migration failed:", e);
-  }
-};
+// --- Migration and Legacy Helpers removed ---
 
 const handleApiError = (res: express.Response, error: any, context: string) => {
   console.error(`[API Error] ${context}:`, error);
@@ -896,9 +608,6 @@ app.get("/api/app/patients", async (req, res) => {
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
-    // Ensure basic data is migrated
-    await migrateHospitalsAndStatuses(auth);
-
     let patientsQuery: admin.firestore.Query = db.collection("patients").where("groupId", "==", groupId);
     const hFilter = req.query.hospitalId?.toString();
     const sFilter = req.query.statusId?.toString();
@@ -1014,54 +723,7 @@ app.post("/api/app/settings", async (req, res) => {
   }
 });
 
-// Get current database info
-app.get("/api/app/db-info", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const fileId = await getOrCreateMasterSheet(auth);
-    const drive = google.drive({ version: "v3", auth });
-    const file = await drive.files.get({
-      fileId,
-      fields: "id, name, webViewLink, owners"
-    });
-    res.json({
-      id: file.data.id,
-      name: file.data.name,
-      link: file.data.webViewLink,
-      owner: file.data.owners?.[0]?.emailAddress
-    });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Perform a backup of the master sheet
-app.post("/api/app/backup", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const fileId = await getOrCreateMasterSheet(auth);
-    const drive = google.drive({ version: "v3", auth });
-    
-    const now = new Date();
-    const timestamp = `${now.getDate().toString().padStart(2, '0')}_${(now.getMonth() + 1).toString().padStart(2, '0')}_${now.getFullYear()}_${now.getHours().toString().padStart(2, '0')}_${now.getMinutes().toString().padStart(2, '0')}`;
-    const backupName = `${MASTER_SHEET_NAME} backup ${timestamp}`;
-
-    const copyRes = await drive.files.copy({
-      fileId,
-      requestBody: {
-        name: backupName
-      }
-    });
-
-    res.json({ success: true, backupId: copyRes.data.id, name: backupName });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
+// Hospital and Backup routes removed or simplified
 
 // Get all hospitals
 app.get("/api/app/hospitals", async (req, res) => {
@@ -1120,18 +782,12 @@ app.get("/api/app/image-options", async (req, res) => {
 
 // Get consolidated report for a specific patient without LLM
 app.get("/api/app/patient-report/:id", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
-  const sheets = google.sheets({ version: "v4", auth });
   const { id } = req.params;
 
   try {
-    const fileId = await getOrCreateMasterSheet(auth);
-
     const report: any = {
       cadastro: null,
       audios: [],
@@ -1139,24 +795,14 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       familiares: []
     };
 
-    // Use a single batchGet for all tabs
-    const ranges = [
-      `${SHEET_TABS.CADASTRO}!A:I`,
-      `${SHEET_TABS.LOGS}!A:D`,
-      `${SHEET_TABS.ARQUIVOS}!A:D`,
-      `${SHEET_TABS.FAMILIARES}!A:F`
-    ];
-
-    const [batchRes, contactsSnap, logsSnap, filesSnap, patientSnap, statusesSnap] = await Promise.all([
-      sheets.spreadsheets.values.batchGet({
-        spreadsheetId: fileId,
-        ranges
-      }),
+    const [contactsSnap, logsSnap, filesSnap, patientSnap, statusesSnap, activityLogsSnap, hospitalsSnap] = await Promise.all([
       db.collection("patients_contacts").where("patientId", "==", id).get(),
       db.collection("patient_logs").where("patientId", "==", id).orderBy("createdAt", "desc").get(),
       db.collection("files").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
       db.collection("patients").doc(id).get(),
-      db.collection("patient_statuses").get()
+      db.collection("patient_statuses").get(),
+      db.collection("logs").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
+      db.collection("hospitals").get()
     ]);
 
     const statusesMap = new Map();
@@ -1165,144 +811,74 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       statusesMap.set(doc.id, data.name || data.nome);
     });
 
-    const valueRanges = batchRes.data.valueRanges || [];
-    const cadRows = valueRanges[0]?.values || [];
-    const logRows = valueRanges[1]?.values || [];
-    const imgRows = valueRanges[2]?.values || [];
-    const famRows = valueRanges[3]?.values || [];
+    const hospitalsMap = new Map();
+    hospitalsSnap.docs.forEach(doc => {
+      const data = doc.data();
+      hospitalsMap.set(doc.id, data.name || data.nome);
+    });
 
-    // Process Cadastro
-    const cadHeader = cadRows[0] || [];
-    const cadData = cadRows.slice(1).find(row => row[0] === id || row[1] === id); 
-
-    if (cadData) {
-      report.cadastro = cadHeader.reduce((acc: any, col: string, idx: number) => {
-        acc[col] = cadData[idx];
-        return acc;
-      }, {});
-    } else if (patientSnap.exists) {
+    if (patientSnap.exists) {
       const pData = patientSnap.data()!;
       report.cadastro = {
         ID: id,
         Nome: pData.name,
         Telefone: pData.phone,
         Idade: pData.age,
-        Status: statusesMap.get(pData.statusId) || pData.statusId || pData.status
+        Status: statusesMap.get(pData.statusId) || pData.statusId || pData.status,
+        hospitalName: hospitalsMap.get(pData.hospitalId) || pData.hospitalId,
+        roomNumber: pData.roomNumber
       };
     } else {
       return res.status(404).json({ error: `Paciente '${id}' não encontrado.` });
     }
 
-    // Override with Firestore data if available
-    if (patientSnap.exists) {
-      const pData = patientSnap.data()!;
-      if (!report.cadastro) report.cadastro = {};
-      
-      // Map Firestore fields to uppercase used in report
-      report.cadastro.Nome = pData.name || report.cadastro.Nome;
-      report.cadastro.Telefone = pData.phone || report.cadastro.Telefone;
-      report.cadastro.Idade = pData.age || report.cadastro.Idade;
-      
-      const sId = pData.statusId || pData.status || report.cadastro.Status || report.cadastro.status_id;
-      report.cadastro.Status = statusesMap.get(sId) || sId;
-
-      report.cadastro.hospitalId = pData.hospitalId || "";
-      report.cadastro.roomNumber = pData.roomNumber || "";
-    }
-
-    const patientName = report.cadastro.Nome || cadData?.[1];
-    const patientId = report.cadastro.ID || cadData?.[0];
-
-    // Process Logs/Audios (Evoluções - Log de Status)
-    if (logRows.length > 0) {
-      report.audios = logRows.slice(1)
-        .filter(row => row[1] === patientId.toString() || row[2] === patientName)
-        .map(row => ({ data: row[0], conteudo: row[3] }));
-    }
-
-    // Process Imagens/Arquivos (Arquivos)
-    const googleImgs = imgRows.length > 0 ? imgRows.slice(1)
-        .filter(row => row[1] === patientId.toString())
-        .map(row => ({ 
-          data: row[0], 
-          descricao: row[2], 
-          link: row[3],
-          aiResposta: row[4] 
-        })) : [];
-
-    const firestoreImgs = filesSnap.docs.map(doc => {
+    // Process Files/Images
+    report.imagens = filesSnap.docs.map(doc => {
       const data = doc.data();
       return {
+        id: doc.id,
         data: data.timestamp ? data.timestamp.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "Recent",
         descricao: data.description || "Arquivo",
         link: data.link,
-        aiResposta: data.aiAnalysis || "",
-        driveFileId: data.driveFileId
+        aiResposta: data.aiAnalysis || ""
       };
     });
 
-    report.imagens = [...firestoreImgs, ...googleImgs];
+    // Process Clinical Logs (patient_logs)
+    report.audios = logsSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        conteudo: data.text,
+        tipo: data.type || "texto",
+        data: data.createdAt ? data.createdAt.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "Recent"
+      };
+    });
 
-    // Process Familiares
-    if (famRows.length > 0) {
-      report.familiares = famRows.slice(1)
-        .filter(row => row[4] === patientId || row[5] === patientName)
-        .map(row => ({
-          id: row[0],
-          nome: row[1],
-          relacao: row[2],
-          fone: row[3]
-        }));
-    }
-
-    // Add Firestore contacts
-    if (!contactsSnap.empty) {
-      contactsSnap.docs.forEach(doc => {
-        const data = doc.data();
-        // Avoid duplicates by simple ID check or name check
-        if (!report.familiares.some((f: any) => f.id === doc.id || (f.nome === data.name && f.fone === data.phone))) {
-          report.familiares.push({
-            id: doc.id,
-            nome: data.name,
-            relacao: data.relationship,
-            fone: data.phone
-          });
-        }
+    // Add Activity Logs (status changes etc)
+    activityLogsSnap.docs.forEach(doc => {
+      const data = doc.data();
+      report.audios.push({
+        id: doc.id,
+        conteudo: data.description,
+        tipo: "atividade",
+        data: data.timestamp ? data.timestamp.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "Recent"
       });
-    }
+    });
 
-    // Add Firestore logs
-    if (!logsSnap.empty) {
-      logsSnap.docs.forEach(doc => {
-        const data = doc.data();
-        const dateStr = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString('pt-BR') : "";
-        report.audios.push({
-          id: doc.id,
-          tipo: "texto",
-          conteudo: data.text,
-          data: dateStr
-        });
-      });
-    }
+    // Sort logs by date after merging
+    report.audios.sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
-    // Add Firestore files
-    if (!filesSnap.empty) {
-      filesSnap.docs.forEach(doc => {
-        const data = doc.data();
-        const dateStr = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString('pt-BR') : "";
-        // Avoid duplicates by link
-        if (!report.imagens.some((img: any) => img.link === data.link)) {
-          report.imagens.push({
-            id: doc.id,
-            data: dateStr,
-            descricao: data.description,
-            link: data.link,
-            driveFileId: data.driveFileId,
-            aiResposta: data.aiResposta || ""
-          });
-        }
-      });
-    }
+    // Process Family Members
+    report.familiares = contactsSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        nome: data.name,
+        relacao: data.relationship,
+        fone: data.phone
+      };
+    });
 
     res.json(report);
   } catch (error) {
@@ -1527,82 +1103,46 @@ app.post("/api/app/logs", express.json(), async (req, res) => {
   }
 });
 
-// Upload image/document directly to Drive and link to Firestore
-app.post("/api/app/upload-image", express.json({ limit: "10mb" }), async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const drive = google.drive({ version: "v3", auth });
+// Upload image/document directly to Firebase Storage and link to Firestore
+app.post("/api/app/upload-image", express.json({ limit: "15mb" }), async (req, res) => {
   const { patientId, description, fileName, mimeType, base64Data } = req.body;
 
   if (!patientId || !base64Data) return res.status(400).json({ error: "PatientID e Imagem são obrigatórios." });
 
   try {
-    const folderId = await getOrCreateImagesFolder(auth);
-
-    // 1. Upload to Drive
+    // 1. Upload to Firebase Storage
     const buffer = Buffer.from(base64Data, "base64");
-    const driveFile = await drive.files.create({
-      requestBody: {
-        name: fileName || `Documento_P${patientId}_${Date.now()}`,
-        mimeType: mimeType || "image/jpeg",
-        parents: [folderId],
-      },
-      media: {
-        mimeType: mimeType || "image/jpeg",
-        body: Readable.from(buffer),
-      },
-      fields: "id, webViewLink, webContentLink",
+    const filename = fileName || `Documento_P${patientId}_${Date.now()}.jpg`;
+    const destination = `patients/${patientId}/${filename}`;
+    const file = bucket.file(destination);
+
+    await file.save(buffer, {
+      metadata: {
+        contentType: mimeType || "image/jpeg",
+        metadata: {
+          patientId: patientId,
+          description: description || ""
+        }
+      }
     });
 
-    const driveFileId = driveFile.data.id;
-    const shareLink = driveFile.data.webViewLink;
-
-    // Also set specific file permission just in case inheritance is slow
-    try {
-      await drive.permissions.create({
-        fileId: driveFileId as string,
-        requestBody: {
-          role: "reader",
-          type: "anyone",
-        },
-      });
-    } catch (e) {
-      console.error("Error setting file permission:", e);
-    }
+    // Make public and get URL
+    await file.makePublic();
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${encodeURIComponent(destination)}`;
 
     // 2. Save metadata to Firestore
     const fileRef = db.collection("files").doc();
     await fileRef.set({
       patientId,
       description: description || "Upload Direto",
-      link: shareLink || "",
-      driveFileId,
+      link: publicUrl,
+      storagePath: destination,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // 3. Save to Google Sheets (ARQUIVOS tab) for legacy/sync
-    try {
-      const sheets = google.sheets({ version: "v4", auth });
-      const masterFileId = await getOrCreateMasterSheet(auth);
-      const timestampStr = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-      
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: masterFileId,
-        range: `${SHEET_TABS.ARQUIVOS}!A:E`,
-        valueInputOption: "RAW",
-        requestBody: {
-          values: [[timestampStr, patientId, description || "Upload Direto", shareLink || "", ""]]
-        }
-      });
-    } catch (sheetErr) {
-      console.error("[SheetsSync] Error appending to ARQUIVOS sheet:", sheetErr);
-      // Don't fail the whole upload if just sheet sync fails (we have Firestore as backup now)
-    }
-
-    res.json({ success: true, fileId: driveFileId, link: shareLink });
+    res.json({ success: true, fileId: fileRef.id, link: publicUrl });
   } catch (error) {
-    handleApiError(res, error, "Uploading image");
+    handleApiError(res, error, "Uploading image to Storage");
   }
 });
 
@@ -1671,105 +1211,8 @@ app.delete("/api/calendar/events/:eventId", async (req, res) => {
   }
 });
 
-// Drive: List Files
-app.get("/api/drive/files", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const drive = google.drive({ version: "v3", auth });
-  try {
-    const response = await drive.files.list({
-      pageSize: 10,
-      fields: "nextPageToken, files(id, name, mimeType, webViewLink)",
-    });
-    res.json(response.data.files);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Sheets: Create Spreadsheet
-app.post("/api/sheets/create", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const sheets = google.sheets({ version: "v4", auth });
-  try {
-    const response = await sheets.spreadsheets.create({
-      requestBody: {
-        properties: { title: req.body.title || "Doctor Pro Agent Sheet" },
-      },
-    });
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Sheets: Get Values
-app.get("/api/sheets/:spreadsheetId/values", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const sheets = google.sheets({ version: "v4", auth });
-  const { spreadsheetId } = req.params;
-  const { range } = req.query;
-  try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: range as string,
-    });
-    res.json(response.data.values);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Sheets: Append Values
-app.post("/api/sheets/:spreadsheetId/append", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const sheets = google.sheets({ version: "v4", auth });
-  const { spreadsheetId } = req.params;
-  const { range, values } = req.body;
-  try {
-    const response = await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range,
-      valueInputOption: "RAW",
-      requestBody: { values },
-    });
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Drive: Search File by Name
-app.get("/api/drive/search", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const drive = google.drive({ version: "v3", auth });
-  const { name } = req.query;
-  try {
-    const response = await drive.files.list({
-      q: `name = '${name}' and mimeType = 'application/vnd.google-apps.spreadsheet'`,
-      fields: "files(id, name)",
-    });
-    res.json(response.data.files);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Drive: Upload File
-app.post("/api/drive/upload", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const drive = google.drive({ version: "v3", auth });
+// Generic Storage Upload
+app.post("/api/storage/upload", express.json({ limit: "15mb" }), async (req, res) => {
   const { name, mimeType, base64Data } = req.body;
 
   if (!base64Data) {
@@ -1777,106 +1220,28 @@ app.post("/api/drive/upload", async (req, res) => {
   }
 
   try {
-    const folderId = await getOrCreateImagesFolder(auth);
     const buffer = Buffer.from(base64Data, "base64");
-    const response = await drive.files.create({
-      requestBody: {
-        name: name,
-        mimeType: mimeType,
-        parents: [folderId],
-      },
-      media: {
-        mimeType: mimeType,
-        body: Readable.from(buffer),
-      },
-      fields: "id, name, webViewLink, webContentLink",
+    const filename = name || `Upload_${Date.now()}.jpg`;
+    const destination = `uploads/${filename}`;
+    const file = bucket.file(destination);
+
+    await file.save(buffer, {
+      metadata: {
+        contentType: mimeType || "image/jpeg"
+      }
     });
 
-    const fileId = response.data.id;
+    await file.makePublic();
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${encodeURIComponent(destination)}`;
 
-    // Set permission so others can see it
-    try {
-      await drive.permissions.create({
-        fileId: fileId as string,
-        requestBody: {
-          role: "reader",
-          type: "anyone",
-        },
-      });
-    } catch (e) {
-      console.error("Error setting file permission on generic upload:", e);
-    }
-
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Sheets: Update Values
-app.post("/api/sheets/:spreadsheetId/values", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const sheets = google.sheets({ version: "v4", auth });
-  const { spreadsheetId } = req.params;
-  const { range, values } = req.body;
-  try {
-    const response = await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range,
-      valueInputOption: "RAW",
-      requestBody: { values },
+    res.json({
+      id: file.name,
+      name: file.name,
+      webViewLink: publicUrl,
+      webContentLink: publicUrl
     });
-    res.json(response.data);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-  app.get("/api/drive/file/:fileId", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).send("Unauthorized");
-
-  const drive = google.drive({ version: "v3", auth });
-
-  try {
-    const { fileId } = req.params;
-    const metadata = await drive.files.get({ fileId, fields: "mimeType" });
-    const mimeType = metadata.data.mimeType;
-
-    const response = await drive.files.get(
-      { fileId, alt: "media" },
-      { responseType: "stream" }
-    );
-
-    res.setHeader("Content-Type", mimeType || "image/jpeg");
-    response.data.pipe(res);
-  } catch (error) {
-    console.error("Error fetching file:", error);
-    res.status(500).send("Error fetching file");
-  }
-});
-
-app.get("/api/drive/file-base64/:fileId", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const drive = google.drive({ version: "v3", auth });
-  try {
-    const { fileId } = req.params;
-    const metadata = await drive.files.get({ fileId, fields: "mimeType" });
-    const mimeType = metadata.data.mimeType;
-
-    const response = await drive.files.get(
-      { fileId, alt: "media" },
-      { responseType: "arraybuffer" }
-    );
-
-    const base64 = Buffer.from(response.data as ArrayBuffer).toString("base64");
-    res.json({ base64, mimeType });
-  } catch (error) {
-    res.status(500).json({ error: "Error fetching file" });
   }
 });
 
@@ -1919,21 +1284,12 @@ app.post("/api/create-checkout-session", async (req, res) => {
 
 
 app.get("/api/ai/check-quota", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
   try {
-    const sheets = google.sheets({ version: "v4", auth });
-    const fileId = await getOrCreateMasterSheet(auth);
     const today = new Date().toISOString().split('T')[0];
-
-    const resUsage = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.AI_USAGE}!A:B`
-    });
-
-    const rows = resUsage.data.values || [];
-    const todayRowIdx = rows.findIndex(r => r[0] === today);
-    const currentCount = todayRowIdx !== -1 ? parseInt(rows[todayRowIdx][1] || "0") : 0;
+    const quotaRef = db.collection("ai_usage").doc(today);
+    const quotaDoc = await quotaRef.get();
+    
+    const currentCount = quotaDoc.exists ? (quotaDoc.data()?.UsageCount || 0) : 0;
 
     res.json({ count: currentCount, remaining: Math.max(0, 10 - currentCount) });
   } catch (error) {
@@ -1942,40 +1298,36 @@ app.get("/api/ai/check-quota", async (req, res) => {
 });
 
 app.post("/api/ai/save-analysis", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const { driveId, analysis } = req.body;
-  if (!driveId || !analysis) return res.status(400).json({ error: "Missing driveId or analysis" });
+  const { fileId, analysis } = req.body;
+  if (!fileId || !analysis) return res.status(400).json({ error: "Missing fileId or analysis" });
 
   try {
-    // 1. Quota increment
-    await checkAndIncrementAIUsage(auth);
-
-    // 2. Save to Sheets
-    const sheets = google.sheets({ version: "v4", auth });
-    const fileId = await getOrCreateMasterSheet(auth);
-
-    const valuesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: fileId,
-      range: `${SHEET_TABS.ARQUIVOS}!A:E`
+    // 1. Quota increment in Firestore
+    const today = new Date().toISOString().split('T')[0];
+    const quotaRef = db.collection("ai_usage").doc(today);
+    
+    await db.runTransaction(async (t) => {
+      const quotaDoc = await t.get(quotaRef);
+      const currentCount = quotaDoc.exists ? (quotaDoc.data()?.UsageCount || 0) : 0;
+      
+      if (currentCount >= 10) {
+        throw new Error("Cota diária de IA atingida.");
+      }
+      
+      t.set(quotaRef, { 
+        UsageCount: currentCount + 1,
+        date: today
+      }, { merge: true });
     });
 
-    const rows = valuesRes.data.values || [];
-    // Link column is D (index 3). We search for the driveId in the link.
-    const rowIdx = rows.findIndex(r => r[3] && r[3].includes(driveId));
+    // 2. Save analysis to the file document in Firestore
+    const fileRef = db.collection("files").doc(fileId);
+    await fileRef.update({
+      aiAnalysis: analysis,
+      analyzedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
 
-    if (rowIdx !== -1) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: fileId,
-        range: `${SHEET_TABS.ARQUIVOS}!E${rowIdx + 1}`, // Column E is ai_resposta
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [[analysis]] }
-      });
-      res.json({ success: true });
-    } else {
-      res.status(404).json({ error: "Registro do arquivo não encontrado na planilha." });
-    }
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

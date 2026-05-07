@@ -58,23 +58,19 @@ const createCalendarEventTool: FunctionDeclaration = {
   }
 };
 
-const listDriveFilesTool: FunctionDeclaration = {
-  name: "list_drive_files",
-  description: "Lists files from the user's Google Drive.",
-  parameters: { type: Type.OBJECT, properties: {} }
-};
-
-const uploadFileToDriveTool: FunctionDeclaration = {
-  name: "upload_file_to_drive",
-  description: "Uploads a file to Google Drive. If base64Data is not provided, the system will attempt to use the last image sent by the user.",
+const uploadPatientFileTool: FunctionDeclaration = {
+  name: "upload_patient_file",
+  description: "Uploads a file (image or document) for a specific patient. If base64Data is not provided, the system will attempt to use the last image sent by the user.",
   parameters: {
     type: Type.OBJECT,
     properties: {
+      patientId: { type: Type.STRING, description: "The ID of the patient this file belongs to" },
+      description: { type: Type.STRING, description: "Brief description of the file (e.g., 'Exames admissionais', 'Foto da ferida')" },
       name: { type: Type.STRING, description: "The name of the file to save" },
       mimeType: { type: Type.STRING, description: "The MIME type of the file (e.g., image/jpeg)" },
       base64Data: { type: Type.STRING, description: "The base64 encoded data of the file. Leave empty if uploading the image the user just sent." }
     },
-    required: ["name", "mimeType"]
+    required: ["patientId", "name", "mimeType"]
   }
 };
 
@@ -123,8 +119,7 @@ export const tools = [
     functionDeclarations: [
       listCalendarEventsTool,
       createCalendarEventTool,
-      listDriveFilesTool,
-      uploadFileToDriveTool,
+      uploadPatientFileTool,
       searchPatientTool,
       addPatientLogTool,
       listPatientsTool,
@@ -137,7 +132,8 @@ export const createAgent = () => ai.chats.create({
   model: "gemini-3-flash-preview", 
   config: {
     systemInstruction: `You are Doctor Pro, a highly professional medical workspace assistant. 
-    You have access to the user's Google Calendar, Drive, and the Patient Database (Firestore) through provided tools.
+    You have access to the user's Google Calendar and the Patient Database (Firestore) through provided tools. 
+    Files and images are stored in Firebase Storage.
     
     TRUST & SECURITY:
     Your primary goal is to help the user manage their medical practice data with transparency and accuracy.
@@ -153,8 +149,8 @@ export const createAgent = () => ai.chats.create({
        - Step C: If multiple/no matches found, ASK the user to clarify before proceeding. NEVER "guess".
        - Step D: Once the canonical Name/ID is confirmed:
          - For text logs: Use 'add_patient_log'.
-         - For files: Use 'upload_file_to_drive' (this will also register it in the database via the backend).
-       - Step E: Confirm success stating: "Adicionado com sucesso para o paciente [Nome]".
+         - For files: Use 'upload_patient_file' (this will register it in the database and Storage via the backend).
+       - Step E: Confirm success stating: "Arquivo adicionado com sucesso para o paciente [Nome]".
        - Step F: IMMEDIATELY call 'clear_local_memory'.
 
     3. PATIENT LISTING:
@@ -236,11 +232,6 @@ export const executeTool = async (name: string, args: any, context?: { lastFile?
         })
       });
       return await createCalRes.json();
-    case "list_drive_files":
-      const driveRes = await fetch("/api/drive/files", {
-        headers: { ...commonHeaders }
-      });
-      return await driveRes.json();
     case "search_patient": {
       const res = await fetch("/api/app/patients", {
         headers: { ...commonHeaders }
@@ -269,7 +260,7 @@ export const executeTool = async (name: string, args: any, context?: { lastFile?
       });
       return await res.json();
     }
-    case "upload_file_to_drive":
+    case "upload_patient_file": {
       let base64 = args.base64Data;
       let mimeType = args.mimeType;
       
@@ -281,14 +272,16 @@ export const executeTool = async (name: string, args: any, context?: { lastFile?
         }
       }
 
-      const uploadRes = await fetch("/api/drive/upload", {
+      const uploadRes = await fetch("/api/app/upload-image", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           ...commonHeaders
         },
         body: JSON.stringify({
-          name: args.name,
+          patientId: args.patientId,
+          description: args.description || "Upload via IA",
+          fileName: args.name,
           mimeType: mimeType || "image/jpeg",
           base64Data: base64
         })
@@ -301,6 +294,7 @@ export const executeTool = async (name: string, args: any, context?: { lastFile?
       }
       
       return await uploadRes.json();
+    }
     case "clear_local_memory":
       return { status: "Memory clear requested. The client will reset the internal agent." };
     default:

@@ -700,50 +700,6 @@ export function Calendar() {
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Hospital</label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                      <Building2 size={18} />
-                    </div>
-                    <select 
-                      value={formData.hospitalId}
-                      onChange={e => setFormData({ ...formData, hospitalId: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none"
-                    >
-                      <option value="">Selecione um hospital</option>
-                      {hospitalOptions.map(h => (
-                        <option key={h.id} value={h.id}>{h.nome}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Categoria</label>
-                    <select 
-                      value={formData.tipo}
-                      onChange={e => setFormData({ ...formData, tipo: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
-                    >
-                      <option value="ELETIVA">ELETIVA</option>
-                      <option value="URGÊNCIA">URGÊNCIA</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Sala</label>
-                    <select 
-                      value={formData.sala}
-                      onChange={e => setFormData({ ...formData, sala: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
-                    >
-                      <option value="SALA 1">SALA 1</option>
-                      <option value="SALA 2">SALA 2</option>
-                    </select>
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Data</label>
@@ -756,18 +712,28 @@ export function Calendar() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Hora</label>
-                    <div className="relative">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                        <Clock size={18} />
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Hora e Categoria</label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                          <Clock size={18} />
+                        </div>
+                        <input 
+                          required
+                          type="time"
+                          value={formData.hora}
+                          onChange={e => setFormData({ ...formData, hora: e.target.value })}
+                          className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
+                        />
                       </div>
-                      <input 
-                        required
-                        type="time"
-                        value={formData.hora}
-                        onChange={e => setFormData({ ...formData, hora: e.target.value })}
-                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
-                      />
+                      <select 
+                        value={formData.tipo}
+                        onChange={e => setFormData({ ...formData, tipo: e.target.value })}
+                        className="bg-gray-50 border border-gray-100 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                      >
+                        <option value="ELETIVA">ELET</option>
+                        <option value="URGÊNCIA">URG</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -788,22 +754,55 @@ export function Calendar() {
                   </div>
                 </div>
 
-                <div className="pt-4 flex items-center gap-3">
-                  {editingEvent && (
+                <div className="pt-4 flex items-end gap-3 justify-between">
+                  <div className="flex-1 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Hospital</label>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                          <Building2 size={16} />
+                        </div>
+                        <select 
+                          value={formData.hospitalId}
+                          onChange={e => setFormData({ ...formData, hospitalId: e.target.value })}
+                          className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 pl-9 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none font-bold"
+                        >
+                          <option value="">Hospital...</option>
+                          {hospitalOptions.map(h => (
+                            <option key={h.id} value={h.id}>{h.nome}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Nº Sala</label>
+                      <input 
+                        type="text"
+                        value={formData.sala}
+                        onChange={e => setFormData({ ...formData, sala: e.target.value })}
+                        placeholder="Sala..."
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {editingEvent && (
+                      <button 
+                        type="button"
+                        onClick={handleDelete}
+                        className="p-3 text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100"
+                      >
+                        <Trash2 size={24} />
+                      </button>
+                    )}
                     <button 
-                      type="button"
-                      onClick={handleDelete}
-                      className="p-3 text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100"
+                      type="submit"
+                      className="whitespace-nowrap bg-blue-600 text-white px-8 py-3.5 rounded-2xl font-black text-sm hover:bg-blue-700 shadow-xl shadow-blue-100 active:scale-[0.98] transition-all uppercase tracking-tight"
                     >
-                      <Trash2 size={24} />
+                      {editingEvent ? "Salvar" : "Agendar Agora"}
                     </button>
-                  )}
-                  <button 
-                    type="submit"
-                    className="flex-1 bg-black text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 shadow-xl shadow-gray-200 active:scale-[0.98] transition-all"
-                  >
-                    {editingEvent ? "Salvar Alterações" : "Adicionar ao Calendário"}
-                  </button>
+                  </div>
                 </div>
               </form>
             </motion.div>

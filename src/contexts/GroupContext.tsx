@@ -44,6 +44,8 @@ interface GroupContextType {
   inviteUser: (groupId: string, email: string) => Promise<void>;
   acceptInvite: (groupId: string) => Promise<void>;
   declineInvite: (groupId: string) => Promise<void>;
+  removeMember: (groupId: string, userId: string) => Promise<void>;
+  cancelInvite: (groupId: string, email: string) => Promise<void>;
 }
 
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
@@ -279,6 +281,12 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     const cleanEmail = email.trim().toLowerCase();
     
     try {
+       // Verify if current user is owner (admin)
+       const myMembership = activeGroupMembers.find(m => m.userId === user.uid);
+       if (myMembership?.role !== "owner") {
+         throw new Error("Apenas o admin pode convidar membros");
+       }
+
        // 1. Always create a record in group_invitations by email
        const invId = `${groupId}_${cleanEmail.replace(/\./g, '_')}`;
        await setDoc(doc(db, "group_invitations", invId), {
@@ -413,6 +421,55 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const removeMember = async (groupId: string, userId: string) => {
+    if (!user) throw new Error("Must be logged in");
+    try {
+      // Verify if current user is owner
+      const myMembership = activeGroupMembers.find(m => m.userId === user.uid);
+      if (myMembership?.role !== "owner") {
+        throw new Error("Apenas o admin pode remover membros");
+      }
+
+      // 1. Remove from group members
+      await deleteDoc(doc(db, `groups/${groupId}/members`, userId));
+      // 2. Remove from user's memberships
+      await deleteDoc(doc(db, `users/${userId}/memberships`, groupId));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `groups/${groupId}/members/${userId}`);
+    }
+  };
+
+  const cancelInvite = async (groupId: string, email: string) => {
+    if (!user) throw new Error("Must be logged in");
+    const cleanEmail = email.trim().toLowerCase();
+    try {
+      // Verify if current user is owner
+      const myMembership = activeGroupMembers.find(m => m.userId === user.uid);
+      if (myMembership?.role !== "owner") {
+        throw new Error("Apenas o admin pode cancelar convites");
+      }
+
+      // 1. Remove from group_invitations
+      const invId = `${groupId}_${cleanEmail.replace(/\./g, '_')}`;
+      await deleteDoc(doc(db, "group_invitations", invId));
+      
+      // 2. Remove the "invite_..." record from group members
+      const inviteMemberId = `invite_${cleanEmail.replace(/\./g, '_')}`;
+      await deleteDoc(doc(db, `groups/${groupId}/members`, inviteMemberId));
+      
+      // 3. Try to find if a real user was linked
+      const userQuery = query(collection(db, "users"), where("email", "==", cleanEmail));
+      const userSnap = await getDocs(userQuery);
+      if (!userSnap.empty) {
+        const targetUid = userSnap.docs[0].id;
+        await deleteDoc(doc(db, `users/${targetUid}/memberships`, groupId));
+        await deleteDoc(doc(db, `groups/${groupId}/members`, targetUid));
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `group_invitations`);
+    }
+  };
+
   const updateSettings = async (name: string, wa: string) => {
     try {
       const res = await apiFetch("/api/app/settings", {
@@ -457,7 +514,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       createGroup, 
       inviteUser, 
       acceptInvite,
-      declineInvite
+      declineInvite,
+      removeMember,
+      cancelInvite
     }}>
       {children}
     </GroupContext.Provider>

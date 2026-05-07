@@ -97,7 +97,7 @@ export function GoogleAgenda() {
 
     // Empty slots for previous month
     for (let i = 0; i < startDay; i++) {
-      days.push(<div key={`empty-${i}`} className="h-24 sm:h-32 bg-gray-50/50"></div>);
+      days.push(<div key={`empty-${i}`} className="h-24 sm:h-32 bg-emerald-50/10"></div>);
     }
 
     for (let day = 1; day <= totalDays; day++) {
@@ -112,16 +112,16 @@ export function GoogleAgenda() {
         <div 
           key={day} 
           onClick={() => openAddModal(dateStr)}
-          className={`h-24 sm:h-32 border-t border-l border-gray-100 p-1 sm:p-2 relative flex flex-col cursor-pointer hover:bg-gray-50/80 transition-colors ${isToday ? "bg-blue-50/30" : "bg-white"}`}
+          className={`h-24 sm:h-32 border-t border-l border-gray-100 p-1 sm:p-2 relative flex flex-col cursor-pointer hover:bg-gray-50/80 transition-colors ${isToday ? "bg-emerald-50/30" : "bg-white"}`}
         >
           <div className="flex items-center justify-between mb-1 shrink-0">
             <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-              isToday ? "bg-black text-white shadow-lg" : "text-gray-500"
+              isToday ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200" : "text-gray-500"
             }`}>
               {day}
             </div>
             {dayEvents.length > 0 && (
-              <span className="text-[9px] font-black text-gray-300 uppercase tracking-tighter">{dayEvents.length} compromissos</span>
+              <span className="text-[9px] font-black text-emerald-300 uppercase tracking-tighter">{dayEvents.length} compromissos</span>
             )}
           </div>
           
@@ -131,8 +131,8 @@ export function GoogleAgenda() {
                 ? new Date(event.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
                 : "Dia todo";
               return (
-                <div key={event.id} className="p-1 px-1.5 rounded-lg border border-blue-50 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-                  <div className="text-[7px] font-black text-blue-500 uppercase tracking-tighter">{time}</div>
+                <div key={event.id} className="p-1 px-1.5 rounded-lg border border-emerald-50 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                  <div className="text-[7px] font-black text-emerald-500 uppercase tracking-tighter">{time}</div>
                   <div className="text-[9px] font-bold text-gray-700 leading-tight truncate">{event.summary}</div>
                 </div>
               );
@@ -206,7 +206,7 @@ export function GoogleAgenda() {
       {/* Header */}
       <div className="p-4 sm:p-6 border-b border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-zinc-900 text-white rounded-2xl">
+          <div className="p-3 bg-emerald-500 text-white rounded-2xl">
             <CalendarIcon size={24} />
           </div>
           <div>
@@ -217,21 +217,21 @@ export function GoogleAgenda() {
               <div className="flex bg-gray-100 p-1 rounded-xl">
                 <button 
                    onClick={() => setViewMode("month")}
-                   className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1.5 ${viewMode === "month" ? "bg-white text-black shadow-sm" : "text-gray-400"}`}
+                   className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1.5 ${viewMode === "month" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400"}`}
                 >
                   <CalendarDays size={12} />
                   MÊS
                 </button>
                 <button 
                   onClick={() => setViewMode("list")}
-                  className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1.5 ${viewMode === "list" ? "bg-white text-black shadow-sm" : "text-gray-400"}`}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1.5 ${viewMode === "list" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400"}`}
                 >
                   <LayoutList size={12} />
                   LISTA
                 </button>
               </div>
             </div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+            <p className="text-[10px] font-black text-emerald-600/80 uppercase tracking-[0.2em] font-mono">
               Google Agenda • {companyName}
             </p>
           </div>
@@ -249,7 +249,7 @@ export function GoogleAgenda() {
             </button>
             <button 
               onClick={() => setCurrentDate(new Date())}
-              className="px-3 text-xs font-bold text-gray-600 hover:text-black"
+              className="px-3 text-xs font-bold text-gray-600 hover:text-emerald-600"
             >
               Hoje
             </button>
@@ -262,8 +262,8 @@ export function GoogleAgenda() {
           </div>
 
           <button 
-            onClick={openAddModal}
-            className="flex items-center gap-2 bg-black text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-xl shadow-black/10 hover:bg-zinc-800 active:scale-95 transition-all"
+            onClick={() => openAddModal()}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-xl shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all"
           >
             <Plus size={18} />
             <span className="hidden sm:inline">Novo Compromisso</span>
@@ -309,7 +309,7 @@ export function GoogleAgenda() {
                         className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between gap-4 group"
                       >
                         <div className="flex items-center gap-5">
-                          <div className="flex flex-col items-center justify-center w-12 h-12 bg-gray-50 rounded-xl group-hover:bg-black group-hover:text-white transition-colors">
+                          <div className="flex flex-col items-center justify-center w-12 h-12 bg-gray-50 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-inner group-hover:shadow-emerald-200">
                             <span className="text-[10px] font-black uppercase tracking-tighter opacity-60">
                               {start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
                             </span>
@@ -318,7 +318,7 @@ export function GoogleAgenda() {
                           
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg flex items-center gap-1">
                                 <Clock size={10} />
                                 {isAllDay ? "DIA TODO" : start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                               </span>
@@ -375,7 +375,7 @@ export function GoogleAgenda() {
                     required
                     value={formData.summary}
                     onChange={e => setFormData({ ...formData, summary: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     placeholder="O que vamos agendar?"
                   />
                 </div>
@@ -388,7 +388,7 @@ export function GoogleAgenda() {
                       required
                       value={formData.date}
                       onChange={e => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
                   </div>
                   <div>
@@ -398,7 +398,7 @@ export function GoogleAgenda() {
                       required
                       value={formData.time}
                       onChange={e => setFormData({ ...formData, time: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
                   </div>
                 </div>
@@ -408,7 +408,7 @@ export function GoogleAgenda() {
                   <textarea 
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
                     rows={3}
                     placeholder="Notas opcionais..."
                   />
@@ -417,7 +417,7 @@ export function GoogleAgenda() {
                 <button 
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-4 bg-black text-white rounded-2xl font-bold shadow-xl shadow-black/20 hover:bg-zinc-800 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
                 >
                   {isLoading ? <Loader2 size={18} className="animate-spin" /> : "Agendar no Google"}
                 </button>

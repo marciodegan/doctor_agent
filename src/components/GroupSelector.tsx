@@ -26,6 +26,8 @@ export function GroupSelector() {
     inviteUser, 
     acceptInvite, 
     declineInvite,
+    removeMember,
+    cancelInvite,
     loading 
   } = useGroup();
   const { user, logout } = useAuth();
@@ -36,6 +38,10 @@ export function GroupSelector() {
   const [error, setError] = useState("");
   const [isAccepting, setIsAccepting] = useState<string | null>(null);
   const [isDeclining, setIsDeclining] = useState<string | null>(null);
+  const [isRemoving, setIsRemoving] = useState<string | null>(null);
+
+  const currentUserMembership = activeGroupMembers.find(m => m.userId === user?.uid);
+  const isOwner = currentUserMembership?.role === "owner";
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +90,24 @@ export function GroupSelector() {
       alert("Convite enviado com sucesso!");
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleRemoveMember = async (targetUserId: string, email: string, status: string) => {
+    const label = status === "active" ? "remover este membro" : "cancelar este convite";
+    if (!activeGroup || !confirm(`Tem certeza que deseja ${label}?`)) return;
+    
+    try {
+      setIsRemoving(targetUserId || email);
+      if (status === "active") {
+        await removeMember(activeGroup.id, targetUserId);
+      } else {
+        await cancelInvite(activeGroup.id, email);
+      }
+      setIsRemoving(null);
+    } catch (err: any) {
+      alert(err.message || "Erro ao remover");
+      setIsRemoving(null);
     }
   };
 
@@ -344,18 +368,27 @@ export function GroupSelector() {
           </div>
 
           <div className="space-y-1">
-            <button 
-              onClick={() => setIsInviting(!isInviting)}
-              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 text-gray-600 hover:text-blue-600 transition-all group"
-            >
-              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
-                <UserPlus size={16} />
+            {isOwner ? (
+              <button 
+                onClick={() => setIsInviting(!isInviting)}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 text-gray-600 hover:text-blue-600 transition-all group"
+              >
+                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                  <UserPlus size={16} />
+                </div>
+                <span className="text-xs font-bold">Convidar Integrante</span>
+                <ChevronRight size={14} className={`ml-auto transition-all ${isInviting ? "rotate-90" : "opacity-0 group-hover:opacity-100"}`} />
+              </button>
+            ) : (
+              <div className="w-full flex items-center gap-3 p-3 rounded-xl text-gray-400">
+                <div className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center">
+                  <Shield size={16} className="opacity-50" />
+                </div>
+                <span className="text-xs font-bold italic">Somente admin pode convidar</span>
               </div>
-              <span className="text-xs font-bold">Convidar Integrante</span>
-              <ChevronRight size={14} className={`ml-auto transition-all ${isInviting ? "rotate-90" : "opacity-0 group-hover:opacity-100"}`} />
-            </button>
+            )}
 
-            {isInviting && (
+            {isInviting && isOwner && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
@@ -386,18 +419,39 @@ export function GroupSelector() {
              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Membros do Grupo</div>
              <div className="max-h-40 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                 {activeGroupMembers.map((member) => (
-                  <div key={member.userId + member.userEmail} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-2">
-                       <div className={`w-1.5 h-1.5 rounded-full ${member.status === 'active' ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-                       <span className="text-[11px] font-medium text-gray-700 truncate max-w-[120px]">{member.userEmail || "Sem email"}</span>
+                  <div key={(member.userId || '') + member.userEmail} className="flex flex-col p-2 rounded-lg hover:bg-gray-50 transition-colors group/member">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                         <div className={`w-1.5 h-1.5 rounded-full ${member.status === 'active' ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                         <div className="flex flex-col">
+                            <span className="text-[11px] font-bold text-gray-700 truncate max-w-[120px]">{member.userEmail || "Sem email"}</span>
+                            <span className="text-[8px] font-black uppercase text-gray-400 tracking-tighter">{member.role === 'owner' ? 'Admin' : 'Membro'}</span>
+                         </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[9px] font-black uppercase tracking-wider ${
+                          member.status === 'active' ? 'text-emerald-600' : 
+                          member.status === (('cancelled' as any)) ? 'text-red-600' : 'text-amber-600'
+                        }`}>
+                          {member.status === 'active' ? 'Aceitou' : 
+                          member.status === (('cancelled' as any)) ? 'Recusou' : 'Pendente'}
+                        </span>
+                        {isOwner && member.userId !== user?.uid && (
+                          <button
+                            onClick={() => handleRemoveMember(member.userId, member.userEmail, member.status)}
+                            disabled={isRemoving === (member.userId || member.userEmail)}
+                            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all sm:opacity-0 group-hover/member:opacity-100"
+                            title={member.status === 'active' ? "Remover do grupo" : "Cancelar convite"}
+                          >
+                            {isRemoving === (member.userId || member.userEmail) ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <X size={12} />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider ${
-                      member.status === 'active' ? 'text-emerald-600' : 
-                      member.status === 'cancelled' ? 'text-red-600' : 'text-amber-600'
-                    }`}>
-                      {member.status === 'active' ? 'Aceitou' : 
-                       member.status === (('cancelled' as any)) ? 'Recusou' : 'Pendente'}
-                    </span>
                   </div>
                 ))}
              </div>

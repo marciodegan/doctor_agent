@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3 } from "lucide-react";
+import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
@@ -20,6 +20,8 @@ interface Message {
     idade: string;
     status?: string;
     hospitalId?: string;
+    hospitalNome?: string;
+    roomNumber?: string;
   };
   form?: {
     title?: string;
@@ -190,10 +192,10 @@ const MessageForm: React.FC<{
                   key={opt}
                   type="button"
                   onClick={() => setValues(prev => ({ ...prev, [field.name]: opt }))}
-                  className={`px-2 py-1 rounded-lg text-[9px] font-bold transition-all uppercase border ${
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all uppercase border shadow-sm ${
                     values[field.name] === opt 
-                      ? "bg-blue-600 border-blue-600 text-white shadow-sm" 
-                      : "bg-white border-gray-200 text-gray-400 hover:border-blue-200 hover:text-blue-600"
+                      ? "bg-blue-600 border-blue-600 text-white shadow-blue-100" 
+                      : "bg-white border-gray-100 text-gray-500 hover:border-blue-600 hover:text-blue-600"
                   }`}
                 >
                   {opt}
@@ -204,13 +206,31 @@ const MessageForm: React.FC<{
         </div>
       ))}
       
-      <button 
-        type="submit"
-        className="w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-      >
-        <Plus size={16} />
-        {form.submitLabel}
-      </button>
+      <div className="flex flex-row items-center justify-between gap-4 pt-2">
+        <div className="flex flex-col">
+          {form.hospitalName && (
+            <div className="flex items-center gap-1.5 text-blue-600">
+              <Building2 size={14} />
+              <span className="text-[11px] font-black uppercase tracking-tight truncate max-w-[150px]">
+                {form.hospitalName}
+              </span>
+            </div>
+          )}
+          {form.roomNumber && (
+            <span className="text-[10px] font-bold text-gray-400 ml-5 leading-none">
+              Quarto {form.roomNumber}
+            </span>
+          )}
+        </div>
+
+        <button 
+          type="submit"
+          className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
+        >
+          <Plus size={16} />
+          {form.submitLabel}
+        </button>
+      </div>
     </form>
   );
 };
@@ -414,21 +434,15 @@ export const Chat: React.FC<{
         aiPart = `<div className="mt-1 text-blue-600">🤖 <b>AI:</b> ${i.aiResposta}</div>`;
       }
 
-      let driveId = i.driveFileId;
-      if (!driveId && i.link) {
-        const match = i.link.match(/\/d\/([^/]+)/);
-        if (match) driveId = match[1];
-      }
-
-      const imgTag = driveId 
-        ? `<div className="my-2"><img src="https://lh3.googleusercontent.com/d/${driveId}=w1000" alt="${i.descricao}" className="max-w-full rounded-xl border border-gray-100 shadow-sm block" referrerPolicy="no-referrer" /></div>`
+      const imgTag = i.link 
+        ? `<div className="my-2"><img src="${i.link}" alt="${i.descricao}" className="max-w-full rounded-xl border border-gray-100 shadow-sm block" referrerPolicy="no-referrer" /></div>`
         : "";
       
       return `
 <div className="ml-6 mb-3 pb-3 border-b border-gray-100">
   <div className="mb-0.5"><b>${i.descricao}</b>${aiPart}</div>
   ${imgTag}
-  <div className="text-[10px] font-medium text-gray-500">${i.data}${downloadText}</div>
+  <div className="text-[10px] font-medium text-gray-500">${i.data}${downloadText} \`/ai_analyze id: ${i.id}, pId: ${cad.ID}, url: ${i.link}\`</div>
 </div>`;
     }).join("");
 
@@ -641,11 +655,11 @@ export const Chat: React.FC<{
     if (cmd === "/iniciarcadastro") {
       setMessages(prev => [...prev, { 
         role: "model", 
-        text: `👤 **Cadastro de Novo Paciente**\n\nPreencha os dados abaixo para registrar:`,
+        text: "👤 **Novo Paciente**",
         form: {
-          title: "Novo Paciente",
+          title: "",
           fields: [
-            { label: "Nome do Paciente", name: "nome", type: "text", placeholder: "Ex: João Silva" },
+            { label: "Nome", name: "nome", type: "text", placeholder: "Ex: João Silva" },
             { label: "Idade", name: "idade", type: "number", placeholder: "Ex: 30" },
             { 
               label: "Hospital", 
@@ -772,18 +786,23 @@ export const Chat: React.FC<{
       let patientName = cmdInput.match(/paciente:\s*([^,]+)/i)?.[1]?.trim() || "";
       let pid = cmdInput.match(/pid:\s*([\w-]+)/i)?.[1]?.trim() || "";
       let hospId = cmdInput.match(/hospId:\s*([\w-]+)/i)?.[1]?.trim() || "";
+      let roomNumber = cmdInput.match(/room:\s*([^,]+)/i)?.[1]?.trim() || "";
       
       const today = new Date();
       const pad = (n: number) => n.toString().padStart(2, "0");
       const hojeStrIso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`; 
       const agoraStr = `${pad(today.getHours())}:00`;
       
+      const hospName = hospitalOptions.find(h => h.id === hospId)?.nome || "";
+
       setMessages([]); // NEW VIEW
       setMessages([{ 
         role: "model", 
         text: "📅 **Novo Evento no Calendário**\n\nPreencha os detalhes do evento:",
         form: {
           title: "Novo Evento",
+          hospitalName: hospName,
+          roomNumber: roomNumber,
           fields: [
             { 
               label: "Evento / Descrição", 
@@ -799,7 +818,7 @@ export const Chat: React.FC<{
               name: "hospitalId", 
               type: "select", 
               options: hospitalOptions.map(h => h.nome),
-              defaultValue: hospitalOptions.find(h => h.id === hospId)?.nome || ""
+              defaultValue: hospName
             },
             // @ts-ignore
             { label: "Categoria", name: "categoria", type: "select", options: ["ELETIVA", "URGÊNCIA"], defaultValue: "ELETIVA" },
@@ -1212,7 +1231,9 @@ export const Chat: React.FC<{
             nome: cad.Nome,
             idade: cad.Idade ? cad.Idade.toString() : "N/A",
             status: cad.Status,
-            hospitalId: cad.hospitalId
+            hospitalId: cad.hospitalId,
+            hospitalNome: hospitalOptions.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome)?.nome || cad.hospital_nome || "Não informado",
+            roomNumber: cad.roomNumber || cad.room_number || "Sala ?"
           }
         }]);
         setTimeout(scrollToTop, 0);
@@ -1752,7 +1773,9 @@ export const Chat: React.FC<{
               nome: pData.cadastro.Nome,
               idade: pData.cadastro.Idade,
               status: pData.cadastro.Status,
-              hospitalId: pData.cadastro.hospitalId
+              hospitalId: pData.cadastro.hospitalId,
+              hospitalNome: hospitalOptions.find(h => h.id === pData.cadastro.hospitalId || h.nome === pData.cadastro.hospital_nome)?.nome || pData.cadastro.hospital_nome || "Não informado",
+              roomNumber: pData.cadastro.roomNumber || pData.cadastro.room_number || "Sala ?"
             }
           }]);
           setTimeout(scrollToTop, 0);
@@ -1985,10 +2008,11 @@ export const Chat: React.FC<{
     }
 
     if (cmd.startsWith("/ai_analyze")) {
-      const driveId = cmdInput.match(/id:\s*([^, ]+)/i)?.[1]?.trim();
+      const fileId = cmdInput.match(/id:\s*([^, ]+)/i)?.[1]?.trim();
       const pId = cmdInput.match(/pId:\s*([^, ]+)/i)?.[1]?.trim() || "";
+      const url = cmdInput.match(/url:\s*([^, ]+)/i)?.[1]?.trim() || "";
 
-      if (!driveId) throw new Error("ID do arquivo não especificado.");
+      if (!fileId) throw new Error("ID do arquivo não especificado.");
 
       setIsLoading(true);
       try {
@@ -1998,9 +2022,21 @@ export const Chat: React.FC<{
         if (qData.remaining <= 0) throw new Error(qData.error || "Você atingiu sua cota de 10 análises diárias.");
 
         // 2. Fetch image base64
-        const imgRes = await fetch(`/api/drive/file-base64/${driveId}`);
-        const imgData = await imgRes.json();
-        if (!imgRes.ok) throw new Error(imgData.error || "Erro ao baixar imagem.");
+        let base64 = "";
+        let mimeType = "image/jpeg";
+
+        if (url) {
+          const imgFetchRes = await fetch(url);
+          const blob = await imgFetchRes.blob();
+          mimeType = blob.type;
+          base64 = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+            reader.readAsDataURL(blob);
+          });
+        } else {
+          throw new Error("Link da imagem não encontrado para análise.");
+        }
 
         // 3. Call Gemini
         const result = await ai.models.generateContent({
@@ -2009,20 +2045,20 @@ export const Chat: React.FC<{
             {
               role: "user",
               parts: [
-                { text: "aja como um phd em cirurgia cardíaca e analise essa imagem" },
-                { inlineData: { data: imgData.base64, mimeType: imgData.mimeType } }
+                { text: "Aja como um médico experiente e analise este documento ou imagem médica. Forneça uma análise técnica e objetiva em português." },
+                { inlineData: { data: base64, mimeType: mimeType } }
               ]
             }
           ]
         });
 
-        const analysis = result.text || "";
+        const analysis = result.text || "Análise indisponível.";
 
-        // 4. Save to Sheets
+        // 4. Save analysis to database
         const saveRes = await fetch("/api/ai/save-analysis", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ driveId, analysis })
+          body: JSON.stringify({ fileId, analysis })
         });
         const saveData = await saveRes.json();
         if (!saveRes.ok) throw new Error(saveData.error || "Erro ao salvar análise.");
@@ -2208,13 +2244,28 @@ export const Chat: React.FC<{
                         </div>
                       </div>
 
-                      <div className="px-4 py-4 bg-white border-b border-gray-100">
+                      <div className="px-4 py-4 bg-white border-b border-gray-100 flex items-center justify-between gap-4">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Localização</span>
+                          <div className="flex items-center gap-2">
+                            <Building2 size={16} className="text-blue-500 shrink-0" />
+                            <div className="flex flex-col">
+                              <span className="text-[11px] font-extrabold text-gray-700 leading-tight truncate max-w-[120px]">
+                                {msg.profileData?.hospitalNome || "Sem Hospital"}
+                              </span>
+                              <span className="text-[10px] font-bold text-gray-400 leading-none">
+                                {msg.profileData?.roomNumber || "Sala não def."}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
                         <button 
-                          onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}`)}
-                          className="w-full bg-emerald-600 text-white px-6 py-3.5 rounded-2xl shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+                          onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}`)}
+                          className="bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] shrink-0"
                         >
-                          <CalendarPlus size={22} className="text-emerald-100" />
-                          <span className="text-[12px] font-black uppercase tracking-widest">Novo Evento no Calendário</span>
+                          <CalendarPlus size={20} className="text-emerald-100" />
+                          <span className="text-[11px] font-black uppercase tracking-tight">Agendar Novo</span>
                         </button>
                       </div>
                     </>
