@@ -11,6 +11,7 @@ export function Profile({ onHose }: { onHose?: () => void }) {
   const { updateProfile } = useGroup();
   const [displayName, setDisplayName] = useState("");
   const [photoURL, setPhotoURL] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -27,6 +28,7 @@ export function Profile({ onHose }: { onHose?: () => void }) {
           const data = userDoc.data();
           setDisplayName(data.displayName || "");
           setPhotoURL(data.photoURL || "");
+          setWhatsapp(data.whatsapp || "");
         }
       } catch (err) {
         console.error("Error fetching profile:", err);
@@ -47,7 +49,7 @@ export function Profile({ onHose }: { onHose?: () => void }) {
     setSuccess(false);
     
     try {
-      await updateProfile(displayName, photoURL);
+      await updateProfile(displayName, photoURL, whatsapp);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
@@ -146,6 +148,17 @@ export function Profile({ onHose }: { onHose?: () => void }) {
               onChange={(e) => setDisplayName(e.target.value)}
               className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
               required
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 px-1">WhatsApp</label>
+            <input 
+              type="text"
+              placeholder="(00) 00000-0000"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
             />
           </div>
 

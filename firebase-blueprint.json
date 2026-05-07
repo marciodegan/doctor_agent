@@ -21,6 +21,7 @@
         "userEmail": { "type": "string" },
         "displayName": { "type": "string" },
         "photoURL": { "type": "string" },
+        "whatsapp": { "type": "string" },
         "role": { "type": "string", "enum": ["owner", "member"] },
         "joinedAt": { "type": "string", "format": "date-time" }
       },
@@ -169,6 +170,7 @@
         "email": { "type": "string" },
         "displayName": { "type": "string" },
         "photoURL": { "type": "string" },
+        "whatsapp": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "doctor", "staff"] }
       }
     },

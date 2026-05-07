@@ -28,6 +28,7 @@ interface GroupMember {
   userEmail: string;
   displayName?: string;
   photoURL?: string;
+  whatsapp?: string;
   role: string;
   status: "active" | "pending" | "cancelled";
 }
@@ -49,7 +50,7 @@ interface GroupContextType {
   declineInvite: (groupId: string) => Promise<void>;
   removeMember: (groupId: string, userId: string) => Promise<void>;
   cancelInvite: (groupId: string, email: string) => Promise<void>;
-  updateProfile: (displayName: string, photoURL: string) => Promise<void>;
+  updateProfile: (displayName: string, photoURL: string, whatsapp?: string) => Promise<void>;
 }
 
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
@@ -262,6 +263,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         userEmail: user.email || "",
         displayName: profile.displayName || "",
         photoURL: profile.photoURL || "",
+        whatsapp: profile.whatsapp || "",
         role: "owner",
         status: "active",
         joinedAt: serverTimestamp()
@@ -372,6 +374,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         userEmail: user.email || "",
         displayName: profile.displayName || "",
         photoURL: profile.photoURL || "",
+        whatsapp: profile.whatsapp || "",
         status: "active",
         joinedAt: serverTimestamp()
       }, { merge: true });
@@ -513,13 +516,14 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateProfile = async (displayName: string, photoURL: string) => {
+  const updateProfile = async (displayName: string, photoURL: string, whatsapp?: string) => {
     if (!user) return;
     try {
       // 1. Update user profile
       await setDoc(doc(db, "users", user.uid), {
         displayName,
         photoURL,
+        whatsapp: whatsapp || "",
         updatedAt: serverTimestamp()
       }, { merge: true });
 
@@ -527,18 +531,20 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       if (activeGroup) {
         await setDoc(doc(db, `groups/${activeGroup.id}/members`, user.uid), {
           displayName,
-          photoURL
+          photoURL,
+          whatsapp: whatsapp || ""
         }, { merge: true });
       }
 
-      // 3. Update all memberships (async background would be better, but we do it here for simplicity)
+      // 3. Update all memberships
       const membershipsSnap = await getDocs(collection(db, `users/${user.uid}/memberships`));
       const syncPromises = membershipsSnap.docs.map(async (mDoc) => {
         const gid = mDoc.id;
         try {
           await setDoc(doc(db, `groups/${gid}/members`, user.uid), {
             displayName,
-            photoURL
+            photoURL,
+            whatsapp: whatsapp || ""
           }, { merge: true });
         } catch (e) {
           console.error(`Failed to sync profile to group ${gid}`, e);
