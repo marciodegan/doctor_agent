@@ -45,6 +45,16 @@ export function GroupSelector() {
   const currentUserMembership = activeGroupMembers.find(m => m.userId === user?.uid);
   const isOwner = currentUserMembership?.role === "owner";
 
+  const sortedMembers = [...activeGroupMembers].sort((a, b) => {
+    const statusPriority: Record<string, number> = {
+      active: 1,
+      pending: 2,
+      removed: 3,
+      cancelled: 4
+    };
+    return (statusPriority[a.status] || 99) - (statusPriority[b.status] || 99);
+  });
+
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
@@ -415,13 +425,13 @@ export function GroupSelector() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between border-b border-gray-50 pb-2">
                     <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-                       Membros da Equipe ({activeGroupMembers.length})
+                       Membros da Equipe ({activeGroupMembers.filter(m => m.status !== 'removed').length})
                     </h3>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {activeGroupMembers.map((member) => (
-                      <div key={(member.userId || '') + member.userEmail} className="bg-gray-50/50 border border-gray-100 p-4 rounded-3xl flex items-center justify-between group/card transition-all hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 pointer-events-auto">
+                    {sortedMembers.map((member) => (
+                      <div key={(member.userId || '') + member.userEmail} className={`bg-gray-50/50 border border-gray-100 p-4 rounded-3xl flex items-center justify-between group/card transition-all hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 pointer-events-auto ${member.status === 'removed' ? 'opacity-50' : ''}`}>
                         <div className="flex items-center gap-4">
                           <div className="relative">
                             <div className={`w-12 h-12 rounded-2xl overflow-hidden shadow-sm flex items-center justify-center transition-all ${member.status === 'active' ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
@@ -431,7 +441,10 @@ export function GroupSelector() {
                                 <span className="text-sm font-black">{(member.displayName || member.userEmail || "M").charAt(0).toUpperCase()}</span>
                               )}
                             </div>
-                            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${member.status === 'active' ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                              member.status === 'active' ? 'bg-emerald-500' : 
+                              member.status === 'pending' ? 'bg-amber-400' : 'bg-gray-400'
+                            }`} />
                           </div>
                           
                           <div className="flex flex-col min-w-0">
@@ -445,16 +458,16 @@ export function GroupSelector() {
                                </span>
                                <span className={`text-[8px] font-black uppercase tracking-tighter ${
                                   member.status === 'active' ? 'text-emerald-500' : 
-                                  member.status === (('cancelled' as any)) ? 'text-red-500' : 'text-amber-500'
+                                  member.status === 'pending' ? 'text-amber-500' : 'text-gray-400'
                                }`}>
-                                  {member.status === 'active' ? 'Ativo' : 
-                                   member.status === (('cancelled' as any)) ? 'Recusou' : 'Pendente'}
+                                  {member.status === 'active' ? 'Conectado' : 
+                                   member.status === 'pending' ? 'Convidado' : 'Removido'}
                                </span>
                             </div>
                           </div>
                         </div>
 
-                        {isOwner && member.userId !== user?.uid && (
+                        {isOwner && member.userId !== user?.uid && member.status !== 'removed' && (
                           <button
                             onClick={() => handleRemoveMember(member.userId, member.userEmail, member.status)}
                             disabled={isRemoving === (member.userId || member.userEmail)}
@@ -577,37 +590,44 @@ export function GroupSelector() {
 
             <div className="px-2 space-y-2">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Membros da Equipe</div>
-              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-                {activeGroupMembers.map((member) => (
-                  <div key={(member.userId || '') + member.userEmail} className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 transition-colors group/member">
-                    <div className="flex items-center gap-2.5">
+              <div className="max-h-56 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                {sortedMembers.map((member) => (
+                  <div key={(member.userId || '') + member.userEmail} className={`flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 transition-colors group/member ${member.status === 'removed' ? 'opacity-50' : ''}`}>
+                    <div className="flex items-center gap-3">
                       <div className="relative shrink-0">
-                        <div className={`w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center border border-white shadow-sm ${member.status === 'active' ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                        <div className={`w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center border border-white shadow-sm ${member.status === 'active' ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
                           {member.photoURL ? (
                             <img src={member.photoURL} alt="Avatar" className="w-full h-full object-cover" />
                           ) : (
-                            <span className="text-[10px] font-black">{(member.displayName || member.userEmail || "M").charAt(0).toUpperCase()}</span>
+                            <span className="text-[11px] font-black">{(member.displayName || member.userEmail || "M").charAt(0).toUpperCase()}</span>
                           )}
                         </div>
-                        <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${member.status === 'active' ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                          member.status === 'active' ? 'bg-emerald-500' : 
+                          member.status === 'pending' ? 'bg-amber-400' : 'bg-gray-400'
+                        }`} />
                       </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[11px] font-black text-gray-700 truncate max-w-[100px] uppercase tracking-tight">
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="text-[11px] font-black text-gray-800 truncate uppercase tracking-tight leading-none mb-0.5">
                           {member.displayName || (member.userEmail?.split('@')[0])}
                         </span>
-                        <span className="text-[8px] font-black uppercase text-gray-400 tracking-tighter">
-                          {member.role === 'owner' ? 'Admin' : 'Membro'}
+                        <span className="text-[9px] font-bold text-gray-400 truncate leading-none mb-1 lowercase">
+                          {member.userEmail}
                         </span>
+                        <div className="flex items-center gap-1.5 leading-none">
+                           <span className={`text-[7px] font-black uppercase tracking-widest ${
+                              member.status === 'active' ? 'text-emerald-500' : 
+                              member.status === 'pending' ? 'text-amber-500' : 'text-gray-400'
+                           }`}>
+                             {member.status === 'active' ? 'Conectado' : 
+                              member.status === 'pending' ? 'Convidado' : 'Removido'}
+                           </span>
+                           <span className="text-[7px] text-gray-300">•</span>
+                           <span className="text-[7px] font-black uppercase text-gray-400 tracking-tighter">
+                             {member.role === 'owner' ? 'Admin' : 'Membro'}
+                           </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`text-[9px] font-black uppercase tracking-wider ${
-                        member.status === 'active' ? 'text-emerald-600' : 
-                        member.status === (('cancelled' as any)) ? 'text-red-600' : 'text-amber-600'
-                      }`}>
-                        {member.status === 'active' ? '✓' : 
-                        member.status === (('cancelled' as any)) ? '✕' : '...'}
-                      </span>
                     </div>
                   </div>
                 ))}

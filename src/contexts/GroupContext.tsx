@@ -30,7 +30,7 @@ interface GroupMember {
   photoURL?: string;
   whatsapp?: string;
   role: string;
-  status: "active" | "pending" | "cancelled";
+  status: "active" | "pending" | "cancelled" | "removed";
 }
 
 interface GroupContextType {
@@ -292,6 +292,12 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     const cleanEmail = email.trim().toLowerCase();
     
     try {
+       // 0. Check if already invited or member
+       const existing = activeGroupMembers.find(m => m.userEmail.toLowerCase() === cleanEmail);
+       if (existing && existing.status !== "removed") {
+         throw new Error("Este usuário já foi convidado ou já faz parte do grupo");
+       }
+
        // Verify if current user is owner (admin)
        const myMembership = activeGroupMembers.find(m => m.userId === user.uid);
        if (myMembership?.role !== "owner") {
@@ -447,12 +453,18 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Apenas o admin pode remover membros");
       }
 
-      // 1. Remove from group members
-      await deleteDoc(doc(db, `groups/${groupId}/members`, userId));
-      // 2. Remove from user's memberships
-      await deleteDoc(doc(db, `users/${userId}/memberships`, groupId));
+      // 1. Mark as removed in group members
+      await setDoc(doc(db, `groups/${groupId}/members`, userId), {
+        status: "removed",
+        removedAt: serverTimestamp()
+      }, { merge: true });
+      
+      // 2. Mark as removed in user's memberships
+      await setDoc(doc(db, `users/${userId}/memberships`, groupId), {
+        status: "removed"
+      }, { merge: true });
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `groups/${groupId}/members/${userId}`);
+      handleFirestoreError(err, OperationType.WRITE, `groups/${groupId}/members/${userId}`);
     }
   };
 
@@ -466,24 +478,33 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Apenas o admin pode cancelar convites");
       }
 
-      // 1. Remove from group_invitations
+      // 1. Mark as removed in group_invitations
       const invId = `${groupId}_${cleanEmail.replace(/\./g, '_')}`;
-      await deleteDoc(doc(db, "group_invitations", invId));
+      await setDoc(doc(db, "group_invitations", invId), {
+        status: "cancelled",
+        cancelledAt: serverTimestamp()
+      }, { merge: true });
       
-      // 2. Remove the "invite_..." record from group members
+      // 2. Mark the "invite_..." record from group members as removed
       const inviteMemberId = `invite_${cleanEmail.replace(/\./g, '_')}`;
-      await deleteDoc(doc(db, `groups/${groupId}/members`, inviteMemberId));
+      await setDoc(doc(db, `groups/${groupId}/members`, inviteMemberId), {
+        status: "removed"
+      }, { merge: true });
       
       // 3. Try to find if a real user was linked
       const userQuery = query(collection(db, "users"), where("email", "==", cleanEmail));
       const userSnap = await getDocs(userQuery);
       if (!userSnap.empty) {
         const targetUid = userSnap.docs[0].id;
-        await deleteDoc(doc(db, `users/${targetUid}/memberships`, groupId));
-        await deleteDoc(doc(db, `groups/${groupId}/members`, targetUid));
+        await setDoc(doc(db, `users/${targetUid}/memberships`, groupId), {
+          status: "removed"
+        }, { merge: true });
+        await setDoc(doc(db, `groups/${groupId}/members`, targetUid), {
+          status: "removed"
+        }, { merge: true });
       }
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `group_invitations`);
+      handleFirestoreError(err, OperationType.WRITE, `group_invitations`);
     }
   };
 
