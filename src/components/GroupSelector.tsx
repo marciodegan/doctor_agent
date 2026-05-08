@@ -380,7 +380,7 @@ export function GroupSelector() {
                     }`}
                   >
                     <div
-                      className={`w-6 h-6 rounded-md flex items-center justify-center transition-all shrink-0 ${
+                      className={`w-6 h-6 rounded-md flex items-center justify-center transition-all shrink-0 overflow-hidden ${
                         activeGroup?.id === group.id
                           ? group.groupType === "personal"
                             ? "bg-rose-600 text-white"
@@ -388,9 +388,17 @@ export function GroupSelector() {
                           : "bg-gray-100 text-gray-400 group-hover:bg-gray-200"
                       }`}
                     >
-                      <span className="text-[10px] font-black">
-                        {(group.name || "G").charAt(0).toUpperCase()}
-                      </span>
+                      {group.photoURL ? (
+                        <img
+                          src={group.photoURL}
+                          alt={group.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-[10px] font-black">
+                          {(group.name || "G").charAt(0).toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-1.5">

@@ -737,17 +737,33 @@ app.get("/api/app/settings", async (req, res) => {
 
 // Update app settings
 app.post("/api/app/settings", async (req, res) => {
-  const { companyName, whatsappNumber, imageAnalysisPrompt } = req.body;
+  const { companyName, whatsappNumber, imageAnalysisPrompt, groupPhotoURL } = req.body;
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
-    await db.collection("settings").doc(groupId).set({
+    const batch = db.batch();
+    
+    // Update settings collection
+    const settingsRef = db.collection("settings").doc(groupId);
+    batch.set(settingsRef, {
       companyName: companyName || "",
       whatsappNumber: whatsappNumber || "",
       imageAnalysisPrompt: imageAnalysisPrompt || "",
       groupId
     }, { merge: true });
+
+    // Update groups collection for quick access to photo and name
+    const groupRef = db.collection("groups").doc(groupId);
+    const groupUpdate: any = {};
+    if (companyName) groupUpdate.name = companyName;
+    if (groupPhotoURL !== undefined) groupUpdate.photoURL = groupPhotoURL;
+    
+    if (Object.keys(groupUpdate).length > 0) {
+      batch.set(groupRef, groupUpdate, { merge: true });
+    }
+
+    await batch.commit();
     res.json({ status: "ok" });
   } catch (error) {
     handleApiError(res, error, "Updating settings");

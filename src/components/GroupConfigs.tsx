@@ -13,7 +13,10 @@ import {
   ChevronRight,
   ArrowLeft,
   Users,
-  Settings
+  Settings,
+  Camera,
+  Upload,
+  FolderOpen,
 } from "lucide-react";
 import { 
   collection, 
@@ -33,7 +36,7 @@ import { useGroup } from "../contexts/GroupContext";
 import { motion, AnimatePresence } from "motion/react";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 
-type ConfigType = "hospitals" | "patient_statuses" | "procedureOptions" | "surgery_types" | "affinity" | "members" | "general";
+type ConfigType = "hospitals" | "patient_statuses" | "procedureOptions" | "surgery_types" | "affinity" | "members" | "general" | "document_categories";
 
 interface ConfigItem {
   id: string;
@@ -55,20 +58,65 @@ export function GroupConfigs() {
   // Local settings for the general tab
   const [localCompanyName, setLocalCompanyName] = useState(companyName);
   const [localWhatsappNumber, setLocalWhatsappNumber] = useState(whatsappNumber);
-  const [localImageAnalysisPrompt, setLocalImageAnalysisPrompt] = useState(imageAnalysisPrompt);
+  const [localImageAnalysisPrompt, setLocalImageAnalysisPrompt] = useState(
+    imageAnalysisPrompt,
+  );
+  const [localGroupPhotoURL, setLocalGroupPhotoURL] = useState(
+    activeGroup?.photoURL || "",
+  );
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLocalCompanyName(companyName);
     setLocalWhatsappNumber(whatsappNumber);
     setLocalImageAnalysisPrompt(imageAnalysisPrompt);
-  }, [companyName, whatsappNumber, imageAnalysisPrompt]);
+    setLocalGroupPhotoURL(activeGroup?.photoURL || "");
+  }, [companyName, whatsappNumber, imageAnalysisPrompt, activeGroup?.photoURL]);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPhoto(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Data = (reader.result as string).split(",")[1];
+        const res = await fetch("/api/storage/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `group_${activeGroup?.id}_${Date.now()}.jpg`,
+            mimeType: file.type,
+            base64Data,
+          }),
+        });
+        const data = await res.json();
+        if (data.webViewLink) {
+          setLocalGroupPhotoURL(data.webViewLink);
+        }
+        setIsUploadingPhoto(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+      alert("Erro no upload da foto");
+      setIsUploadingPhoto(false);
+    }
+  };
 
   const onUpdateSettings = async () => {
     setIsUpdatingSettings(true);
     try {
-      await updateSettings(localCompanyName, localWhatsappNumber, localImageAnalysisPrompt);
+      await updateSettings(
+        localCompanyName,
+        localWhatsappNumber,
+        localImageAnalysisPrompt,
+        localGroupPhotoURL,
+      );
       alert("Configurações atualizadas!");
     } catch (err) {
       console.error(err);
@@ -135,7 +183,8 @@ export function GroupConfigs() {
       procedureOptions: ["Apendicectomia", "Colecistectomia", "Hernioplastia", "Histerectomia", "Artroscopia"],
       surgery_types: ["URGENTE", "ELETIVA"],
       affinity: ["Filho(a)", "Irmão/Irmã", "Pai/Mãe", "Cônjuge", "Avô/Avó", "Amigo(a)"],
-      hospitals: ["Hospital Municipal", "Hospital Santa Maria", "Santa Casa"]
+      hospitals: ["Hospital Municipal", "Hospital Santa Maria", "Santa Casa"],
+      document_categories: ["Saúde", "Seguros", "Imóveis", "Filhos", "Educação", "Financeiro"]
     };
 
     const categoriesToInit = forceType === "all" ? Object.keys(defaults) : [targetType];
@@ -278,6 +327,7 @@ export function GroupConfigs() {
     { id: "procedureOptions", label: "Procedimentos", icon: <Stethoscope size={24} />, color: "text-purple-600", bg: "bg-purple-50", description: "Configurar tipos de procedimentos", hidden: activeGroup?.groupType === "personal" },
     { id: "patient_statuses", label: "Status de Paciente", icon: <Activity size={24} />, color: "text-emerald-600", bg: "bg-emerald-50", description: "Etapas do fluxo de atendimento", hidden: activeGroup?.groupType === "personal" },
     { id: "surgery_types", label: "Tipos de Cirurgia", icon: <Zap size={24} />, color: "text-amber-600", bg: "bg-amber-50", description: "Categorias e prioridades", hidden: activeGroup?.groupType === "personal" },
+    { id: "document_categories", label: "Categorias de Documento", icon: <FolderOpen size={24} />, color: "text-red-600", bg: "bg-red-50", description: "Organize seus documentos pessoais", hidden: activeGroup?.groupType !== "personal" },
     { id: "affinity", label: activeGroup?.groupType === "personal" ? "Parentesco" : "Afinidades", icon: <Heart size={24} />, color: "text-pink-600", bg: "bg-pink-50", description: "Graus de parentesco" },
     { id: "general", label: "Ajustes Gerais", icon: <Settings size={24} />, color: "text-indigo-600", bg: "bg-indigo-50", description: "Dados gerais e WhatsApp" },
   ].filter(item => !item.hidden);
@@ -301,8 +351,47 @@ export function GroupConfigs() {
         </div>
 
         <div className="space-y-6 max-w-lg">
+          <div className="flex flex-col items-center mb-4">
+            <div className="relative group">
+              <div className="w-24 h-24 rounded-[32px] bg-indigo-50 border-2 border-indigo-100 flex items-center justify-center overflow-hidden shadow-xl shadow-indigo-100/50">
+                {localGroupPhotoURL ? (
+                  <img
+                    src={localGroupPhotoURL}
+                    alt="Group"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Camera size={32} className="text-indigo-300" />
+                )}
+                {isUploadingPhoto && (
+                  <div className="absolute inset-0 bg-indigo-900/40 flex items-center justify-center">
+                    <Loader2 size={24} className="animate-spin text-white" />
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute -bottom-2 -right-2 bg-white border border-gray-100 p-2.5 rounded-2xl text-indigo-600 shadow-xl hover:scale-110 active:scale-95 transition-all"
+              >
+                <Upload size={14} />
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+              />
+            </div>
+            <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-4">
+              Foto do Grupo
+            </p>
+          </div>
+
           <div>
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Nome da Empresa / Profissional</label>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
+              Nome da Empresa / Profissional
+            </label>
             <input 
               type="text" 
               value={localCompanyName} 

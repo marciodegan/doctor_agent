@@ -209,9 +209,17 @@ export default function App() {
           {activeGroup && (
             <button 
               onClick={() => setIsManagementOpen(true)}
-              className={`flex items-center gap-2 ${activeGroup.groupType === 'personal' ? 'bg-rose-600 border-rose-500 shadow-rose-100' : 'bg-emerald-600 border-emerald-500 shadow-emerald-100'} text-white px-3 py-1.5 lg:px-4 lg:py-2 rounded-2xl hover:brightness-110 transition-all shadow-lg active:scale-95 border shrink-0`}
+              className={`flex items-center gap-2 ${activeGroup.groupType === 'personal' ? 'bg-rose-600 border-rose-500 shadow-rose-100' : 'bg-emerald-600 border-emerald-500 shadow-emerald-100'} text-white px-1.5 py-1.5 lg:pl-1.5 lg:pr-4 lg:py-2 rounded-2xl hover:brightness-110 transition-all shadow-lg active:scale-95 border shrink-0`}
             >
-              {activeGroup.groupType === 'personal' ? <User size={14} className="text-white shrink-0" /> : <Users size={14} className="text-white shrink-0" />}
+              {activeGroup.photoURL ? (
+                <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl overflow-hidden border border-white/20">
+                  <img src={activeGroup.photoURL} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-black/10 flex items-center justify-center">
+                  {activeGroup.groupType === 'personal' ? <User size={14} className="text-white shrink-0" /> : <Users size={14} className="text-white shrink-0" />}
+                </div>
+              )}
               <div className="flex flex-col items-start gap-0 lg:gap-0.5 leading-none pr-1 overflow-hidden">
                 <span className="text-[8px] lg:text-[9px] font-black uppercase tracking-wider opacity-80 whitespace-nowrap">
                   {activeGroup.groupType === 'personal' ? 'Meu Grupo' : 'Minha Equipe'}

@@ -21,6 +21,7 @@ interface Group {
   name: string;
   createdBy: string;
   groupType: "professional" | "personal";
+  photoURL?: string;
   status?: "active" | "pending";
 }
 
@@ -43,7 +44,12 @@ interface GroupContextType {
   companyName: string;
   whatsappNumber: string;
   imageAnalysisPrompt: string;
-  updateSettings: (name: string, wa: string, prompt?: string) => Promise<void>;
+  updateSettings: (
+    name: string,
+    wa: string,
+    prompt?: string,
+    groupPhotoURL?: string,
+  ) => Promise<void>;
   handleBackup: () => Promise<any>;
   setActiveGroupId: (id: string) => void;
   createGroup: (
@@ -710,7 +716,12 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateSettings = async (name: string, wa: string, prompt?: string) => {
+  const updateSettings = async (
+    name: string,
+    wa: string,
+    prompt?: string,
+    groupPhotoURL?: string,
+  ) => {
     try {
       const res = await apiFetch("/api/app/settings", {
         method: "POST",
@@ -719,12 +730,16 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           companyName: name,
           whatsappNumber: wa,
           imageAnalysisPrompt: prompt,
+          groupPhotoURL: groupPhotoURL,
         }),
       });
       if (res.ok) {
         setCompanyName(name);
         setWhatsappNumber(wa);
         if (prompt !== undefined) setImageAnalysisPrompt(prompt);
+        if (groupPhotoURL !== undefined && activeGroup) {
+          setActiveGroup({ ...activeGroup, photoURL: groupPhotoURL });
+        }
       }
     } catch (err) {
       console.error("Failed to update settings", err);
