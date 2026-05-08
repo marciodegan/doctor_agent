@@ -31,7 +31,7 @@ import { useGroup } from "../contexts/GroupContext";
 import { motion, AnimatePresence } from "motion/react";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 
-type ConfigType = "hospitals" | "patient_statuses" | "procedureOptions" | "surgery_types" | "affinity";
+type ConfigType = "hospitals" | "patient_statuses" | "procedureOptions" | "surgery_types" | "affinity" | "members";
 
 interface ConfigItem {
   id: string;

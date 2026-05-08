@@ -13,7 +13,8 @@ import {
   UserPlus,
   Maximize,
   X,
-  ArrowLeft
+  ArrowLeft,
+  Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 

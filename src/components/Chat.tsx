@@ -5,6 +5,16 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
 import { auth, db } from "../lib/firebase";
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  orderBy, 
+  getDocs, 
+  addDoc, 
+  serverTimestamp 
+} from "firebase/firestore";
 import { useGroup } from "../contexts/GroupContext";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 
@@ -698,8 +708,6 @@ export const Chat: React.FC<{
 
       setIsLoading(true);
       try {
-        const { collection, addDoc, serverTimestamp } = await import("firebase/firestore");
-        const { db, auth } = await import("../lib/firebase");
         if (!auth.currentUser) throw new Error("Usuário não autenticado");
 
         const GROUP_ID = activeGroup?.id || "main-group";
