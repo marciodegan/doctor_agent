@@ -1292,6 +1292,106 @@ app.delete("/api/calendar/events/:eventId", async (req, res) => {
 });
 
 // Generic Storage Upload
+app.post("/api/drive/upload", express.json({ limit: "25mb" }), async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const { name, mimeType, base64Data, folderName } = req.body;
+
+  if (!base64Data) {
+    return res.status(400).json({ error: "Missing base64Data" });
+  }
+
+  const drive = google.drive({ version: "v3", auth });
+
+  try {
+    // 1. Find or Create Folder
+    let folderId = "";
+    if (folderName) {
+      const folderRes = await drive.files.list({
+        q: `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        fields: "files(id)",
+      });
+      
+      if (folderRes.data.files && folderRes.data.files.length > 0) {
+        folderId = folderRes.data.files[0].id!;
+      } else {
+        const createFolderRes = await drive.files.create({
+          requestBody: {
+            name: folderName,
+            mimeType: "application/vnd.google-apps.folder",
+          },
+          fields: "id",
+        });
+        folderId = createFolderRes.data.id!;
+      }
+    }
+
+    // 2. Upload File
+    const buffer = Buffer.from(base64Data, "base64");
+    const stream = new Readable();
+    stream.push(buffer);
+    stream.push(null);
+
+    const fileMetadata = {
+      name: name || `Upload_${Date.now()}`,
+      parents: folderId ? [folderId] : [],
+    };
+    const media = {
+      mimeType: mimeType || "image/jpeg",
+      body: stream,
+    };
+
+    const response = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: "id, name, webViewLink, webContentLink",
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("[Drive] Upload error:", error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.get("/api/drive/list", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const { folderName } = req.query;
+  const drive = google.drive({ version: "v3", auth });
+
+  try {
+    let q = "trashed = false";
+    if (folderName) {
+      // First find the folder ID
+      const folderRes = await drive.files.list({
+        q: `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        fields: "files(id)",
+      });
+      
+      if (folderRes.data.files && folderRes.data.files.length > 0) {
+        q += ` and '${folderRes.data.files[0].id}' in parents`;
+      } else {
+        return res.json([]); // Folder doesn't exist yet
+      }
+    }
+
+    const response = await drive.files.list({
+      q: q,
+      fields: "files(id, name, mimeType, webViewLink, iconLink, thumbnailLink, createdTime)",
+      orderBy: "createdTime desc",
+    });
+
+    res.json(response.data.files || []);
+  } catch (error) {
+    console.error("[Drive] List error:", error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Generic Storage Upload (Original for Firebase Storage)
 app.post("/api/storage/upload", express.json({ limit: "15mb" }), async (req, res) => {
   const { name, mimeType, base64Data } = req.body;
 

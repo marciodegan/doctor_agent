@@ -598,7 +598,7 @@ export const Chat: React.FC<{
           }
         };
 
-        const res = await fetch("/api/calendar/events", {
+        const res = await apiFetch("/api/calendar/events", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body)
@@ -628,7 +628,7 @@ export const Chat: React.FC<{
         const dayAfterTomorrow = new Date(today);
         dayAfterTomorrow.setDate(today.getDate() + 2);
         
-        const res = await fetch(`/api/calendar/events?timeMin=${today.toISOString()}&timeMax=${dayAfterTomorrow.toISOString()}`);
+        const res = await apiFetch(`/api/calendar/events?timeMin=${today.toISOString()}&timeMax=${dayAfterTomorrow.toISOString()}`);
         const data = await res.json();
         
         const formatDate = (date: Date) => {
@@ -1958,7 +1958,7 @@ export const Chat: React.FC<{
       
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/calendar/events/${eventPart}`, { method: "DELETE" });
+        const res = await apiFetch(`/api/calendar/events/${eventPart}`, { method: "DELETE" });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
@@ -2010,7 +2010,7 @@ export const Chat: React.FC<{
 
       setIsLoading(true);
       try {
-        const res = await fetch("/api/app/patients/status", {
+        const res = await apiFetch("/api/app/patients/status", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ patientId: pacId, status: statusId, statusName: sname })
@@ -2038,7 +2038,7 @@ export const Chat: React.FC<{
       setIsLoading(true);
       try {
         // 1. Check Quota
-        const qRes = await fetch("/api/ai/check-quota");
+        const qRes = await apiFetch("/api/ai/check-quota");
         const qData = await qRes.json();
         if (qData.remaining <= 0) throw new Error(qData.error || "Você atingiu sua cota de 10 análises diárias.");
 
@@ -2076,7 +2076,7 @@ export const Chat: React.FC<{
         const analysis = result.text || "Análise indisponível.";
 
         // 4. Save analysis to database
-        const saveRes = await fetch("/api/ai/save-analysis", {
+        const saveRes = await apiFetch("/api/ai/save-analysis", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fileId, analysis })

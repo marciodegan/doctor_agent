@@ -108,7 +108,9 @@ export function TeamManagement() {
               </div>
               <div className="min-w-0">
                 <h2 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight leading-none mb-1 uppercase truncate">{activeGroup.name}</h2>
-                <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest leading-none truncate">Equipe e Colaboração</p>
+                <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest leading-none truncate">
+                  {activeGroup.groupType === 'personal' ? 'Membros da Família' : 'Equipe e Colaboração'}
+                </p>
               </div>
             </div>
             <button 
@@ -129,7 +131,9 @@ export function TeamManagement() {
                   {/* Connected Teammates Quick View */}
                  <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                       <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Médicos Conectados Agora</h3>
+                       <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">
+                         {activeGroup.groupType === 'personal' ? 'Membros Conectados' : 'Médicos Conectados Agora'}
+                       </h3>
                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 shadow-sm shadow-emerald-100/50">
                           <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
                           <span className="text-[10px] font-black text-emerald-600 uppercase tracking-tight">
@@ -183,8 +187,12 @@ export function TeamManagement() {
                         <Users size={32} />
                       </div>
                       <div className="text-center">
-                        <h4 className="text-[15px] font-black uppercase tracking-tight mb-1">Membros</h4>
-                        <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:text-blue-50">Equipe & Convites</p>
+                        <h4 className="text-[15px] font-black uppercase tracking-tight mb-1">
+                          {activeGroup.groupType === 'personal' ? 'Integrantes' : 'Membros'}
+                        </h4>
+                        <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:text-blue-50">
+                          {activeGroup.groupType === 'personal' ? 'Família & Convites' : 'Equipe & Convites'}
+                        </p>
                       </div>
                     </button>
 
@@ -241,7 +249,9 @@ export function TeamManagement() {
                      <ArrowLeft size={20} />
                    </button>
                    <div>
-                      <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Membros da Equipe</h3>
+                      <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">
+                        {activeGroup.groupType === 'personal' ? 'Membros da Família' : 'Membros da Equipe'}
+                      </h3>
                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Gestão de Acessos e Convites</p>
                    </div>
                 </div>
@@ -251,7 +261,7 @@ export function TeamManagement() {
                   <div className="flex items-center justify-between">
                     <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-2">
                        <UserPlus size={14} />
-                       Convidar Novo Médico
+                       {activeGroup.groupType === 'personal' ? 'Convidar Novo Integrante' : 'Convidar Novo Médico'}
                     </h3>
                   </div>
               
@@ -284,7 +294,7 @@ export function TeamManagement() {
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-gray-50 pb-2">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-                   Membros da Equipe ({activeGroupMembers.filter(m => m.status === 'active').length})
+                   {activeGroup.groupType === 'personal' ? 'Integrantes' : 'Membros da Equipe'} ({activeGroupMembers.filter(m => m.status === 'active').length})
                 </h3>
               </div>
 

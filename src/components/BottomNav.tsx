@@ -1,12 +1,14 @@
 import React from "react";
-import { 
-  MessageSquare, 
-  Calendar, 
-  CalendarDays, 
+import {
+  MessageSquare,
+  Calendar,
+  CalendarDays,
   Users,
-  Settings
+  Settings,
+  FileText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useGroup } from "../contexts/GroupContext";
 
 interface BottomNavProps {
   currentView: string;
@@ -14,12 +16,39 @@ interface BottomNavProps {
   onOpenManagement: () => void;
 }
 
-export function BottomNav({ currentView, onNavigate, onOpenManagement }: BottomNavProps) {
+export function BottomNav({
+  currentView,
+  onNavigate,
+  onOpenManagement,
+}: BottomNavProps) {
+  const { activeGroup } = useGroup();
+  const isPersonal = activeGroup?.groupType === "personal";
+
   const tabs = [
-    { id: "workspace", label: "Pacientes", icon: <Users size={20} />, prompt: "/pacientes" },
-    { id: "calendar", label: "Calendário", icon: <Calendar size={20} />, prompt: "/open_calendar" },
-    { id: "agenda", label: "Agenda", icon: <CalendarDays size={20} />, prompt: "/agenda" },
-    { id: "management", label: "Equipe", icon: <Users size={18} />, action: onOpenManagement },
+    {
+      id: "workspace",
+      label: isPersonal ? "Documentos" : "Pacientes",
+      icon: isPersonal ? <FileText size={20} /> : <Users size={20} />,
+      prompt: isPersonal ? "/drive" : "/pacientes",
+    },
+    {
+      id: "calendar",
+      label: "Calendário",
+      icon: <Calendar size={20} />,
+      prompt: "/open_calendar",
+    },
+    {
+      id: "agenda",
+      label: "Agenda",
+      icon: <CalendarDays size={20} />,
+      prompt: "/agenda",
+    },
+    {
+      id: "management",
+      label: "Equipe",
+      icon: <Users size={18} />,
+      action: onOpenManagement,
+    },
   ];
 
   return (
@@ -28,12 +57,16 @@ export function BottomNav({ currentView, onNavigate, onOpenManagement }: BottomN
         {tabs.map((tab, idx) => {
           const isActive = currentView === tab.id;
           const isEquipe = tab.id === "management";
-          
+
           return (
             <button
               key={tab.label}
               id={tab.id === "management" ? "equipe-nav-button" : undefined}
-              onClick={() => tab.action ? tab.action() : onNavigate(tab.id, (tab as any).prompt)}
+              onClick={() =>
+                tab.action
+                  ? tab.action()
+                  : onNavigate(tab.id, (tab as any).prompt)
+              }
               className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 min-w-[64px] relative group"
             >
               <AnimatePresence>
@@ -52,7 +85,7 @@ export function BottomNav({ currentView, onNavigate, onOpenManagement }: BottomN
               <motion.div
                 animate={{
                   scale: isActive ? 1.15 : 1,
-                  color: isActive ? "#2563eb" : "#9ca3af"
+                  color: isActive ? "#2563eb" : "#9ca3af",
                 }}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 className="relative"
@@ -67,16 +100,18 @@ export function BottomNav({ currentView, onNavigate, onOpenManagement }: BottomN
                   tab.icon
                 )}
                 {isActive && !isEquipe && (
-                  <motion.div 
+                  <motion.div
                     layoutId="active-dot"
                     className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full border-2 border-white shadow-sm"
                   />
                 )}
               </motion.div>
-              
-              <span className={`text-[9px] font-black uppercase tracking-widest transition-colors duration-200 ${
-                isActive ? "text-blue-600" : "text-gray-400"
-              }`}>
+
+              <span
+                className={`text-[9px] font-black uppercase tracking-widest transition-colors duration-200 ${
+                  isActive ? "text-blue-600" : "text-gray-400"
+                }`}
+              >
                 {tab.label}
               </span>
             </button>

@@ -56,7 +56,7 @@ const MONTHS = [
 ];
 
 export function Calendar() {
-  const { activeGroup, whatsappNumber } = useGroup();
+  const { activeGroup, whatsappNumber, apiFetch } = useGroup();
   const GROUP_ID = activeGroup?.id || "main-group";
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -177,7 +177,7 @@ export function Calendar() {
   useEffect(() => {
     const fetchHospitals = async () => {
       try {
-        const res = await fetch("/api/app/hospitals");
+        const res = await apiFetch("/api/app/hospitals");
         const data = await res.json();
         // Since we have real-time listeners, we might not need this fetch, 
         // but it was here before. I'll comment it out or keep it for the very first load

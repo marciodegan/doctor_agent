@@ -42,6 +42,8 @@ import { BottomNav } from "./components/BottomNav";
 
 import { TeamManagement } from "./components/TeamManagement";
 
+import { PersonalDocuments } from "./components/PersonalDocuments";
+
 export default function App() {
   const { isAuthenticated, login, logout } = useAuth();
   const { activeGroup, setIsManagementOpen } = useGroup();
@@ -207,11 +209,13 @@ export default function App() {
           {activeGroup && (
             <button 
               onClick={() => setIsManagementOpen(true)}
-              className="flex items-center gap-2 bg-emerald-600 text-white px-3 py-1.5 lg:px-4 lg:py-2 rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95 border border-emerald-500 shrink-0"
+              className={`flex items-center gap-2 ${activeGroup.groupType === 'personal' ? 'bg-rose-600 border-rose-500 shadow-rose-100' : 'bg-emerald-600 border-emerald-500 shadow-emerald-100'} text-white px-3 py-1.5 lg:px-4 lg:py-2 rounded-2xl hover:brightness-110 transition-all shadow-lg active:scale-95 border shrink-0`}
             >
-              <Users size={14} className="text-white shrink-0" />
+              {activeGroup.groupType === 'personal' ? <User size={14} className="text-white shrink-0" /> : <Users size={14} className="text-white shrink-0" />}
               <div className="flex flex-col items-start gap-0 lg:gap-0.5 leading-none pr-1 overflow-hidden">
-                <span className="text-[8px] lg:text-[9px] font-black uppercase tracking-wider opacity-80 whitespace-nowrap">Minha Equipe</span>
+                <span className="text-[8px] lg:text-[9px] font-black uppercase tracking-wider opacity-80 whitespace-nowrap">
+                  {activeGroup.groupType === 'personal' ? 'Meu Grupo' : 'Minha Equipe'}
+                </span>
                 <span className="text-[10px] lg:text-[11px] font-black uppercase tracking-tight truncate max-w-[80px] lg:max-w-[150px]">{activeGroup.name}</span>
               </div>
               <ChevronRight size={12} className="opacity-50 shrink-0 hidden sm:block" />
@@ -266,8 +270,8 @@ export default function App() {
               <nav className="flex-1 space-y-1">
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Workspace</div>
                 <NavItem 
-                  icon={<Layout size={18} />} 
-                  label="Agent Dashboard" 
+                  icon={activeGroup?.groupType === "personal" ? <FileText size={18} /> : <Layout size={18} />} 
+                  label={activeGroup?.groupType === "personal" ? "Documentos" : "Agent Dashboard"} 
                   active={currentView === "workspace"} 
                   onClick={() => navigateAndAction("workspace")}
                 />
@@ -393,8 +397,8 @@ export default function App() {
         <nav className="flex-1 space-y-1">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Workspace</div>
           <NavItem 
-            icon={<Layout size={18} />} 
-            label="Agent Dashboard" 
+            icon={activeGroup?.groupType === "personal" ? <FileText size={18} /> : <Layout size={18} />} 
+            label={activeGroup?.groupType === "personal" ? "Documentos" : "Agent Dashboard"} 
             active={currentView === "workspace"} 
             onClick={() => setCurrentView("workspace")}
           />
@@ -571,6 +575,8 @@ export default function App() {
                         <FirestoreCalendar />
                       ) : currentView === "agenda" ? (
                         <GoogleAgenda />
+                      ) : activeGroup?.groupType === "personal" ? (
+                        <PersonalDocuments />
                       ) : (
                         <Chat 
                           onNavigateToCalendar={() => setCurrentView("calendar")} 
