@@ -37,9 +37,11 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
+import { BottomNav } from "./components/BottomNav";
+
 export default function App() {
   const { isAuthenticated, login, logout } = useAuth();
-  const { activeGroup, companyName, whatsappNumber, updateSettings, handleBackup, setIsManagementOpen } = useGroup();
+  const { activeGroup, setIsManagementOpen } = useGroup();
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -48,43 +50,8 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileGroupsOpen, setIsMobileGroupsOpen] = useState(false);
   
-  const [showSettings, setShowSettings] = useState(false);
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
-  const [isBackingUp, setIsBackingUp] = useState(false);
-  const [localCompanyName, setLocalCompanyName] = useState("");
-  const [localWhatsappNumber, setLocalWhatsappNumber] = useState("");
-
-  useEffect(() => {
-    setLocalCompanyName(companyName);
-    setLocalWhatsappNumber(whatsappNumber);
-  }, [companyName, whatsappNumber]);
-
-  const onUpdateSettings = async () => {
-    setIsUpdatingSettings(true);
-    try {
-      await updateSettings(localCompanyName, localWhatsappNumber);
-      setShowSettings(false);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsUpdatingSettings(false);
-    }
-  };
-
-  const onHandleBackup = async () => {
-    setIsBackingUp(true);
-    try {
-      await handleBackup();
-      alert("Backup realizado com sucesso!");
-      setShowSettings(false);
-    } catch (err) {
-      alert("Erro no backup");
-    } finally {
-      setIsBackingUp(false);
-    }
-  };
 
   const navigateAndAction = (view: "workspace" | "calendar" | "agenda", command?: string) => {
     setCurrentView(view);
@@ -327,14 +294,6 @@ export default function App() {
                     }}
                   />
                   <NavItem 
-                    icon={<Settings size={18} />} 
-                    label="Configurações" 
-                    onClick={() => {
-                      setShowSettings(true);
-                      setIsMobileMenuOpen(false);
-                    }}
-                  />
-                  <NavItem 
                     icon={<User size={18} />} 
                     label="Meu Perfil" 
                     onClick={() => {
@@ -426,12 +385,6 @@ export default function App() {
             </div>
             <h1 className="font-bold text-xl tracking-tight text-blue-600">Doctor Pro</h1>
           </div>
-          <button 
-            onClick={() => setShowSettings(true)}
-            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-          >
-            <Settings size={20} />
-          </button>
         </div>
 
         <nav className="flex-1 space-y-1">
@@ -498,7 +451,7 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`lg:pl-64 flex flex-col pt-16 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0" : ""}`}>
+      <main className={`lg:pl-64 flex flex-col pt-16 pb-24 lg:pb-0 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}>
         
         {/* Global Modals (Settings, Security, Profile) */}
         <AnimatePresence>
@@ -515,77 +468,6 @@ export default function App() {
                 className="w-full max-w-sm"
               >
                 <Profile onHose={() => setShowProfile(false)} />
-              </motion.div>
-            </motion.div>
-          )}
-
-          {showSettings && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-            >
-              <motion.div 
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
-              >
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-gray-900 font-bold">
-                    <Settings size={20} className="text-blue-600" />
-                    Configurações
-                  </div>
-                  <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                    <X size={18} className="text-gray-400" />
-                  </button>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Nome da Empresa</label>
-                    <input 
-                      type="text" 
-                      value={localCompanyName} 
-                      onChange={(e) => setLocalCompanyName(e.target.value)}
-                      placeholder="Ex: Doctor Pro"
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">WhatsApp (para Agenda)</label>
-                    <input 
-                      type="text" 
-                      value={localWhatsappNumber} 
-                      onChange={(e) => setLocalWhatsappNumber(e.target.value)}
-                      placeholder="Ex: 5511999999999"
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
-                    />
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button 
-                      onClick={onUpdateSettings}
-                      disabled={isUpdatingSettings || isBackingUp}
-                      className="flex-[2] py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {isUpdatingSettings ? <Loader2 size={18} className="animate-spin" /> : "Salvar"}
-                    </button>
-                    <button 
-                      onClick={onHandleBackup}
-                      disabled={isUpdatingSettings || isBackingUp}
-                      className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {isBackingUp ? <Loader2 size={18} className="animate-spin" /> : "Backup"}
-                    </button>
-                  </div>
-                  <div className="pt-4 border-t border-gray-100 flex justify-center">
-                    <button 
-                      onClick={() => { setShowSettings(false); setShowSecurityInfo(true); }}
-                      className="text-[10px] text-blue-600 font-bold uppercase tracking-widest flex items-center gap-1.5"
-                    >
-                      <Shield size={12} /> Ver Info de Segurança
-                    </button>
-                  </div>
-                </div>
               </motion.div>
             </motion.div>
           )}
@@ -680,27 +562,6 @@ export default function App() {
                     />
                   )}
                 </div>
-
-                {/* Persistent Bottom Navigation */}
-                <div className="px-4 py-3 flex flex-wrap gap-2 shrink-0 border-t bg-gray-50/50 backdrop-blur-sm">
-                  {[
-                    { label: "👤 Pacientes", prompt: "/pacientes", view: "workspace" as const },
-                    { label: "📅 Calendário", prompt: "/open_calendar", view: "calendar" as const },
-                    { label: "📅 Agenda", prompt: "/agenda", view: "agenda" as const },
-                  ].map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => navigateAndAction(s.view, s.prompt)}
-                      className={`text-[10px] font-bold px-3 py-1.5 border rounded-full transition-all uppercase tracking-wide shadow-sm ${
-                        (s.view === currentView)
-                        ? (s.view === "agenda" ? "border-emerald-600 text-emerald-600 bg-emerald-50" : "border-blue-600 text-blue-600 bg-blue-50")
-                        : (s.view === "agenda" ? "border-emerald-600 text-emerald-600 bg-white hover:bg-emerald-50" : "border-blue-600 text-blue-600 bg-white hover:bg-blue-50")
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div className="space-y-8 hidden xl:block pr-2">
@@ -712,6 +573,14 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {!isFullscreen && isAuthenticated && activeGroup && (
+        <BottomNav 
+          currentView={currentView}
+          onNavigate={(view, prompt) => navigateAndAction(view, prompt)}
+          onOpenManagement={() => setIsManagementOpen(true)}
+        />
+      )}
     </div>
   );
 }

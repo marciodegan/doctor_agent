@@ -727,7 +727,8 @@ app.get("/api/app/settings", async (req, res) => {
 
     res.json({
       companyName: data.companyName || "Doctor Pro",
-      whatsappNumber: data.whatsappNumber || ""
+      whatsappNumber: data.whatsappNumber || "",
+      imageAnalysisPrompt: data.imageAnalysisPrompt || "Aja como um médico experiente em cirurgia cardíaca e descreva esta imagem médica indicando possíveis achados e soluções ideais."
     });
   } catch (error) {
     handleApiError(res, error, "Fetching settings");
@@ -736,7 +737,7 @@ app.get("/api/app/settings", async (req, res) => {
 
 // Update app settings
 app.post("/api/app/settings", async (req, res) => {
-  const { companyName, whatsappNumber } = req.body;
+  const { companyName, whatsappNumber, imageAnalysisPrompt } = req.body;
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
@@ -744,6 +745,7 @@ app.post("/api/app/settings", async (req, res) => {
     await db.collection("settings").doc(groupId).set({
       companyName: companyName || "",
       whatsappNumber: whatsappNumber || "",
+      imageAnalysisPrompt: imageAnalysisPrompt || "",
       groupId
     }, { merge: true });
     res.json({ status: "ok" });

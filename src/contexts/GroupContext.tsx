@@ -41,7 +41,8 @@ interface GroupContextType {
   loading: boolean;
   companyName: string;
   whatsappNumber: string;
-  updateSettings: (name: string, wa: string) => Promise<void>;
+  imageAnalysisPrompt: string;
+  updateSettings: (name: string, wa: string, prompt?: string) => Promise<void>;
   handleBackup: () => Promise<any>;
   setActiveGroupId: (id: string) => void;
   createGroup: (name: string) => Promise<string>;
@@ -67,6 +68,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState("Doctor Pro");
   const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [imageAnalysisPrompt, setImageAnalysisPrompt] = useState("");
   const [isManagementOpen, setIsManagementOpen] = useState(false);
 
   const safeLocalStorage = {
@@ -105,8 +107,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     apiFetch("/api/app/settings")
       .then(res => res.json())
       .then(data => {
-        setCompanyName(data.companyName || "Doctor Pro");
-        setWhatsappNumber(data.whatsappNumber || "");
+        if (data.companyName) setCompanyName(data.companyName);
+        if (data.whatsappNumber) setWhatsappNumber(data.whatsappNumber);
+        if (data.imageAnalysisPrompt) setImageAnalysisPrompt(data.imageAnalysisPrompt);
       })
       .catch(err => console.error("Failed to fetch settings", err));
 
@@ -507,16 +510,21 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateSettings = async (name: string, wa: string) => {
+  const updateSettings = async (name: string, wa: string, prompt?: string) => {
     try {
       const res = await apiFetch("/api/app/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyName: name, whatsappNumber: wa })
+        body: JSON.stringify({ 
+          companyName: name, 
+          whatsappNumber: wa,
+          imageAnalysisPrompt: prompt 
+        })
       });
       if (res.ok) {
         setCompanyName(name);
         setWhatsappNumber(wa);
+        if (prompt !== undefined) setImageAnalysisPrompt(prompt);
       }
     } catch (err) {
       console.error("Failed to update settings", err);
@@ -586,6 +594,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       loading, 
       companyName,
       whatsappNumber,
+      imageAnalysisPrompt,
       updateSettings,
       handleBackup,
       setActiveGroupId, 

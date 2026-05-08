@@ -56,19 +56,23 @@ const MONTHS = [
 ];
 
 export function Calendar() {
-  const { activeGroup } = useGroup();
+  const { activeGroup, whatsappNumber } = useGroup();
   const GROUP_ID = activeGroup?.id || "main-group";
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [procedureOptions, setProcedureOptions] = useState<string[]>([]);
-  const [surgeryTypeOptions, setSurgeryTypeOptions] = useState<string[]>([]);
-  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
-  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [allProcedures, setAllProcedures] = useState<{nome: string, active?: boolean}[]>([]);
+  const [allSurgeryTypes, setAllSurgeryTypes] = useState<{name: string, active?: boolean}[]>([]);
+  const [allHospitals, setAllHospitals] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [waError, setWaError] = useState<string | null>(null);
-  const [hospitalOptions, setHospitalOptions] = useState<{id: string, nome: string}[]>([]);
+  
+  const procedureOptions = allProcedures.filter(p => p.active !== false).map(p => p.nome);
+  const surgeryTypeOptions = allSurgeryTypes.filter(s => s.active !== false).map(s => s.name);
+  const hospitalOptions = allHospitals.filter(h => h.active !== false);
+
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [selectedHospitalFilter, setSelectedHospitalFilter] = useState<string>("all");
   
   // Form State
@@ -108,45 +112,39 @@ export function Calendar() {
   }, [auth.currentUser, activeGroup?.id]);
 
   useEffect(() => {
-    const fetchConfigs = async () => {
-      const gId = activeGroup?.id;
-      if (!gId) return;
+    const gId = activeGroup?.id;
+    if (!gId) return;
 
-      try {
-        // Fetch Procedure Options
-        const procRef = collection(db, "procedureOptions");
-        const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
-        const unsubProc = onSnapshot(qProc, (snap) => {
-          setProcedureOptions(snap.docs.map(d => d.data().nome));
-        });
+    // Fetch Procedure Options
+    const procRef = collection(db, "procedureOptions");
+    const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
+    const unsubProc = onSnapshot(qProc, (snap) => {
+      setAllProcedures(snap.docs.map(d => ({ nome: d.data().nome, active: d.data().active })));
+    }, (err) => console.error("Error fetching procedures:", err));
 
-        // Fetch Surgery Types
-        const typeRef = collection(db, "surgery_types");
-        const qType = query(typeRef, where("groupId", "==", gId), orderBy("name"));
-        const unsubType = onSnapshot(qType, (snap) => {
-          setSurgeryTypeOptions(snap.docs.map(d => d.data().name));
-        });
+    // Fetch Surgery Types
+    const typeRef = collection(db, "surgery_types");
+    const qType = query(typeRef, where("groupId", "==", gId), orderBy("name"));
+    const unsubType = onSnapshot(qType, (snap) => {
+      setAllSurgeryTypes(snap.docs.map(d => ({ name: d.data().name, active: d.data().active })));
+    }, (err) => console.error("Error fetching surgery types:", err));
 
-        // Fetch Hospitals
-        const hospRef = collection(db, "hospitals");
-        const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
-        const unsubHosp = onSnapshot(qHosp, (snap) => {
-          setHospitalOptions(snap.docs.map(d => ({ 
-            id: d.id, 
-            nome: d.data().name 
-          })));
-        });
+    // Fetch Hospitals
+    const hospRef = collection(db, "hospitals");
+    const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
+    const unsubHosp = onSnapshot(qHosp, (snap) => {
+      setAllHospitals(snap.docs.map(d => ({ 
+        id: d.id, 
+        nome: d.data().name,
+        active: d.data().active
+      })));
+    }, (err) => console.error("Error fetching hospitals:", err));
 
-        return () => {
-          unsubProc();
-          unsubType();
-          unsubHosp();
-        };
-      } catch (e) {
-        console.error("Error fetching configs:", e);
-      }
+    return () => {
+      unsubProc();
+      unsubType();
+      unsubHosp();
     };
-    return fetchConfigs() as any;
   }, [activeGroup?.id]);
 
   const [viewMode, setViewMode] = useState<"month" | "list">("month");
@@ -169,7 +167,9 @@ export function Calendar() {
       try {
         const res = await fetch("/api/app/hospitals");
         const data = await res.json();
-        setHospitalOptions(data);
+        // Since we have real-time listeners, we might not need this fetch, 
+        // but it was here before. I'll comment it out or keep it for the very first load
+        // setAllHospitals(data.map((h: any) => ({ id: h.id, nome: h.nome, active: true })));
       } catch (e) {
         console.error("Error fetching hospitals:", e);
       }
@@ -180,20 +180,6 @@ export function Calendar() {
   const filteredEvents = selectedHospitalFilter === "all" 
     ? events 
     : events.filter(e => e.hospitalId === selectedHospitalFilter);
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const res = await fetch("/api/app/settings");
-        const data = await res.json();
-        if (data.whatsappNumber) {
-          setWhatsappNumber(data.whatsappNumber);
-        }
-      } catch (err) {
-        console.error("Failed to fetch settings", err);
-      }
-    };
-    fetchSettings();
-  }, []);
 
   const toggleEventSelection = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -227,10 +213,10 @@ export function Calendar() {
 
     let message = `🏥 *AGENDA DE CIRURGIAS*\n\n`;
     
-    selectedEvents.forEach((e, idx) => {
-      const [y, m, d] = e.data.split("-");
-      const dateFormatted = `${d}/${m}/${y}`;
-      const hosp = hospitalOptions.find(h => h.id === e.hospitalId)?.nome || "";
+      selectedEvents.forEach((e, idx) => {
+        const [y, m, d] = e.data.split("-");
+        const dateFormatted = `${d}/${m}/${y}`;
+        const hosp = allHospitals.find(h => h.id === e.hospitalId)?.nome || "";
       
       message += `🔹 *${e.evento}*\n`;
       message += `📅 ${dateFormatted}\n`;
@@ -594,7 +580,7 @@ export function Calendar() {
                     <div className="grid gap-4">
                       {dailyEvents.map(event => {
                         const isSelected = selectedEventIds.has(event.id);
-                        const hosp = hospitalOptions.find(h => h.id === event.hospitalId);
+                        const hosp = allHospitals.find(h => h.id === event.hospitalId);
                         return (
                           <motion.div 
                             key={event.id}

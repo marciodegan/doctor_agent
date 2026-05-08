@@ -65,6 +65,8 @@ const MessageForm: React.FC<{
     return initial;
   });
 
+  const [analyzeWithAI, setAnalyzeWithAI] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resizeImage = (file: File): Promise<string> => {
@@ -106,6 +108,7 @@ const MessageForm: React.FC<{
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parts = Object.entries(values).map(([k, v]) => `${k}: ${v}`);
+    if (isImageForm && analyzeWithAI) parts.push("useAI: true");
     let fullCmd = `${form.commandPrefix} ${parts.join(", ")}`;
     onSubmit(fullCmd);
   };
@@ -136,6 +139,19 @@ const MessageForm: React.FC<{
                 className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
               >
                 <X size={14} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAnalyzeWithAI(!analyzeWithAI)}
+                className={`absolute bottom-2 right-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-lg ${
+                  analyzeWithAI 
+                    ? "bg-blue-600 text-white shadow-blue-200 ring-2 ring-white" 
+                    : "bg-white/90 text-gray-600 hover:bg-white"
+                }`}
+              >
+                <Sparkles size={12} className={analyzeWithAI ? "animate-pulse" : ""} />
+                {analyzeWithAI ? "Análise IA Ativada" : "Análise IA"}
               </button>
             </div>
           ) : (
@@ -250,7 +266,7 @@ export const Chat: React.FC<{
   initialCommand?: string | null,
   onCommandExecuted?: () => void
 }> = ({ onNavigateToCalendar, initialCommand, onCommandExecuted }) => {
-  const { activeGroup, companyName, whatsappNumber, apiFetch } = useGroup();
+  const { activeGroup, companyName, whatsappNumber, imageAnalysisPrompt, apiFetch } = useGroup();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -260,9 +276,9 @@ export const Chat: React.FC<{
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Group Configurations
-  const [groupHospitals, setGroupHospitals] = useState<{id: string, nome: string}[]>([]);
-  const [groupStatuses, setGroupStatuses] = useState<{id: string, nome: string}[]>([]);
-  const [groupProcedures, setGroupProcedures] = useState<string[]>([]);
+  const [groupHospitals, setGroupHospitals] = useState<{id: string, nome: string, active?: boolean}[]>([]);
+  const [groupStatuses, setGroupStatuses] = useState<{id: string, nome: string, active?: boolean}[]>([]);
+  const [groupProcedures, setGroupProcedures] = useState<{id: string, nome: string, active?: boolean}[]>([]);
 
   useEffect(() => {
     if (!activeGroup?.id) return;
@@ -273,21 +289,21 @@ export const Chat: React.FC<{
     const statusRef = collection(db, "patient_statuses");
     const qStatus = query(statusRef, where("groupId", "==", gId), orderBy("name"));
     const unsubStatus = onSnapshot(qStatus, (snap) => {
-      setGroupStatuses(snap.docs.map(d => ({ id: d.id, nome: d.data().name })));
+      setGroupStatuses(snap.docs.map(d => ({ id: d.id, nome: d.data().name, active: d.data().active })));
     }, (err) => handleFirestoreError(err, OperationType.LIST, "patient_statuses"));
 
     // Hospitals
     const hospRef = collection(db, "hospitals");
     const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
     const unsubHosp = onSnapshot(qHosp, (snap) => {
-      setGroupHospitals(snap.docs.map(d => ({ id: d.id, nome: d.data().name })));
+      setGroupHospitals(snap.docs.map(d => ({ id: d.id, nome: d.data().name, active: d.data().active })));
     }, (err) => handleFirestoreError(err, OperationType.LIST, "hospitals"));
 
     // Procedures
     const procRef = collection(db, "procedureOptions");
     const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
     const unsubProc = onSnapshot(qProc, (snap) => {
-      setGroupProcedures(snap.docs.map(d => d.data().nome));
+      setGroupProcedures(snap.docs.map(d => ({ id: d.id, nome: d.data().nome, active: d.data().active })));
     }, (err) => handleFirestoreError(err, OperationType.LIST, "procedureOptions"));
 
     return () => {
@@ -297,14 +313,19 @@ export const Chat: React.FC<{
     };
   }, [activeGroup?.id]);
 
-  // Compatibility aliases (if needed by existing code)
-  const hospitalOptions = groupHospitals;
-  const statusOptions = groupStatuses;
-  const procedureOptions = groupProcedures;
+  // Compatibility aliases - only for FORMS, filter active
+  const hospitalOptions = groupHospitals.filter(h => h.active !== false);
+  const statusOptions = groupStatuses.filter(s => s.active !== false);
+  const procedureOptions = groupProcedures.filter(p => p.active !== false).map(p => p.nome);
+  
+  // Full lists for lookup/display
+  const allHospitals = groupHospitals;
+  const allStatuses = groupStatuses;
+  
+  const [isReady, setIsReady] = useState(false);
   
   // Create a mutable reference for the agent so we can reset it
   const agentRef = useRef<any>(null);
-
 
   useEffect(() => {
     setMessages([
@@ -316,15 +337,16 @@ export const Chat: React.FC<{
 
     import("../lib/gemini").then(({ createAgent }) => {
       if (!agentRef.current) agentRef.current = createAgent();
+      setIsReady(true);
     });
   }, [companyName]);
 
   useEffect(() => {
-    if (initialCommand && agentRef.current) {
+    if (initialCommand && isReady && agentRef.current) {
       handleSend(undefined, initialCommand, true);
       onCommandExecuted?.();
     }
-  }, [initialCommand, agentRef.current]);
+  }, [initialCommand, isReady, onCommandExecuted]);
 
   const resetAgent = async () => {
     const { createAgent } = await import("../lib/gemini");
@@ -415,25 +437,27 @@ export const Chat: React.FC<{
   <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${a.data}</div>
 </div>`).join("");
     
-    const docs = data.imagens.map((i: any) => {
-      const downloadText = i.link ? ` <a href="${i.link}" target="_blank" rel="noopener noreferrer" className="ml-2 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px] font-bold hover:bg-blue-100 transition-colors inline-block no-underline">Baixar Arquivo</a>` : "";
-      
-      let aiPart = "";
-      if (i.aiResposta) {
-        aiPart = `<div className="mt-1 text-blue-600">🤖 <b>AI:</b> ${i.aiResposta}</div>`;
-      }
+      const docs = data.imagens.map((i: any) => {
+        const downloadText = i.link ? ` <a href="${i.link}" target="_blank" rel="noopener noreferrer" className="ml-2 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px] font-bold hover:bg-blue-100 transition-colors inline-block no-underline">Baixar Arquivo</a>` : "";
+        
+        let aiPart = "";
+        const analysis = i.aiAnalysis || i.aiResposta;
+        if (analysis) {
+          aiPart = `<div className="mt-2 p-3 bg-blue-50 rounded-xl border border-blue-100 text-[11px] text-blue-800 leading-relaxed"><div className="flex items-center gap-1.5 mb-1 font-black uppercase tracking-tighter text-blue-600"><span className="p-1 bg-blue-600 text-white rounded-md"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg></span> Análise Inteligente</div>${analysis}</div>`;
+        }
 
-      const imgTag = i.link 
-        ? `<div className="my-2"><img src="${i.link}" alt="${i.descricao}" className="max-w-full rounded-xl border border-gray-100 shadow-sm block" referrerPolicy="no-referrer" /></div>`
-        : "";
-      
-      return `
+        const imgTag = i.link 
+          ? `<div className="my-2"><img src="${i.link}" alt="${i.descricao}" className="max-w-full rounded-xl border border-gray-100 shadow-sm block" referrerPolicy="no-referrer" /></div>`
+          : "";
+        
+        return `
 <div className="ml-6 mb-3 pb-3 border-b border-gray-100">
-  <div className="mb-0.5"><b>${i.descricao}</b>${aiPart}</div>
+  <div className="mb-0.5"><b>${i.descricao}</b></div>
   ${imgTag}
-  <div className="text-[10px] font-medium text-gray-500">${i.data}${downloadText} \`/ai_analyze id: ${i.id}, pId: ${cad.ID}, url: ${i.link}\`</div>
+  ${aiPart}
+  <div className="text-[10px] font-medium text-gray-500 mt-2">${i.data}${downloadText} \`/ai_analyze id: ${i.id}, pId: ${cad.ID}, url: ${i.link}\`</div>
 </div>`;
-    }).join("");
+      }).join("");
 
     const fams = data.familiares.map((f: any) => {
       const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
@@ -1219,7 +1243,7 @@ export const Chat: React.FC<{
             idade: cad.Idade ? cad.Idade.toString() : "N/A",
             status: cad.Status,
             hospitalId: cad.hospitalId,
-            hospitalNome: hospitalOptions.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome)?.nome || cad.hospital_nome || "Não informado",
+            hospitalNome: allHospitals.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome)?.nome || cad.hospital_nome || "Não informado",
             roomNumber: cad.roomNumber || cad.room_number || "Sala ?"
           }
         }]);
@@ -1542,8 +1566,8 @@ export const Chat: React.FC<{
         const p = pData.cadastro;
 
         // Resolve Names for Display
-        const currentHospital = hospitalOptions.find(h => h.id === p.hospitalId || h.nome === p.hospital_nome);
-        const currentStatus = statusOptions.find(s => s.id === p.Status || s.nome === p.Status);
+        const currentHospital = allHospitals.find(h => h.id === p.hospitalId || h.nome === p.hospital_nome);
+        const currentStatus = allStatuses.find(s => s.id === p.Status || s.nome === p.Status);
         
         setMessages([{ 
           role: "model", 
@@ -1761,7 +1785,7 @@ export const Chat: React.FC<{
               idade: pData.cadastro.Idade,
               status: pData.cadastro.Status,
               hospitalId: pData.cadastro.hospitalId,
-              hospitalNome: hospitalOptions.find(h => h.id === pData.cadastro.hospitalId || h.nome === pData.cadastro.hospital_nome)?.nome || pData.cadastro.hospital_nome || "Não informado",
+              hospitalNome: allHospitals.find(h => h.id === pData.cadastro.hospitalId || h.nome === pData.cadastro.hospital_nome)?.nome || pData.cadastro.hospital_nome || "Não informado",
               roomNumber: pData.cadastro.roomNumber || pData.cadastro.room_number || "Sala ?"
             }
           }]);
@@ -2022,12 +2046,12 @@ export const Chat: React.FC<{
 
         // 3. Call Gemini
         const result = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
+          model: "gemini-1.5-flash",
           contents: [
             {
               role: "user",
               parts: [
-                { text: "Aja como um médico experiente e analise este documento ou imagem médica. Forneça uma análise técnica e objetiva em português." },
+                { text: imageAnalysisPrompt || "Aja como um médico experiente em cirurgia cardíaca e descreva esta imagem médica indicando possíveis achados e soluções ideais." },
                 { inlineData: { data: base64, mimeType: mimeType } }
               ]
             }

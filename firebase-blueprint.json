@@ -8,7 +8,8 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "createdBy": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "imageAnalysisPrompt": { "type": "string" }
       },
       "required": ["id", "name", "createdBy"]
     },
@@ -35,6 +36,7 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "groupId": { "type": "string" },
+        "active": { "type": "boolean" },
         "phone": { "type": "string" },
         "contacts": { "type": "array", "items": { "type": "string" } }
       },
@@ -47,7 +49,8 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "groupId": { "type": "string" }
+        "groupId": { "type": "string" },
+        "active": { "type": "boolean" }
       },
       "required": ["id", "name", "groupId"]
     },
@@ -90,7 +93,7 @@
         "patientId": { "type": "string" },
         "description": { "type": "string" },
         "link": { "type": "string" },
-        "aiResponse": { "type": "string" }
+        "aiAnalysis": { "type": "string" }
       }
     },
     "FamilyMember": {
@@ -183,6 +186,7 @@
         "id": { "type": "string" },
         "nome": { "type": "string" },
         "groupId": { "type": "string" },
+        "active": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["nome", "groupId"]
@@ -194,7 +198,8 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "groupId": { "type": "string" }
+        "groupId": { "type": "string" },
+        "active": { "type": "boolean" }
       },
       "required": ["name", "groupId"]
     },
@@ -205,7 +210,8 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "groupId": { "type": "string" }
+        "groupId": { "type": "string" },
+        "active": { "type": "boolean" }
       },
       "required": ["name", "groupId"]
     }
