@@ -248,64 +248,53 @@ export const Chat: React.FC<{
   const [lastProcessedFile, setLastProcessedFile] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [procedureOptions, setProcedureOptions] = useState<string[]>([]);
-  const [hospitalOptions, setHospitalOptions] = useState<{id: string, nome: string}[]>([]);
-  const [statusOptions, setStatusOptions] = useState<{id: string, nome: string}[]>([]);
+
+  // Group Configurations
+  const [groupHospitals, setGroupHospitals] = useState<{id: string, nome: string}[]>([]);
+  const [groupStatuses, setGroupStatuses] = useState<{id: string, nome: string}[]>([]);
+  const [groupProcedures, setGroupProcedures] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!activeGroup?.id) return;
+
+    const gId = activeGroup.id;
+    
+    // Statuses
+    const statusRef = collection(db, "patient_statuses");
+    const qStatus = query(statusRef, where("groupId", "==", gId), orderBy("name"));
+    const unsubStatus = onSnapshot(qStatus, (snap) => {
+      setGroupStatuses(snap.docs.map(d => ({ id: d.id, nome: d.data().name })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, "patient_statuses"));
+
+    // Hospitals
+    const hospRef = collection(db, "hospitals");
+    const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
+    const unsubHosp = onSnapshot(qHosp, (snap) => {
+      setGroupHospitals(snap.docs.map(d => ({ id: d.id, nome: d.data().name })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, "hospitals"));
+
+    // Procedures
+    const procRef = collection(db, "procedureOptions");
+    const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
+    const unsubProc = onSnapshot(qProc, (snap) => {
+      setGroupProcedures(snap.docs.map(d => d.data().nome));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, "procedureOptions"));
+
+    return () => {
+      unsubStatus();
+      unsubHosp();
+      unsubProc();
+    };
+  }, [activeGroup?.id]);
+
+  // Compatibility aliases (if needed by existing code)
+  const hospitalOptions = groupHospitals;
+  const statusOptions = groupStatuses;
+  const procedureOptions = groupProcedures;
   
   // Create a mutable reference for the agent so we can reset it
   const agentRef = useRef<any>(null);
 
-  useEffect(() => {
-    const fetchProcedures = async () => {
-      try {
-        const { collection, getDocs, query, orderBy, addDoc, serverTimestamp } = await import("firebase/firestore");
-        const { db, auth } = await import("../lib/firebase");
-        const q = query(collection(db, "procedureOptions"), orderBy("nome"));
-        const snapshot = await getDocs(q);
-        
-        if (snapshot.empty && auth.currentUser) {
-          const initial = [
-            "Revasc do miocárdio",
-            "Retirada de tumor intracardíaco",
-            "Fechamento de CIA",
-            "Troca Valvar + Revasc do miocário",
-            "Implante de prótese valvar + CoAo"
-          ];
-          for (const nome of initial) {
-            await addDoc(collection(db, "procedureOptions"), {
-              nome,
-              createdAt: serverTimestamp()
-            });
-          }
-          setProcedureOptions(initial);
-        } else {
-          setProcedureOptions(snapshot.docs.map(d => d.data().nome));
-        }
-      } catch (e) {
-        handleFirestoreError(e, OperationType.LIST, "procedureOptions");
-      }
-    };
-    fetchProcedures();
-  }, [auth.currentUser]);
-
-  useEffect(() => {
-    const fetchHospitalsAndStatuses = async () => {
-      try {
-        const [hRes, sRes] = await Promise.all([
-          apiFetch("/api/app/hospitals"),
-          apiFetch("/api/app/statuses")
-        ]);
-        const hData = await hRes.json();
-        const sData = await sRes.json();
-        setHospitalOptions(hData);
-        setStatusOptions(sData);
-      } catch (e) {
-        console.error("Error fetching hospitals/statuses:", e);
-      }
-    };
-    fetchHospitalsAndStatuses();
-  }, []);
 
   useEffect(() => {
     setMessages([
@@ -1940,31 +1929,26 @@ export const Chat: React.FC<{
       const patId = cmdInput.split(" ")[1];
       if (!patId) return true;
 
-      setIsLoading(true);
-      try {
-        const res = await fetch("/api/app/statuses");
-        const statuses = await res.json();
-        
-        setMessages([]); // NEW VIEW
-        setMessages([{
-          role: "model",
-          text: "🏷️ **Alterar Status**\n\nEscolha o novo status para o paciente:",
-          actionGroups: [
-            {
-              title: "Selecione o Status",
-              actions: statuses.map((s: any) => ({
-                label: s.nome,
-                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome}`
-              }))
-            }
-          ]
-        }]);
-      } catch (err: any) {
-        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar status: ${err.message}` }]);
-      } finally {
-        setIsLoading(false);
+      if (groupStatuses.length === 0) {
+        setMessages(prev => [...prev, { role: "model", text: "⚠️ Configure os status do grupo no painel de gestão para usar esta função." }]);
         return true;
       }
+
+      setMessages([]); // NEW VIEW
+      setMessages([{
+        role: "model",
+        text: "🏷️ **Alterar Status**\n\nEscolha o novo status para o paciente:",
+        actionGroups: [
+          {
+            title: "Selecione o Status",
+            actions: groupStatuses.map((s: any) => ({
+              label: s.nome,
+              cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome}`
+            }))
+          }
+        ]
+      }]);
+      return true;
     }
 
     if (cmd.startsWith("/status_apply")) {

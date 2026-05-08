@@ -127,9 +127,20 @@ export function Calendar() {
           setSurgeryTypeOptions(snap.docs.map(d => d.data().name));
         });
 
+        // Fetch Hospitals
+        const hospRef = collection(db, "hospitals");
+        const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
+        const unsubHosp = onSnapshot(qHosp, (snap) => {
+          setHospitalOptions(snap.docs.map(d => ({ 
+            id: d.id, 
+            nome: d.data().name 
+          })));
+        });
+
         return () => {
           unsubProc();
           unsubType();
+          unsubHosp();
         };
       } catch (e) {
         console.error("Error fetching configs:", e);
