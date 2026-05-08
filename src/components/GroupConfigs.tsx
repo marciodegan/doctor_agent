@@ -124,9 +124,12 @@ export function GroupConfigs() {
     return () => unsubscribe();
   }, [activeTab, activeGroup?.id]);
 
-  const handleInitializeDefaults = async () => {
-    if (!activeTab || !activeGroup) return;
+  const handleInitializeDefaults = async (forceType?: string) => {
+    if (!activeGroup) return;
     
+    const targetType = forceType || activeTab;
+    if (!targetType) return;
+
     const defaults: Record<string, string[]> = {
       patient_statuses: ["Internado", "Pré-Operatório", "Em Cirurgia", "Recuperação", "Alta"],
       procedureOptions: ["Apendicectomia", "Colecistectomia", "Hernioplastia", "Histerectomia", "Artroscopia"],
@@ -135,24 +138,39 @@ export function GroupConfigs() {
       hospitals: ["Hospital Municipal", "Hospital Santa Maria", "Santa Casa"]
     };
 
-    const itemsToCreate = defaults[activeTab] || [];
-    if (itemsToCreate.length === 0) return;
-
+    const categoriesToInit = forceType === "all" ? Object.keys(defaults) : [targetType];
+    
     setIsLoading(true);
     try {
-      for (const itemName of itemsToCreate) {
-        const data: any = {
-           groupId: activeGroup.id,
-           active: true,
-           createdAt: serverTimestamp()
-        };
-        if (activeTab === "procedureOptions") data.nome = itemName;
-        else data.name = itemName;
+      for (const cat of categoriesToInit) {
+        const itemsToCreate = defaults[cat] || [];
+        if (itemsToCreate.length === 0) continue;
+
+        // Check if cat already has items for this group to avoid duplicates if accidentally clicked
+        const colRef = collection(db, cat);
+        const q = query(colRef, where("groupId", "==", activeGroup.id));
+        const existingSnap = await getDocs(q);
         
-        await addDoc(collection(db, activeTab), data);
+        // If not force type "all", or if empty, we create
+        if (existingSnap.empty) {
+          for (const itemName of itemsToCreate) {
+            const data: any = {
+               groupId: activeGroup.id,
+               active: true,
+               createdAt: serverTimestamp()
+            };
+            if (cat === "procedureOptions") data.nome = itemName;
+            else data.name = itemName;
+            
+            await addDoc(collection(db, cat), data);
+          }
+        }
+      }
+      if (forceType === "all") {
+        alert("Todos os padrões carregados com sucesso!");
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, activeTab);
+      handleFirestoreError(error, OperationType.WRITE, targetType);
     } finally {
       setIsLoading(false);
     }
@@ -256,13 +274,12 @@ export function GroupConfigs() {
   };
 
   const menuItems = [
-    { id: "hospitals", label: "Hospitais", icon: <Building2 size={24} />, color: "text-blue-600", bg: "bg-blue-50" },
-    { id: "patient_statuses", label: "Status", icon: <Activity size={24} />, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { id: "procedureOptions", label: "Procedimentos", icon: <Stethoscope size={24} />, color: "text-purple-600", bg: "bg-purple-50" },
-    { id: "surgery_types", label: "Tipos de Cirurgia", icon: <Zap size={24} />, color: "text-amber-600", bg: "bg-amber-50" },
-    { id: "affinity", label: "Afinidades", icon: <Heart size={24} />, color: "text-pink-600", bg: "bg-pink-50" },
-    { id: "general", label: "Ajustes Gerais", icon: <Settings size={24} />, color: "text-indigo-600", bg: "bg-indigo-50" },
-    { id: "members", label: "Equipe / Membros", icon: <Users size={24} />, color: "text-gray-600", bg: "bg-gray-100" },
+    { id: "hospitals", label: "Hospitais", icon: <Building2 size={24} />, color: "text-blue-600", bg: "bg-blue-50", description: "Gerenciar unidades de atendimento" },
+    { id: "procedureOptions", label: "Procedimentos", icon: <Stethoscope size={24} />, color: "text-purple-600", bg: "bg-purple-50", description: "Configurar tipos de procedimentos" },
+    { id: "patient_statuses", label: "Status de Paciente", icon: <Activity size={24} />, color: "text-emerald-600", bg: "bg-emerald-50", description: "Etapas do fluxo de atendimento" },
+    { id: "surgery_types", label: "Tipos de Cirurgia", icon: <Zap size={24} />, color: "text-amber-600", bg: "bg-amber-50", description: "Categorias e prioridades" },
+    { id: "affinity", label: "Afinidades", icon: <Heart size={24} />, color: "text-pink-600", bg: "bg-pink-50", description: "Graus de parentesco" },
+    { id: "general", label: "Ajustes Gerais", icon: <Settings size={24} />, color: "text-indigo-600", bg: "bg-indigo-50", description: "Dados da clínica e WhatsApp" },
   ];
 
   if (activeTab === "general") {
@@ -444,10 +461,11 @@ export function GroupConfigs() {
             <div className="text-center p-12 bg-gray-50 rounded-[32px] border-2 border-dashed border-gray-100 flex flex-col items-center gap-4">
               <span className="text-gray-400 font-bold text-sm">Nenhum item cadastrado.</span>
               <button 
-                onClick={handleInitializeDefaults}
-                className="bg-white border border-gray-200 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50 transition-all"
+                onClick={() => handleInitializeDefaults()}
+                disabled={isLoading}
+                className="bg-white border border-gray-200 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50 transition-all disabled:opacity-50"
               >
-                Carregar Padrões
+                {isLoading ? <Loader2 size={12} className="animate-spin" /> : "Carregar Padrões"}
               </button>
             </div>
           ) : (
@@ -503,25 +521,45 @@ export function GroupConfigs() {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {menuItems.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => setActiveTab(item.id as ConfigType)}
-          className="flex items-center gap-5 p-6 bg-gray-50/50 border border-gray-100 rounded-[32px] hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 transition-all text-left group"
+    <div className="flex flex-col gap-6">
+      <div className="bg-blue-50 border border-blue-100 p-6 rounded-[32px] flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-black text-blue-900 uppercase tracking-tight">Configurações Rápidas</h3>
+          <p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mt-1">Carregue todos os padrões de uma só vez para este grupo</p>
+        </div>
+        <button 
+          onClick={() => handleInitializeDefaults("all")}
+          disabled={isLoading}
+          className="w-full sm:w-auto bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-xs hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-2 uppercase tracking-widest active:scale-95 disabled:opacity-50"
         >
-          <div className={`p-4 ${item.bg} ${item.color} rounded-[20px] transition-all group-hover:scale-110`}>
-            {item.icon}
-          </div>
-          <div className="flex-1">
-            <h4 className="text-[13px] font-black text-gray-900 uppercase tracking-tight leading-none mb-1.5">{item.label}</h4>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Configurar</span>
-              <ChevronRight size={10} className="text-gray-300" />
-            </div>
-          </div>
+          {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+          CARREGAR TODOS OS PADRÕES
         </button>
-      ))}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {menuItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id as ConfigType)}
+            className="flex items-center gap-5 p-6 bg-gray-50/50 border border-gray-100 rounded-[32px] hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 transition-all text-left group"
+          >
+            <div className={`p-4 ${item.bg} ${item.color} rounded-[20px] transition-all group-hover:scale-110`}>
+              {item.icon}
+            </div>
+            <div className="flex-1">
+              <h4 className="text-[13px] font-black text-gray-900 uppercase tracking-tight leading-none mb-1.5">{item.label}</h4>
+              <div className="flex flex-col gap-1">
+                <p className="text-[9px] text-gray-400 font-medium">{item.description}</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Configurar</span>
+                  <ChevronRight size={10} className="text-blue-300" />
+                </div>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

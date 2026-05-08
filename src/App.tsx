@@ -10,6 +10,7 @@ import { GroupSelector } from "./components/GroupSelector";
 import { Profile } from "./components/Profile";
 import { 
   Calendar, 
+  CalendarDays,
   FileText, 
   Layout, 
   LogOut, 
@@ -39,13 +40,15 @@ import { motion, AnimatePresence } from "motion/react";
 
 import { BottomNav } from "./components/BottomNav";
 
+import { TeamManagement } from "./components/TeamManagement";
+
 export default function App() {
   const { isAuthenticated, login, logout } = useAuth();
   const { activeGroup, setIsManagementOpen } = useGroup();
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar" | "agenda">("workspace");
+  const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar" | "agenda" | null>("agenda");
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileGroupsOpen, setIsMobileGroupsOpen] = useState(false);
@@ -396,6 +399,11 @@ export default function App() {
             onClick={() => setCurrentView("workspace")}
           />
           <NavItem 
+            icon={<Users size={18} />} 
+            label="Equipe" 
+            onClick={() => setIsManagementOpen(true)}
+          />
+          <NavItem 
             icon={<Calendar size={18} />} 
             label="Calendário" 
             active={currentView === "calendar"}
@@ -548,24 +556,35 @@ export default function App() {
               {/* Chat column */}
               <div className="xl:col-span-3 flex flex-col min-h-0 overflow-hidden">
                 <div className="flex-1 min-h-0">
-                  {currentView === "pricing" ? (
-                    <Pricing onBack={() => setCurrentView("workspace")} />
-                  ) : currentView === "calendar" ? (
-                    <FirestoreCalendar />
-                  ) : currentView === "agenda" ? (
-                    <GoogleAgenda />
-                  ) : (
-                    <Chat 
-                      onNavigateToCalendar={() => setCurrentView("calendar")} 
-                      initialCommand={pendingCommand}
-                      onCommandExecuted={() => setPendingCommand(null)}
-                    />
-                  )}
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={currentView}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="h-full"
+                    >
+                      {currentView === "pricing" ? (
+                        <Pricing onBack={() => setCurrentView("workspace")} />
+                      ) : currentView === "calendar" ? (
+                        <FirestoreCalendar />
+                      ) : currentView === "agenda" ? (
+                        <GoogleAgenda />
+                      ) : (
+                        <Chat 
+                          onNavigateToCalendar={() => setCurrentView("calendar")} 
+                          initialCommand={pendingCommand}
+                          onCommandExecuted={() => setPendingCommand(null)}
+                        />
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </div>
 
-              <div className="space-y-8 hidden xl:block pr-2">
-                <div className="bg-white border border-gray-100 rounded-2xl p-3">
+              <div className="space-y-8 hidden xl:flex flex-col pt-24 pr-2">
+                <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm transform transition-all hover:shadow-md">
                   <GroupSelector />
                 </div>
               </div>
@@ -581,6 +600,7 @@ export default function App() {
           onOpenManagement={() => setIsManagementOpen(true)}
         />
       )}
+      <TeamManagement />
     </div>
   );
 }

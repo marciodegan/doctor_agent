@@ -283,30 +283,44 @@ export const Chat: React.FC<{
   useEffect(() => {
     if (!activeGroup?.id) return;
 
+    let isMounted = true;
     const gId = activeGroup.id;
     
     // Statuses
     const statusRef = collection(db, "patient_statuses");
     const qStatus = query(statusRef, where("groupId", "==", gId), orderBy("name"));
     const unsubStatus = onSnapshot(qStatus, (snap) => {
+      if (!isMounted) return;
       setGroupStatuses(snap.docs.map(d => ({ id: d.id, nome: d.data().name, active: d.data().active })));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, "patient_statuses"));
+    }, (err) => {
+      if (!isMounted) return;
+      handleFirestoreError(err, OperationType.LIST, "patient_statuses");
+    });
 
     // Hospitals
     const hospRef = collection(db, "hospitals");
     const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
     const unsubHosp = onSnapshot(qHosp, (snap) => {
+      if (!isMounted) return;
       setGroupHospitals(snap.docs.map(d => ({ id: d.id, nome: d.data().name, active: d.data().active })));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, "hospitals"));
+    }, (err) => {
+      if (!isMounted) return;
+      handleFirestoreError(err, OperationType.LIST, "hospitals");
+    });
 
     // Procedures
     const procRef = collection(db, "procedureOptions");
     const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
     const unsubProc = onSnapshot(qProc, (snap) => {
+      if (!isMounted) return;
       setGroupProcedures(snap.docs.map(d => ({ id: d.id, nome: d.data().nome, active: d.data().active })));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, "procedureOptions"));
+    }, (err) => {
+      if (!isMounted) return;
+      handleFirestoreError(err, OperationType.LIST, "procedureOptions");
+    });
 
     return () => {
+      isMounted = false;
       unsubStatus();
       unsubHosp();
       unsubProc();
@@ -328,10 +342,11 @@ export const Chat: React.FC<{
   const agentRef = useRef<any>(null);
 
   useEffect(() => {
+    const userName = auth.currentUser?.displayName?.split(" ")[0] || companyName;
     setMessages([
       { 
         role: "model", 
-        text: `<div class="text-base font-medium">Hello ${companyName} ❤️<br/><br/>Hoje é um lindo dia para salvar vidas.</div>`
+        text: `<div class="text-base font-medium">Hello ${userName}<br/><br/>Hoje é um lindo dia para salvar vidas ❤️</div>`
       }
     ]);
 
@@ -339,7 +354,7 @@ export const Chat: React.FC<{
       if (!agentRef.current) agentRef.current = createAgent();
       setIsReady(true);
     });
-  }, [companyName]);
+  }, [companyName, auth.currentUser?.displayName]);
 
   useEffect(() => {
     if (initialCommand && isReady && agentRef.current) {

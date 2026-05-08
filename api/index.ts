@@ -677,7 +677,7 @@ app.get("/api/app/patients", async (req, res) => {
     const [patientsSnap, hospitalsSnap, statusesSnap] = await Promise.all([
       patientsQuery.get(),
       db.collection("hospitals").where("groupId", "==", groupId).get(),
-      db.collection("patient_statuses").get()
+      db.collection("patient_statuses").where("groupId", "==", groupId).get()
     ]);
 
     const hMap = Object.fromEntries(hospitalsSnap.docs.map(doc => [doc.id, doc.data().name]));
@@ -840,7 +840,7 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       db.collection("patients_contacts").where("patientId", "==", id).get(),
       db.collection("patient_logs").where("patientId", "==", id).orderBy("createdAt", "desc").get(),
       db.collection("files").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
-      db.collection("patient_statuses").get(),
+      db.collection("patient_statuses").where("groupId", "==", groupId).get(),
       db.collection("logs").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
       db.collection("hospitals").where("groupId", "==", groupId).get()
     ]);
@@ -1061,16 +1061,21 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
   }
 });
 
-// Get all allowed statuses
 app.get("/api/app/statuses", async (req, res) => {
   const groupId = getGroupId(req);
-  // Statuses could be global, but if they have groupId and rules check it, we need to filter or allow global
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  
   try {
-    const statusesSnap = await db.collection("patient_statuses").orderBy("id").get();
-    const statuses = statusesSnap.docs.map(doc => {
+    const statusesSnap = await db.collection("patient_statuses")
+      .where("groupId", "==", groupId)
+      .get();
+    
+    // Fallback if no specific statuses for this group, but we probably want them to be strict
+    let statuses = statusesSnap.docs.map(doc => {
       const data = doc.data();
       return { id: doc.id, ...data, nome: data.name };
     });
+
     res.json(statuses);
   } catch (error) {
     handleApiError(res, error, "Fetching statuses");

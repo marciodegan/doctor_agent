@@ -23,18 +23,18 @@ export function BottomNav({ currentView, onNavigate, onOpenManagement }: BottomN
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[60] lg:hidden">
-      <div className="absolute inset-x-4 bottom-4 h-16 bg-white/90 backdrop-blur-2xl border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-3xl overflow-hidden" />
-      
-      <div className="relative flex items-center justify-around px-6 pb-4 pt-0 h-24 mb-0">
-        {tabs.map((tab) => {
+    <div className="fixed bottom-0 left-0 right-0 z-[60] lg:hidden px-4 pb-4">
+      <div className="relative h-16 sm:h-20 bg-white/95 backdrop-blur-3xl border border-gray-100 shadow-[0_20px_50px_rgba(37,99,235,0.15)] rounded-[28px] sm:rounded-3xl overflow-hidden flex items-center justify-around px-2">
+        {tabs.map((tab, idx) => {
           const isActive = currentView === tab.id;
+          const isEquipe = tab.id === "management";
           
           return (
             <button
               key={tab.label}
+              id={tab.id === "management" ? "equipe-nav-button" : undefined}
               onClick={() => tab.action ? tab.action() : onNavigate(tab.id, (tab as any).prompt)}
-              className="flex flex-col items-center justify-center gap-1 min-w-[56px] relative"
+              className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 min-w-[64px] relative group"
             >
               <AnimatePresence>
                 {isActive && (
@@ -51,15 +51,22 @@ export function BottomNav({ currentView, onNavigate, onOpenManagement }: BottomN
 
               <motion.div
                 animate={{
-                  scale: isActive ? 1.2 : 1,
-                  y: isActive ? -4 : 0,
+                  scale: isActive ? 1.15 : 1,
                   color: isActive ? "#2563eb" : "#9ca3af"
                 }}
-                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 className="relative"
               >
-                {tab.icon}
-                {isActive && (
+                {isEquipe ? (
+                  <div className="relative">
+                    <Users size={20} />
+                    {/* Status Dot for the whole team */}
+                    <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white shadow-sm" />
+                  </div>
+                ) : (
+                  tab.icon
+                )}
+                {isActive && !isEquipe && (
                   <motion.div 
                     layoutId="active-dot"
                     className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full border-2 border-white shadow-sm"

@@ -93,10 +93,12 @@ export function Calendar() {
     const GROUP_ID = activeGroup?.id;
     if (!GROUP_ID || !auth.currentUser) return;
 
+    let isMounted = true;
     const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
     const q = query(eventsRef, orderBy("data"), orderBy("hora"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!isMounted) return;
       const fetchedEvents = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -104,21 +106,28 @@ export function Calendar() {
       setEvents(fetchedEvents);
       setIsLoading(false);
     }, (error) => {
+      if (!isMounted) return;
       handleFirestoreError(error, OperationType.LIST, `groups/${GROUP_ID}/calendario`);
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [auth.currentUser, activeGroup?.id]);
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [auth.currentUser?.uid, activeGroup?.id]);
 
   useEffect(() => {
     const gId = activeGroup?.id;
     if (!gId) return;
 
+    let isMounted = true;
+
     // Fetch Procedure Options
     const procRef = collection(db, "procedureOptions");
     const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
     const unsubProc = onSnapshot(qProc, (snap) => {
+      if (!isMounted) return;
       setAllProcedures(snap.docs.map(d => ({ nome: d.data().nome, active: d.data().active })));
     }, (err) => console.error("Error fetching procedures:", err));
 
@@ -126,6 +135,7 @@ export function Calendar() {
     const typeRef = collection(db, "surgery_types");
     const qType = query(typeRef, where("groupId", "==", gId), orderBy("name"));
     const unsubType = onSnapshot(qType, (snap) => {
+      if (!isMounted) return;
       setAllSurgeryTypes(snap.docs.map(d => ({ name: d.data().name, active: d.data().active })));
     }, (err) => console.error("Error fetching surgery types:", err));
 
@@ -133,6 +143,7 @@ export function Calendar() {
     const hospRef = collection(db, "hospitals");
     const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
     const unsubHosp = onSnapshot(qHosp, (snap) => {
+      if (!isMounted) return;
       setAllHospitals(snap.docs.map(d => ({ 
         id: d.id, 
         nome: d.data().name,
@@ -141,13 +152,14 @@ export function Calendar() {
     }, (err) => console.error("Error fetching hospitals:", err));
 
     return () => {
+      isMounted = false;
       unsubProc();
       unsubType();
       unsubHosp();
     };
   }, [activeGroup?.id]);
 
-  const [viewMode, setViewMode] = useState<"month" | "list">("month");
+  const [viewMode, setViewMode] = useState<"month" | "list">("list");
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split("T")[0]);
 
   // Handle month navigation for list view too
@@ -534,7 +546,11 @@ export function Calendar() {
             {renderDays()}
           </div>
         ) : (
-          <div className="max-w-4xl mx-auto p-4 sm:p-8">
+          <div className="max-w-4xl mx-auto p-4 sm:p-8 pt-10">
+            <div className="mb-10 pl-2">
+              <h1 className="text-3xl font-black text-gray-900 leading-tight">Olá, {auth.currentUser?.displayName?.split(" ")[0] || "Doutor(a)"}! 👋</h1>
+              <p className="text-gray-500 font-medium mt-2 text-lg">Hoje é um lindo dia para salvar vidas ❤️</p>
+            </div>
             {(() => {
               const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
               const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);

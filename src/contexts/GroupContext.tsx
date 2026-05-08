@@ -103,10 +103,13 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    let isMounted = true;
+
     // Fetch Settings for active group
     apiFetch("/api/app/settings")
       .then(res => res.json())
       .then(data => {
+        if (!isMounted) return;
         if (data.companyName) setCompanyName(data.companyName);
         if (data.whatsappNumber) setWhatsappNumber(data.whatsappNumber);
         if (data.imageAnalysisPrompt) setImageAnalysisPrompt(data.imageAnalysisPrompt);
@@ -115,19 +118,40 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
     // Listen to group members
     const membersPath = `groups/${activeGroup.id}/members`;
-    const unsubscribeMembers = onSnapshot(collection(db, membersPath), (snapshot) => {
-      const members = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          ...data,
-          userEmail: data.userEmail || ""
-        } as GroupMember;
+    let unsubscribeMembers: () => void = () => {};
+    
+    try {
+      unsubscribeMembers = onSnapshot(collection(db, membersPath), (snapshot) => {
+        if (!isMounted) return;
+        const members = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            ...data,
+            userEmail: data.userEmail || ""
+          } as GroupMember;
+        });
+        setActiveGroupMembers(members);
+      }, (error) => {
+        if (isMounted) {
+          console.error("Members listener error:", error);
+          // If we get a permission error on the active group, it might be because it was deleted
+          if (error.code === 'permission-denied') {
+             // Let the memberships effect handle the redirection
+             console.warn("Permission denied for members. Group might be deleted.");
+          }
+        }
       });
-      setActiveGroupMembers(members);
-    });
+    } catch (e) {
+      console.error("Failed to start members listener", e);
+    }
 
-    return () => unsubscribeMembers();
+    return () => {
+      isMounted = false;
+      unsubscribeMembers();
+    };
   }, [activeGroup?.id]);
+
+  const [rawMemberships, setRawMemberships] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -135,85 +159,35 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       setInvites([]);
       setActiveGroup(null);
       setLoading(false);
+      setRawMemberships([]);
       return;
     }
 
+    let isMounted = true;
     setLoading(true);
     
-    // Listen to memberships
+    // Listen to memberships - strictly synchronous
     const membershipsPath = `users/${user.uid}/memberships`;
-    const unsubscribeMemberships = onSnapshot(collection(db, membershipsPath), async (snapshot) => {
-      try {
-        const membershipPromises = snapshot.docs.map(async (membershipDoc) => {
-          const groupId = membershipDoc.id;
-          const mData = membershipDoc.data();
-          
-          let groupInfo: Group;
-          try {
-            // Using getDocs query for backward compatibility with some docs that have 'id' field,
-            // but preferring direct doc lookup if possible
-            const groupQuery = query(collection(db, "groups"), where("id", "==", groupId));
-            const groupSnap = await getDocs(groupQuery);
-            
-            if (!groupSnap.empty) {
-              groupInfo = { id: groupId, ...groupSnap.docs[0].data(), status: mData.status || "active" } as Group;
-            } else {
-              groupInfo = { 
-                id: groupId, 
-                name: mData.groupName || "Group " + groupId, 
-                createdBy: "", 
-                status: mData.status || "active" 
-              } as Group;
-            }
-          } catch (e) {
-            groupInfo = { 
-              id: groupId, 
-              name: mData.groupName || "Group " + groupId, 
-              createdBy: "", 
-              status: mData.status || "active" 
-            } as Group;
-          }
-          return groupInfo;
-        });
-
-        const fetchedMemberships = await Promise.all(membershipPromises);
-        
-        // We will merge this with invitations by email later
-        const activeGroups = fetchedMemberships.filter(m => m.status === "active");
-        const pendingGroups = fetchedMemberships.filter(m => m.status === "pending");
-
-        setGroups(activeGroups);
-        
-        // Set pending groups from memberships (existing users)
-        setInvites(prev => {
-          // Merge logic: prefer memberships for now, but keep email-only invites if not in memberships
-          const merged = [...pendingGroups];
-          // We'll update invites fully in the other listener
-          return merged;
-        });
-
-        // Restore active group
-        const savedGroupId = safeLocalStorage.getItem("activeGroupId");
-        const found = activeGroups.find(g => g.id === savedGroupId);
-        if (found) {
-          setActiveGroup(found);
-        } else if (activeGroups.length > 0 && !activeGroup) {
-          setActiveGroup(activeGroups[0]);
-        }
-        setLoading(false);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.LIST, membershipsPath);
-      }
+    const unsubscribeMemberships = onSnapshot(collection(db, membershipsPath), (snapshot) => {
+      if (!isMounted) return;
+      const memberships = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setRawMemberships(memberships);
     }, (error) => {
+      if (!isMounted) return;
       handleFirestoreError(error, OperationType.GET, membershipsPath);
+      setLoading(false);
     });
 
-    // Listen to invitations by email (for users who were invited before joining)
+    // Listen to invitations by email
     let unsubscribeInvitations = () => {};
     if (user.email) {
       const cleanEmail = user.email.trim().toLowerCase();
       const invitationsQuery = query(collection(db, "group_invitations"), where("email", "==", cleanEmail), where("status", "==", "pending"));
       unsubscribeInvitations = onSnapshot(invitationsQuery, (snapshot) => {
+        if (!isMounted) return;
         const emailInvites = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
@@ -225,27 +199,113 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         });
 
         setInvites(prev => {
-          // Merge: get unique group IDs
           const existingIds = new Set(prev.map(p => p.id));
           const newOnes = emailInvites.filter(ei => !existingIds.has(ei.id));
           return [...prev, ...newOnes];
         });
+      }, (error) => {
+        console.error("Invitations listener error", error);
       });
     }
 
     return () => {
+      isMounted = false;
       unsubscribeMemberships();
       unsubscribeInvitations();
     };
-  }, [user, user?.email]);
+  }, [user?.uid, user?.email]);
+
+  // Effect to fetch detailed group info when rawMemberships change
+  useEffect(() => {
+    if (rawMemberships.length === 0) {
+      setGroups([]);
+      if (!loading) setLoading(false);
+      return;
+    }
+
+    let isSubscribed = true;
+
+    const fetchDetailedGroups = async () => {
+      try {
+        const activeGroupsData: Group[] = [];
+        const pendingGroupsData: Group[] = [];
+
+        for (const mData of rawMemberships) {
+          const groupId = mData.id;
+          let groupInfo: Group | null = null;
+          
+          try {
+            const groupDoc = await getDoc(doc(db, "groups", groupId));
+            if (groupDoc.exists()) {
+              groupInfo = { id: groupId, ...groupDoc.data(), status: mData.status || "active" } as Group;
+            } else {
+              // Group doc doesn't exist anymore - we ignore it to solve the "still showing" issue
+              console.log(`Group ${groupId} deleted in Firestore, ignoring membership.`);
+              continue; 
+            }
+          } catch (e) {
+            console.warn(`Failed to fetch group ${groupId}, ignoring...`, e);
+            continue;
+          }
+
+          if (groupInfo) {
+            if (groupInfo.status === "active") {
+              activeGroupsData.push(groupInfo);
+            } else if (groupInfo.status === "pending") {
+              pendingGroupsData.push(groupInfo);
+            }
+          }
+        }
+
+        if (!isSubscribed) return;
+
+        setGroups(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(activeGroupsData)) return prev;
+          return activeGroupsData;
+        });
+        
+        setInvites(prev => {
+          const existingIds = new Set(pendingGroupsData.map(p => p.id));
+          const emailOnly = prev.filter(p => !existingIds.has(p.id));
+          const next = [...pendingGroupsData, ...emailOnly];
+          if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+          return next;
+        });
+
+        // Restore active group
+        const savedGroupId = safeLocalStorage.getItem("activeGroupId");
+        const found = activeGroupsData.find(g => g.id === savedGroupId);
+        if (found) {
+          setActiveGroup(prev => (prev?.id === found.id ? prev : found));
+        } else if (activeGroupsData.length > 0) {
+          // If the group we were on is gone or we don't have one, pick the first valid one
+          if (!activeGroup || !activeGroupsData.find(g => g.id === activeGroup.id)) {
+            setActiveGroup(activeGroupsData[0]);
+            safeLocalStorage.setItem("activeGroupId", activeGroupsData[0].id);
+          }
+        } else {
+          setActiveGroup(null);
+          safeLocalStorage.setItem("activeGroupId", "");
+        }
+        setLoading(false);
+      } catch (err) {
+        console.error("Error processing memberships details", err);
+        if (isSubscribed) setLoading(false);
+      }
+    };
+
+    fetchDetailedGroups();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [rawMemberships]);
 
   const setActiveGroupId = (id: string) => {
     safeLocalStorage.setItem("activeGroupId", id);
     const group = groups.find(g => g.id === id);
     if (group) {
       setActiveGroup(group);
-      // Re-initialize app to ensure all contexts/data are fresh for the new group
-      window.location.reload();
     }
   };
 
