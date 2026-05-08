@@ -80,10 +80,26 @@ service cloud.firestore {
       allow delete: if isOwner(existing().groupId);
     }
 
-    // Procedure Options
+    // Procedure Options (scoped by group)
     match /procedureOptions/{optionId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read: if isMember(existing().groupId);
+      allow write: if isMember(incoming().groupId);
+    }
+
+    // Config entities linked by groupId
+    match /patient_statuses/{statusId} {
+      allow read: if isMember(existing().groupId);
+      allow write: if isMember(incoming().groupId);
+    }
+
+    match /affinity/{affinityId} {
+      allow read: if isMember(existing().groupId);
+      allow write: if isMember(incoming().groupId);
+    }
+
+    match /surgery_types/{typeId} {
+      allow read: if isMember(existing().groupId);
+      allow write: if isMember(incoming().groupId);
     }
 
     // Entities linked by groupId

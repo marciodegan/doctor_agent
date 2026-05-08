@@ -64,6 +64,7 @@ export function Calendar() {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [procedureOptions, setProcedureOptions] = useState<string[]>([]);
+  const [surgeryTypeOptions, setSurgeryTypeOptions] = useState<string[]>([]);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [waError, setWaError] = useState<string | null>(null);
@@ -107,20 +108,35 @@ export function Calendar() {
   }, [auth.currentUser, activeGroup?.id]);
 
   useEffect(() => {
-    const fetchProcedures = async () => {
+    const fetchConfigs = async () => {
+      const gId = activeGroup?.id;
+      if (!gId) return;
+
       try {
-        const { getDocs } = await import("firebase/firestore");
-        const q = query(collection(db, "procedureOptions"), orderBy("nome"));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          setProcedureOptions(snapshot.docs.map(d => d.data().nome));
-        }
+        // Fetch Procedure Options
+        const procRef = collection(db, "procedureOptions");
+        const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
+        const unsubProc = onSnapshot(qProc, (snap) => {
+          setProcedureOptions(snap.docs.map(d => d.data().nome));
+        });
+
+        // Fetch Surgery Types
+        const typeRef = collection(db, "surgery_types");
+        const qType = query(typeRef, where("groupId", "==", gId), orderBy("name"));
+        const unsubType = onSnapshot(qType, (snap) => {
+          setSurgeryTypeOptions(snap.docs.map(d => d.data().name));
+        });
+
+        return () => {
+          unsubProc();
+          unsubType();
+        };
       } catch (e) {
-        console.error("Error fetching procedures:", e);
+        console.error("Error fetching configs:", e);
       }
     };
-    fetchProcedures();
-  }, []);
+    return fetchConfigs() as any;
+  }, [activeGroup?.id]);
 
   const [viewMode, setViewMode] = useState<"month" | "list">("month");
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split("T")[0]);
@@ -731,8 +747,16 @@ export function Calendar() {
                         onChange={e => setFormData({ ...formData, tipo: e.target.value })}
                         className="bg-gray-50 border border-gray-100 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
                       >
-                        <option value="ELETIVA">ELET</option>
-                        <option value="URGÊNCIA">URG</option>
+                        {surgeryTypeOptions.length > 0 ? (
+                          surgeryTypeOptions.map(opt => (
+                            <option key={opt} value={opt}>{opt.substring(0, 4)}</option>
+                          ))
+                        ) : (
+                          <>
+                            <option value="ELETIVA">ELET</option>
+                            <option value="URGÊNCIA">URG</option>
+                          </>
+                        )}
                       </select>
                     </div>
                   </div>

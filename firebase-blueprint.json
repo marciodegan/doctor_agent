@@ -42,13 +42,14 @@
     },
     "PatientStatus": {
       "title": "Patient Status",
-      "description": "Available statuses for patients",
+      "description": "Available statuses for patients (scoped per group)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "name": { "type": "string" }
+        "name": { "type": "string" },
+        "groupId": { "type": "string" }
       },
-      "required": ["id", "name"]
+      "required": ["id", "name", "groupId"]
     },
     "Patient": {
       "title": "Patient",
@@ -176,13 +177,37 @@
     },
     "ProcedureOption": {
       "title": "Opção de Procedimento",
-      "description": "Opção predefinida para o campo de evento/procedimento",
+      "description": "Opção predefinida para o campo de evento/procedimento (scoped per group)",
       "type": "object",
       "properties": {
+        "id": { "type": "string" },
         "nome": { "type": "string" },
+        "groupId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["nome"]
+      "required": ["nome", "groupId"]
+    },
+    "SurgeryType": {
+      "title": "Tipo de Cirurgia",
+      "description": "Urgente, Eletiva, etc (scoped per group)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "groupId": { "type": "string" }
+      },
+      "required": ["name", "groupId"]
+    },
+    "Affinity": {
+      "title": "Afinidade",
+      "description": "Grau de parentesco (scoped per group)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "groupId": { "type": "string" }
+      },
+      "required": ["name", "groupId"]
     }
   },
   "firestore": {
@@ -237,6 +262,14 @@
     "/groups/{groupId}/calendario/{eventId}": {
       "schema": "CalendarEvent",
       "description": "Shared group calendar events"
+    },
+    "/affinity/{affinityId}": {
+      "schema": "Affinity",
+      "description": "Affinities defined by group"
+    },
+    "/surgery_types/{typeId}": {
+      "schema": "SurgeryType",
+      "description": "Surgery types defined by group"
     },
     "/users/{userId}": {
       "schema": "User",

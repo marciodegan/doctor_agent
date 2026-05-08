@@ -13,9 +13,11 @@ import {
   UserPlus,
   Maximize,
   X,
-  Trash2
+  ArrowLeft
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+
+import { GroupConfigs } from "./GroupConfigs";
 
 export function GroupSelector() {
   const { 
@@ -44,6 +46,7 @@ export function GroupSelector() {
   const [isDeclining, setIsDeclining] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState<string | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<{ id: string, email: string, status: string } | null>(null);
+  const [managementMode, setManagementMode] = useState<"dashboard" | "members" | "configs">("dashboard");
 
   const currentUserMembership = activeGroupMembers.find(m => m.userId === user?.uid);
   const isOwner = currentUserMembership?.role === "owner";
@@ -405,8 +408,77 @@ export function GroupSelector() {
 
               {/* Body */}
               <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
-                {/* Invite Section */}
-                <div className="space-y-4">
+                {managementMode === "dashboard" ? (
+                  <div className="space-y-8">
+                     <p className="text-gray-500 font-medium text-sm">Selecione uma categoria para gerenciar as configurações deste grupo de trabalho.</p>
+                     
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <button 
+                          onClick={() => setManagementMode("members")}
+                          className="flex items-center gap-5 p-6 bg-gray-50/50 border border-gray-100 rounded-[32px] hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 transition-all text-left group"
+                        >
+                          <div className="p-4 bg-blue-50 text-blue-600 rounded-[20px] transition-all group-hover:scale-110">
+                            <Users size={24} />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-[13px] font-black text-gray-900 uppercase tracking-tight leading-none mb-1.5">Equipe / Membros</h4>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Gerenciar Acesso</span>
+                              <ChevronRight size={10} className="text-gray-300" />
+                            </div>
+                          </div>
+                        </button>
+
+                        <button 
+                          onClick={() => setManagementMode("configs")}
+                          className="flex items-center gap-5 p-6 bg-gray-50/50 border border-gray-100 rounded-[32px] hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 transition-all text-left group"
+                        >
+                          <div className="p-4 bg-emerald-50 text-emerald-600 rounded-[20px] transition-all group-hover:scale-110">
+                            <Settings size={24} />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-[13px] font-black text-gray-900 uppercase tracking-tight leading-none mb-1.5">Configurações</h4>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Hospitais, Status, etc</span>
+                              <ChevronRight size={10} className="text-gray-300" />
+                            </div>
+                          </div>
+                        </button>
+                     </div>
+
+                     <div className="pt-8 border-t border-gray-100">
+                        <div className="bg-amber-50 rounded-2xl p-4 flex items-start gap-4">
+                           <Shield className="text-amber-600 shrink-0 mt-0.5" size={20} />
+                           <div>
+                              <p className="text-[11px] font-black text-amber-900 uppercase tracking-tight mb-1">Acesso Restrito</p>
+                              <p className="text-[10px] text-amber-700 font-medium leading-relaxed">As alterações feitas aqui afetam todos os membros da equipe {activeGroup.name}. Apenas administradores podem convidar novos membros.</p>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+                ) : managementMode === "configs" ? (
+                  <div className="space-y-6">
+                    <button 
+                      onClick={() => setManagementMode("dashboard")}
+                      className="flex items-center gap-2 text-gray-400 hover:text-blue-600 transition-colors mb-4"
+                    >
+                      <ArrowLeft size={16} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Voltar ao Painel</span>
+                    </button>
+                    <GroupConfigs />
+                  </div>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => setManagementMode("dashboard")}
+                      className="flex items-center gap-2 text-gray-400 hover:text-blue-600 transition-colors mb-6"
+                    >
+                      <ArrowLeft size={16} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Voltar ao Painel</span>
+                    </button>
+                    
+                    {/* Invite Section */}
+                    <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
                        <UserPlus size={16} className="text-blue-600" />
@@ -509,7 +581,9 @@ export function GroupSelector() {
                     ))}
                   </div>
                 </div>
-              </div>
+              </>
+            )}
+          </div>
               
               {/* Footer */}
               <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-center">
