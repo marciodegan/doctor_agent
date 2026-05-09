@@ -233,13 +233,12 @@ export function Calendar() {
         const dateFormatted = `${d}/${m}/${y}`;
         const hosp = allHospitals.find(h => h.id === e.hospitalId)?.nome || "";
       
-      message += `🔹 *${e.evento}*\n`;
-      message += `📅 ${dateFormatted}\n`;
+      message += `❤️ *${e.evento}*\n`;
       message += `🕒 ${e.hora}\n`;
-      if (hosp) message += `🏥 ${hosp}\n`;
+      message += `📅 ${dateFormatted}\n`;
+      message += `🩺 *${e.descricao || "Procedimento"}*\n`;
       if (e.tipo) message += `🏷️ ${e.tipo}\n`;
       if (e.sala) message += `📍 ${e.sala}\n`;
-      if (e.descricao) message += `📝 ${e.descricao}\n`;
       if (idx < selectedEvents.length - 1) message += `\n---\n\n`;
     });
 
@@ -460,9 +459,66 @@ export function Calendar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end gap-3">
+          <div className="flex items-center gap-2">
+            {selectedEventIds.size > 0 && (
+              <div className="flex flex-col items-end">
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  onClick={handleSendToWhatsApp}
+                  className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all"
+                >
+                  <Share2 size={18} />
+                  <span className="hidden sm:inline">WhatsApp ({selectedEventIds.size})</span>
+                </motion.button>
+                {waError && (
+                  <motion.span 
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[10px] text-red-500 font-bold mt-1 mr-1 text-right max-w-[200px]"
+                  >
+                    {waError}
+                  </motion.span>
+                )}
+              </div>
+            )}
+
+            <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
+              <button 
+                onClick={handlePrevMonth}
+                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <button 
+                onClick={() => {
+                  setCurrentDate(new Date());
+                  setSelectedDay(new Date().toISOString().split("T")[0]);
+                }}
+                className="px-3 text-xs font-bold text-gray-600 hover:text-blue-600"
+              >
+                Hoje
+              </button>
+              <button 
+                onClick={handleNextMonth}
+                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+
+            <button 
+              onClick={() => openAddModal(viewMode === "list" ? selectedDay : undefined)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+            >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Novo evento</span>
+            </button>
+          </div>
+
           {hospitalOptions.length > 0 && (
-            <div className="flex items-center gap-2 mr-2">
+            <div className="flex items-center gap-2">
               <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-black text-gray-400">
                 <Filter size={12} />
                 <span>FILTRAR:</span>
@@ -470,70 +526,15 @@ export function Calendar() {
               <select
                 value={selectedHospitalFilter}
                 onChange={(e) => setSelectedHospitalFilter(e.target.value)}
-                className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-bold text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="bg-white border border-gray-200 rounded-xl px-4 py-1.5 text-xs font-black text-gray-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm"
               >
-                <option value="all">Todos Hospitais</option>
+                <option value="all">TODOS OS HOSPITAIS</option>
                 {hospitalOptions.map(h => (
-                  <option key={h.id} value={h.id}>{h.nome}</option>
+                  <option key={h.id} value={h.id}>{h.nome.toUpperCase()}</option>
                 ))}
               </select>
             </div>
           )}
-
-          {selectedEventIds.size > 0 && (
-            <div className="flex flex-col items-end">
-              <motion.button
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                onClick={handleSendToWhatsApp}
-                className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all"
-              >
-                <Share2 size={18} />
-                <span className="hidden sm:inline">WhatsApp ({selectedEventIds.size})</span>
-              </motion.button>
-              {waError && (
-                <motion.span 
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-[10px] text-red-500 font-bold mt-1 mr-1 text-right max-w-[200px]"
-                >
-                  {waError}
-                </motion.span>
-              )}
-            </div>
-          )}
-
-          <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
-            <button 
-              onClick={handlePrevMonth}
-              className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <button 
-              onClick={() => {
-                setCurrentDate(new Date());
-                setSelectedDay(new Date().toISOString().split("T")[0]);
-              }}
-              className="px-3 text-xs font-bold text-gray-600 hover:text-blue-600"
-            >
-              Hoje
-            </button>
-            <button 
-              onClick={handleNextMonth}
-              className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
-            >
-              <ChevronRight size={20} />
-            </button>
-          </div>
-
-          <button 
-            onClick={() => openAddModal(viewMode === "list" ? selectedDay : undefined)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
-          >
-            <Plus size={18} />
-            <span className="hidden sm:inline">Novo evento</span>
-          </button>
         </div>
       </div>
 

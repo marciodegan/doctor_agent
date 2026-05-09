@@ -45,6 +45,7 @@ interface Message {
     }[];
     submitLabel: string;
     commandPrefix: string;
+    backCommand?: string;
   };
   isListing?: boolean;
   listingTitle?: string;
@@ -119,7 +120,19 @@ const MessageForm: React.FC<{
 
   return (
     <form onSubmit={handleSubmit} className="mt-4 p-4 bg-white/50 rounded-2xl border border-blue-100 space-y-3 shadow-sm">
-      {form.title && <h4 className="text-sm font-bold text-blue-800 mb-2">{form.title}</h4>}
+      <div className="flex items-center justify-between mb-2">
+        {form.title && <h4 className="text-sm font-bold text-blue-800">{form.title}</h4>}
+        {form.backCommand && (
+          <button
+            type="button"
+            onClick={() => onSubmit(form.backCommand)}
+            className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gray-500 hover:text-blue-600 transition-colors"
+          >
+            <X size={12} />
+            Voltar
+          </button>
+        )}
+      </div>
       
       {isImageForm && (
         <div className="space-y-2">
@@ -859,7 +872,8 @@ export const Chat: React.FC<{
             { label: "Horário", name: "hora", type: "time", defaultValue: agoraStr }
           ],
           submitLabel: "Adicionar ao Calendário",
-          commandPrefix: pid ? `/calendario_add pid: ${pid},` : "/calendario_add"
+          commandPrefix: pid ? `/calendario_add pid: ${pid},` : "/calendario_add",
+          backCommand: pid ? `/p ${pid}` : undefined
         }
       }]);
       return true;
@@ -938,7 +952,8 @@ export const Chat: React.FC<{
                   }
                 ],
                 submitLabel: "Enviar Imagem",
-                commandPrefix: `/img id: ${id},`
+                commandPrefix: `/img id: ${id},`,
+                backCommand: `/p ${id}`
               }
             }]);
           })
@@ -954,7 +969,8 @@ export const Chat: React.FC<{
                   { label: "Descrição / Título", name: "descrição", type: "text", placeholder: "Ex: Raio-X do tórax" }
                 ],
                 submitLabel: "Enviar Imagem",
-                commandPrefix: `/img id: ${id},`
+                commandPrefix: `/img id: ${id},`,
+                backCommand: `/p ${id}`
               }
             }]);
           })
@@ -1120,7 +1136,8 @@ export const Chat: React.FC<{
               { label: "Telefone", name: "phone", type: "text", placeholder: "(xx) xxxxx-xxxx" },
             ],
             submitLabel: "+Salvar",
-            commandPrefix: `/salvarfamiliar patientId: ${id},`
+            commandPrefix: `/salvarfamiliar patientId: ${id},`,
+            backCommand: `/p ${id}`
           }
         }]);
         return true;
@@ -1145,7 +1162,8 @@ export const Chat: React.FC<{
               { label: "Informação", name: "text", type: "textarea", placeholder: "Digite aqui..." }
             ],
             submitLabel: "+Salvar",
-            commandPrefix: `/salvarlog patientId: ${id},`
+            commandPrefix: `/salvarlog patientId: ${id},`,
+            backCommand: `/p ${id}`
           }
         }]);
         return true;
@@ -1621,7 +1639,8 @@ export const Chat: React.FC<{
               { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.roomNumber || p.room_number || "" },
             ],
             submitLabel: "Salvar Alterações",
-            commandPrefix: `/update_patient id: ${id},`
+            commandPrefix: `/update_patient id: ${id},`,
+            backCommand: `/p ${id}`
           }
         }]);
         setTimeout(scrollToTop, 0);
@@ -1794,26 +1813,8 @@ export const Chat: React.FC<{
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        const pRes = await apiFetch(`/api/app/patient-report/${patientId}`);
-        const pData = await pRes.json();
-        if (pData.id) {
-          const reportText = generatePatientReport(pData);
-          setMessages([{ 
-            role: "model", 
-            text: reportText,
-            isProfile: true,
-            profileData: {
-              id: pData.id,
-              nome: pData.cadastro.Nome,
-              idade: pData.cadastro.Idade,
-              status: pData.cadastro.Status,
-              hospitalId: pData.cadastro.hospitalId,
-              hospitalNome: allHospitals.find(h => h.id === pData.cadastro.hospitalId || h.nome === pData.cadastro.hospital_nome)?.nome || pData.cadastro.hospital_nome || "Não informado",
-              roomNumber: pData.cadastro.roomNumber || pData.cadastro.room_number || "Sala ?"
-            }
-          }]);
-          setTimeout(scrollToTop, 0);
-        }
+        setMessages([]); 
+        await handleDirectCommand(`/p ${patientId}`);
       } catch (error) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${(error as Error).message}` }]);
       } finally {
@@ -2272,7 +2273,7 @@ export const Chat: React.FC<{
                         </div>
                       </div>
 
-                      <div className="px-4 py-3 bg-white border-b border-gray-100 flex flex-row items-center justify-between gap-4">
+                      <div className="px-4 py-3 bg-white border-b border-gray-100 flex flex-row items-center justify-between gap-4 mb-6">
                         <div className="flex flex-col min-w-0 flex-1">
                           <div className="flex flex-col mb-1.5 min-w-0">
                             <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-0.5">Hospital</span>
@@ -2311,7 +2312,7 @@ export const Chat: React.FC<{
                     <div className="whitespace-pre-wrap">{msg.text}</div>
                   ) : (
                     <>
-                      <div className="markdown-body prose prose-sm max-w-none">
+                      <div className="markdown-body prose prose-sm max-w-none [&_p]:mb-5 last:[&_p]:mb-0">
                         <ReactMarkdown
                           rehypePlugins={[rehypeRaw]}
                           components={{
@@ -2435,10 +2436,10 @@ export const Chat: React.FC<{
                         <div className="mt-4 pt-4 border-t border-gray-50 flex justify-center">
                           <button 
                             onClick={() => onViewLogs && onViewLogs(msg.profileData?.id)}
-                            className="w-full bg-blue-600 text-white px-5 py-3 rounded-2xl shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]"
+                            className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                           >
-                            <FileText size={18} className="text-blue-100" />
-                            <span className="text-xs font-black uppercase tracking-widest text-white">Visualizar Histórico Completo (Logs)</span>
+                            <FileText size={14} className="text-blue-100" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white">Visualizar Logs</span>
                           </button>
                         </div>
                       )}

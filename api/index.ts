@@ -912,20 +912,6 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       };
     });
 
-    // Add Activity Logs (status changes etc)
-    activityLogsSnap.docs.forEach(doc => {
-      const data = doc.data();
-      report.audios.push({
-        id: doc.id,
-        conteudo: data.description,
-        tipo: "atividade",
-        data: data.timestamp ? data.timestamp.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "Recent"
-      });
-    });
-
-    // Sort logs by date after merging
-    report.audios.sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime());
-
     // Process Family Members
     report.familiares = contactsSnap.docs.map(doc => {
       const data = doc.data();

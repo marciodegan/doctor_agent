@@ -213,7 +213,7 @@ export function GoogleAgenda() {
           </div>
           <div>
             <div className="flex items-center gap-3">
-              <h2 className="text-xl font-black text-gray-900 tracking-tight">
+              <h2 className="text-lg font-black text-gray-900 tracking-tight">
                 {`${MONTHS[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
               </h2>
               <div className="flex bg-gray-100 p-1 rounded-xl">
@@ -233,7 +233,7 @@ export function GoogleAgenda() {
                 </button>
               </div>
             </div>
-            <p className="text-[10px] font-black text-emerald-600/80 uppercase tracking-[0.2em] font-mono">
+            <p className="text-[8px] font-black text-emerald-600/80 uppercase tracking-[0.2em] font-mono">
               Google Agenda • {companyName}
             </p>
           </div>
@@ -290,7 +290,7 @@ export function GoogleAgenda() {
               <motion.h1 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-3xl font-black text-gray-900 leading-tight tracking-tight"
+                className="text-lg font-black text-gray-900 leading-tight tracking-tight"
               >
                 Olá, {auth.currentUser?.displayName?.split(" ")[0] || "Doutor(a)"}! 👋
               </motion.h1>
@@ -298,7 +298,7 @@ export function GoogleAgenda() {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="text-gray-500 font-medium mt-2 text-xl"
+                className="text-gray-400 font-medium mt-1 text-xs"
               >
                 Confira seus compromissos no Google Agenda
               </motion.p>
@@ -310,8 +310,8 @@ export function GoogleAgenda() {
                   className="bg-white rounded-3xl p-16 text-center border border-gray-100 shadow-sm"
                 >
                   <CalendarIcon className="w-16 h-16 text-gray-200 mx-auto mb-6" />
-                  <h3 className="text-xl font-bold text-gray-900">Nenhum compromisso este mês</h3>
-                  <p className="text-gray-400 mt-2">Sua agenda do Google está limpa no momento. Selecione outra data ou adicione um novo compromisso.</p>
+                  <h3 className="text-lg font-bold text-gray-900">Nenhum compromisso este mês</h3>
+                  <p className="text-gray-400 mt-2 text-sm">Sua agenda do Google está limpa no momento. Selecione outra data ou adicione um novo compromisso.</p>
                 </motion.div>
               ) : (
                 <div className="space-y-4">
@@ -372,8 +372,8 @@ export function GoogleAgenda() {
                                   {isAllDay ? "DIA TODO" : start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                                 </span>
                               </div>
-                              <h4 className="font-bold text-lg text-gray-900 tracking-tight">{event.summary}</h4>
-                              {event.description && <p className="text-sm text-gray-400 mt-1.5 line-clamp-2 max-w-md">{event.description}</p>}
+                              <h4 className="font-bold text-base text-gray-900 tracking-tight">{event.summary}</h4>
+                              {event.description && <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 max-w-md">{event.description}</p>}
                             </div>
                           </div>
                           
