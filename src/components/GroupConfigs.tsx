@@ -115,7 +115,8 @@ export function GroupConfigs() {
             data.webViewLink,
           );
         } else if (data.error) {
-          throw new Error(data.error + (data.details ? ": " + JSON.stringify(data.details) : ""));
+          const errorMessage = data.error + (data.suggestion ? ". Sugestão: " + data.suggestion : "");
+          throw new Error(errorMessage + (data.details ? ": " + JSON.stringify(data.details) : ""));
         }
         setIsUploadingPhoto(false);
       };

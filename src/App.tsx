@@ -197,6 +197,16 @@ export default function App() {
     <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Top Header - Both Mobile and Desktop */}
       <header className={`fixed top-0 left-0 lg:left-64 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-center px-4 z-40 ${isFullscreen ? 'hidden' : ''}`}>
+        {/* Left Toggle - Mobile Only */}
+        <div className="absolute left-4 flex items-center lg:hidden">
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
+          >
+            <Menu size={24} />
+          </button>
+        </div>
+
         {/* Centered Logo */}
         <div className="flex items-center gap-2 pointer-events-none">
           <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">

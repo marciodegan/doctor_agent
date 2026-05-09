@@ -131,53 +131,6 @@ export function TeamManagement() {
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-10 custom-scrollbar">
             {managementMode === "dashboard" ? (
               <div className="space-y-8">
-                  {/* Connected Teammates Quick View */}
-                 <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                       <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">
-                         {activeGroup.groupType === 'personal' ? 'Membros Conectados' : 'Médicos Conectados Agora'}
-                       </h3>
-                       <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 shadow-sm shadow-emerald-100/50">
-                          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-                          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-tight">
-                             {activeGroupMembers.filter(m => m.status === 'active').length} On-line
-                          </span>
-                       </div>
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-3">
-                       {activeGroupMembers.filter(m => m.status === 'active').length === 0 ? (
-                          <div className="w-full p-8 bg-gray-100/50 border border-dashed border-gray-200 rounded-[32px] text-center">
-                             <Users className="mx-auto text-gray-300 mb-2" size={24} strokeWidth={1.5} />
-                             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Nenhum colega conectou ainda</p>
-                          </div>
-                       ) : (
-                          activeGroupMembers.filter(m => m.status === 'active').map(member => (
-                             <motion.div 
-                                initial={{ scale: 0.9, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                key={member.userId || member.userEmail} 
-                                className="flex items-center gap-2.5 p-1 bg-white border border-gray-100 rounded-full pr-5 shadow-sm hover:translate-y-[-2px] hover:shadow-md transition-all cursor-default"
-                             >
-                                <div className="w-10 h-10 rounded-full bg-blue-600 text-white overflow-hidden flex items-center justify-center shrink-0 border-2 border-emerald-400 ring-4 ring-emerald-50">
-                                   {member.photoURL ? (
-                                      <img src={member.photoURL} alt="" className="w-full h-full object-cover" />
-                                   ) : (
-                                      <span className="text-xs font-black uppercase">{(member.displayName || member.userEmail || "M").charAt(0)}</span>
-                                   )}
-                                </div>
-                                <div className="flex flex-col">
-                                   <span className="text-[10px] font-black text-gray-900 truncate uppercase tracking-tight leading-tight">
-                                      {member.displayName?.split(" ")[0] || member.userEmail?.split("@")[0]}
-                                   </span>
-                                   <span className="text-[8px] font-black text-emerald-500 uppercase tracking-tighter leading-none">Conectado</span>
-                                </div>
-                             </motion.div>
-                          ))
-                       )}
-                    </div>
-                 </div>
-
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
                     <button 
                       onClick={() => setManagementMode("members")}

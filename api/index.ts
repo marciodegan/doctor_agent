@@ -1561,16 +1561,19 @@ app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res
       `${projectId}.appspot.com`,
       `${projectId}.firebasestorage.app`,
       projectId, // Bare project ID
-    ].filter((b, i, arr) => b && arr.indexOf(b) === i); // Unique non-null
+    ].filter((b, i, arr) => b && arr.indexOf(b) === i && b !== "[DEFAULT]"); // Unique non-null and not placeholder
 
     let lastError: any = null;
     let successfulBucketName = "";
     let fileObj: any = null;
+    let attemptedBuckets: string[] = [];
 
     for (const bucketName of bucketsToTry) {
+      if (!bucketName || bucketName === "") continue;
+      attemptedBuckets.push(bucketName);
       try {
         console.log(`[Upload] Attempting bucket: ${bucketName}`);
-        const currentBucket = getStorage().bucket(bucketName!);
+        const currentBucket = getStorage().bucket(bucketName);
         const currentFile = currentBucket.file(destination);
         
         await currentFile.save(buffer, {
@@ -1579,14 +1582,12 @@ app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res
         });
         
         fileObj = currentFile;
-        successfulBucketName = bucketName!;
+        successfulBucketName = bucketName;
         console.log(`[Upload] Success with bucket: ${bucketName}`);
         break; // Exit loop on success
       } catch (err: any) {
         lastError = err;
         console.warn(`[Upload] Failed with bucket ${bucketName}: ${err.message}`);
-        // If it's not a "bucket not found" error, we might want to stop, 
-        // but usually we can just try the next bucket.
       }
     }
 
@@ -1594,28 +1595,44 @@ app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res
       console.log("[Upload] All candidate buckets failed. Attempting to list available buckets...");
       try {
         const [availableBuckets] = await (getStorage() as any).getBuckets();
-        if (availableBuckets.length > 0) {
-          const firstBucket = availableBuckets[0];
-          console.log(`[Upload] Found alternative bucket: ${firstBucket.name}. Attempting to use it...`);
-          const currentFile = firstBucket.file(destination);
-          await currentFile.save(buffer, {
-            metadata: { contentType: mimeType || "image/jpeg" },
-            resumable: false
-          });
-          fileObj = currentFile;
-          successfulBucketName = firstBucket.name;
+        const bucketNames = availableBuckets.map((b: any) => b.name);
+        console.log(`[Upload] Available buckets found: ${bucketNames.join(", ")}`);
+        
+        if (bucketNames.length > 0) {
+          // Try each found bucket
+          for (const bName of bucketNames) {
+            if (attemptedBuckets.includes(bName)) continue;
+            try {
+              console.log(`[Upload] Trying discovered bucket: ${bName}`);
+              const currentBucket = getStorage().bucket(bName);
+              const currentFile = currentBucket.file(destination);
+              await currentFile.save(buffer, {
+                metadata: { contentType: mimeType || "image/jpeg" },
+                resumable: false
+              });
+              fileObj = currentFile;
+              successfulBucketName = bName;
+              break;
+            } catch (err: any) {
+              console.warn(`[Upload] Rediscovered bucket ${bName} failed: ${err.message}`);
+            }
+          }
+        } else {
+          lastError = new Error("Nenhum bucket de storage encontrado no projeto. Por favor, ative o Firebase Storage no console e clique em 'Começar'.");
         }
       } catch (listErr: any) {
         console.error("[Upload] Failed to list buckets while recovering:", listErr);
+        // If we can't even list, we might have an IAM issue or NO buckets exist.
       }
     }
 
     if (!fileObj) {
-      console.error(`[Upload] All buckets failed. Last error:`, lastError);
+      console.error(`[Upload] All buckets failed. Final attempt failed with:`, lastError);
       return res.status(500).json({ 
-        error: `Failed to save file to any available bucket: ${lastError?.message || "Unknown error"}`,
-        code: lastError?.code,
-        details: lastError?.errors
+        error: lastError?.message || "Erro no upload: Nenhum bucket de Storage disponível.",
+        code: lastError?.code || 500,
+        details: lastError?.errors || [],
+        suggestion: "Verifique se o Firebase Storage está ativado no console do Firebase e se o bucket padrão foi criado."
       });
     }
 
