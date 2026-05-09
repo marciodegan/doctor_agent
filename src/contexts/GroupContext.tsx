@@ -23,6 +23,8 @@ interface Group {
   groupType: "professional" | "personal";
   photoURL?: string;
   status?: "active" | "pending";
+  active?: boolean;
+  ativo?: boolean;
 }
 
 interface GroupMember {
@@ -32,7 +34,7 @@ interface GroupMember {
   photoURL?: string;
   whatsapp?: string;
   role: string;
-  status: "active" | "pending" | "cancelled" | "removed";
+  status: "active" | "pending" | "cancelled" | "removed" | "conectado";
 }
 
 interface GroupContextType {
@@ -43,6 +45,7 @@ interface GroupContextType {
   loading: boolean;
   companyName: string;
   whatsappNumber: string;
+  userWhatsapp: string;
   imageAnalysisPrompt: string;
   updateSettings: (
     name: string,
@@ -60,6 +63,8 @@ interface GroupContextType {
   acceptInvite: (groupId: string) => Promise<void>;
   declineInvite: (groupId: string) => Promise<void>;
   removeMember: (groupId: string, userId: string) => Promise<void>;
+  updateMemberRole: (groupId: string, userId: string, role: string) => Promise<void>;
+  toggleGroupStatus: (groupId: string, active: boolean) => Promise<void>;
   cancelInvite: (groupId: string, email: string) => Promise<void>;
   updateProfile: (
     displayName: string,
@@ -88,6 +93,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState("Doctor Pro");
   const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [userWhatsapp, setUserWhatsapp] = useState("");
   const [imageAnalysisPrompt, setImageAnalysisPrompt] = useState("");
   const [isManagementOpen, setIsManagementOpen] = useState(false);
   const [managementMode, setManagementMode] = useState<"dashboard" | "members" | "configs">("dashboard");
@@ -176,11 +182,19 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           setActiveGroup(prev => {
             if (!prev) return prev;
             if (prev.name === data.name && prev.photoURL === data.photoURL) return prev;
+            
+            // Sync companyName with group name for consistency across UI
+            if (data.name && data.name !== companyName) {
+              setCompanyName(data.name);
+            }
+            
             return {
               ...prev,
               name: data.name || prev.name,
               photoURL: data.photoURL || "",
               groupType: data.groupType || prev.groupType,
+              active: data.active !== false && data.ativo !== false,
+              ativo: data.ativo !== false && data.active !== false,
             };
           });
         }
@@ -255,11 +269,16 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           });
 
           setInvites((prev) => {
-            const existingIds = new Set(prev.map((p) => p.id));
-            const newOnes = emailInvites.filter(
-              (ei) => !existingIds.has(ei.id),
-            );
-            return [...prev, ...newOnes];
+            // Keep invites that were fetched via rawMemberships (which are in groups or detailed fetch)
+            // But replace the ones fetched via the invitations query
+            const membershipIds = new Set(rawMemberships.map(m => m.id));
+            const otherInvites = prev.filter(p => membershipIds.has(p.id));
+            
+            // Avoid duplicates between detailed groups and email invites
+            const emailInviteIds = new Set(emailInvites.map(ei => ei.id));
+            const filteredOtherInvites = otherInvites.filter(oi => !emailInviteIds.has(oi.id));
+            
+            return [...filteredOtherInvites, ...emailInvites];
           });
         },
         (error) => {
@@ -274,6 +293,32 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       unsubscribeInvitations();
     };
   }, [user?.uid, user?.email]);
+
+  // Listen to user profile for userWhatsapp
+  useEffect(() => {
+    if (!user) {
+      setUserWhatsapp("");
+      return;
+    }
+
+    const unsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setUserWhatsapp(data.whatsapp || "");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  // Restore active group effect
+  useEffect(() => {
+    if (activeGroup?.name) {
+      document.title = activeGroup.name;
+    } else {
+      document.title = "Doctor Pro";
+    }
+  }, [activeGroup?.name]);
 
   // Effect to fetch detailed group info when rawMemberships change
   useEffect(() => {
@@ -297,10 +342,13 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           try {
             const groupDoc = await getDoc(doc(db, "groups", groupId));
             if (groupDoc.exists()) {
+              const gData = groupDoc.data();
               groupInfo = {
                 id: groupId,
-                ...groupDoc.data(),
+                ...gData,
                 status: mData.status || "active",
+                active: gData.active !== false && gData.ativo !== false,
+                ativo: gData.ativo !== false && gData.active !== false,
               } as Group;
             } else {
               // Group doc doesn't exist anymore - we ignore it to solve the "still showing" issue
@@ -436,11 +484,11 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     const cleanEmail = email.trim().toLowerCase();
 
     try {
-      // 0. Check if already invited or member
+      // 0. Check if already active or pending
       const existing = activeGroupMembers.find(
         (m) => m.userEmail.toLowerCase() === cleanEmail,
       );
-      if (existing && existing.status !== "removed") {
+      if (existing && (existing.status === "active" || existing.status === "conectado" || existing.status === "pending")) {
         throw new Error(
           "Este usuário já foi convidado ou já faz parte do grupo",
         );
@@ -535,7 +583,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           groupName:
             invites.find((i) => i.id === groupId)?.name || "Novo Grupo",
           role: "member",
-          status: "active",
+          status: "conectado",
         },
         { merge: true },
       );
@@ -549,8 +597,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           displayName: profile.displayName || "",
           photoURL: profile.photoURL || "",
           whatsapp: profile.whatsapp || "",
-          status: "active",
+          status: "conectado", // This is the status requested by user
           joinedAt: serverTimestamp(),
+          removedAt: null, // Clear removal timestamp if any
         },
         { merge: true },
       );
@@ -676,6 +725,43 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateMemberRole = async (groupId: string, userId: string, role: string) => {
+    if (!user) throw new Error("Must be logged in");
+    try {
+      // Verify if current user is owner
+      const myMembership = activeGroupMembers.find(
+        (m) => m.userId === user.uid,
+      );
+      if (myMembership?.role !== "owner") {
+        throw new Error("Apenas o admin pode alterar permissões");
+      }
+
+      // 1. Update in group members
+      await setDoc(
+        doc(db, `groups/${groupId}/members`, userId),
+        {
+          role: role,
+        },
+        { merge: true },
+      );
+
+      // 2. Update in user's memberships
+      await setDoc(
+        doc(db, `users/${userId}/memberships`, groupId),
+        {
+          role: role,
+        },
+        { merge: true },
+      );
+    } catch (err) {
+      handleFirestoreError(
+        err,
+        OperationType.WRITE,
+        `groups/${groupId}/members/${userId}`,
+      );
+    }
+  };
+
   const cancelInvite = async (groupId: string, email: string) => {
     if (!user) throw new Error("Must be logged in");
     const cleanEmail = email.trim().toLowerCase();
@@ -734,6 +820,39 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `group_invitations`);
+    }
+  };
+
+  const toggleGroupStatus = async (groupId: string, active: boolean) => {
+    if (!user) throw new Error("Must be logged in");
+    try {
+      // 1. Get current group data to check if user is creator
+      const groupDocRef = doc(db, "groups", groupId);
+      const groupSnap = await getDoc(groupDocRef);
+      const groupData = groupSnap.data();
+      const isCreator = groupData?.createdBy === user.uid;
+
+      // 2. Check membership role (owner)
+      const myMembership = activeGroupMembers.find(m => m.userId === user.uid);
+      const isOwner = myMembership?.role === "owner";
+
+      if (!isOwner && !isCreator) {
+        throw new Error("Apenas o administrador do grupo pode desativá-lo.");
+      }
+
+      // 3. Update the document with both field names to ensure compatibility
+      await setDoc(groupDocRef, {
+        active: active,
+        ativo: active,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
+      // 4. Update local state immediately
+      if (activeGroup?.id === groupId) {
+        setActiveGroup(prev => prev ? { ...prev, active, ativo: active } : null);
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `groups/${groupId}`);
     }
   };
 
@@ -848,6 +967,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         loading,
         companyName,
         whatsappNumber,
+        userWhatsapp,
         imageAnalysisPrompt,
         updateSettings,
         handleBackup,
@@ -857,6 +977,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         acceptInvite,
         declineInvite,
         removeMember,
+        updateMemberRole,
+        toggleGroupStatus,
         cancelInvite,
         updateProfile,
         apiFetch,

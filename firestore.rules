@@ -19,7 +19,8 @@ service cloud.firestore {
     function isMember(groupId) {
       return isSignedIn() && (
         (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "active") ||
+         (get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "active" ||
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "conectado")) ||
         (exists(/databases/$(database)/documents/groups/$(groupId)) && 
          get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid)
       );
@@ -27,7 +28,9 @@ service cloud.firestore {
     function isOwner(groupId) {
       return isSignedIn() && 
         exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role == "owner";
+        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role == "owner" &&
+        (get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "active" ||
+         get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "conectado");
     }
 
     // User profiles
@@ -64,7 +67,7 @@ service cloud.firestore {
           request.auth.uid == memberId || 
           isOwner(groupId)
         );
-        allow update: if (isSignedIn() && request.auth.uid == memberId && (incoming().status == "active" || incoming().status == "cancelled")) || 
+        allow update: if (isSignedIn() && request.auth.uid == memberId && (incoming().status == "active" || incoming().status == "conectado" || incoming().status == "cancelled")) || 
                         isOwner(groupId);
         allow delete: if isOwner(groupId);
       }

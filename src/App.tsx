@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth";
+import { auth } from "./lib/firebase";
 import { useGroup } from "./contexts/GroupContext";
 import { Chat } from "./components/Chat";
 import { Calendar as FirestoreCalendar } from "./components/Calendar";
@@ -34,7 +35,8 @@ import {
   Settings,
   Lock,
   Loader2,
-  Stethoscope
+  Stethoscope,
+  PowerOff
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -46,7 +48,19 @@ import { PatientLogs } from "./components/PatientLogs";
 
 export default function App() {
   const { isAuthenticated, login, logout } = useAuth();
-  const { activeGroup, setIsManagementOpen, setManagementMode, setConfigsActiveTab } = useGroup();
+  const { 
+    activeGroup, 
+    companyName,
+    setIsManagementOpen, 
+    setManagementMode, 
+    setConfigsActiveTab,
+    activeGroupMembers,
+    toggleGroupStatus
+  } = useGroup();
+
+  const currentUserMember = activeGroupMembers.find(m => m.userId === auth.currentUser?.uid);
+  const isOwner = activeGroup?.createdBy === auth.currentUser?.uid;
+  const isAdmin = isOwner || currentUserMember?.role === "owner";
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -379,7 +393,7 @@ export default function App() {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
               <Stethoscope size={18} />
             </div>
-            <h1 className="font-bold text-xl tracking-tight text-blue-600">Doctor Pro</h1>
+            <h1 className="font-bold text-xl tracking-tight text-blue-600 truncate max-w-[140px]">Doctor Pro</h1>
           </div>
         </div>
 
@@ -518,7 +532,43 @@ export default function App() {
         </AnimatePresence>
 
         {/* Hero / Dashboard Area */}
-        <div id="main-scroll-container" className={`p-2 sm:p-4 flex flex-col gap-6 w-full ${isFullscreen ? "h-screen overflow-hidden" : ""}`}>
+        <div id="main-scroll-container" className={`p-2 sm:p-4 flex flex-col gap-6 w-full relative ${isFullscreen ? "h-screen overflow-hidden" : ""}`}>
+          {(activeGroup?.active === false || activeGroup?.ativo === false) && (
+            <div className="absolute inset-x-2 sm:inset-x-4 inset-y-2 sm:inset-y-4 z-[45] bg-white/60 backdrop-blur-md rounded-[2.5rem] flex items-center justify-center p-6 text-center">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white border border-gray-100 p-10 rounded-[32px] shadow-2xl max-w-sm space-y-6"
+              >
+                 <div className="w-20 h-20 bg-red-50 text-red-600 rounded-[2rem] flex items-center justify-center mx-auto shadow-inner shadow-red-100/50">
+                   <PowerOff size={40} />
+                 </div>
+                 <div className="space-y-2">
+                   <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Ambiente Desativado</h3>
+                   <p className="text-sm text-gray-500 font-medium leading-relaxed">
+                     Este grupo foi desativado. Nenhuma ação pode ser realizada até que receba permissão de um administrador.
+                   </p>
+                 </div>
+                 {isAdmin ? (
+                   <button 
+                     onClick={() => {
+                        if (confirm(`Deseja reativar o grupo "${activeGroup.name}"?`)) {
+                          toggleGroupStatus(activeGroup.id, true);
+                        }
+                     }}
+                     className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-sm uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                   >
+                     <Zap size={18} />
+                     Reativar Grupo
+                   </button>
+                 ) : (
+                   <div className="pt-2">
+                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-4 py-2 rounded-full border border-gray-100">Somente Administradores</span>
+                   </div>
+                 )}
+              </motion.div>
+            </div>
+          )}
           {!isAuthenticated ? (
             <div className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto text-center space-y-8 w-full px-4">
               <motion.div 

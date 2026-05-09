@@ -17,6 +17,11 @@ import {
   Camera,
   Upload,
   FolderOpen,
+  Image,
+  Lock,
+  Power,
+  PowerOff,
+  AlertCircle,
 } from "lucide-react";
 import { 
   collection, 
@@ -33,8 +38,10 @@ import {
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useGroup } from "../contexts/GroupContext";
+import { useAuth } from "../hooks/useAuth";
 import { motion, AnimatePresence } from "motion/react";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
+import { GroupIconBlue } from "./icons/GroupIcon";
 
 type ConfigType = "hospitals" | "patient_statuses" | "procedureOptions" | "surgery_types" | "affinity" | "members" | "general" | "document_categories";
 
@@ -49,14 +56,20 @@ interface ConfigItem {
 export function GroupConfigs() {
   const { 
     activeGroup, 
+    activeGroupMembers,
     companyName, 
     whatsappNumber, 
     imageAnalysisPrompt, 
     updateSettings, 
+    toggleGroupStatus,
     handleBackup,
     configsActiveTab: activeTab,
     setConfigsActiveTab: setActiveTab 
   } = useGroup();
+  const { user } = useAuth();
+  
+  const userRole = activeGroupMembers.find(m => m.userId === user?.uid)?.role;
+  const isOwner = userRole === "owner";
   
   const [items, setItems] = useState<ConfigItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,7 +80,6 @@ export function GroupConfigs() {
 
   // Local settings for the general tab
   const [localCompanyName, setLocalCompanyName] = useState(companyName);
-  const [localWhatsappNumber, setLocalWhatsappNumber] = useState(whatsappNumber);
   const [localImageAnalysisPrompt, setLocalImageAnalysisPrompt] = useState(
     imageAnalysisPrompt,
   );
@@ -75,16 +87,14 @@ export function GroupConfigs() {
     activeGroup?.photoURL || "",
   );
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
-  const [isBackingUp, setIsBackingUp] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLocalCompanyName(companyName);
-    setLocalWhatsappNumber(whatsappNumber);
     setLocalImageAnalysisPrompt(imageAnalysisPrompt);
     setLocalGroupPhotoURL(activeGroup?.photoURL || "");
-  }, [companyName, whatsappNumber, imageAnalysisPrompt, activeGroup?.photoURL]);
+  }, [companyName, imageAnalysisPrompt, activeGroup?.photoURL]);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,7 +120,7 @@ export function GroupConfigs() {
           // Auto-save the new photo URL to the group settings
           await updateSettings(
             localCompanyName,
-            localWhatsappNumber,
+            whatsappNumber,
             localImageAnalysisPrompt,
             data.webViewLink,
           );
@@ -133,7 +143,7 @@ export function GroupConfigs() {
     try {
       await updateSettings(
         localCompanyName,
-        localWhatsappNumber,
+        whatsappNumber,
         localImageAnalysisPrompt,
         localGroupPhotoURL,
       );
@@ -146,16 +156,45 @@ export function GroupConfigs() {
     }
   };
 
-  const onHandleBackup = async () => {
-    if (!confirm("Deseja realizar o backup dos dados deste grupo?")) return;
-    setIsBackingUp(true);
+  const handleUseDefaultIcon = async () => {
+    // Generate a simple SVG data URI for the icon
+    const svgString = `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="25" fill="#2563EB" /><path d="M35 55C35 49.4772 39.4772 45 45 45C50.5228 45 55 49.4772 55 55V60H35V55Z" fill="white" /><circle cx="45" cy="35" r="7" fill="white" /><path d="M55 58C55 53.5817 58.5817 50 63 50C67.4183 50 71 53.5817 71 58V62H55V58Z" fill="white" style="opacity: 0.8" /><circle cx="63" cy="42" r="6" fill="white" style="opacity: 0.8" /></svg>`;
+    const dataUri = `data:image/svg+xml;base64,${btoa(svgString)}`;
+    
+    setLocalGroupPhotoURL(dataUri);
     try {
-      await handleBackup();
-      alert("Backup realizado com sucesso!");
+      await updateSettings(
+        localCompanyName,
+        whatsappNumber,
+        localImageAnalysisPrompt,
+        dataUri,
+      );
+      alert("Ícone padrão aplicado!");
     } catch (err) {
-      alert("Erro no backup");
+      console.error("Failed to set default icon", err);
+      alert("Erro ao aplicar ícone padrão");
+    }
+  };
+
+
+  const handleToggleGroupActivation = async () => {
+    if (!activeGroup) return;
+    const isCurrentlyActive = activeGroup.active !== false && activeGroup.ativo !== false;
+    const isActivating = !isCurrentlyActive;
+    
+    const confirmMsg = isActivating 
+      ? "Deseja reativar este grupo?" 
+      : "Deseja desativar este grupo? Membros não poderão realizar ações até que seja reativado.";
+    
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      setIsUpdatingSettings(true);
+      await toggleGroupStatus(activeGroup.id, isActivating);
+    } catch (err: any) {
+      alert("Erro: " + err.message);
     } finally {
-      setIsBackingUp(false);
+      setIsUpdatingSettings(false);
     }
   };
 
@@ -328,10 +367,19 @@ export function GroupConfigs() {
     setIsLoading(true);
     try {
       const isUsed = await checkUsage(item);
-      if (isUsed) {
+      // For surgery_types, always soft delete to avoid breaking historical data
+      if (isUsed || activeTab === "surgery_types") {
         // Soft delete (deactivate)
-        await setDoc(doc(db, activeTab, item.id), { active: false }, { merge: true });
-        alert("Este item está sendo usado em registros existentes. Ele foi desativado e não aparecerá mais em novos formulários, mas os registros antigos continuarão ativos.");
+        await setDoc(doc(db, activeTab, item.id), { 
+          active: false,
+          status: "removed",
+          updatedAt: serverTimestamp() 
+        }, { merge: true });
+        
+        const msg = activeTab === "surgery_types" 
+          ? "Este tipo de cirurgia foi marcado como removido para preservar dados históricos. Ele não aparecerá mais em novos registros."
+          : "Este item está sendo usado em registros existentes. Ele foi desativado e não aparecerá mais em novos formulários, mas os registros antigos continuarão ativos.";
+        alert(msg);
       } else {
         // Hard delete
         await deleteDoc(doc(db, activeTab, item.id));
@@ -346,7 +394,11 @@ export function GroupConfigs() {
   const handleToggleActive = async (item: ConfigItem) => {
     if (!activeTab) return;
     try {
-      await setDoc(doc(db, activeTab, item.id), { active: !item.active }, { merge: true });
+      await setDoc(doc(db, activeTab, item.id), { 
+        active: !item.active,
+        status: !item.active ? "active" : "removed",
+        updatedAt: serverTimestamp()
+      }, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, activeTab);
     }
@@ -381,42 +433,53 @@ export function GroupConfigs() {
         </div>
 
         <div className="space-y-6 max-w-lg">
-          <div className="flex flex-col items-center mb-4">
-            <div className="relative group">
-              <div className="w-24 h-24 rounded-[32px] bg-indigo-50 border-2 border-indigo-100 flex items-center justify-center overflow-hidden shadow-xl shadow-indigo-100/50">
-                {localGroupPhotoURL ? (
-                  <img
-                    src={localGroupPhotoURL}
-                    alt="Group"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Camera size={32} className="text-indigo-300" />
-                )}
-                {isUploadingPhoto && (
-                  <div className="absolute inset-0 bg-indigo-900/40 flex items-center justify-center">
-                    <Loader2 size={24} className="animate-spin text-white" />
-                  </div>
-                )}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative group">
+                <div className="w-24 h-24 rounded-[32px] bg-indigo-50 border-2 border-indigo-100 flex items-center justify-center overflow-hidden shadow-xl shadow-indigo-100/50">
+                  {localGroupPhotoURL ? (
+                    <img
+                      src={localGroupPhotoURL}
+                      alt="Group"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Camera size={32} className="text-indigo-300" />
+                  )}
+                  {isUploadingPhoto && (
+                    <div className="absolute inset-0 bg-indigo-900/40 flex items-center justify-center">
+                      <Loader2 size={24} className="animate-spin text-white" />
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => isOwner && fileInputRef.current?.click()}
+                  disabled={!isOwner}
+                  className={`absolute -bottom-2 -right-2 bg-white border border-gray-100 p-2.5 rounded-2xl text-indigo-600 shadow-xl transition-all ${
+                    isOwner ? "hover:scale-110 active:scale-95" : "opacity-50 cursor-not-allowed"
+                  }`}
+                  title={isOwner ? "Upload Foto" : "Apenas o admin pode alterar a foto"}
+                >
+                  <Upload size={14} />
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                />
               </div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute -bottom-2 -right-2 bg-white border border-gray-100 p-2.5 rounded-2xl text-indigo-600 shadow-xl hover:scale-110 active:scale-95 transition-all"
-              >
-                <Upload size={14} />
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/*"
-                onChange={handlePhotoUpload}
-              />
+              
+              {isOwner && (
+                <button
+                  onClick={handleUseDefaultIcon}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-all active:scale-95"
+                >
+                  <Image size={12} />
+                  <span className="text-[10px] font-black uppercase tracking-tight">Usar Ícone Azul</span>
+                </button>
+              )}
             </div>
-            <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-4">
-              Foto do Grupo
-            </p>
-          </div>
 
           <div>
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
@@ -427,20 +490,11 @@ export function GroupConfigs() {
               value={localCompanyName} 
               onChange={(e) => setLocalCompanyName(e.target.value)}
               placeholder="Ex: Dr. Silva ou Clínica Pro"
-              className="w-full bg-gray-50 border border-gray-100 px-5 py-4 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
+              disabled={!isOwner}
+              className={`w-full bg-gray-50 border border-gray-100 px-5 py-4 rounded-2xl text-sm font-bold outline-none transition-all ${
+                isOwner ? "focus:ring-4 focus:ring-indigo-100" : "opacity-70 cursor-not-allowed"
+              }`}
             />
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">WhatsApp (Envio de Agenda)</label>
-            <input 
-              type="text" 
-              value={localWhatsappNumber} 
-              onChange={(e) => setLocalWhatsappNumber(e.target.value)}
-              placeholder="Ex: 5511999998888"
-              className="w-full bg-gray-50 border border-gray-100 px-5 py-4 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
-            />
-            <p className="text-[9px] text-gray-400 mt-2 ml-1">Inclua o código do país (55 para Brasil) e DDD. Sem espaços ou traços.</p>
           </div>
 
           <div>
@@ -450,25 +504,53 @@ export function GroupConfigs() {
               onChange={(e) => setLocalImageAnalysisPrompt(e.target.value)}
               placeholder="Instruções para a IA analisar as fotos..."
               rows={4}
-              className="w-full bg-gray-50 border border-gray-100 px-5 py-4 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-indigo-100 outline-none transition-all resize-none"
+              disabled={!isOwner}
+              className={`w-full bg-gray-50 border border-gray-100 px-5 py-4 rounded-2xl text-sm font-medium outline-none transition-all resize-none ${
+                isOwner ? "focus:ring-4 focus:ring-indigo-100" : "opacity-70 cursor-not-allowed"
+              }`}
             />
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <button 
-              onClick={onUpdateSettings}
-              disabled={isUpdatingSettings || isBackingUp}
-              className="flex-[2] bg-blue-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {isUpdatingSettings ? <Loader2 size={16} className="animate-spin" /> : "SALVAR ALTERAÇÕES"}
-            </button>
-            <button 
-              onClick={onHandleBackup}
-              disabled={isUpdatingSettings || isBackingUp}
-              className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {isBackingUp ? <Loader2 size={16} className="animate-spin" /> : "BACKUP"}
-            </button>
+          <div className="flex flex-col gap-3 pt-4">
+            {!isOwner && (
+              <div className="bg-amber-50 border border-amber-100 px-4 py-3 rounded-2xl flex items-center gap-2 text-amber-700">
+                <Lock size={14} className="shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-tight">Estas configurações podem ser alteradas apenas pelo Administrador.</span>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button 
+                onClick={onUpdateSettings}
+                disabled={isUpdatingSettings || !isOwner}
+                className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isUpdatingSettings ? <Loader2 size={16} className="animate-spin" /> : "SALVAR ALTERAÇÕES"}
+              </button>
+            </div>
+
+            {isOwner && (
+              <div className="pt-6 border-t border-gray-100 mt-2">
+                <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-4 ml-1">Zona de Perigo</h4>
+                <button
+                  type="button"
+                  onClick={handleToggleGroupActivation}
+                  disabled={isUpdatingSettings}
+                  className={`w-full py-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2 shadow-xl ${
+                    (activeGroup?.active !== false && activeGroup?.ativo !== false)
+                      ? "bg-red-50 text-red-600 hover:bg-red-100 shadow-red-50"
+                      : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 shadow-emerald-50"
+                  }`}
+                >
+                  {(activeGroup?.active !== false && activeGroup?.ativo !== false) ? <PowerOff size={16} /> : <Power size={16} />}
+                  {(activeGroup?.active !== false && activeGroup?.ativo !== false) ? "DESATIVAR GRUPO" : "REATIVAR GRUPO"}
+                </button>
+                <p className="text-[9px] text-gray-400 mt-3 text-center px-4 leading-normal">
+                  {(activeGroup?.active !== false && activeGroup?.ativo !== false) 
+                    ? "Desativar o grupo impedirá qualquer tipo de trabalho ou modificação por parte dos membros."
+                    : "Reativar o grupo permitirá que os membros voltem a trabalhar e realizar lançamentos."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -529,15 +611,19 @@ export function GroupConfigs() {
           
           <button 
             onClick={() => {
+              if (!isOwner) return;
               setIsAdding(!isAdding);
               setEditingItem(null);
               setNewItemName("");
               setError(null);
             }}
+            disabled={!isOwner}
             className={`sm:ml-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${
               isAdding 
                 ? "bg-gray-100 text-gray-500 shadow-none" 
-                : "bg-blue-600 text-white shadow-blue-100 hover:bg-blue-700"
+                : isOwner 
+                  ? "bg-blue-600 text-white shadow-blue-100 hover:bg-blue-700"
+                  : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-50 shadow-none"
             }`}
           >
             {isAdding ? "CANCELAR" : (
@@ -621,19 +707,21 @@ export function GroupConfigs() {
                 <motion.div 
                   key={item.id}
                   layout
-                  className={`bg-white border border-gray-100 p-4 rounded-2xl flex items-center justify-between group hover:shadow-lg hover:shadow-gray-200/50 transition-all ${item.active === false ? 'opacity-50 grayscale' : ''}`}
+                  className={`bg-white border border-gray-100 p-4 rounded-2xl flex items-center justify-between group hover:shadow-lg hover:shadow-gray-200/50 transition-all ${(item.active === false || (item as any).status === 'removed') ? 'opacity-50 grayscale' : ''}`}
                 >
                   <div className="flex flex-col">
                     <span className="font-bold text-sm text-gray-700 uppercase tracking-tight">{item.name || item.nome}</span>
-                    {item.active === false && (
-                      <span className="text-[8px] font-black text-red-500 uppercase tracking-wider">Inativo</span>
+                    {(item.active === false || (item as any).status === 'removed') && (
+                      <span className="text-[8px] font-black text-red-500 uppercase tracking-wider">
+                        {(item as any).status === 'removed' ? 'Removido' : 'Inativo'}
+                      </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                    {item.active === false ? (
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all font-black text-[10px] uppercase">
+                    {(item.active === false || (item as any).status === 'removed') ? (
                       <button 
                         onClick={() => handleToggleActive(item)}
-                        className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg text-[9px] font-black uppercase"
+                        className="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-xl transition-all"
                       >
                         Reativar
                       </button>
@@ -675,8 +763,8 @@ export function GroupConfigs() {
           <p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mt-1">Carregue todos os padrões de uma só vez para este grupo</p>
         </div>
         <button 
-          onClick={() => handleInitializeDefaults("all")}
-          disabled={isLoading}
+          onClick={() => isOwner && handleInitializeDefaults("all")}
+          disabled={isLoading || !isOwner}
           className="w-full sm:w-auto bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-xs hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-2 uppercase tracking-widest active:scale-95 disabled:opacity-50"
         >
           {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}

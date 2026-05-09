@@ -332,9 +332,9 @@ export const Chat: React.FC<{
   }, [activeGroup?.id]);
 
   // Compatibility aliases - only for FORMS, filter active
-  const hospitalOptions = groupHospitals.filter(h => h.active !== false);
-  const statusOptions = groupStatuses.filter(s => s.active !== false);
-  const procedureOptions = groupProcedures.filter(p => p.active !== false).map(p => p.nome);
+  const hospitalOptions = groupHospitals.filter(h => h.active !== false && (h as any).status !== "removed");
+  const statusOptions = groupStatuses.filter(s => s.active !== false && (s as any).status !== "removed");
+  const procedureOptions = groupProcedures.filter(p => p.active !== false && (p as any).status !== "removed").map(p => p.nome);
   
   // Full lists for lookup/display
   const allHospitals = groupHospitals;
@@ -2248,8 +2248,8 @@ export const Chat: React.FC<{
                       <div className="bg-blue-50/80 -mx-4 -mt-2 mb-0 pt-6 pb-5 px-4 flex flex-row items-center justify-between border-b border-blue-100 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                         
-                        <div className="flex flex-col items-start gap-1 relative z-10 min-w-0 flex-1">
-                          <h3 className="text-[16px] font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full">{msg.profileData.nome}</h3>
+                        <div className="flex flex-col items-start gap-1 relative z-10 min-w-0 flex-1 px-1">
+                          <h3 className="text-[18px] font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full">{msg.profileData.nome}</h3>
                           <div className="flex flex-row items-center gap-3">
                             <span className="text-[12px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-lg shrink-0">{msg.profileData.idade} ANOS</span>
                             <button 
@@ -2261,49 +2261,40 @@ export const Chat: React.FC<{
                           </div>
                         </div>
 
-                        <div className="flex flex-col items-end gap-1.5 relative z-10 shrink-0 ml-4">
-                          <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none">Status</span>
+                        <div className="flex flex-col items-end relative z-10 shrink-0 ml-4">
                           <button 
-                            onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
-                            className="bg-white px-2.5 py-1.5 rounded-lg border-2 border-blue-600 text-blue-900 text-[11px] font-black shadow-sm hover:bg-blue-50 transition-all flex items-center gap-1.5 active:scale-95"
+                            onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}`)}
+                            className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                           >
-                            {allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}
-                            <Edit3 size={13} className="text-blue-500" />
+                            <CalendarPlus size={16} className="text-emerald-100" />
+                            <span className="text-[10px] font-black uppercase tracking-tight">Agendar Novo</span>
                           </button>
                         </div>
                       </div>
 
-                      <div className="px-4 py-3 bg-white border-b border-gray-100 flex flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100 shrink-0">
-                            <Building2 size={20} className="text-blue-500" />
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Unidade / Leito</span>
-                            <span className="text-[13px] font-bold text-gray-800 leading-tight truncate">
-                              {msg.profileData?.hospitalNome || "Sem Unidade"}
-                            </span>
-                            <span className="text-[11px] font-bold text-gray-400">
-                              {msg.profileData?.roomNumber || "Sala não informada"}
-                            </span>
-                          </div>
+                      <div className="px-4 py-3 bg-white border-b border-gray-100 grid grid-cols-3 gap-2 divide-x divide-gray-100">
+                        <div className="flex flex-col pr-2">
+                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Hospital</span>
+                          <span className="text-[12px] font-bold text-gray-800 leading-tight truncate">
+                            {msg.profileData?.hospitalNome || "Sem Hospital"}
+                          </span>
+                        </div>
+                        
+                        <div className="flex flex-col px-3">
+                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Leito</span>
+                          <span className="text-[12px] font-bold text-gray-800 leading-tight truncate">
+                            {msg.profileData?.roomNumber || "Sala ?"}
+                          </span>
                         </div>
 
-                        <div className="flex flex-row items-center gap-2 shrink-0">
+                        <div className="flex flex-col pl-3">
+                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Status</span>
                           <button 
-                            onClick={() => onViewLogs && onViewLogs(msg.profileData?.id)}
-                            className="bg-blue-600 text-white px-3 py-1.5 rounded-lg shadow-md shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                            onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
+                            className="text-left text-[11px] font-black text-blue-600 hover:text-blue-800 transition-all flex items-center gap-1 truncate"
                           >
-                            <FileText size={14} className="text-blue-100" />
-                            <span className="text-[9px] font-black uppercase tracking-tight">Logs</span>
-                          </button>
-
-                          <button 
-                            onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}`)}
-                            className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg shadow-md shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
-                          >
-                            <CalendarPlus size={14} className="text-emerald-100" />
-                            <span className="text-[9px] font-black uppercase tracking-tight">Agendar Novo</span>
+                            <span className="truncate">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
+                            <Edit3 size={11} className="shrink-0" />
                           </button>
                         </div>
                       </div>
@@ -2438,6 +2429,18 @@ export const Chat: React.FC<{
                           {msg.text}
                         </ReactMarkdown>
                       </div>
+
+                      {msg.isProfile && msg.profileData && (
+                        <div className="mt-4 pt-4 border-t border-gray-50 flex justify-center">
+                          <button 
+                            onClick={() => onViewLogs && onViewLogs(msg.profileData?.id)}
+                            className="w-full bg-blue-600 text-white px-5 py-3 rounded-2xl shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]"
+                          >
+                            <FileText size={18} className="text-blue-100" />
+                            <span className="text-xs font-black uppercase tracking-widest text-white">Visualizar Histórico Completo (Logs)</span>
+                          </button>
+                        </div>
+                      )}
 
                       {msg.actionGroups && (
                         <div className="mt-6 pt-6 -mx-3 -mb-3 p-4 bg-gray-50/70 border-t border-gray-100 space-y-4">

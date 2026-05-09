@@ -24,6 +24,7 @@ export function TeamManagement() {
     activeGroupMembers,
     inviteUser, 
     removeMember,
+    updateMemberRole,
     cancelInvite,
     isManagementOpen,
     setIsManagementOpen,
@@ -34,6 +35,7 @@ export function TeamManagement() {
   const { user } = useAuth();
   const [inviteEmail, setInviteEmail] = useState("");
   const [isRemoving, setIsRemoving] = useState<string | null>(null);
+  const [isUpdatingRole, setIsUpdatingRole] = useState<string | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<{ id: string, email: string, status: string } | null>(null);
   const [error, setError] = useState("");
 
@@ -48,15 +50,91 @@ export function TeamManagement() {
     }
   }, [isManagementOpen]);
 
-  const sortedMembers = [...activeGroupMembers].sort((a, b) => {
-    const statusPriority: Record<string, number> = {
-      active: 1,
-      pending: 2,
-      removed: 3,
-      cancelled: 4
-    };
-    return (statusPriority[a.status] || 99) - (statusPriority[b.status] || 99);
-  });
+  const visibleMembers = activeGroupMembers.filter(m => m.status !== 'removed');
+  const conectados = visibleMembers.filter(m => m.status === 'active' || m.status === 'conectado');
+  const pendentes = visibleMembers.filter(m => m.status === 'pending');
+  const outros = visibleMembers.filter(m => m.status !== 'active' && m.status !== 'conectado' && m.status !== 'pending');
+
+  const MemberCard = ({ member }: { member: any }) => (
+    <div key={(member.userId || '') + member.userEmail} className={`bg-gray-50/50 border border-gray-100 p-4 rounded-3xl flex items-center justify-between group/card transition-all hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 pointer-events-auto ${member.status === 'removed' ? 'opacity-50' : ''}`}>
+      <div className="flex items-center gap-3">
+        <div className="relative shrink-0">
+          <div className={`w-10 h-10 rounded-xl overflow-hidden shadow-sm flex items-center justify-center transition-all ${member.status === 'active' || member.status === 'conectado' ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+            {member.photoURL ? (
+              <img src={member.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-xs font-black uppercase">{(member.displayName || member.userEmail || "M").charAt(0)}</span>
+            )}
+          </div>
+          <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
+            (member.status === 'active' || member.status === 'conectado') ? 'bg-emerald-500' : 
+            member.status === 'pending' ? 'bg-amber-400' : 'bg-gray-400'
+          }`} />
+        </div>
+        
+        <div className="flex flex-col min-w-0">
+          <span className="text-[13px] font-black text-gray-900 truncate uppercase tracking-tight leading-tight">
+            {member.displayName || (member.userEmail?.split('@')[0])}
+          </span>
+          <span className="text-[9px] font-bold text-gray-400 truncate leading-none mt-0.5">{member.userEmail}</span>
+          <div className="flex items-center gap-2 mt-1">
+             <span className={`text-[7px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded-md ${member.role === 'owner' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                {member.role === 'owner' ? 'Administrador' : 'Membro'}
+             </span>
+             <span className={`text-[7px] font-black uppercase tracking-tighter ${
+                (member.status === 'active' || member.status === 'conectado') ? 'text-emerald-500' : 
+                member.status === 'pending' ? 'text-amber-500' : 'text-gray-400'
+             }`}>
+                {(member.status === 'active' || member.status === 'conectado') ? 'Conectado' : 
+                 member.status === 'pending' ? 'Pendente' : 'Removido'}
+             </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+         {isOwner && member.userId && member.userId !== user?.uid && (member.status === 'active' || member.status === 'conectado') && (
+           <button
+             onClick={() => handleToggleAdmin(member.userId, member.role)}
+             disabled={isUpdatingRole === member.userId}
+             className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all shrink-0 ${
+               member.role === 'owner' 
+                 ? "bg-blue-600 text-white shadow-lg shadow-blue-100" 
+                 : "bg-gray-100 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+             }`}
+             title={member.role === 'owner' ? "Remover admin" : "Tornar admin"}
+           >
+             {isUpdatingRole === member.userId ? (
+               <Loader2 size={14} className="animate-spin" />
+             ) : (
+               <Shield size={14} />
+             )}
+           </button>
+         )}
+
+         {isOwner && member.userId !== user?.uid && member.status !== 'removed' && (
+           <button
+             onClick={() => {
+               if (member.status === 'active' || member.status === 'conectado') {
+                 setMemberToRemove({ id: member.userId, email: member.userEmail, status: member.status });
+               } else {
+                 handleRemoveMember(member.userId, member.userEmail, member.status);
+               }
+             }}
+             disabled={isRemoving === (member.userId || member.userEmail)}
+             className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shrink-0"
+             title={(member.status === 'active' || member.status === 'conectado') ? "Remover do grupo" : "Cancelar convite"}
+           >
+             {isRemoving === (member.userId || member.userEmail) ? (
+               <Loader2 size={14} className="animate-spin" />
+             ) : (
+               <Trash2 size={14} />
+             )}
+           </button>
+         )}
+      </div>
+    </div>
+  );
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +165,25 @@ export function TeamManagement() {
     }
   };
 
+  const handleToggleAdmin = async (targetUserId: string, currentRole: string) => {
+    if (!activeGroup || !targetUserId) return;
+    const newRole = currentRole === "owner" ? "member" : "owner";
+    const confirmMsg = newRole === "owner" 
+      ? "Deseja conceder permissão de Administrador a este membro? Ele poderá gerenciar configurações e outros membros."
+      : "Deseja remover a permissão de Administrador deste membro?";
+    
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      setIsUpdatingRole(targetUserId);
+      await updateMemberRole(activeGroup.id, targetUserId, newRole);
+      setIsUpdatingRole(null);
+    } catch (err: any) {
+      alert(err.message || "Erro ao atualizar permissão");
+      setIsUpdatingRole(null);
+    }
+  };
+
   if (!isManagementOpen || !activeGroup) return null;
 
   return (
@@ -106,8 +203,14 @@ export function TeamManagement() {
           {/* Header */}
           <div className="p-6 sm:p-8 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-100 shrink-0">
-                <Users size={24} />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl overflow-hidden flex items-center justify-center text-white shadow-xl shadow-blue-100 shrink-0">
+                {activeGroup.photoURL ? (
+                  <img src={activeGroup.photoURL} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-blue-600 flex items-center justify-center">
+                    <Users size={24} />
+                  </div>
+                )}
               </div>
               <div className="min-w-0">
                 <h2 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight leading-none mb-1 uppercase truncate">{activeGroup.name}</h2>
@@ -247,74 +350,47 @@ export function TeamManagement() {
             </div>
 
             {/* Member List Section */}
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-gray-50 pb-2">
-                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-                   {activeGroup.groupType === 'personal' ? 'Integrantes' : 'Membros da Equipe'} ({activeGroupMembers.filter(m => m.status === 'active').length})
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {sortedMembers.map((member) => (
-                  <div key={(member.userId || '') + member.userEmail} className={`bg-gray-50/50 border border-gray-100 p-4 rounded-3xl flex items-center justify-between group/card transition-all hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 pointer-events-auto ${member.status === 'removed' ? 'opacity-50' : ''}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="relative shrink-0">
-                        <div className={`w-10 h-10 rounded-xl overflow-hidden shadow-sm flex items-center justify-center transition-all ${member.status === 'active' ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                          {member.photoURL ? (
-                            <img src={member.photoURL} alt="Avatar" className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-xs font-black uppercase">{(member.displayName || member.userEmail || "M").charAt(0)}</span>
-                          )}
-                        </div>
-                        <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
-                          member.status === 'active' ? 'bg-emerald-500' : 
-                          member.status === 'pending' ? 'bg-amber-400' : 'bg-gray-400'
-                        }`} />
-                      </div>
-                      
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[13px] font-black text-gray-900 truncate uppercase tracking-tight leading-tight">
-                          {member.displayName || (member.userEmail?.split('@')[0])}
-                        </span>
-                        <span className="text-[9px] font-bold text-gray-400 truncate leading-none mt-0.5">{member.userEmail}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                           <span className={`text-[7px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded-md ${member.role === 'owner' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
-                              {member.role === 'owner' ? 'Administrador' : 'Membro'}
-                           </span>
-                           <span className={`text-[7px] font-black uppercase tracking-tighter ${
-                              member.status === 'active' ? 'text-emerald-500' : 
-                              member.status === 'pending' ? 'text-amber-500' : 'text-gray-400'
-                           }`}>
-                              {member.status === 'active' ? 'Conectado' : 
-                               member.status === 'pending' ? 'Convidado' : 'Removido'}
-                           </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {isOwner && member.userId !== user?.uid && member.status !== 'removed' && (
-                      <button
-                        onClick={() => {
-                          if (member.status === 'active') {
-                            setMemberToRemove({ id: member.userId, email: member.userEmail, status: member.status });
-                          } else {
-                            handleRemoveMember(member.userId, member.userEmail, member.status);
-                          }
-                        }}
-                        disabled={isRemoving === (member.userId || member.userEmail)}
-                        className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shrink-0"
-                        title={member.status === 'active' ? "Remover do grupo" : "Cancelar convite"}
-                      >
-                        {isRemoving === (member.userId || member.userEmail) ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Trash2 size={14} />
-                        )}
-                      </button>
-                    )}
+            <div className="space-y-8">
+              {conectados.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-50 pb-2">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                       <Check size={14} className="text-emerald-500" />
+                       {activeGroup.groupType === 'personal' ? 'Integrantes Conectados' : 'Membros Conectados'} ({conectados.length})
+                    </h3>
                   </div>
-                ))}
-              </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {conectados.map(member => <MemberCard key={(member.userId || '') + member.userEmail} member={member} />)}
+                  </div>
+                </div>
+              )}
+
+              {pendentes.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-50 pb-2">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                       <Loader2 size={14} className="text-amber-500" />
+                       Convites Pendentes ({pendentes.length})
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pendentes.map(member => <MemberCard key={(member.userId || '') + member.userEmail} member={member} />)}
+                  </div>
+                </div>
+              )}
+
+              {outros.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-50 pb-2">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                       Outros ({outros.length})
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {outros.map(member => <MemberCard key={(member.userId || '') + member.userEmail} member={member} />)}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

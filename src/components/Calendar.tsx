@@ -56,7 +56,7 @@ const MONTHS = [
 ];
 
 export function Calendar() {
-  const { activeGroup, whatsappNumber, apiFetch } = useGroup();
+  const { activeGroup, whatsappNumber, userWhatsapp, apiFetch } = useGroup();
   const GROUP_ID = activeGroup?.id || "main-group";
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -68,9 +68,9 @@ export function Calendar() {
   const [allHospitals, setAllHospitals] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [waError, setWaError] = useState<string | null>(null);
   
-  const procedureOptions = allProcedures.filter(p => p.active !== false).map(p => p.nome);
-  const surgeryTypeOptions = allSurgeryTypes.filter(s => s.active !== false).map(s => s.name);
-  const hospitalOptions = allHospitals.filter(h => h.active !== false);
+  const procedureOptions = allProcedures.filter(p => p.active !== false && (p as any).status !== "removed").map(p => p.nome);
+  const surgeryTypeOptions = allSurgeryTypes.filter(s => s.active !== false && (s as any).status !== "removed").map(s => s.name);
+  const hospitalOptions = allHospitals.filter(h => h.active !== false && (h as any).status !== "removed");
 
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [selectedHospitalFilter, setSelectedHospitalFilter] = useState<string>("all");
@@ -208,10 +208,13 @@ export function Calendar() {
   const handleSendToWhatsApp = () => {
     if (selectedEventIds.size === 0) return;
 
-    const cleanPhone = whatsappNumber.replace(/\D/g, "");
+    // Favor user's personal WhatsApp from profile over group number
+    const targetPhone = userWhatsapp || whatsappNumber;
+    const cleanPhone = targetPhone.replace(/\D/g, "");
+    
     if (!cleanPhone) {
-      setWaError("Configure seu WhatsApp no ícone de engrenagem do Chat");
-      console.warn("WhatsApp number missing in settings");
+      setWaError("Configure seu WhatsApp no Meu Perfil/Configurações");
+      console.warn("WhatsApp number missing");
       return;
     }
 

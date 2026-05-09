@@ -380,8 +380,12 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
                     }}
                     className={`w-full flex items-center gap-2.5 p-2 rounded-xl transition-all border-2 ${
                       activeGroup?.id === group.id
-                        ? "bg-blue-50 border-blue-600 shadow-sm"
-                        : "bg-white border-transparent hover:border-gray-100 hover:bg-gray-50"
+                        ? (group.active === false || group.ativo === false)
+                          ? "bg-gray-50 border-gray-300 opacity-80"
+                          : "bg-blue-50 border-blue-600 shadow-sm"
+                        : (group.active === false || group.ativo === false)
+                          ? "bg-gray-50 border-transparent opacity-60 grayscale"
+                          : "bg-white border-transparent hover:border-gray-100 hover:bg-gray-50"
                     }`}
                   >
                     <div
@@ -418,7 +422,9 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
                         )}
                       </div>
                       <div className="text-[7px] font-bold text-gray-400 uppercase tracking-widest leading-none">
-                        {activeGroup?.id === group.id ? "Em uso" : "Selecionar"}
+                        {(group.active === false || group.ativo === false) ? (
+                          <span className="text-red-500 font-black">DESATIVADO</span>
+                        ) : activeGroup?.id === group.id ? "Em uso" : "Selecionar"}
                       </div>
                     </div>
                     {activeGroup?.id === group.id && (
