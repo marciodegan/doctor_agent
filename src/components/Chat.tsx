@@ -2272,29 +2272,30 @@ export const Chat: React.FC<{
                         </div>
                       </div>
 
-                      <div className="px-4 py-3 bg-white border-b border-gray-100 grid grid-cols-3 gap-2 divide-x divide-gray-100">
-                        <div className="flex flex-col pr-2">
-                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Hospital</span>
-                          <span className="text-[12px] font-bold text-gray-800 leading-tight truncate">
-                            {msg.profileData?.hospitalNome || "Sem Hospital"}
-                          </span>
-                        </div>
-                        
-                        <div className="flex flex-col px-3">
-                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Leito</span>
-                          <span className="text-[12px] font-bold text-gray-800 leading-tight truncate">
-                            {msg.profileData?.roomNumber || "Sala ?"}
-                          </span>
+                      <div className="px-4 py-3 bg-white border-b border-gray-100 flex flex-row items-center justify-between gap-4">
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <div className="flex flex-col mb-1.5 min-w-0">
+                            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-0.5">Hospital</span>
+                            <span className="text-[14px] font-extrabold text-gray-900 leading-tight truncate">
+                              {msg.profileData?.hospitalNome || "Sem Hospital"}
+                            </span>
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-0.5">Leito</span>
+                            <span className="text-[11px] font-bold text-gray-500 leading-tight truncate">
+                              {msg.profileData?.roomNumber || "Sala não informada"}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="flex flex-col pl-3">
-                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Status</span>
+                        <div className="flex flex-col items-end shrink-0 pl-4 border-l border-gray-50">
+                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1.5">Status</span>
                           <button 
                             onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
-                            className="text-left text-[11px] font-black text-blue-600 hover:text-blue-800 transition-all flex items-center gap-1 truncate"
+                            className="bg-blue-50/50 border border-blue-100 px-3 py-1.5 rounded-xl text-blue-700 text-[11px] font-black flex items-center gap-2 hover:bg-blue-100/70 transition-all active:scale-95 shadow-sm shadow-blue-500/5 whitespace-nowrap"
                           >
-                            <span className="truncate">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
-                            <Edit3 size={11} className="shrink-0" />
+                            <span className="max-w-[80px] truncate">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
+                            <Edit3 size={12} className="shrink-0 text-blue-400" />
                           </button>
                         </div>
                       </div>
