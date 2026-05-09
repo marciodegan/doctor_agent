@@ -102,6 +102,11 @@ service cloud.firestore {
       allow write: if isMember(incoming().groupId);
     }
 
+    match /document_categories/{catId} {
+      allow read: if isMember(existing().groupId);
+      allow write: if isMember(incoming().groupId);
+    }
+
     // Entities linked by groupId
     match /patients/{patientId} {
       allow read: if isMember(existing().groupId);

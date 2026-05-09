@@ -473,75 +473,83 @@ export function GroupConfigs() {
   if (activeTab) {
     const currentTabInfo = menuItems.find(m => m.id === activeTab);
     return (
-      <div className="flex flex-col h-full bg-white">
-        <div className="flex items-center gap-4 mb-8">
+      <div className="flex flex-col bg-white">
+        <div className="flex items-center gap-4 mb-6">
           <button 
             onClick={() => {
               setActiveTab(null);
               setIsAdding(false);
               setEditingItem(null);
+              setNewItemName("");
             }} 
-            className="p-2 hover:bg-gray-100 rounded-xl transition-all text-gray-500"
+            className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all text-gray-500 active:scale-95"
           >
             <ArrowLeft size={20} />
           </button>
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 ${currentTabInfo?.bg} ${currentTabInfo?.color} rounded-xl`}>
+            <div className={`p-2.5 ${currentTabInfo?.bg} ${currentTabInfo?.color} rounded-xl shadow-inner`}>
               {currentTabInfo?.icon}
             </div>
-            <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">{currentTabInfo?.label}</h3>
+            <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">{currentTabInfo?.label}</h3>
           </div>
           <button 
             onClick={() => {
-              setIsAdding(true);
+              setIsAdding(!isAdding);
               setEditingItem(null);
               setNewItemName("");
             }}
-            className="ml-auto flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+            className={`ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${
+              isAdding 
+                ? "bg-gray-100 text-gray-500 shadow-none" 
+                : "bg-blue-600 text-white shadow-blue-100 hover:bg-blue-700"
+            }`}
           >
-            <Plus size={16} />
-            ADICIONAR
+            {isAdding ? "CANCELAR" : (
+              <>
+                <Plus size={14} />
+                NOVO
+              </>
+            )}
           </button>
         </div>
 
         <AnimatePresence>
           {(isAdding || editingItem) && (
             <motion.form 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
               onSubmit={handleSave}
-              className="bg-gray-50 p-6 rounded-[32px] border border-gray-100 mb-8 space-y-4"
+              className="bg-gray-50/80 p-5 rounded-[32px] border border-gray-100 mb-6 space-y-4 shadow-inner"
             >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
-                  {editingItem ? "Editar Item" : "Novo Item"}
+              <div className="flex items-center justify-between">
+                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">
+                  {editingItem ? "Editando Registro" : "Adicionar Novo"}
                 </h4>
-                <button type="button" onClick={() => { setIsAdding(false); setEditingItem(null); }} className="text-gray-400 hover:text-gray-600">
-                  <X size={16} />
-                </button>
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <input 
                   type="text" 
                   value={newItemName}
                   onChange={(e) => setNewItemName(e.target.value)}
-                  placeholder="Digite o nome..."
+                  placeholder={`Nome do(a) ${currentTabInfo?.label}...`}
                   className="flex-1 bg-white border border-gray-200 px-5 py-4 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm"
                   autoFocus
+                  required
                 />
                 <button 
                   type="submit"
-                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-xs hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 uppercase tracking-widest"
+                  disabled={!newItemName.trim()}
+                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 uppercase tracking-widest disabled:opacity-50 disabled:shadow-none active:scale-95"
                 >
-                  SALVAR
+                  {editingItem ? "ATUALIZAR" : "SALVAR"}
                 </button>
               </div>
             </motion.form>
           )}
         </AnimatePresence>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+        <div className="space-y-2">
           {isLoading ? (
             <div className="flex items-center justify-center p-12">
               <Loader2 className="animate-spin text-blue-600" size={32} />
@@ -558,7 +566,7 @@ export function GroupConfigs() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-[100px]">
               {items.map((item) => (
                 <motion.div 
                   key={item.id}
