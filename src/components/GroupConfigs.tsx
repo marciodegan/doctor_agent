@@ -114,13 +114,15 @@ export function GroupConfigs() {
             localImageAnalysisPrompt,
             data.webViewLink,
           );
+        } else if (data.error) {
+          throw new Error(data.error + (data.details ? ": " + JSON.stringify(data.details) : ""));
         }
         setIsUploadingPhoto(false);
       };
       reader.readAsDataURL(file);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Erro no upload da foto");
+      alert("Erro no upload da foto: " + err.message);
       setIsUploadingPhoto(false);
     }
   };

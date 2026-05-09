@@ -69,14 +69,9 @@ const _getStorage = () => {
     throw new Error("Firebase Admin not initialized.");
   }
   
-  // Use the one from config, or fallback to project-id.appspot.com
-  const primaryBucket = firebaseConfig.storageBucket;
-  const fallbackBucket = `${firebaseConfig.projectId}.appspot.com`;
-  
-  // LOG the bucket name to help debugging
-  console.log(`[Firebase Storage] Attempting to use bucket: ${primaryBucket || fallbackBucket}`);
-  
-  return getStorage().bucket(primaryBucket || fallbackBucket);
+  // Return the default bucket from admin.initializeApp config
+  // In the upload route we have more complex retry logic anyway
+  return getStorage().bucket();
 };
 
 // Use a Proxy to make 'db' and 'bucket' lazy and avoid module-load crashes
@@ -1535,8 +1530,18 @@ app.get("/api/drive/list", async (req, res) => {
   }
 });
 
+// Debug route to see available buckets
+app.get("/api/debug/storage-buckets", async (req, res) => {
+  try {
+    const [buckets] = await (getStorage() as any).getBuckets();
+    res.json({ buckets: buckets.map(b => (b as any).name) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Generic Storage Upload (Original for Firebase Storage)
-app.post("/api/storage/upload", express.json({ limit: "15mb" }), async (req, res) => {
+app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res) => {
   const { name, mimeType, base64Data } = req.body;
 
   if (!base64Data) {
@@ -1547,25 +1552,91 @@ app.post("/api/storage/upload", express.json({ limit: "15mb" }), async (req, res
     const buffer = Buffer.from(base64Data, "base64");
     const filename = name || `Upload_${Date.now()}.jpg`;
     const destination = `uploads/${filename}`;
-    const file = bucket.file(destination);
+    
+    // We'll try a few common bucket names if the primary one fails
+    const projectId = firebaseConfig.projectId;
+    const bucketsToTry = [
+      bucket.name, // The one from config via proxy
+      firebaseConfig.storageBucket,
+      `${projectId}.appspot.com`,
+      `${projectId}.firebasestorage.app`,
+      projectId, // Bare project ID
+    ].filter((b, i, arr) => b && arr.indexOf(b) === i); // Unique non-null
 
-    await file.save(buffer, {
-      metadata: {
-        contentType: mimeType || "image/jpeg"
+    let lastError: any = null;
+    let successfulBucketName = "";
+    let fileObj: any = null;
+
+    for (const bucketName of bucketsToTry) {
+      try {
+        console.log(`[Upload] Attempting bucket: ${bucketName}`);
+        const currentBucket = getStorage().bucket(bucketName!);
+        const currentFile = currentBucket.file(destination);
+        
+        await currentFile.save(buffer, {
+          metadata: { contentType: mimeType || "image/jpeg" },
+          resumable: false
+        });
+        
+        fileObj = currentFile;
+        successfulBucketName = bucketName!;
+        console.log(`[Upload] Success with bucket: ${bucketName}`);
+        break; // Exit loop on success
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[Upload] Failed with bucket ${bucketName}: ${err.message}`);
+        // If it's not a "bucket not found" error, we might want to stop, 
+        // but usually we can just try the next bucket.
       }
-    });
+    }
 
-    await file.makePublic();
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${encodeURIComponent(destination)}`;
+    if (!fileObj) {
+      console.log("[Upload] All candidate buckets failed. Attempting to list available buckets...");
+      try {
+        const [availableBuckets] = await (getStorage() as any).getBuckets();
+        if (availableBuckets.length > 0) {
+          const firstBucket = availableBuckets[0];
+          console.log(`[Upload] Found alternative bucket: ${firstBucket.name}. Attempting to use it...`);
+          const currentFile = firstBucket.file(destination);
+          await currentFile.save(buffer, {
+            metadata: { contentType: mimeType || "image/jpeg" },
+            resumable: false
+          });
+          fileObj = currentFile;
+          successfulBucketName = firstBucket.name;
+        }
+      } catch (listErr: any) {
+        console.error("[Upload] Failed to list buckets while recovering:", listErr);
+      }
+    }
+
+    if (!fileObj) {
+      console.error(`[Upload] All buckets failed. Last error:`, lastError);
+      return res.status(500).json({ 
+        error: `Failed to save file to any available bucket: ${lastError?.message || "Unknown error"}`,
+        code: lastError?.code,
+        details: lastError?.errors
+      });
+    }
+
+    try {
+      await fileObj.makePublic();
+    } catch (publicError: any) {
+      console.warn(`[Upload] makePublic failed:`, publicError);
+    }
+
+    const publicUrl = `https://storage.googleapis.com/${successfulBucketName}/${encodeURIComponent(destination)}`;
+    console.log(`[Upload] Public URL: ${publicUrl}`);
 
     res.json({
-      id: file.name,
-      name: file.name,
+      id: fileObj.name,
+      name: fileObj.name,
       webViewLink: publicUrl,
       webContentLink: publicUrl
     });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+  } catch (error: any) {
+    console.error(`[Upload] Global error:`, error);
+    res.status(500).json({ error: error.message });
   }
 });
 
