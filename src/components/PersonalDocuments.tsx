@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGroup } from "../contexts/GroupContext";
+import { useAuth } from "../hooks/useAuth";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
@@ -37,7 +38,14 @@ interface Category {
 }
 
 export const PersonalDocuments: React.FC = () => {
-  const { activeGroup, activeGroupMembers } = useGroup();
+  const { 
+    activeGroup, 
+    activeGroupMembers, 
+    setIsManagementOpen,
+    setManagementMode,
+    setConfigsActiveTab
+  } = useGroup();
+  const { user } = useAuth();
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -75,6 +83,8 @@ export const PersonalDocuments: React.FC = () => {
 
     return () => unsubscribe();
   }, [activeGroup?.id]);
+
+  const isOwner = activeGroupMembers.find(m => m.userId === user?.uid)?.role === "owner";
 
   const fetchFiles = async () => {
     if (!activeGroup) return;
@@ -177,9 +187,9 @@ export const PersonalDocuments: React.FC = () => {
                 <ShieldCheck size={24} className="text-red-600" />
               </div>
               <div>
-                <h1 className="text-xl font-black text-gray-900 tracking-tight">
+                <h3 className="text-xl font-black text-gray-900 tracking-tight">
                   Meus Documentos
-                </h1>
+                </h3>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mt-0.5">
                   <FolderOpen size={12} className="text-red-400" />
                   {selectedCategory ? `${selectedCategory}` : "Categorias"}
@@ -188,6 +198,20 @@ export const PersonalDocuments: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              {!selectedCategory && isOwner && (
+                <button
+                  onClick={() => {
+                    setManagementMode("configs");
+                    setConfigsActiveTab("document_categories");
+                    setIsManagementOpen(true);
+                  }}
+                  className="bg-white border border-gray-100 text-gray-500 hover:text-red-600 hover:bg-red-50 p-2.5 rounded-xl transition-all flex items-center gap-2 active:scale-95 shadow-sm"
+                  title="Configurar Categorias"
+                >
+                  <FolderPlus size={18} />
+                  <span className="text-xs font-black uppercase tracking-tight hidden sm:block">CATEGORIAS</span>
+                </button>
+              )}
               {selectedCategory && (
                 <div className="relative">
                   <button
@@ -323,9 +347,20 @@ export const PersonalDocuments: React.FC = () => {
                 <div className="col-span-full py-20 flex flex-col items-center justify-center opacity-40">
                   <FolderPlus size={60} className="text-gray-300 mb-4" />
                   <p className="text-lg font-black text-gray-400">Sem categorias definidas</p>
-                  <p className="text-sm font-medium text-gray-400 mt-1 mt-center max-w-xs text-center">
+                  <p className="text-sm font-medium text-gray-400 mt-1 mt-center max-w-xs text-center mb-6">
                     Defina seus tipos de documentos (ex: Saúde, Seguros) nas configurações da equipe.
                   </p>
+                  <button 
+                    onClick={() => {
+                      setManagementMode("configs");
+                      setConfigsActiveTab("document_categories");
+                      setIsManagementOpen(true);
+                    }}
+                    className="bg-red-600 text-white px-6 py-3 rounded-2xl text-sm font-black shadow-xl shadow-red-100 hover:bg-red-700 transition-all flex items-center gap-2 active:scale-95"
+                  >
+                    <Plus size={18} strokeWidth={3} />
+                    ADICIONAR CATEGORIA
+                  </button>
                 </div>
               ) : (
                 filteredCategories.map((cat) => (

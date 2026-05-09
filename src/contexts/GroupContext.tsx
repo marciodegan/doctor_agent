@@ -69,6 +69,10 @@ interface GroupContextType {
   apiFetch: (url: string, init?: RequestInit) => Promise<Response>;
   isManagementOpen: boolean;
   setIsManagementOpen: (open: boolean) => void;
+  managementMode: "dashboard" | "members" | "configs";
+  setManagementMode: (mode: "dashboard" | "members" | "configs") => void;
+  configsActiveTab: string | null;
+  setConfigsActiveTab: (tab: string | null) => void;
 }
 
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
@@ -86,6 +90,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [imageAnalysisPrompt, setImageAnalysisPrompt] = useState("");
   const [isManagementOpen, setIsManagementOpen] = useState(false);
+  const [managementMode, setManagementMode] = useState<"dashboard" | "members" | "configs">("dashboard");
+  const [configsActiveTab, setConfigsActiveTab] = useState<string | null>(null);
 
   const safeLocalStorage = {
     getItem: (key: string) => {
@@ -137,8 +143,10 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     // Listen to group members
     const membersPath = `groups/${activeGroup.id}/members`;
     let unsubscribeMembers: () => void = () => {};
+    let unsubscribeGroupDoc: () => void = () => {};
 
     try {
+      // Listen to members
       unsubscribeMembers = onSnapshot(
         collection(db, membersPath),
         (snapshot) => {
@@ -155,23 +163,36 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         (error) => {
           if (isMounted) {
             console.error("Members listener error:", error);
-            // If we get a permission error on the active group, it might be because it was deleted
-            if (error.code === "permission-denied") {
-              // Let the memberships effect handle the redirection
-              console.warn(
-                "Permission denied for members. Group might be deleted.",
-              );
-            }
           }
         },
       );
+
+      // Listen to group doc itself for real-time name/photo updates
+      unsubscribeGroupDoc = onSnapshot(
+        doc(db, "groups", activeGroup.id),
+        (docSnap) => {
+          if (!isMounted || !docSnap.exists()) return;
+          const data = docSnap.data();
+          setActiveGroup(prev => {
+            if (!prev) return prev;
+            if (prev.name === data.name && prev.photoURL === data.photoURL) return prev;
+            return {
+              ...prev,
+              name: data.name || prev.name,
+              photoURL: data.photoURL || "",
+              groupType: data.groupType || prev.groupType,
+            };
+          });
+        }
+      );
     } catch (e) {
-      console.error("Failed to start members listener", e);
+      console.error("Failed to start group listeners", e);
     }
 
     return () => {
       isMounted = false;
       unsubscribeMembers();
+      unsubscribeGroupDoc();
     };
   }, [activeGroup?.id]);
 
@@ -841,6 +862,10 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         apiFetch,
         isManagementOpen,
         setIsManagementOpen,
+        managementMode,
+        setManagementMode,
+        configsActiveTab,
+        setConfigsActiveTab,
       }}
     >
       {children}

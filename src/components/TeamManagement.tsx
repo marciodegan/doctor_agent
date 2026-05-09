@@ -26,10 +26,12 @@ export function TeamManagement() {
     removeMember,
     cancelInvite,
     isManagementOpen,
-    setIsManagementOpen
+    setIsManagementOpen,
+    managementMode,
+    setManagementMode,
+    setConfigsActiveTab
   } = useGroup();
   const { user } = useAuth();
-  const [managementMode, setManagementMode] = useState<"dashboard" | "members" | "configs">("dashboard");
   const [inviteEmail, setInviteEmail] = useState("");
   const [isRemoving, setIsRemoving] = useState<string | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<{ id: string, email: string, status: string } | null>(null);
@@ -38,10 +40,11 @@ export function TeamManagement() {
   const currentUserMembership = activeGroupMembers.find(m => m.userId === user?.uid);
   const isOwner = currentUserMembership?.role === "owner";
 
-  // Reset to dashboard when opened
+  // Reset to dashboard when opened (unless specified otherwise via external triggers)
   React.useEffect(() => {
-    if (isManagementOpen) {
+    if (!isManagementOpen) {
       setManagementMode("dashboard");
+      setConfigsActiveTab(null);
     }
   }, [isManagementOpen]);
 

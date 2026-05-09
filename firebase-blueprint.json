@@ -7,6 +7,7 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
+        "photoURL": { "type": "string" },
         "createdBy": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "imageAnalysisPrompt": { "type": "string" }

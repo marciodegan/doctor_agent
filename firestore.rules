@@ -17,9 +17,12 @@ service cloud.firestore {
       return resource.data;
     }
     function isMember(groupId) {
-      return isSignedIn() && 
-        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "active";
+      return isSignedIn() && (
+        (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "active") ||
+        (exists(/databases/$(database)/documents/groups/$(groupId)) && 
+         get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid)
+      );
     }
     function isOwner(groupId) {
       return isSignedIn() && 
@@ -82,29 +85,39 @@ service cloud.firestore {
 
     // Procedure Options (scoped by group)
     match /procedureOptions/{optionId} {
-      allow read: if isMember(existing().groupId);
-      allow write: if isMember(incoming().groupId);
+      allow read: if isMember(resource.data.groupId);
+      allow create: if isMember(request.resource.data.groupId);
+      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
+      allow delete: if isMember(resource.data.groupId);
     }
 
     // Config entities linked by groupId
     match /patient_statuses/{statusId} {
-      allow read: if isMember(existing().groupId);
-      allow write: if isMember(incoming().groupId);
+      allow read: if isMember(resource.data.groupId);
+      allow create: if isMember(request.resource.data.groupId);
+      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
+      allow delete: if isMember(resource.data.groupId);
     }
 
     match /affinity/{affinityId} {
-      allow read: if isMember(existing().groupId);
-      allow write: if isMember(incoming().groupId);
+      allow read: if isMember(resource.data.groupId);
+      allow create: if isMember(request.resource.data.groupId);
+      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
+      allow delete: if isMember(resource.data.groupId);
     }
 
     match /surgery_types/{typeId} {
-      allow read: if isMember(existing().groupId);
-      allow write: if isMember(incoming().groupId);
+      allow read: if isMember(resource.data.groupId);
+      allow create: if isMember(request.resource.data.groupId);
+      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
+      allow delete: if isMember(resource.data.groupId);
     }
 
     match /document_categories/{catId} {
-      allow read: if isMember(existing().groupId);
-      allow write: if isMember(incoming().groupId);
+      allow read: if isMember(resource.data.groupId);
+      allow create: if isMember(request.resource.data.groupId);
+      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
+      allow delete: if isMember(resource.data.groupId);
     }
 
     // Entities linked by groupId

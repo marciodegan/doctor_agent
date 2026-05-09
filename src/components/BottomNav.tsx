@@ -45,8 +45,18 @@ export function BottomNav({
     },
     {
       id: "management",
-      label: "Equipe",
-      icon: <Users size={18} />,
+      label: activeGroup?.name || "Equipe",
+      icon: activeGroup?.photoURL ? (
+        <img 
+          src={activeGroup.photoURL} 
+          className="w-7 h-7 rounded-xl object-cover border-2 border-white shadow-md"
+          alt="Group"
+        />
+      ) : (
+        <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
+          <Users size={18} />
+        </div>
+      ),
       action: onOpenManagement,
     },
   ];
@@ -60,14 +70,14 @@ export function BottomNav({
 
           return (
             <button
-              key={tab.label}
+              key={tab.id}
               id={tab.id === "management" ? "equipe-nav-button" : undefined}
               onClick={() =>
                 tab.action
                   ? tab.action()
                   : onNavigate(tab.id, (tab as any).prompt)
               }
-              className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 min-w-[64px] relative group"
+              className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 min-w-[64px] relative group px-1"
             >
               <AnimatePresence>
                 {isActive && (
@@ -92,9 +102,9 @@ export function BottomNav({
               >
                 {isEquipe ? (
                   <div className="relative">
-                    <Users size={20} />
-                    {/* Status Dot for the whole team */}
-                    <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white shadow-sm" />
+                    {tab.icon}
+                    {/* Status Dot for the whole team - only if no photo to keep it clean, or always? User wants it to look like the group */}
+                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm" />
                   </div>
                 ) : (
                   tab.icon
@@ -108,11 +118,11 @@ export function BottomNav({
               </motion.div>
 
               <span
-                className={`text-[9px] font-black uppercase tracking-widest transition-colors duration-200 ${
+                className={`text-[9px] font-black uppercase tracking-tight transition-colors duration-200 truncate max-w-[60px] text-center ${
                   isActive ? "text-blue-600" : "text-gray-400"
                 }`}
               >
-                {tab.label}
+                {(tab.label).split(" ")[0]}
               </span>
             </button>
           );

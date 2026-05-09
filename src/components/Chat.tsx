@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2 } from "lucide-react";
+import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
@@ -115,6 +115,8 @@ const MessageForm: React.FC<{
 
   const isImageForm = form.commandPrefix?.startsWith("/img");
 
+  const isObjectSuggestion = (s: any): s is { label: string, value: string } => typeof s === 'object' && s !== null && 'label' in s;
+
   return (
     <form onSubmit={handleSubmit} className="mt-4 p-4 bg-white/50 rounded-2xl border border-blue-100 space-y-3 shadow-sm">
       {form.title && <h4 className="text-sm font-bold text-blue-800 mb-2">{form.title}</h4>}
@@ -168,65 +170,66 @@ const MessageForm: React.FC<{
       )}
 
       {form.fields.map((field: any) => (
-        <div key={field.name}>
+        <div key={field.name} className="space-y-2">
           <label className="text-[10px] uppercase tracking-wider font-bold text-gray-500 ml-1">{field.label}</label>
-          {field.options && field.options.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2 ml-1">
-              {field.options.map((opt: string) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setValues(prev => ({ ...prev, [field.name]: opt }))}
-                  className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold border border-blue-100 hover:bg-blue-100 transition-colors"
+          
+          {!field.hideInput && (
+            field.type === "select" ? (
+              <div className="relative">
+                <select
+                  value={values[field.name]}
+                  onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer pr-10"
+                  required
                 >
-                  {opt}
-                </button>
-              ))}
-            </div>
+                  <option value="" disabled>Selecione uma opção</option>
+                  {field.options?.map((opt: string) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <Plus size={14} className="rotate-45" />
+                </div>
+              </div>
+            ) : field.readOnly ? (
+              <div className="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-900 font-bold shadow-inner">
+                {values[field.name] || <span className="text-gray-300 italic">{field.placeholder}</span>}
+              </div>
+            ) : (
+              <input 
+                type={field.type}
+                value={values[field.name]}
+                onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
+                placeholder={field.placeholder}
+                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+                required
+                {...(field.type === "number" ? { inputMode: "numeric" } : {})}
+              />
+            )
           )}
-          {field.type === "select" ? (
-            <select
-              value={values[field.name]}
-              onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
-              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer"
-              required
-            >
-              <option value="" disabled>Selecione uma opção</option>
-              {field.options?.map((opt: string) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          ) : field.readOnly ? (
-            <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 font-medium">
-              {values[field.name] || <span className="text-gray-400">{field.placeholder}</span>}
-            </div>
-          ) : (
-            <input 
-              type={field.type}
-              value={values[field.name]}
-              onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
-              placeholder={field.placeholder}
-              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              required
-              {...(field.type === "number" ? { inputMode: "numeric" } : {})}
-            />
-          )}
+
           {field.suggestions && field.suggestions.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2 ml-1">
-              {field.suggestions.map((opt: string) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setValues(prev => ({ ...prev, [field.name]: opt }))}
-                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all uppercase border shadow-sm ${
-                    values[field.name] === opt 
-                      ? "bg-blue-600 border-blue-600 text-white shadow-blue-100" 
-                      : "bg-white border-gray-100 text-gray-500 hover:border-blue-600 hover:text-blue-600"
-                  }`}
-                >
-                  {opt}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-1.5 mt-1 ml-1">
+              {field.suggestions.map((opt: any) => {
+                const label = isObjectSuggestion(opt) ? opt.label : opt;
+                const value = isObjectSuggestion(opt) ? opt.value : opt;
+                const isSelected = values[field.name] === value;
+                
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setValues(prev => ({ ...prev, [field.name]: value }))}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all uppercase border shadow-sm ${
+                      isSelected 
+                        ? "bg-blue-600 border-blue-600 text-white shadow-blue-100" 
+                        : "bg-white border-gray-100 text-gray-500 hover:border-blue-600 hover:text-blue-600"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -251,9 +254,9 @@ const MessageForm: React.FC<{
 
         <button 
           type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-blue-100"
+          className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-tight hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100 hover:shadow-blue-200 active:scale-95"
         >
-          <Plus size={14} />
+          <Plus size={16} strokeWidth={3} />
           {form.submitLabel}
         </button>
       </div>
@@ -263,9 +266,10 @@ const MessageForm: React.FC<{
 
 export const Chat: React.FC<{ 
   onNavigateToCalendar?: () => void,
+  onViewLogs?: (patientId: string) => void,
   initialCommand?: string | null,
   onCommandExecuted?: () => void
-}> = ({ onNavigateToCalendar, initialCommand, onCommandExecuted }) => {
+}> = ({ onNavigateToCalendar, onViewLogs, initialCommand, onCommandExecuted }) => {
   const { activeGroup, companyName, whatsappNumber, imageAnalysisPrompt, apiFetch } = useGroup();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -693,20 +697,22 @@ export const Chat: React.FC<{
               label: "Hospital", 
               name: "hospitalName", 
               type: "text", 
-              placeholder: "Toque em um hospital abaixo",
+              placeholder: "Escolha um hospital",
               // @ts-ignore
               readOnly: true,
-              suggestions: hospitalOptions.map(h => h.nome)
+              hideInput: true,
+              suggestions: hospitalOptions.map(h => ({ label: h.nome, value: h.id }))
             },
             { 
               label: "Status Inicial", 
               name: "status", 
               type: "text", 
-              placeholder: "Toque em um status abaixo",
+              placeholder: "Escolha um status",
               // @ts-ignore
               readOnly: true,
-              suggestions: statusOptions.map(s => s.nome),
-              defaultValue: "Pré-operatorio"
+              hideInput: true,
+              suggestions: statusOptions.map(s => ({ label: s.nome, value: s.id })),
+              defaultValue: statusOptions.find(s => s.nome.toLowerCase().includes("pré"))?.id || statusOptions[0]?.id || ""
             },
             { label: "Quarto/Leito", name: "roomNumber", type: "text", placeholder: "Ex: 402B" },
           ],
@@ -1596,19 +1602,21 @@ export const Chat: React.FC<{
                 label: "Hospital", 
                 name: "hospitalName", 
                 type: "text", 
-                defaultValue: currentHospital?.nome || p.hospital_nome || "",
+                defaultValue: p.hospitalId || currentHospital?.id || "",
                 // @ts-ignore
                 readOnly: true,
-                suggestions: hospitalOptions.map(h => h.nome)
+                hideInput: true,
+                suggestions: hospitalOptions.map(h => ({ label: h.nome, value: h.id }))
               },
               { 
                 label: "Status", 
                 name: "status", 
                 type: "text", 
-                defaultValue: currentStatus?.nome || p.Status || "",
+                defaultValue: p.statusId || currentStatus?.id || "",
                 // @ts-ignore
                 readOnly: true,
-                suggestions: statusOptions.map(s => s.nome)
+                hideInput: true,
+                suggestions: statusOptions.map(s => ({ label: s.nome, value: s.id }))
               },
               { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.roomNumber || p.room_number || "" },
             ],
@@ -2241,7 +2249,7 @@ export const Chat: React.FC<{
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                         
                         <div className="flex flex-col items-start gap-1 relative z-10 min-w-0 flex-1">
-                          <h3 className="text-[20px] font-black text-blue-900 tracking-tight leading-tight truncate w-full">{msg.profileData.nome}</h3>
+                          <h3 className="text-[16px] font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full">{msg.profileData.nome}</h3>
                           <div className="flex flex-row items-center gap-3">
                             <span className="text-[12px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-lg shrink-0">{msg.profileData.idade} ANOS</span>
                             <button 
@@ -2257,17 +2265,17 @@ export const Chat: React.FC<{
                           <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none">Status</span>
                           <button 
                             onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
-                            className="bg-white px-4 py-2.5 rounded-xl border-2 border-blue-600 text-blue-900 text-[14px] font-black shadow-md hover:bg-blue-50 transition-all flex items-center gap-2 active:scale-95"
+                            className="bg-white px-2.5 py-1.5 rounded-lg border-2 border-blue-600 text-blue-900 text-[11px] font-black shadow-sm hover:bg-blue-50 transition-all flex items-center gap-1.5 active:scale-95"
                           >
-                            {msg.profileData?.status || "PENDENTE"}
-                            <Edit3 size={16} className="text-blue-500" />
+                            {allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}
+                            <Edit3 size={13} className="text-blue-500" />
                           </button>
                         </div>
                       </div>
 
-                      <div className="px-4 py-5 bg-white border-b border-gray-100 flex flex-col gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100">
+                      <div className="px-4 py-3 bg-white border-b border-gray-100 flex flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100 shrink-0">
                             <Building2 size={20} className="text-blue-500" />
                           </div>
                           <div className="flex flex-col min-w-0">
@@ -2281,13 +2289,23 @@ export const Chat: React.FC<{
                           </div>
                         </div>
 
-                        <button 
-                          onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}`)}
-                          className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg shadow-md shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] w-fit"
-                        >
-                          <CalendarPlus size={14} className="text-emerald-100" />
-                          <span className="text-[9px] font-black uppercase tracking-tight">Agendar Novo</span>
-                        </button>
+                        <div className="flex flex-row items-center gap-2 shrink-0">
+                          <button 
+                            onClick={() => onViewLogs && onViewLogs(msg.profileData?.id)}
+                            className="bg-blue-600 text-white px-3 py-1.5 rounded-lg shadow-md shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                          >
+                            <FileText size={14} className="text-blue-100" />
+                            <span className="text-[9px] font-black uppercase tracking-tight">Logs</span>
+                          </button>
+
+                          <button 
+                            onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}`)}
+                            className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg shadow-md shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                          >
+                            <CalendarPlus size={14} className="text-emerald-100" />
+                            <span className="text-[9px] font-black uppercase tracking-tight">Agendar Novo</span>
+                          </button>
+                        </div>
                       </div>
                     </>
                   )}

@@ -68,7 +68,15 @@ const _getStorage = () => {
   if (!admin.apps.length) {
     throw new Error("Firebase Admin not initialized.");
   }
-  return getStorage().bucket();
+  
+  // Use the one from config, or fallback to project-id.appspot.com
+  const primaryBucket = firebaseConfig.storageBucket;
+  const fallbackBucket = `${firebaseConfig.projectId}.appspot.com`;
+  
+  // LOG the bucket name to help debugging
+  console.log(`[Firebase Storage] Attempting to use bucket: ${primaryBucket || fallbackBucket}`);
+  
+  return getStorage().bucket(primaryBucket || fallbackBucket);
 };
 
 // Use a Proxy to make 'db' and 'bucket' lazy and avoid module-load crashes
@@ -880,7 +888,9 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       Telefone: pData.phone,
       Idade: pData.age,
       Status: statusesMap.get(pData.statusId) || pData.statusId || pData.status,
+      statusId: pData.statusId || "",
       hospitalName: hospitalsMap.get(pData.hospitalId) || pData.hospitalId,
+      hospitalId: pData.hospitalId || "",
       roomNumber: pData.roomNumber
     };
 
@@ -963,6 +973,15 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
       groupId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Add initial log
+    await db.collection("logs").add({
+      patientId: patientRef.id,
+      patientName: nome,
+      description: "Paciente cadastrado no sistema.",
+      groupId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
     res.json({ success: true, id: patientRef.id });
@@ -1070,10 +1089,93 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
     if (status !== undefined) updateData.statusId = status.toString();
 
     await patientRef.update(updateData);
+    
+    // Record log of update
+    await db.collection("logs").add({
+      patientId: id,
+      patientName: patientDoc.data()?.name,
+      description: "Informações do perfil atualizadas.",
+      groupId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
 
     res.json({ success: true });
   } catch (error) {
     handleApiError(res, error, "Updating patient info");
+  }
+});
+
+// Get logs for a specific patient
+app.get("/api/app/patients/:id/logs", async (req, res) => {
+  const { id } = req.params;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  try {
+    const logsSnap = await db.collection("logs")
+      .where("patientId", "==", id)
+      .where("groupId", "==", groupId)
+      .orderBy("timestamp", "desc")
+      .get();
+    
+    const logs = logsSnap.docs.map(doc => {
+      const data = doc.data();
+      return { 
+        id: doc.id, 
+        ...data,
+        timestamp: data.timestamp
+      };
+    });
+    res.json(logs);
+  } catch (error) {
+    handleApiError(res, error, "Fetching patient logs");
+  }
+});
+
+// Add a manual log for a patient
+app.post("/api/app/patients/:id/logs", express.json(), async (req, res) => {
+  const { id } = req.params;
+  const { description } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  if (!description) return res.status(400).json({ error: "Descrição do log é obrigatória." });
+
+  try {
+    const patientDoc = await db.collection("patients").doc(id).get();
+    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
+      return res.status(404).json({ error: "Paciente não encontrado" });
+    }
+
+    const logRef = db.collection("logs").doc();
+    await logRef.set({
+      patientId: id,
+      patientName: patientDoc.data()?.name,
+      description,
+      groupId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true, id: logRef.id });
+  } catch (error) {
+    handleApiError(res, error, "Adding patient log");
+  }
+});
+
+// Get basic patient info
+app.get("/api/app/patients/info/:id", async (req, res) => {
+  const { id } = req.params;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  try {
+    const doc = await db.collection("patients").doc(id).get();
+    if (!doc.exists || doc.data()?.groupId !== groupId) {
+      return res.status(404).json({ error: "Paciente não encontrado" });
+    }
+    res.json({ id: doc.id, ...doc.data() });
+  } catch (error) {
+    handleApiError(res, error, "Fetching patient info");
   }
 });
 
@@ -1126,7 +1228,33 @@ app.get("/api/app/family-members/:patientId", async (req, res) => {
   }
 });
 
-// Register a new family member
+// Add log from LLM tool
+app.post("/api/app/logs", express.json(), async (req, res) => {
+  const { patientId, text } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  try {
+    const patientDoc = await db.collection("patients").doc(patientId).get();
+    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
+      return res.status(404).json({ error: "Paciente não encontrado" });
+    }
+
+    const logRef = db.collection("logs").doc();
+    await logRef.set({
+      patientId,
+      patientName: patientDoc.data()?.name,
+      description: text,
+      groupId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true, id: logRef.id });
+  } catch (error) {
+    handleApiError(res, error, "Adding patient log");
+  }
+});
+
 app.post("/api/app/family-members", express.json(), async (req, res) => {
   const { nome, relacao, fone, patientId, paciente_nome } = req.body;
   const groupId = getGroupId(req);

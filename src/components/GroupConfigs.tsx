@@ -47,10 +47,20 @@ interface ConfigItem {
 }
 
 export function GroupConfigs() {
-  const { activeGroup, companyName, whatsappNumber, imageAnalysisPrompt, updateSettings, handleBackup } = useGroup();
-  const [activeTab, setActiveTab] = useState<ConfigType | null>(null);
+  const { 
+    activeGroup, 
+    companyName, 
+    whatsappNumber, 
+    imageAnalysisPrompt, 
+    updateSettings, 
+    handleBackup,
+    configsActiveTab: activeTab,
+    setConfigsActiveTab: setActiveTab 
+  } = useGroup();
+  
   const [items, setItems] = useState<ConfigItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newItemName, setNewItemName] = useState("");
   const [editingItem, setEditingItem] = useState<ConfigItem | null>(null);
@@ -97,6 +107,13 @@ export function GroupConfigs() {
         const data = await res.json();
         if (data.webViewLink) {
           setLocalGroupPhotoURL(data.webViewLink);
+          // Auto-save the new photo URL to the group settings
+          await updateSettings(
+            localCompanyName,
+            localWhatsappNumber,
+            localImageAnalysisPrompt,
+            data.webViewLink,
+          );
         }
         setIsUploadingPhoto(false);
       };
@@ -146,6 +163,7 @@ export function GroupConfigs() {
     }
 
     setIsLoading(true);
+    setError(null);
     const colRef = collection(db, activeTab);
     const q = query(colRef, where("groupId", "==", activeGroup.id));
 
@@ -164,9 +182,11 @@ export function GroupConfigs() {
 
       setItems(fetched);
       setIsLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, activeTab);
+    }, (err) => {
+      console.error("onSnapshot error:", err);
       setIsLoading(false);
+      setError("Permissão negada ou falha na conexão.");
+      // handleFirestoreError(err, OperationType.LIST, activeTab); // Don't throw here to avoid infinite spinner
     });
 
     return () => unsubscribe();
@@ -190,6 +210,7 @@ export function GroupConfigs() {
     const categoriesToInit = forceType === "all" ? Object.keys(defaults) : [targetType];
     
     setIsLoading(true);
+    setError(null);
     try {
       for (const cat of categoriesToInit) {
         const itemsToCreate = defaults[cat] || [];
@@ -218,8 +239,9 @@ export function GroupConfigs() {
       if (forceType === "all") {
         alert("Todos os padrões carregados com sucesso!");
       }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, targetType);
+    } catch (e: any) {
+      console.error("Initialize defaults error:", e);
+      setError("Erro ao carregar padrões. Verifique suas permissões.");
     } finally {
       setIsLoading(false);
     }
@@ -229,6 +251,8 @@ export function GroupConfigs() {
     e.preventDefault();
     if (!newItemName.trim() || !activeGroup || !activeTab) return;
 
+    setIsLoading(true);
+    setError(null);
     try {
       const data: any = {
         groupId: activeGroup.id,
@@ -237,9 +261,9 @@ export function GroupConfigs() {
 
       // Handle the fact that some collections use 'name' and others use 'nome'
       if (activeTab === "procedureOptions") {
-        data.nome = newItemName;
+        data.nome = newItemName.trim();
       } else {
-        data.name = newItemName;
+        data.name = newItemName.trim();
       }
 
       if (editingItem) {
@@ -252,8 +276,11 @@ export function GroupConfigs() {
       setNewItemName("");
       setEditingItem(null);
       setIsAdding(false);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, activeTab);
+    } catch (err: any) {
+      console.error("Save error:", err);
+      setError("Não foi possível salvar o registro.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -474,31 +501,37 @@ export function GroupConfigs() {
     const currentTabInfo = menuItems.find(m => m.id === activeTab);
     return (
       <div className="flex flex-col bg-white">
-        <div className="flex items-center gap-4 mb-6">
-          <button 
-            onClick={() => {
-              setActiveTab(null);
-              setIsAdding(false);
-              setEditingItem(null);
-              setNewItemName("");
-            }} 
-            className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all text-gray-500 active:scale-95"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 ${currentTabInfo?.bg} ${currentTabInfo?.color} rounded-xl shadow-inner`}>
-              {currentTabInfo?.icon}
+        {/* Sub-Header inside Configs */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => {
+                setActiveTab(null);
+                setIsAdding(false);
+                setEditingItem(null);
+                setNewItemName("");
+                setError(null);
+              }} 
+              className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all text-gray-500 active:scale-95 shrink-0"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 ${currentTabInfo?.bg} ${currentTabInfo?.color} rounded-xl shadow-inner shrink-0`}>
+                {currentTabInfo?.icon}
+              </div>
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight truncate">{currentTabInfo?.label}</h3>
             </div>
-            <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">{currentTabInfo?.label}</h3>
           </div>
+          
           <button 
             onClick={() => {
               setIsAdding(!isAdding);
               setEditingItem(null);
               setNewItemName("");
+              setError(null);
             }}
-            className={`ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${
+            className={`sm:ml-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${
               isAdding 
                 ? "bg-gray-100 text-gray-500 shadow-none" 
                 : "bg-blue-600 text-white shadow-blue-100 hover:bg-blue-700"
@@ -507,13 +540,24 @@ export function GroupConfigs() {
             {isAdding ? "CANCELAR" : (
               <>
                 <Plus size={14} />
-                NOVO
+                NOVO REGISTRO
               </>
             )}
           </button>
         </div>
 
-        <AnimatePresence>
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600"
+          >
+             <X size={16} />
+             <span className="text-[10px] font-black uppercase tracking-widest">{error}</span>
+          </motion.div>
+        )}
+
+        <AnimatePresence mode="wait">
           {(isAdding || editingItem) && (
             <motion.form 
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
@@ -527,7 +571,7 @@ export function GroupConfigs() {
                   {editingItem ? "Editando Registro" : "Adicionar Novo"}
                 </h4>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input 
                   type="text" 
                   value={newItemName}
@@ -536,37 +580,40 @@ export function GroupConfigs() {
                   className="flex-1 bg-white border border-gray-200 px-5 py-4 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm"
                   autoFocus
                   required
+                  disabled={isLoading}
                 />
                 <button 
                   type="submit"
-                  disabled={!newItemName.trim()}
-                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 uppercase tracking-widest disabled:opacity-50 disabled:shadow-none active:scale-95"
+                  disabled={!newItemName.trim() || isLoading}
+                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 uppercase tracking-widest disabled:opacity-50 disabled:shadow-none active:scale-95 flex items-center justify-center gap-2"
                 >
-                  {editingItem ? "ATUALIZAR" : "SALVAR"}
+                  {isLoading ? <Loader2 size={14} className="animate-spin" /> : (editingItem ? "ATUALIZAR" : "SALVAR")}
                 </button>
               </div>
             </motion.form>
           )}
         </AnimatePresence>
 
-        <div className="space-y-2">
-          {isLoading ? (
-            <div className="flex items-center justify-center p-12">
+        <div className="space-y-2 flex-1 min-h-0">
+          {isLoading && !isAdding && !editingItem ? (
+            <div className="flex flex-col items-center justify-center p-12 gap-4">
               <Loader2 className="animate-spin text-blue-600" size={32} />
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Carregando dados...</p>
             </div>
           ) : items.length === 0 ? (
             <div className="text-center p-12 bg-gray-50 rounded-[32px] border-2 border-dashed border-gray-100 flex flex-col items-center gap-4">
-              <span className="text-gray-400 font-bold text-sm">Nenhum item cadastrado.</span>
+              <span className="text-gray-400 font-bold text-sm uppercase tracking-tight">Nenhum(a) {currentTabInfo?.label} cadastrado(a).</span>
               <button 
                 onClick={() => handleInitializeDefaults()}
                 disabled={isLoading}
-                className="bg-white border border-gray-200 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50 transition-all disabled:opacity-50"
+                className="bg-white border border-gray-200 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50 transition-all disabled:opacity-50 flex items-center gap-2"
               >
-                {isLoading ? <Loader2 size={12} className="animate-spin" /> : "Carregar Padrões"}
+                {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                Carregar Padrões
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-[100px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto px-1 py-1 custom-scrollbar">
               {items.map((item) => (
                 <motion.div 
                   key={item.id}

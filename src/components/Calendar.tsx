@@ -548,7 +548,7 @@ export function Calendar() {
         ) : (
           <div className="max-w-4xl mx-auto p-4 sm:p-8 pt-10">
             <div className="mb-10 pl-2">
-              <h1 className="text-3xl font-black text-gray-900 leading-tight">Olá, {auth.currentUser?.displayName?.split(" ")[0] || "Doutor(a)"}! 👋</h1>
+              <h1 className="text-xl font-black text-gray-900 leading-tight">Olá, {auth.currentUser?.displayName?.split(" ")[0] || "Doutor(a)"}! 👋</h1>
               <p className="text-gray-500 font-medium mt-2 text-lg">Hoje é um lindo dia para salvar vidas ❤️</p>
             </div>
             {(() => {

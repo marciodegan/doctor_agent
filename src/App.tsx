@@ -41,16 +41,17 @@ import { motion, AnimatePresence } from "motion/react";
 import { BottomNav } from "./components/BottomNav";
 
 import { TeamManagement } from "./components/TeamManagement";
-
 import { PersonalDocuments } from "./components/PersonalDocuments";
+import { PatientLogs } from "./components/PatientLogs";
 
 export default function App() {
   const { isAuthenticated, login, logout } = useAuth();
-  const { activeGroup, setIsManagementOpen } = useGroup();
+  const { activeGroup, setIsManagementOpen, setManagementMode, setConfigsActiveTab } = useGroup();
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar" | "agenda" | null>("agenda");
+  const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar" | "agenda" | "logs" | null>("agenda");
+  const [activePatientId, setActivePatientId] = useState<string | null>(null);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileGroupsOpen, setIsMobileGroupsOpen] = useState(false);
@@ -58,9 +59,10 @@ export default function App() {
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  const navigateAndAction = (view: "workspace" | "calendar" | "agenda", command?: string) => {
+  const navigateAndAction = (view: "workspace" | "calendar" | "agenda" | "logs", command?: string, patientId?: string) => {
     setCurrentView(view);
     setIsMobileMenuOpen(false);
+    if (patientId) setActivePatientId(patientId);
     if (command) {
       setPendingCommand(command);
     }
@@ -176,10 +178,17 @@ export default function App() {
     );
   }
 
+  const handleGroupSelection = () => {
+    setCurrentView("agenda");
+    setIsMobileGroupsOpen(false);
+    setIsMobileMenuOpen(false);
+    setIsManagementOpen(false);
+  };
+
   if (isAuthenticated && !activeGroup) {
     return (
       <div className="min-h-screen bg-[#FDFDFD] flex items-center justify-center p-6">
-        <GroupSelector />
+        <GroupSelector onSelect={handleGroupSelection} />
       </div>
     );
   }
@@ -187,54 +196,16 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Top Header - Both Mobile and Desktop */}
-      <header className={`fixed top-0 left-0 lg:left-64 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 z-40 ${isFullscreen ? 'hidden' : ''}`}>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 lg:hidden">
-            <button 
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 -ml-2 text-gray-500 hover:text-blue-600 transition-colors"
-            >
-              <Menu size={24} />
-            </button>
-            
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                <Stethoscope size={14} />
-              </div>
-              <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Doctor Pro</span>
-            </div>
+      <header className={`fixed top-0 left-0 lg:left-64 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-center px-4 z-40 ${isFullscreen ? 'hidden' : ''}`}>
+        {/* Centered Logo */}
+        <div className="flex items-center gap-2 pointer-events-none">
+          <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
+            <Stethoscope size={14} />
           </div>
-
-          {/* Combined "Minha Equipe" Button - Now visible on all screens near branding */}
-          {activeGroup && (
-            <button 
-              onClick={() => setIsManagementOpen(true)}
-              className={`flex items-center gap-2 ${activeGroup.groupType === 'personal' ? 'bg-rose-600 border-rose-500 shadow-rose-100' : 'bg-emerald-600 border-emerald-500 shadow-emerald-100'} text-white px-1.5 py-1.5 lg:pl-1.5 lg:pr-4 lg:py-2 rounded-2xl hover:brightness-110 transition-all shadow-lg active:scale-95 border shrink-0`}
-            >
-              {activeGroup.photoURL ? (
-                <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl overflow-hidden border border-white/20">
-                  <img src={activeGroup.photoURL} alt="" className="w-full h-full object-cover" />
-                </div>
-              ) : (
-                <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-black/10 flex items-center justify-center">
-                  {activeGroup.groupType === 'personal' ? <User size={14} className="text-white shrink-0" /> : <Users size={14} className="text-white shrink-0" />}
-                </div>
-              )}
-              <div className="flex flex-col items-start gap-0 lg:gap-0.5 leading-none pr-1 overflow-hidden">
-                <span className="text-[8px] lg:text-[9px] font-black uppercase tracking-wider opacity-80 whitespace-nowrap">
-                  {activeGroup.groupType === 'personal' ? 'Meu Grupo' : 'Minha Equipe'}
-                </span>
-                <span className="text-[10px] lg:text-[11px] font-black uppercase tracking-tight truncate max-w-[80px] lg:max-w-[150px]">{activeGroup.name}</span>
-              </div>
-              <ChevronRight size={12} className="opacity-50 shrink-0 hidden sm:block" />
-            </button>
-          )}
+          <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Doctor Pro</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Settings Trigger - Desktop might want it in sidebar, but mobile needs it here too maybe? 
-              Actually user asked: "move the gear icon to the left sidebar"
-          */}
+        <div className="absolute right-4 flex items-center gap-2">
           <button 
             onClick={() => setIsMobileGroupsOpen(true)}
             className="p-2 text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1"
@@ -383,7 +354,7 @@ export default function App() {
                 </motion.div>
 
                 <div className="bg-white border border-gray-100 rounded-2xl p-4">
-                  <GroupSelector />
+                  <GroupSelector onSelect={handleGroupSelection} />
                 </div>
               </div>
             </motion.div>
@@ -441,6 +412,15 @@ export default function App() {
               icon={<User size={18} />} 
               label="Meu Perfil" 
               onClick={() => setShowProfile(true)}
+            />
+            <NavItem 
+              icon={<Settings size={18} />} 
+              label="Configurações" 
+              onClick={() => {
+                setManagementMode("configs");
+                setConfigsActiveTab("general");
+                setIsManagementOpen(true);
+              }}
             />
           </div>
         </nav>
@@ -583,11 +563,17 @@ export default function App() {
                         <FirestoreCalendar />
                       ) : currentView === "agenda" ? (
                         <GoogleAgenda />
+                      ) : currentView === "logs" && activePatientId ? (
+                        <PatientLogs 
+                          patientId={activePatientId} 
+                          onBack={() => setCurrentView("workspace")} 
+                        />
                       ) : activeGroup?.groupType === "personal" ? (
                         <PersonalDocuments />
                       ) : (
                         <Chat 
                           onNavigateToCalendar={() => setCurrentView("calendar")} 
+                          onViewLogs={(pid) => navigateAndAction("logs", undefined, pid)}
                           initialCommand={pendingCommand}
                           onCommandExecuted={() => setPendingCommand(null)}
                         />
@@ -599,7 +585,7 @@ export default function App() {
 
               <div className="space-y-8 hidden xl:flex flex-col pt-24 pr-2">
                 <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm transform transition-all hover:shadow-md">
-                  <GroupSelector />
+                  <GroupSelector onSelect={handleGroupSelection} />
                 </div>
               </div>
             </div>

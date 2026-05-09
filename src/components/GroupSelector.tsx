@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 import { GroupConfigs } from "./GroupConfigs";
 
-export function GroupSelector() {
+export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
   const {
     groups,
     invites,
@@ -57,6 +57,7 @@ export function GroupSelector() {
       setNewGroupName("");
       setNewGroupType("professional");
       setIsCreating(false);
+      if (onSelect) onSelect();
     } catch (err: any) {
       setError(err.message);
     }
@@ -67,6 +68,7 @@ export function GroupSelector() {
       setIsAccepting(groupId);
       await acceptInvite(groupId);
       setIsAccepting(null);
+      if (onSelect) onSelect();
     } catch (err: any) {
       setError(err.message);
       setIsAccepting(null);
@@ -372,7 +374,10 @@ export function GroupSelector() {
               {groups.map((group) => (
                 <div key={group.id} className="relative group/item">
                   <button
-                    onClick={() => setActiveGroupId(group.id)}
+                    onClick={() => {
+                      setActiveGroupId(group.id);
+                      if (onSelect) onSelect();
+                    }}
                     className={`w-full flex items-center gap-2.5 p-2 rounded-xl transition-all border-2 ${
                       activeGroup?.id === group.id
                         ? "bg-blue-50 border-blue-600 shadow-sm"
