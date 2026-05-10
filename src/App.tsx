@@ -475,7 +475,7 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`lg:pl-64 flex flex-col pt-16 pb-24 lg:pb-0 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}>
+      <main className={`lg:pl-64 flex flex-col pt-16 pb-28 sm:pb-32 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}>
         
         {/* Global Modals (Settings, Security, Profile) */}
         <AnimatePresence>

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText } from "lucide-react";
+import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, Heart } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
@@ -119,19 +119,12 @@ const MessageForm: React.FC<{
   const isObjectSuggestion = (s: any): s is { label: string, value: string } => typeof s === 'object' && s !== null && 'label' in s;
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 p-4 bg-white/50 rounded-2xl border border-blue-100 space-y-3 shadow-sm">
-      <div className="flex items-center justify-between mb-2">
-        {form.title && <h4 className="text-sm font-bold text-blue-800">{form.title}</h4>}
-        {form.backCommand && (
-          <button
-            type="button"
-            onClick={() => onSubmit(form.backCommand)}
-            className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gray-500 hover:text-blue-600 transition-colors"
-          >
-            <X size={12} />
-            Voltar
-          </button>
-        )}
+    <form onSubmit={handleSubmit} className="mt-4 p-5 bg-white rounded-[2rem] border border-blue-50 space-y-5 shadow-2xl shadow-blue-900/10 transition-all">
+      <div className="flex items-center gap-3 mb-1 border-b border-gray-50 pb-3">
+        <div className="flex flex-col">
+          {form.title && <h4 className="text-xs font-black text-blue-900 uppercase tracking-widest leading-tight">{form.title}</h4>}
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Complete as informações</span>
+        </div>
       </div>
       
       {isImageForm && (
@@ -248,8 +241,8 @@ const MessageForm: React.FC<{
         </div>
       ))}
       
-      <div className="flex flex-row items-center justify-between gap-4 pt-2">
-        <div className="flex flex-col">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-50">
+        <div className="flex flex-col items-start w-full sm:w-auto">
           {form.hospitalName && (
             <div className="flex items-center gap-1.5 text-blue-600">
               <Building2 size={14} />
@@ -265,13 +258,30 @@ const MessageForm: React.FC<{
           )}
         </div>
 
-        <button 
-          type="submit"
-          className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-tight hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100 hover:shadow-blue-200 active:scale-95"
-        >
-          <Plus size={16} strokeWidth={3} />
-          {form.submitLabel}
-        </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {form.backCommand && (
+            <button
+              type="button"
+              onClick={() => onSubmit(form.backCommand)}
+              className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-red-500 transition-all flex items-center gap-2 group"
+            >
+              <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+              Cancelar
+            </button>
+          )}
+
+          <button 
+            type="submit"
+            className="flex-1 sm:flex-none bg-blue-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-95"
+          >
+            {form.submitLabel.toLowerCase().includes("salvar") || form.submitLabel.toLowerCase().includes("registrar") ? (
+              <Check size={16} strokeWidth={3} />
+            ) : (
+              <Plus size={16} strokeWidth={3} />
+            )}
+            {form.submitLabel}
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -2250,7 +2260,10 @@ export const Chat: React.FC<{
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                         
                         <div className="flex flex-col items-start gap-1 relative z-10 min-w-0 flex-1 px-1">
-                          <h3 className="text-[18px] font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full">{msg.profileData.nome}</h3>
+                          <h3 className="text-[18px] font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full flex items-center gap-2">
+                            <Heart size={18} className="text-red-500 shrink-0 fill-red-500" />
+                            Paciente: {msg.profileData.nome}
+                          </h3>
                           <div className="flex flex-row items-center gap-3">
                             <span className="text-[12px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-lg shrink-0">{msg.profileData.idade} ANOS</span>
                             <button 

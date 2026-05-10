@@ -161,6 +161,7 @@ export function Calendar() {
 
   const [viewMode, setViewMode] = useState<"month" | "list">("list");
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split("T")[0]);
+  const [listNavMode, setListNavMode] = useState<"day" | "month">("day");
 
   // Handle month navigation for list view too
   const goToNextDay = () => {
@@ -233,7 +234,7 @@ export function Calendar() {
         const dateFormatted = `${d}/${m}/${y}`;
         const hosp = allHospitals.find(h => h.id === e.hospitalId)?.nome || "";
       
-      message += `❤️ *${e.evento}*\n`;
+      message += `❤️ *Paciente: ${e.evento}*\n`;
       message += `🕒 ${e.hora}\n`;
       message += `📅 ${dateFormatted}\n`;
       message += `🩺 *${e.descricao || "Procedimento"}*\n`;
@@ -266,6 +267,28 @@ export function Calendar() {
 
   const handleNextMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
+  const handlePrevDay = () => {
+    const d = new Date(selectedDay + "T12:00:00");
+    d.setDate(d.getDate() - 1);
+    const newDate = d.toISOString().split("T")[0];
+    setSelectedDay(newDate);
+    // Sync currentDate (the month grid) if we move to a different month
+    if (d.getMonth() !== currentDate.getMonth() || d.getFullYear() !== currentDate.getFullYear()) {
+      setCurrentDate(new Date(d.getFullYear(), d.getMonth(), 1));
+    }
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(selectedDay + "T12:00:00");
+    d.setDate(d.getDate() + 1);
+    const newDate = d.toISOString().split("T")[0];
+    setSelectedDay(newDate);
+    // Sync currentDate (the month grid) if we move to a different month
+    if (d.getMonth() !== currentDate.getMonth() || d.getFullYear() !== currentDate.getFullYear()) {
+      setCurrentDate(new Date(d.getFullYear(), d.getMonth(), 1));
+    }
   };
 
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
@@ -484,27 +507,79 @@ export function Calendar() {
               </div>
             )}
 
-            <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black text-gray-400 uppercase w-8">Mês</span>
+                <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
+                  <button 
+                    onClick={handlePrevMonth}
+                    className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const now = new Date();
+                      setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
+                    }}
+                    className="px-2 text-[10px] font-bold text-gray-600 hover:text-blue-600"
+                  >
+                    Hoje
+                  </button>
+                  <button 
+                    onClick={handleNextMonth}
+                    className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black text-gray-400 uppercase w-8">Dia</span>
+                <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
+                  <button 
+                    onClick={handlePrevDay}
+                    className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const now = new Date();
+                      const nowStr = now.toISOString().split("T")[0];
+                      setSelectedDay(nowStr);
+                      // If month is different, sync
+                      if (now.getMonth() !== currentDate.getMonth() || now.getFullYear() !== currentDate.getFullYear()) {
+                        setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
+                      }
+                    }}
+                    className="px-2 text-[10px] font-bold text-gray-600 hover:text-blue-600"
+                  >
+                    Hoje
+                  </button>
+                  <button 
+                    onClick={handleNextDay}
+                    className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100 h-fit self-end">
               <button 
-                onClick={handlePrevMonth}
-                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+                onClick={() => setListNavMode("day")}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${listNavMode === "day" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400"}`}
               >
-                <ChevronLeft size={20} />
+                MODO DIA
               </button>
               <button 
-                onClick={() => {
-                  setCurrentDate(new Date());
-                  setSelectedDay(new Date().toISOString().split("T")[0]);
-                }}
-                className="px-3 text-xs font-bold text-gray-600 hover:text-blue-600"
+                onClick={() => setListNavMode("month")}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${listNavMode === "month" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400"}`}
               >
-                Hoje
-              </button>
-              <button 
-                onClick={handleNextMonth}
-                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
-              >
-                <ChevronRight size={20} />
+                MODO MÊS
               </button>
             </div>
 
@@ -556,14 +631,31 @@ export function Calendar() {
               <p className="text-gray-500 font-medium mt-2 text-lg">Hoje é um lindo dia para salvar vidas ❤️</p>
             </div>
             {(() => {
-              const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-              const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-              const currentMonthEvents = filteredEvents.filter(e => {
-                const eventDate = new Date(e.data + "T12:00:00");
-                return eventDate >= monthStart && eventDate <= monthEnd;
-              }).sort((a, b) => a.data.localeCompare(b.data) || a.hora.localeCompare(b.hora));
+              let filteredListEvents: CalendarEvent[] = [];
+              
+              if (listNavMode === "month") {
+                const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+                const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+                filteredListEvents = filteredEvents.filter(e => {
+                  const eventDate = new Date(e.data + "T12:00:00");
+                  return eventDate >= monthStart && eventDate <= monthEnd;
+                });
+              } else {
+                // Day mode: Today and Tomorrow relative to selectedDay
+                const start = new Date(selectedDay + "T00:00:00");
+                const end = new Date(selectedDay + "T00:00:00");
+                end.setDate(end.getDate() + 1); // tomorrow relative to selectedDay
+                end.setHours(23, 59, 59, 999);
+                
+                filteredListEvents = filteredEvents.filter(e => {
+                  const eventDate = new Date(e.data + "T12:00:00");
+                  return eventDate >= start && eventDate <= end;
+                });
+              }
 
-              if (currentMonthEvents.length === 0) {
+              const sortedEvents = [...filteredListEvents].sort((a, b) => a.data.localeCompare(b.data) || a.hora.localeCompare(b.hora));
+
+              if (sortedEvents.length === 0) {
                 return (
                   <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-100">
                     <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -576,7 +668,7 @@ export function Calendar() {
               }
 
               // Group by date
-              const grouped = currentMonthEvents.reduce((acc, e) => {
+              const grouped = sortedEvents.reduce((acc, e) => {
                 if (!acc[e.data]) acc[e.data] = [];
                 acc[e.data].push(e);
                 return acc;
@@ -652,13 +744,30 @@ export function Calendar() {
                               </div>
                             </div>
                             
-                            <button 
-                              onClick={() => openEditModal(event)}
-                              className="p-2.5 hover:bg-blue-50 hover:text-blue-600 rounded-2xl text-gray-300 transition-all active:scale-95"
-                              title="Editar"
-                            >
-                              <Edit3 size={18} />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditModal(event);
+                                }}
+                                className="p-2.5 hover:bg-blue-50 hover:text-blue-600 rounded-2xl text-gray-300 transition-all active:scale-95"
+                                title="Editar"
+                              >
+                                <Edit3 size={18} />
+                              </button>
+
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingEvent(event);
+                                  handleDelete();
+                                }}
+                                className="p-2.5 hover:bg-red-50 hover:text-red-500 rounded-2xl text-gray-300 transition-all active:scale-95"
+                                title="Excluir"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
                           </motion.div>
                         );
                       })}
@@ -701,11 +810,11 @@ export function Calendar() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Evento</label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Paciente / Procedimento</label>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors">
                       <CalendarIcon size={18} />
                     </div>
                     <input 
@@ -713,18 +822,18 @@ export function Calendar() {
                       type="text"
                       value={formData.evento}
                       onChange={e => setFormData({ ...formData, evento: e.target.value })}
-                      placeholder="Ex: Cirurgia Cardíaca"
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      placeholder="Ex: Nome do Paciente - Cirurgia"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all placeholder:font-medium"
                     />
                   </div>
                   {procedureOptions.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
+                    <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-gray-50">
                       {procedureOptions.map(opt => (
                         <button
                           key={opt}
                           type="button"
                           onClick={() => setFormData({ ...formData, evento: opt })}
-                          className="text-[9px] font-bold px-2.5 py-1.5 bg-white border border-gray-100 rounded-xl text-gray-500 hover:border-blue-200 hover:text-blue-600 transition-all uppercase tracking-tight"
+                          className="text-[9px] font-black px-3 py-2 bg-white border border-gray-100 rounded-xl text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:shadow-sm transition-all uppercase tracking-tight"
                         >
                           {opt}
                         </button>
@@ -733,22 +842,22 @@ export function Calendar() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Data</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Data da Cirurgia</label>
                     <input 
                       required
                       type="date"
                       value={formData.data}
                       onChange={e => setFormData({ ...formData, data: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all font-mono"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Hora e Categoria</label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Horário & Tipo</label>
+                    <div className="flex gap-3">
+                      <div className="relative flex-1 group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors">
                           <Clock size={18} />
                         </div>
                         <input 
@@ -756,22 +865,22 @@ export function Calendar() {
                           type="time"
                           value={formData.hora}
                           onChange={e => setFormData({ ...formData, hora: e.target.value })}
-                          className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
+                          className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all font-mono"
                         />
                       </div>
                       <select 
                         value={formData.tipo}
                         onChange={e => setFormData({ ...formData, tipo: e.target.value })}
-                        className="bg-gray-50 border border-gray-100 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                        className="bg-gray-50 border border-gray-100 rounded-2xl py-4 px-4 text-xs font-black focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all cursor-pointer appearance-none shadow-inner"
                       >
                         {surgeryTypeOptions.length > 0 ? (
                           surgeryTypeOptions.map(opt => (
-                            <option key={opt} value={opt}>{opt.substring(0, 4)}</option>
+                            <option key={opt} value={opt}>{opt.toUpperCase()}</option>
                           ))
                         ) : (
                           <>
-                            <option value="ELETIVA">ELET</option>
-                            <option value="URGÊNCIA">URG</option>
+                            <option value="ELETIVA">ELETIVA</option>
+                            <option value="URGÊNCIA">URGÊNCIA</option>
                           </>
                         )}
                       </select>
@@ -779,71 +888,74 @@ export function Calendar() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Hospital / Clínica</label>
+                    <div className="relative group">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors">
+                        <Building2 size={18} />
+                      </div>
+                      <select 
+                        value={formData.hospitalId}
+                        onChange={e => setFormData({ ...formData, hospitalId: e.target.value })}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all cursor-pointer appearance-none"
+                      >
+                        <option value="">Selecione o Hospital...</option>
+                        {hospitalOptions.map(h => (
+                          <option key={h.id} value={h.id}>{h.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Sala / Unidade</label>
+                    <input 
+                      type="text"
+                      value={formData.sala}
+                      onChange={e => setFormData({ ...formData, sala: e.target.value })}
+                      placeholder="Ex: Sala 01"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Descrição (Opcional)</label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-4 text-gray-400">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Observações Adicionais</label>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-5 text-gray-400 group-focus-within:text-blue-600 transition-colors">
                       <FileText size={18} />
                     </div>
                     <textarea 
                       value={formData.descricao}
                       onChange={e => setFormData({ ...formData, descricao: e.target.value })}
-                      placeholder="Detalhes adicionais..."
+                      placeholder="Alguma recomendação ou detalhe importante?"
                       rows={3}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all resize-none min-h-[100px]"
                     />
                   </div>
                 </div>
 
-                <div className="pt-4 flex items-end gap-3 justify-between">
-                  <div className="flex-1 grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Hospital</label>
-                      <div className="relative">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                          <Building2 size={16} />
-                        </div>
-                        <select 
-                          value={formData.hospitalId}
-                          onChange={e => setFormData({ ...formData, hospitalId: e.target.value })}
-                          className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 pl-9 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none font-bold"
-                        >
-                          <option value="">Hospital...</option>
-                          {hospitalOptions.map(h => (
-                            <option key={h.id} value={h.id}>{h.nome}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Nº Sala</label>
-                      <input 
-                        type="text"
-                        value={formData.sala}
-                        onChange={e => setFormData({ ...formData, sala: e.target.value })}
-                        placeholder="Sala..."
-                        className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
+                <div className="pt-4 flex flex-col sm:flex-row items-center gap-4 border-t border-gray-50">
+                  <div className="flex items-center gap-3 w-full sm:w-auto order-2 sm:order-1">
                     {editingEvent && (
                       <button 
                         type="button"
                         onClick={handleDelete}
-                        className="p-3 text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100"
+                        className="flex-1 sm:flex-none p-4 text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100 active:scale-95 flex items-center justify-center"
+                        title="Excluir Procedimento"
                       >
                         <Trash2 size={24} />
+                        <span className="sm:hidden font-black uppercase text-[10px] tracking-widest ml-2">Excluir</span>
                       </button>
                     )}
-                    <button 
-                      type="submit"
-                      className="whitespace-nowrap bg-blue-600 text-white px-8 py-3.5 rounded-2xl font-black text-sm hover:bg-blue-700 shadow-xl shadow-blue-100 active:scale-[0.98] transition-all uppercase tracking-tight"
-                    >
-                      {editingEvent ? "Salvar" : "Agendar Agora"}
-                    </button>
                   </div>
+                  <button 
+                    type="submit"
+                    className="w-full sm:w-auto sm:flex-1 bg-blue-600 text-white px-8 py-4.5 rounded-2xl font-black text-xs sm:text-sm shadow-2xl shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 active:scale-[0.98] transition-all uppercase tracking-widest order-1 sm:order-2 flex items-center justify-center gap-2"
+                  >
+                    {editingEvent ? <Check size={20} /> : <Plus size={20} />}
+                    {editingEvent ? "Salvar Alterações" : "Agendar Procedimento"}
+                  </button>
                 </div>
               </form>
             </motion.div>

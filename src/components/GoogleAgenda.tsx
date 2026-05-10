@@ -4,6 +4,7 @@ import {
   ChevronRight, 
   Plus, 
   Trash2, 
+  Edit3,
   X,
   Calendar as CalendarIcon,
   Clock,
@@ -43,8 +44,11 @@ export function GoogleAgenda() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<GoogleEvent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<GoogleEvent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"month" | "list">("list");
+  const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split("T")[0]);
+  const [listNavMode, setListNavMode] = useState<"day" | "month">("day");
   
   // Form State
   const [formData, setFormData] = useState({
@@ -87,6 +91,28 @@ export function GoogleAgenda() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   };
 
+  const handlePrevDay = () => {
+    const d = new Date(selectedDay + "T12:00:00");
+    d.setDate(d.getDate() - 1);
+    const newDate = d.toISOString().split("T")[0];
+    setSelectedDay(newDate);
+    // Sync currentDate (the month grid) if we move to a different month
+    if (d.getMonth() !== currentDate.getMonth() || d.getFullYear() !== currentDate.getFullYear()) {
+      setCurrentDate(new Date(d.getFullYear(), d.getMonth(), 1));
+    }
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(selectedDay + "T12:00:00");
+    d.setDate(d.getDate() + 1);
+    const newDate = d.toISOString().split("T")[0];
+    setSelectedDay(newDate);
+    // Sync currentDate (the month grid) if we move to a different month
+    if (d.getMonth() !== currentDate.getMonth() || d.getFullYear() !== currentDate.getFullYear()) {
+      setCurrentDate(new Date(d.getFullYear(), d.getMonth(), 1));
+    }
+  };
+
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
 
@@ -113,7 +139,10 @@ export function GoogleAgenda() {
       days.push(
         <div 
           key={day} 
-          onClick={() => openAddModal(dateStr)}
+          onClick={() => {
+            setSelectedDay(dateStr);
+            setViewMode("list");
+          }}
           className={`h-24 sm:h-32 border-t border-l border-gray-100 p-1 sm:p-2 relative flex flex-col cursor-pointer hover:bg-gray-50/80 transition-colors ${isToday ? "bg-emerald-50/30" : "bg-white"}`}
         >
           <div className="flex items-center justify-between mb-1 shrink-0">
@@ -133,10 +162,17 @@ export function GoogleAgenda() {
                 ? new Date(event.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
                 : "Dia todo";
               return (
-                <div key={event.id} className="p-1 px-1.5 rounded-lg border border-emerald-50 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <button 
+                  key={event.id} 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEditModal(event);
+                  }}
+                  className="w-full text-left p-1 px-1.5 rounded-lg border border-emerald-50 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:border-emerald-200 transition-all active:scale-[0.98]"
+                >
                   <div className="text-[7px] font-black text-emerald-500 uppercase tracking-tighter">{time}</div>
                   <div className="text-[9px] font-bold text-gray-700 leading-tight truncate">{event.summary}</div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -149,11 +185,24 @@ export function GoogleAgenda() {
 
   const openAddModal = (dateStr?: string) => {
     const now = new Date();
+    setEditingEvent(null);
     setFormData({
       summary: "",
       date: dateStr || now.toISOString().split("T")[0],
       time: now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
       description: ""
+    });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (event: GoogleEvent) => {
+    const start = new Date(event.start.dateTime || event.start.date || "");
+    setEditingEvent(event);
+    setFormData({
+      summary: event.summary,
+      date: start.toISOString().split("T")[0],
+      time: start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      description: event.description || ""
     });
     setIsModalOpen(true);
   };
@@ -174,8 +223,14 @@ export function GoogleAgenda() {
         end: { dateTime: end.toISOString(), timeZone: "America/Sao_Paulo" }
       };
 
-      const res = await apiFetch("/api/calendar/events", {
-        method: "POST",
+      const url = editingEvent 
+        ? `/api/calendar/events/${editingEvent.id}`
+        : "/api/calendar/events";
+      
+      const method = editingEvent ? "PUT" : "POST";
+
+      const res = await apiFetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
@@ -185,7 +240,7 @@ export function GoogleAgenda() {
         fetchEvents();
       }
     } catch (err) {
-      console.error("Error creating Google event:", err);
+      console.error("Error saving Google event:", err);
     } finally {
       setIsLoading(false);
     }
@@ -242,29 +297,80 @@ export function GoogleAgenda() {
         <div className="flex items-center gap-2">
           {isLoading && <Loader2 size={20} className="animate-spin text-gray-400 mr-2" />}
           
-          <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-black text-gray-400 uppercase w-8">Mês</span>
+              <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
+                <button 
+                  onClick={handlePrevMonth}
+                  className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button 
+                  onClick={() => setCurrentDate(new Date())}
+                  className="px-2 text-[10px] font-bold text-gray-600 hover:text-emerald-600"
+                >
+                  Hoje
+                </button>
+                <button 
+                  onClick={handleNextMonth}
+                  className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-black text-gray-400 uppercase w-8">Dia</span>
+              <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100">
+                <button 
+                  onClick={handlePrevDay}
+                  className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button 
+                  onClick={() => {
+                    const now = new Date();
+                    setSelectedDay(now.toISOString().split("T")[0]);
+                    // If month is different, sync
+                    if (now.getMonth() !== currentDate.getMonth() || now.getFullYear() !== currentDate.getFullYear()) {
+                      setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
+                    }
+                  }}
+                  className="px-2 text-[10px] font-bold text-gray-600 hover:text-emerald-600"
+                >
+                  Hoje
+                </button>
+                <button 
+                  onClick={handleNextDay}
+                  className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100 h-fit self-end">
             <button 
-              onClick={handlePrevMonth}
-              className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
+              onClick={() => setListNavMode("day")}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${listNavMode === "day" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400"}`}
             >
-              <ChevronLeft size={20} />
+              MODO DIA
             </button>
             <button 
-              onClick={() => setCurrentDate(new Date())}
-              className="px-3 text-xs font-bold text-gray-600 hover:text-emerald-600"
+              onClick={() => setListNavMode("month")}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${listNavMode === "month" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400"}`}
             >
-              Hoje
-            </button>
-            <button 
-              onClick={handleNextMonth}
-              className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500"
-            >
-              <ChevronRight size={20} />
+              MODO MÊS
             </button>
           </div>
 
           <button 
-            onClick={() => openAddModal()}
+            onClick={() => openAddModal(viewMode === "list" ? selectedDay : undefined)}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-xl shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all"
           >
             <Plus size={18} />
@@ -303,92 +409,104 @@ export function GoogleAgenda() {
                 Confira seus compromissos no Google Agenda
               </motion.p>
             </div>
-              {events.length === 0 && !isLoading ? (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-white rounded-3xl p-16 text-center border border-gray-100 shadow-sm"
-                >
-                  <CalendarIcon className="w-16 h-16 text-gray-200 mx-auto mb-6" />
-                  <h3 className="text-lg font-bold text-gray-900">Nenhum compromisso este mês</h3>
-                  <p className="text-gray-400 mt-2 text-sm">Sua agenda do Google está limpa no momento. Selecione outra data ou adicione um novo compromisso.</p>
-                </motion.div>
-              ) : (
+            {(() => {
+              let filteredListEvents: GoogleEvent[] = [];
+              
+              if (listNavMode === "month") {
+                filteredListEvents = events;
+              } else {
+                const sDay = new Date(selectedDay + "T00:00:00");
+                const nextDay = new Date(sDay);
+                nextDay.setDate(nextDay.getDate() + 1);
+                
+                filteredListEvents = events.filter(event => {
+                  const start = new Date(event.start.dateTime || event.start.date || "");
+                  return (
+                    (start.getDate() === sDay.getDate() && start.getMonth() === sDay.getMonth() && start.getFullYear() === sDay.getFullYear()) ||
+                    (start.getDate() === nextDay.getDate() && start.getMonth() === nextDay.getMonth() && start.getFullYear() === nextDay.getFullYear())
+                  );
+                });
+              }
+
+              const sortedEvents = [...filteredListEvents].sort((a, b) => {
+                const dateA = new Date(a.start.dateTime || a.start.date || "");
+                const dateB = new Date(b.start.dateTime || b.start.date || "");
+                return dateA.getTime() - dateB.getTime();
+              });
+
+              if (sortedEvents.length === 0 && !isLoading) {
+                return (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-white rounded-3xl p-16 text-center border border-gray-100 shadow-sm"
+                  >
+                    <CalendarIcon className="w-16 h-16 text-gray-200 mx-auto mb-6" />
+                    <h3 className="text-lg font-bold text-gray-900">Nenhum compromisso este mês</h3>
+                    <p className="text-gray-400 mt-2 text-sm">Sua agenda do Google está limpa no momento. Selecione outra data ou adicione um novo compromisso.</p>
+                  </motion.div>
+                );
+              }
+
+              return (
                 <div className="space-y-4">
-                  {(() => {
-                    const today = new Date();
-                    const filteredEvents = events.filter(event => {
-                      const start = new Date(event.start.dateTime || event.start.date || "");
-                      return (
-                        start.getDate() === today.getDate() &&
-                        start.getMonth() === today.getMonth() &&
-                        start.getFullYear() === today.getFullYear()
-                      );
-                    }).sort((a, b) => {
-                      const dateA = new Date(a.start.dateTime || a.start.date || "");
-                      const dateB = new Date(b.start.dateTime || b.start.date || "");
-                      return dateA.getTime() - dateB.getTime();
-                    });
-
-                    if (filteredEvents.length === 0 && !isLoading) {
-                      return (
-                        <motion.div 
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="text-center py-16 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-200"
-                        >
-                          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100">
-                             <Check className="text-emerald-500" size={20} />
+                  {sortedEvents.map((event, idx) => {
+                    const start = new Date(event.start.dateTime || event.start.date || "");
+                    const isAllDay = !event.start.dateTime;
+                    return (
+                      <motion.div 
+                        key={event.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between gap-4 group hover:shadow-xl hover:shadow-gray-500/5 transition-all"
+                      >
+                        <div className="flex items-center gap-6">
+                          <div className="flex flex-col items-center justify-center w-14 h-14 bg-gray-50 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-inner group-hover:shadow-emerald-200">
+                            <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
+                              {start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
+                            </span>
+                            <span className="text-2xl font-black leading-none">{start.getDate()}</span>
                           </div>
-                          <p className="text-gray-500 font-bold mb-1">Você está em dia!</p>
-                          <p className="text-gray-400 text-sm">Não há compromissos para o dia de hoje.</p>
-                        </motion.div>
-                      );
-                    }
-
-                    return filteredEvents.map((event, idx) => {
-                      const start = new Date(event.start.dateTime || event.start.date || "");
-                      const isAllDay = !event.start.dateTime;
-                      return (
-                        <motion.div 
-                          key={event.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between gap-4 group hover:shadow-xl hover:shadow-gray-500/5 transition-all"
-                        >
-                          <div className="flex items-center gap-6">
-                            <div className="flex flex-col items-center justify-center w-14 h-14 bg-gray-50 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-inner group-hover:shadow-emerald-200">
-                              <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
-                                {start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
+                          
+                          <div>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-xl flex items-center gap-1.5 border border-emerald-100/50">
+                                <Clock size={12} />
+                                {isAllDay ? "DIA TODO" : start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                               </span>
-                              <span className="text-2xl font-black leading-none">{start.getDate()}</span>
                             </div>
-                            
-                            <div>
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-xl flex items-center gap-1.5 border border-emerald-100/50">
-                                  <Clock size={12} />
-                                  {isAllDay ? "DIA TODO" : start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                                </span>
-                              </div>
-                              <h4 className="font-bold text-base text-gray-900 tracking-tight">{event.summary}</h4>
-                              {event.description && <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 max-w-md">{event.description}</p>}
-                            </div>
+                            <h4 className="font-bold text-base text-gray-900 tracking-tight">{event.summary}</h4>
+                            {event.description && <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 max-w-md">{event.description}</p>}
                           </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditModal(event);
+                            }}
+                            className="p-3 text-gray-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-2xl transition-all"
+                            title="Editar"
+                          >
+                            <Edit3 size={18} />
+                          </button>
                           
                           <button 
                             onClick={() => handleDelete(event.id)}
                             className="p-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                            title="Excluir"
                           >
                             <Trash2 size={20} />
                           </button>
-                        </motion.div>
-                      );
-                    });
-                  })()}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
-              )}
+              );
+            })()}
           </div>
         )}
       </div>
@@ -412,65 +530,84 @@ export function GoogleAgenda() {
               className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden z-10"
             >
               <div className="p-6 border-b border-gray-50 flex items-center justify-between">
-                <h3 className="font-black text-gray-900">Novo Compromisso</h3>
+                <h3 className="font-black text-gray-900">{editingEvent ? "Editar Compromisso" : "Novo Compromisso"}</h3>
                 <button onClick={() => setIsModalOpen(false)} className="p-2 text-gray-400">
                   <X size={20} />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1.5 ml-1">Assunto</label>
-                  <input 
-                    required
-                    value={formData.summary}
-                    onChange={e => setFormData({ ...formData, summary: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                    placeholder="O que vamos agendar?"
-                  />
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Assunto / Compromisso</label>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-600 transition-colors">
+                      <CalendarIcon size={18} />
+                    </div>
+                    <input 
+                      required
+                      value={formData.summary}
+                      onChange={e => setFormData({ ...formData, summary: e.target.value })}
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-600/5 focus:border-emerald-600 transition-all placeholder:font-medium"
+                      placeholder="O que vamos agendar no Google?"
+                    />
+                  </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-gray-400 mb-1.5 ml-1">Data</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Data</label>
                     <input 
                       type="date"
                       required
                       value={formData.date}
                       onChange={e => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-600/5 focus:border-emerald-600 transition-all font-mono"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-gray-400 mb-1.5 ml-1">Hora</label>
-                    <input 
-                      type="time"
-                      required
-                      value={formData.time}
-                      onChange={e => setFormData({ ...formData, time: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                    />
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Horário</label>
+                    <div className="relative group">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-600 transition-colors">
+                        <Clock size={18} />
+                      </div>
+                      <input 
+                        type="time"
+                        required
+                        value={formData.time}
+                        onChange={e => setFormData({ ...formData, time: e.target.value })}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-600/5 focus:border-emerald-600 transition-all font-mono"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1.5 ml-1">Descrição</label>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Descrição / Notas</label>
                   <textarea 
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-600/5 focus:border-emerald-600 transition-all resize-none min-h-[100px]"
                     rows={3}
-                    placeholder="Notas opcionais..."
+                    placeholder="Adicione detalhes extras aqui..."
                   />
                 </div>
 
-                <button 
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
-                >
-                  {isLoading ? <Loader2 size={18} className="animate-spin" /> : "Agendar no Google"}
-                </button>
+                <div className="pt-4 flex flex-col sm:flex-row items-center gap-4 border-t border-gray-50">
+                  <button 
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full bg-emerald-600 text-white py-4.5 rounded-2xl font-black text-xs sm:text-sm shadow-2xl shadow-emerald-500/20 hover:bg-emerald-700 hover:shadow-emerald-500/30 active:scale-[0.98] transition-all uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <>
+                        {editingEvent ? <Check size={18} /> : <Plus size={18} />}
+                        {editingEvent ? "Salvar Alterações" : "Agendar no Google"}
+                      </>
+                    )}
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>
