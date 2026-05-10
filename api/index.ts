@@ -890,16 +890,18 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
     };
 
     // Process Files/Images
-    report.imagens = filesSnap.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        data: data.timestamp ? data.timestamp.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "Recent",
-        descricao: data.description || "Arquivo",
-        link: data.link,
-        aiResposta: data.aiAnalysis || ""
-      };
-    });
+    report.imagens = filesSnap.docs
+      .filter(doc => doc.data().status !== "removed")
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          data: data.timestamp ? data.timestamp.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "Recent",
+          descricao: data.description || "Arquivo",
+          link: data.link,
+          aiResposta: data.aiAnalysis || ""
+        };
+      });
 
     // Process Clinical Logs (patient_logs)
     report.audios = logsSnap.docs.map(doc => {
@@ -1348,6 +1350,37 @@ app.post("/api/app/upload-image", express.json({ limit: "25mb" }), async (req, r
     res.json({ success: true, fileId: fileRef.id, link: publicUrl });
   } catch (error) {
     handleApiError(res, error, "Uploading image to Storage");
+  }
+});
+
+// Remove file (soft delete)
+app.post("/api/app/files/remove", express.json(), async (req, res) => {
+  const { fileId } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  if (!fileId) return res.status(400).json({ error: "FileID é obrigatório." });
+
+  try {
+    const fileRef = db.collection("files").doc(fileId);
+    const fileDoc = await fileRef.get();
+
+    if (!fileDoc.exists) {
+      return res.status(404).json({ error: "Arquivo não encontrado." });
+    }
+
+    if (fileDoc.data()?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access" });
+    }
+
+    await fileRef.update({
+      status: "removed",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    handleApiError(res, error, "Removing file");
   }
 });
 

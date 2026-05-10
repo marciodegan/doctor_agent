@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, Heart } from "lucide-react";
+import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
@@ -144,9 +144,10 @@ const MessageForm: React.FC<{
               <button 
                 type="button"
                 onClick={() => onSelectImage?.(null)}
-                className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                className="absolute top-3 right-3 px-3 py-1.5 bg-red-600/90 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-black uppercase tracking-widest backdrop-blur-sm"
               >
-                <X size={14} />
+                <X size={12} strokeWidth={3} />
+                Remover
               </button>
 
               <button
@@ -497,7 +498,7 @@ export const Chat: React.FC<{
   <div className="mb-0.5"><b>${i.descricao}</b></div>
   ${imgTag}
   ${aiPart}
-  <div className="text-[10px] font-medium text-gray-500 mt-2">${i.data}${downloadText} \`/ai_analyze id: ${i.id}, pId: ${cad.ID}, url: ${i.link}\`</div>
+  <div className="text-[10px] font-medium text-gray-500 mt-2">${i.data}${downloadText} \`/ai_analyze id: ${i.id}, pId: ${cad.ID}, url: ${i.link}\` \`/remover_imagem id: ${i.id}, pId: ${cad.ID}\`</div>
 </div>`;
       }).join("");
 
@@ -1971,6 +1972,47 @@ export const Chat: React.FC<{
       }
     }
 
+    if (cmd.startsWith("/remover_imagem")) {
+      const rawText = cmdInput.slice("/remover_imagem".length).trim();
+      const parts: Record<string, string> = {};
+      const pairs = rawText.split(",");
+      pairs.forEach(p => {
+        const partsArr = p.split(":");
+        const k = partsArr[0]?.trim();
+        const v = partsArr.slice(1).join(":").trim();
+        if (k && v) parts[k.toLowerCase()] = v;
+      });
+
+      const fileId = parts.id || "";
+      const pId = parts.pid || "";
+
+      if (!fileId) {
+        setMessages(prev => [...prev, { role: "model", text: "❌ ID da imagem não informado." }]);
+        return true;
+      }
+
+      setIsLoading(true);
+      try {
+        const res = await apiFetch("/api/app/files/remove", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileId })
+        });
+        const resData = await res.json();
+        if (resData.error) throw new Error(resData.error);
+
+        setMessages(prev => [...prev, { role: "model", text: "✅ Imagem removida com sucesso." }]);
+        if (pId) {
+          await handleDirectCommand(`/p id: ${pId}`);
+        }
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao remover imagem: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
     if (cmd.startsWith("/remover_evento")) {
       const eventPart = cmdInput.split(" ")[1];
       if (!eventPart) return true;
@@ -2260,9 +2302,8 @@ export const Chat: React.FC<{
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                         
                         <div className="flex flex-col items-start gap-1 relative z-10 min-w-0 flex-1 px-1">
-                          <h3 className="text-[18px] font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full flex items-center gap-2">
-                            <Heart size={18} className="text-red-500 shrink-0 fill-red-500" />
-                            Paciente: {msg.profileData.nome}
+                          <h3 className="text-[18px] font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full">
+                            {msg.profileData.nome}
                           </h3>
                           <div className="flex flex-row items-center gap-3">
                             <span className="text-[12px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-lg shrink-0">{msg.profileData.idade} ANOS</span>
@@ -2369,6 +2410,7 @@ export const Chat: React.FC<{
                                   label = content.split(" label:")[1].trim();
                                 } else {
                                   if (content.startsWith("/remover_evento")) label = "🗑️";
+                                  if (content.startsWith("/remover_imagem")) label = "🗑️ Remover";
                                   if (content.startsWith("/pacientes")) label = "📋 Pacientes";
                                   if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
                                   if (content.startsWith("/prep_p") || content.startsWith("/p ")) {
@@ -2445,18 +2487,6 @@ export const Chat: React.FC<{
                         </ReactMarkdown>
                       </div>
 
-                      {msg.isProfile && msg.profileData && (
-                        <div className="mt-4 pt-4 border-t border-gray-50 flex justify-center">
-                          <button 
-                            onClick={() => onViewLogs && onViewLogs(msg.profileData?.id)}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
-                          >
-                            <FileText size={14} className="text-blue-100" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-white">Visualizar Logs</span>
-                          </button>
-                        </div>
-                      )}
-
                       {msg.actionGroups && (
                         <div className="mt-6 pt-6 -mx-3 -mb-3 p-4 bg-gray-50/70 border-t border-gray-100 space-y-4">
                           {msg.actionGroups.map((group, gi) => (
@@ -2516,6 +2546,71 @@ export const Chat: React.FC<{
         </AnimatePresence>
       </div>
 
+      {/* Input Area */}
+      <form 
+        onSubmit={handleSend}
+        className="p-4 bg-white border-t border-gray-100 space-y-4"
+      >
+        <AnimatePresence>
+          {selectedImage && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="relative w-24 h-24 rounded-2xl overflow-hidden border-2 border-blue-100 shadow-lg group"
+            >
+              <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => setSelectedImage(null)}
+                className="absolute top-1.5 right-1.5 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-md active:scale-90"
+              >
+                <X size={12} strokeWidth={3} />
+              </button>
+              <div className="absolute inset-0 bg-blue-900/10 pointer-events-none"></div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="flex items-end gap-2 bg-gray-50 rounded-3xl p-2 ring-1 ring-gray-200 focus-within:ring-2 focus-within:ring-blue-500 transition-all shadow-inner">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="p-3 text-gray-400 hover:text-blue-600 hover:bg-white rounded-2xl transition-all shadow-sm hover:shadow-md active:scale-95 bg-white sm:bg-transparent"
+          >
+            <ImageIcon size={22} />
+          </button>
+          
+          <input 
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept="image/*"
+            onChange={handleImageSelect}
+          />
+
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Digite sua mensagem ou comando..."
+            className="flex-1 max-h-32 min-h-[48px] py-3 px-1 bg-transparent border-none outline-none text-sm resize-none scrollbar-hide font-medium text-gray-700"
+          />
+
+          <button
+            type="submit"
+            disabled={isLoading || (!input.trim() && !selectedImage)}
+            className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-90 disabled:opacity-30 disabled:grayscale flex items-center justify-center shrink-0"
+          >
+            {isLoading ? <Loader2 size={22} className="animate-spin" /> : <Send size={22} strokeWidth={2.5} />}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };

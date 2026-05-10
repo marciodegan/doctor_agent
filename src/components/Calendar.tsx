@@ -810,7 +810,7 @@ export function Calendar() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+              <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Paciente / Procedimento</label>
                   <div className="relative group">
@@ -935,7 +935,7 @@ export function Calendar() {
                   </div>
                 </div>
 
-                <div className="pt-4 flex flex-col sm:flex-row items-center gap-4 border-t border-gray-50">
+                <div className="pt-2 flex flex-col sm:flex-row items-center gap-4 border-t border-gray-50">
                   <div className="flex items-center gap-3 w-full sm:w-auto order-2 sm:order-1">
                     {editingEvent && (
                       <button 
