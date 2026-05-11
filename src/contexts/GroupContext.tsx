@@ -119,6 +119,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       activeGroup?.id || safeLocalStorage.getItem("activeGroupId") || "";
     return fetch(url, {
       ...init,
+      credentials: 'include',
       headers: {
         ...init?.headers,
         "x-group-id": groupId,

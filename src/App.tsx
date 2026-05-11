@@ -47,7 +47,7 @@ import { PersonalDocuments } from "./components/PersonalDocuments";
 import { PatientLogs } from "./components/PatientLogs";
 
 export default function App() {
-  const { isAuthenticated, login, logout } = useAuth();
+  const { isAuthenticated, user, login, logout } = useAuth();
   const { 
     activeGroup, 
     companyName,
@@ -58,8 +58,8 @@ export default function App() {
     toggleGroupStatus
   } = useGroup();
 
-  const currentUserMember = activeGroupMembers.find(m => m.userId === auth.currentUser?.uid);
-  const isOwner = activeGroup?.createdBy === auth.currentUser?.uid;
+  const currentUserMember = activeGroupMembers.find(m => m.userId === user?.uid);
+  const isOwner = activeGroup?.createdBy === user?.uid;
   const isAdmin = isOwner || currentUserMember?.role === "owner";
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
