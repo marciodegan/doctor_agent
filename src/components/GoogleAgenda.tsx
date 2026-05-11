@@ -396,7 +396,7 @@ export function GoogleAgenda() {
               <motion.h1 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-lg font-black text-gray-900 leading-tight tracking-tight"
+                className="text-[14px] font-black text-gray-900 leading-tight tracking-tight"
               >
                 Olá, {auth.currentUser?.displayName?.split(" ")[0] || "Doutor(a)"}! 👋
               </motion.h1>
@@ -404,7 +404,7 @@ export function GoogleAgenda() {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="text-gray-400 font-medium mt-1 text-xs"
+                className="text-gray-400 font-medium mt-1 text-[13px]"
               >
                 Confira seus compromissos no Google Agenda
               </motion.p>
@@ -453,41 +453,56 @@ export function GoogleAgenda() {
                   {sortedEvents.map((event, idx) => {
                     const start = new Date(event.start.dateTime || event.start.date || "");
                     const isAllDay = !event.start.dateTime;
+                    const eventDateStr = start.toISOString().split("T")[0];
+                    const isToday = eventDateStr === today.toISOString().split("T")[0];
+
                     return (
                       <motion.div 
                         key={event.id}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.05 }}
-                        className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between gap-4 group hover:shadow-xl hover:shadow-gray-500/5 transition-all"
+                        className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between gap-6 group hover:shadow-xl hover:shadow-emerald-900/5 hover:-translate-y-0.5 transition-all duration-300"
                       >
-                        <div className="flex items-center gap-6">
-                          <div className="flex flex-col items-center justify-center w-14 h-14 bg-gray-50 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-inner group-hover:shadow-emerald-200">
-                            <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
+                        <div className="flex items-center gap-5 flex-1 min-w-0">
+                          <div className="flex flex-col items-center justify-center w-14 h-14 bg-gray-50 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0 shadow-inner">
+                            <span className="text-[8px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 mb-0.5 mx-[2px]">
+                              {start.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
+                            </span>
+                            <span className="text-[21px] font-black leading-none tabular-nums mx-[2px]">{start.getDate()}</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100 mt-0.5 mx-[2px]">
                               {start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
                             </span>
-                            <span className="text-2xl font-black leading-none">{start.getDate()}</span>
                           </div>
                           
-                          <div>
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-xl flex items-center gap-1.5 border border-emerald-100/50">
-                                <Clock size={12} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-emerald-100/50 group-hover:bg-emerald-100/50 transition-colors">
+                                <Clock size={12} strokeWidth={3} />
                                 {isAllDay ? "DIA TODO" : start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                               </span>
+                              {isToday && (
+                                <span className="text-[9px] font-black text-white bg-emerald-500 px-2.5 py-1 rounded-lg shadow-sm">HOJE</span>
+                              )}
                             </div>
-                            <h4 className="font-bold text-base text-gray-900 tracking-tight">{event.summary}</h4>
-                            {event.description && <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 max-w-md">{event.description}</p>}
+                            <h4 className="font-bold text-[13px] leading-tight text-gray-900 tracking-tight truncate group-hover:text-emerald-900 transition-colors">
+                              {event.summary}
+                            </h4>
+                            {event.description && (
+                              <p className="text-xs text-gray-400 mt-1.5 line-clamp-1 max-w-lg group-hover:text-gray-500 transition-colors">
+                                {event.description}
+                              </p>
+                            )}
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
                               openEditModal(event);
                             }}
-                            className="p-3 text-gray-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-2xl transition-all"
+                            className="p-2.5 text-gray-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90"
                             title="Editar"
                           >
                             <Edit3 size={18} />
@@ -495,7 +510,7 @@ export function GoogleAgenda() {
                           
                           <button 
                             onClick={() => handleDelete(event.id)}
-                            className="p-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                            className="p-2.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-90"
                             title="Excluir"
                           >
                             <Trash2 size={20} />

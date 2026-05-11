@@ -147,7 +147,7 @@ const MessageForm: React.FC<{
                 className="absolute top-3 right-3 px-3 py-1.5 bg-red-600/90 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-black uppercase tracking-widest backdrop-blur-sm"
               >
                 <X size={12} strokeWidth={3} />
-                Remover
+                Remover Imagem
               </button>
 
               <button
@@ -475,14 +475,12 @@ export const Chat: React.FC<{
   const generatePatientReport = (data: any) => {
     const cad = data.cadastro;
     const audios = data.audios.map((a: any) => `
-<div style="margin-left: 24px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
+<div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
   <div style="margin-bottom: 2px;">${a.conteudo}</div>
-  <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${a.data}</div>
+  <div style="font-size: 10px; font-weight: bold; color: #4b5563;">${a.data}</div>
 </div>`).join("");
     
       const docs = data.imagens.map((i: any) => {
-        const downloadText = i.link ? ` <a href="${i.link}" target="_blank" rel="noopener noreferrer" className="ml-2 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px] font-bold hover:bg-blue-100 transition-colors inline-block no-underline">Baixar Arquivo</a>` : "";
-        
         let aiPart = "";
         const analysis = i.aiAnalysis || i.aiResposta;
         if (analysis) {
@@ -494,11 +492,13 @@ export const Chat: React.FC<{
           : "";
         
         return `
-<div className="ml-6 mb-3 pb-3 border-b border-gray-100">
-  <div className="mb-0.5"><b>${i.descricao}</b></div>
+<div className="ml-0 mb-6 pb-6 border-b border-gray-100">
   ${imgTag}
+  <div className="mb-2 font-bold text-[10px] text-gray-800">${i.descricao}</div>
   ${aiPart}
-  <div className="text-[10px] font-medium text-gray-500 mt-2">${i.data}${downloadText} \`/ai_analyze id: ${i.id}, pId: ${cad.ID}, url: ${i.link}\` \`/remover_imagem id: ${i.id}, pId: ${cad.ID}\`</div>
+  <div className="text-[10px] font-medium text-gray-500 mt-3 mb-3">${i.data}</div>
+  
+  \`/remover_imagem id: ${i.id}, pId: ${cad.ID} label:🗑️ REMOVER FOTO\`
 </div>`;
       }).join("");
 
@@ -509,9 +509,9 @@ export const Chat: React.FC<{
         ? `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: none;">📞 <b>${f.fone}</b></a>` 
         : "📞 Sem fone";
       return `
-<div style="margin-left: 24px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
-  <div style="margin-bottom: 2px;">${f.nome} (${f.relacao})</div>
-  <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${foneLink}</div>
+<div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef; margin-left: 0px;">
+  <div style="margin-bottom: 2px; margin-left: 0px; padding-left: 1px;">${f.nome} (${f.relacao})</div>
+  <div style="margin-left: 0px; padding-left: 1px; font-size: 12px; font-weight: bold; color: #4b5563;">${foneLink}</div>
 </div>`;
     }).join("");
 
@@ -522,21 +522,24 @@ export const Chat: React.FC<{
       ? `<a href="https://wa.me/${waCadNumber}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: none;">📞 <b>${cadFone}</b></a>` 
       : "";
     const patientContact = cadFoneLink ? `
-<div style="margin-left: 24px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
-  <div style="margin-bottom: 2px;">Paciente (Próprio)</div>
-  <div style="font-size: 12px; font-weight: bold; color: #4b5563;">${cadFoneLink}</div>
+<div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef; margin-left: 0px;">
+  <div style="margin-bottom: 2px; margin-left: 0px; padding-left: 1px;">Paciente (Próprio)</div>
+  <div style="margin-left: 0px; padding-left: 1px; font-size: 12px; font-weight: bold; color: #4b5563;">${cadFoneLink}</div>
 </div>` : "";
 
     const calendarLine = "";
 
     return calendarLine +
-      `\`/novofamiliar id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Contatos:**\n\n${patientContact}${fams || (patientContact ? "" : "Nenhum registro")}\n\n\n\n\n\n\n\n\n\n` +
-      `\`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Informações:**\n\n${audios || "Nenhum registro"}\n\n\n\n\n\n\n\n\n\n` +
-      `\`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Imagens:**\n\n${docs || "Nenhum registro"}`;
+      `\`/novofamiliar id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Contatos:**\n\n<div style="margin-left: 40px; margin-top: 0px; padding-top: 0px; margin-right: 0px;">${patientContact}${fams || (patientContact ? "" : "Nenhum registro")}</div>\n\n\n\n\n\n\n\n\n\n` +
+      `\`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Informações:**\n\n<div style="margin-left: 40px; margin-bottom: 0px;">${audios || "Nenhum registro"}</div>\n\n\n\n\n\n\n\n\n\n` +
+      `\`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Imagens:**\n\n<div style="margin-left: 40px;">${docs || "Nenhum registro"}</div>`;
   };
 
   const handleDirectCommand = async (command: string) => {
-    const cmdInput = command.trim();
+    let cmdInput = command.trim();
+    if (cmdInput.includes(" label:")) {
+      cmdInput = cmdInput.split(" label:")[0].trim();
+    }
     const cmd = cmdInput.toLowerCase();
     
     if (cmd.startsWith("/agendar")) {
@@ -2003,7 +2006,7 @@ export const Chat: React.FC<{
 
         setMessages(prev => [...prev, { role: "model", text: "✅ Imagem removida com sucesso." }]);
         if (pId) {
-          await handleDirectCommand(`/p id: ${pId}`);
+          await handleDirectCommand(`/p ${pId}`);
         }
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao remover imagem: ${err.message}` }]);
@@ -2347,10 +2350,9 @@ export const Chat: React.FC<{
                           <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1.5">Status</span>
                           <button 
                             onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
-                            className="bg-blue-50/50 border border-blue-100 px-3 py-1.5 rounded-xl text-blue-700 text-[11px] font-black flex items-center gap-2 hover:bg-blue-100/70 transition-all active:scale-95 shadow-sm shadow-blue-500/5 whitespace-nowrap"
+                            className="bg-blue-50/50 border border-blue-100 px-3 py-1.5 rounded-xl text-blue-700 text-[11px] font-black flex items-center hover:bg-blue-100/70 transition-all active:scale-95 shadow-sm shadow-blue-500/5 whitespace-nowrap"
                           >
                             <span className="max-w-[80px] truncate">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
-                            <Edit3 size={12} className="shrink-0 text-blue-400" />
                           </button>
                         </div>
                       </div>
@@ -2410,23 +2412,23 @@ export const Chat: React.FC<{
                                   label = content.split(" label:")[1].trim();
                                 } else {
                                   if (content.startsWith("/remover_evento")) label = "🗑️";
-                                  if (content.startsWith("/remover_imagem")) label = "🗑️ Remover";
+                                  if (content.startsWith("/remover_imagem")) label = "🗑️ Remover Imagem";
                                   if (content.startsWith("/pacientes")) label = "📋 Pacientes";
-                                  if (content.startsWith("/prep_img")) label = "🖼️ Anexar";
+                                  if (content.startsWith("/prep_img")) label = "Anexar Foto";
                                   if (content.startsWith("/prep_p") || content.startsWith("/p ")) {
-                                    label = "🚀 Relatório";
+                                    label = "🚀 Relatório Médico";
                                   }
-                                  if (content.startsWith("/logpac")) label = "📝 Novo Log";
-                                  if (content.startsWith("/novo_familiar")) label = "➕ Novo Familiar";
+                                  if (content.startsWith("/logpac")) label = "📝 Novo Registro";
+                                  if (content.startsWith("/novo_familiar")) label = "👤 Novo Familiar";
                                   if (content.startsWith("/edit_name")) label = "✏️ Editar Cadastro";
-                                  if (content.startsWith("/update_patient")) label = "Confirmar";
-                                  if (content.startsWith("/agenda_add")) label = "📅 Agendar";
+                                  if (content.startsWith("/update_patient")) label = "Confirmar Alteração";
+                                  if (content.startsWith("/agenda_add")) label = "📅 Agendar Procedimento";
                                   if (content.startsWith("/status_alterar")) {
                                     if (content.includes("status ")) {
                                       const s = content.split("status ")[1];
                                       label = s;
                                     } else {
-                                      label = "✏️ Alterar";
+                                      label = "✏️ Alterar Status";
                                     }
                                   }
                                 }
@@ -2457,6 +2459,9 @@ export const Chat: React.FC<{
                                 }
 
                                   const isPlusLabel = label === "+";
+                                  const isRemover = content.startsWith("/remover");
+                                  const isReport = content.startsWith("/p ") || content.startsWith("/prep_p");
+
                                   return (
                                     <button
                                       onClick={() => {
@@ -2471,8 +2476,12 @@ export const Chat: React.FC<{
                                         handleSend(undefined, content, shouldClear);
                                       }}
                                       className={isPlusLabel 
-                                        ? "not-prose bg-blue-600 text-white w-6 h-6 inline-flex items-center justify-center rounded-full font-bold hover:bg-blue-700 transition-colors cursor-pointer shadow-sm mx-0.5"
-                                        : "not-prose bg-white text-blue-600 px-2 py-0.5 rounded-lg text-[10px] font-bold hover:bg-blue-50 transition-all cursor-pointer border border-blue-600 mx-0.5 shadow-sm"
+                                        ? "not-prose bg-blue-600 text-white w-7 h-7 inline-flex items-center justify-center rounded-full font-bold hover:bg-blue-700 transition-all cursor-pointer shadow-md mx-1 active:scale-90"
+                                        : isRemover
+                                          ? "not-prose bg-gray-100 text-gray-500 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 hover:text-gray-700 transition-all cursor-pointer border border-gray-200 mx-1 shadow-md active:scale-95 flex items-center gap-2 group"
+                                          : isReport
+                                            ? "not-prose bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all cursor-pointer border border-emerald-100 mx-1 shadow-lg shadow-emerald-900/5 active:scale-95 flex items-center gap-2"
+                                            : "not-prose bg-blue-50 text-blue-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all cursor-pointer border border-blue-100 mx-1 shadow-lg shadow-blue-900/5 active:scale-95 flex items-center gap-2"
                                       }
                                     >
                                       {label}
@@ -2545,72 +2554,6 @@ export const Chat: React.FC<{
           )}
         </AnimatePresence>
       </div>
-
-      {/* Input Area */}
-      <form 
-        onSubmit={handleSend}
-        className="p-4 bg-white border-t border-gray-100 space-y-4"
-      >
-        <AnimatePresence>
-          {selectedImage && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="relative w-24 h-24 rounded-2xl overflow-hidden border-2 border-blue-100 shadow-lg group"
-            >
-              <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={() => setSelectedImage(null)}
-                className="absolute top-1.5 right-1.5 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-md active:scale-90"
-              >
-                <X size={12} strokeWidth={3} />
-              </button>
-              <div className="absolute inset-0 bg-blue-900/10 pointer-events-none"></div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="flex items-end gap-2 bg-gray-50 rounded-3xl p-2 ring-1 ring-gray-200 focus-within:ring-2 focus-within:ring-blue-500 transition-all shadow-inner">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="p-3 text-gray-400 hover:text-blue-600 hover:bg-white rounded-2xl transition-all shadow-sm hover:shadow-md active:scale-95 bg-white sm:bg-transparent"
-          >
-            <ImageIcon size={22} />
-          </button>
-          
-          <input 
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            accept="image/*"
-            onChange={handleImageSelect}
-          />
-
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="Digite sua mensagem ou comando..."
-            className="flex-1 max-h-32 min-h-[48px] py-3 px-1 bg-transparent border-none outline-none text-sm resize-none scrollbar-hide font-medium text-gray-700"
-          />
-
-          <button
-            type="submit"
-            disabled={isLoading || (!input.trim() && !selectedImage)}
-            className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-90 disabled:opacity-30 disabled:grayscale flex items-center justify-center shrink-0"
-          >
-            {isLoading ? <Loader2 size={22} className="animate-spin" /> : <Send size={22} strokeWidth={2.5} />}
-          </button>
-        </div>
-      </form>
     </div>
   );
 };
