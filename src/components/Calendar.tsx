@@ -168,7 +168,7 @@ export function Calendar({ prefilledPatientName }: { prefilledPatientName?: stri
   
   useEffect(() => {
     if (prefilledPatientName && !isModalOpen && !editingEvent) {
-      openAddModal();
+      openAddModal(selectedDay);
     }
   }, [prefilledPatientName]);
 
@@ -393,6 +393,30 @@ export function Calendar({ prefilledPatientName }: { prefilledPatientName?: stri
 
     return days;
   };
+
+  const [allPatients, setAllPatients] = useState<{id: string, nome: string}[]>([]);
+  const [showPatientSuggestions, setShowPatientSuggestions] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const q = query(collection(db, "patients"), where("groupId", "==", GROUP_ID));
+    const unsub = onSnapshot(q, (snap) => {
+      if (!isMounted) return;
+      setAllPatients(snap.docs.map(d => ({ 
+        id: d.id, 
+        nome: d.data().name 
+      })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, "patients"));
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [GROUP_ID]);
+
+  const filteredPatients = allPatients.filter(p => 
+    p.nome.toLowerCase().includes(formData.nomePaciente.toLowerCase())
+  );
 
   const openAddModal = (dateStr?: string) => {
     setEditingEvent(null);
@@ -841,7 +865,7 @@ export function Calendar({ prefilledPatientName }: { prefilledPatientName?: stri
               </div>
 
               <form onSubmit={handleSubmit} className="pl-6 pr-6 pt-0 pb-[65px] space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
-                <div>
+                <div className="relative">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Nome do Paciente</label>
                   <div className="relative group">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors">
@@ -851,11 +875,44 @@ export function Calendar({ prefilledPatientName }: { prefilledPatientName?: stri
                       required
                       type="text"
                       value={formData.nomePaciente}
-                      onChange={e => setFormData({ ...formData, nomePaciente: e.target.value })}
+                      onChange={e => {
+                        setFormData({ ...formData, nomePaciente: e.target.value });
+                        setShowPatientSuggestions(true);
+                      }}
+                      onFocus={() => setShowPatientSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowPatientSuggestions(false), 200)}
                       placeholder="Nome completo do paciente"
                       className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all placeholder:font-medium"
                     />
                   </div>
+
+                  <AnimatePresence>
+                    {showPatientSuggestions && formData.nomePaciente && filteredPatients.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute z-50 left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-blue-50 shadow-xl shadow-blue-900/10 max-h-48 overflow-y-auto custom-scrollbar"
+                      >
+                        {filteredPatients.map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setFormData({ ...formData, nomePaciente: p.nome });
+                              setShowPatientSuggestions(false);
+                            }}
+                            className="w-full text-left px-5 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                          >
+                            <div className="flex items-center gap-3">
+                              <User size={14} className="text-gray-400" />
+                              {p.nome}
+                            </div>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div>

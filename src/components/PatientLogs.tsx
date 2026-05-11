@@ -85,7 +85,7 @@ export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: stri
             className="ml-auto flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95"
           >
             <CalendarPlus size={16} />
-            <span className="hidden sm:inline">Agendar</span>
+            <span className="hidden sm:inline">Novo Evento</span>
           </button>
         )}
       </header>
