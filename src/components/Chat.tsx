@@ -200,7 +200,15 @@ const MessageForm: React.FC<{
               </div>
             ) : field.readOnly ? (
               <div className="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-900 font-bold shadow-inner">
-                {values[field.name] || <span className="text-gray-300 italic">{field.placeholder}</span>}
+                {(() => {
+                  const val = values[field.name];
+                  if (!val) return <span className="text-gray-300 italic">{field.placeholder}</span>;
+                  if (field.suggestions) {
+                    const suggestion = field.suggestions.find((s: any) => (typeof s === 'object' ? s.value : s) === val);
+                    return typeof suggestion === 'object' ? suggestion.label : val;
+                  }
+                  return val;
+                })()}
               </div>
             ) : (
               <input 
@@ -727,7 +735,6 @@ export const Chat: React.FC<{
               placeholder: "Escolha um hospital",
               // @ts-ignore
               readOnly: true,
-              hideInput: true,
               suggestions: hospitalOptions.map(h => ({ label: h.nome, value: h.id }))
             },
             { 
@@ -737,7 +744,6 @@ export const Chat: React.FC<{
               placeholder: "Escolha um status",
               // @ts-ignore
               readOnly: true,
-              hideInput: true,
               suggestions: statusOptions.map(s => ({ label: s.nome, value: s.id })),
               defaultValue: statusOptions.find(s => s.nome.toLowerCase().includes("pré"))?.id || statusOptions[0]?.id || ""
             },
@@ -746,9 +752,6 @@ export const Chat: React.FC<{
               name: "procedimento", 
               type: "text", 
               placeholder: "Escolha um procedimento",
-              // @ts-ignore
-              readOnly: true,
-              hideInput: true,
               suggestions: procedureOptions.map(p => ({ label: p, value: p }))
             },
             { label: "Quarto/Leito", name: "roomNumber", type: "text", placeholder: "Ex: 402B" },
