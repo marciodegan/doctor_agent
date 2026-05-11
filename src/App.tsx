@@ -67,6 +67,8 @@ export default function App() {
   const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar" | "agenda" | "logs" | null>("agenda");
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
   const [activePatientName, setActivePatientName] = useState<string | null>(null);
+  const [activePatientProcedure, setActivePatientProcedure] = useState<string | null>(null);
+  const [activePatientHospitalId, setActivePatientHospitalId] = useState<string | null>(null);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileGroupsOpen, setIsMobileGroupsOpen] = useState(false);
@@ -74,11 +76,13 @@ export default function App() {
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  const navigateAndAction = (view: "workspace" | "calendar" | "agenda" | "logs", command?: string, patientId?: string, patientName?: string) => {
+  const navigateAndAction = (view: "workspace" | "calendar" | "agenda" | "logs", command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string) => {
     setCurrentView(view);
     setIsMobileMenuOpen(false);
     setActivePatientId(patientId || null);
     setActivePatientName(patientName || null);
+    setActivePatientProcedure(procedure || null);
+    setActivePatientHospitalId(hospitalId || null);
     if (command) {
       setPendingCommand(command);
     }
@@ -622,7 +626,11 @@ export default function App() {
                       {currentView === "pricing" ? (
                         <Pricing onBack={() => setCurrentView("workspace")} />
                       ) : currentView === "calendar" ? (
-                        <FirestoreCalendar prefilledPatientName={activePatientName || undefined} />
+                        <FirestoreCalendar 
+                          prefilledPatientName={activePatientName || undefined} 
+                          prefilledProcedure={activePatientProcedure || undefined}
+                          prefilledHospitalId={activePatientHospitalId || undefined}
+                        />
                       ) : currentView === "agenda" ? (
                         <GoogleAgenda />
                       ) : currentView === "logs" && activePatientId ? (
@@ -632,8 +640,10 @@ export default function App() {
                             setCurrentView("workspace");
                             setActivePatientId(null);
                             setActivePatientName(null);
+                            setActivePatientProcedure(null);
+                            setActivePatientHospitalId(null);
                           }}
-                          onSchedule={(name) => navigateAndAction("calendar", undefined, activePatientId!, name)}
+                          onSchedule={(name, proc, hospId) => navigateAndAction("calendar", undefined, activePatientId!, name, proc, hospId)}
                         />
                       ) : activeGroup?.groupType === "personal" ? (
                         <PersonalDocuments />

@@ -11,10 +11,10 @@ interface LogEntry {
   patientId: string;
 }
 
-export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: string, onBack: () => void, onSchedule?: (name: string) => void }) {
+export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: string, onBack: () => void, onSchedule?: (name: string, procedure?: string, hospitalId?: string) => void }) {
   const { apiFetch } = useGroup();
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [patientName, setPatientName] = useState("");
+  const [patientData, setPatientData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,18 +29,13 @@ export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: stri
         const logsData = await logsRes.json();
         setLogs(logsData);
         
-        // Fetch patient name if possible, or use from the first log
-        if (logsData.length > 0) {
-          setPatientName(logsData[0].patientName);
-        } else {
-          // If no logs, fetch patient details to get the name
-          const patientRes = await apiFetch(`/api/app/patients/info/${patientId}`);
-          const patient = await patientRes.json();
-          if (patient) setPatientName(patient.name || patient.nome);
-        }
+        // Fetch patient details
+        const patientRes = await apiFetch(`/api/app/patients/info/${patientId}`);
+        const patient = await patientRes.json();
+        if (patient) setPatientData(patient);
       } catch (err: any) {
-        console.error("Error fetching logs:", err);
-        setError("Não foi possível carregar os logs do paciente.");
+        console.error("Error fetching patient details:", err);
+        setError("Não foi possível carregar os dados do paciente.");
       } finally {
         setIsLoading(false);
       }
@@ -50,6 +45,8 @@ export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: stri
       fetchLogs();
     }
   }, [patientId, apiFetch]);
+
+  const patientName = patientData?.name || patientData?.nome || "";
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return "";
@@ -81,7 +78,7 @@ export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: stri
 
         {onSchedule && patientName && !isLoading && (
           <button 
-            onClick={() => onSchedule(patientName)}
+            onClick={() => onSchedule(patientName, patientData?.procedure, patientData?.hospitalId)}
             className="ml-auto flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95"
           >
             <CalendarPlus size={16} />

@@ -57,7 +57,15 @@ const MONTHS = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
-export function Calendar({ prefilledPatientName }: { prefilledPatientName?: string }) {
+export function Calendar({ 
+  prefilledPatientName,
+  prefilledProcedure,
+  prefilledHospitalId
+}: { 
+  prefilledPatientName?: string,
+  prefilledProcedure?: string,
+  prefilledHospitalId?: string
+}) {
   const { activeGroup, whatsappNumber, userWhatsapp, apiFetch } = useGroup();
   const GROUP_ID = activeGroup?.id || "main-group";
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -168,10 +176,10 @@ export function Calendar({ prefilledPatientName }: { prefilledPatientName?: stri
   const [listNavMode, setListNavMode] = useState<"day" | "month">("day");
   
   useEffect(() => {
-    if (prefilledPatientName && !isModalOpen && !editingEvent) {
+    if ((prefilledPatientName || prefilledProcedure || prefilledHospitalId) && !isModalOpen && !editingEvent) {
       openAddModal(selectedDay);
     }
-  }, [prefilledPatientName]);
+  }, [prefilledPatientName, prefilledProcedure, prefilledHospitalId]);
 
   // Handle month navigation for list view too
   const goToNextDay = () => {
@@ -423,13 +431,13 @@ export function Calendar({ prefilledPatientName }: { prefilledPatientName?: stri
     setEditingEvent(null);
     setFormData({
       nomePaciente: prefilledPatientName || "",
-      evento: "",
+      evento: prefilledProcedure || "",
       data: dateStr || today.toISOString().split("T")[0],
       hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }).replace(/^24/, "00"),
       descricao: "",
       tipo: "ELETIVA",
       sala: "SALA 1",
-      hospitalId: selectedHospitalFilter !== "all" ? selectedHospitalFilter : "",
+      hospitalId: prefilledHospitalId || (selectedHospitalFilter !== "all" ? selectedHospitalFilter : ""),
       syncToGoogle: false
     });
     setIsModalOpen(true);
