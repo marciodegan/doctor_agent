@@ -35,6 +35,8 @@ interface Message {
   };
   form?: {
     title?: string;
+    hospitalName?: string;
+    roomNumber?: string;
     fields: { 
       label: string; 
       name: string; 
@@ -42,6 +44,7 @@ interface Message {
       placeholder?: string; 
       defaultValue?: string;
       options?: string[];
+      suggestions?: (string | { label: string; value: string })[];
     }[];
     submitLabel: string;
     commandPrefix: string;
@@ -315,6 +318,7 @@ export const Chat: React.FC<{
   const [groupHospitals, setGroupHospitals] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupStatuses, setGroupStatuses] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupProcedures, setGroupProcedures] = useState<{id: string, nome: string, active?: boolean}[]>([]);
+  const [imageTypes, setImageTypes] = useState<{id: string, name: string, active?: boolean}[]>([]);
 
   useEffect(() => {
     if (!activeGroup?.id) return;
@@ -355,11 +359,23 @@ export const Chat: React.FC<{
       handleFirestoreError(err, OperationType.LIST, "procedureOptions");
     });
 
+    // Image Types
+    const imageTypesRef = collection(db, "image_types");
+    const qImageTypes = query(imageTypesRef, where("groupId", "==", gId), orderBy("name"));
+    const unsubImageTypes = onSnapshot(qImageTypes, (snap) => {
+      if (!isMounted) return;
+      setImageTypes(snap.docs.map(d => ({ id: d.id, name: d.data().name, active: d.data().active })));
+    }, (err) => {
+      if (!isMounted) return;
+      handleFirestoreError(err, OperationType.LIST, "image_types");
+    });
+
     return () => {
       isMounted = false;
       unsubStatus();
       unsubHosp();
       unsubProc();
+      unsubImageTypes();
     };
   }, [activeGroup?.id]);
 
@@ -367,6 +383,7 @@ export const Chat: React.FC<{
   const hospitalOptions = groupHospitals.filter(h => h.active !== false && (h as any).status !== "removed");
   const statusOptions = groupStatuses.filter(s => s.active !== false && (s as any).status !== "removed");
   const procedureOptions = groupProcedures.filter(p => p.active !== false && (p as any).status !== "removed").map(p => p.nome);
+  const imageTypeOptions = imageTypes.filter(t => t.active !== false && (t as any).status !== "removed").map(t => t.name);
   
   // Full lists for lookup/display
   const allHospitals = groupHospitals;
@@ -960,50 +977,25 @@ export const Chat: React.FC<{
       const nome = cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*(.+)/i)?.[1]?.trim();
 
       if (id) {
-        setIsLoading(true);
-        apiFetch("/api/app/image-options")
-          .then(res => res.json())
-          .then(options => {
-            setMessages([{
-              role: "model",
-              text: `🖼️ **Anexar Imagem**\n\n### 📌 **Paciente:** ${nome ? nome : id}`,
-              form: {
-                title: "",
-                fields: [
-                  { 
-                    label: "Descrição / Título", 
-                    name: "descrição", 
-                    type: "text", 
-                    placeholder: "Ex: Raio-X do tórax",
-                    options: Array.isArray(options) ? options : []
-                  }
-                ],
-                submitLabel: "Enviar Imagem",
-                commandPrefix: `/img id: ${id},`,
-                backCommand: `/p ${id}`
+        setMessages([{
+          role: "model",
+          text: `🖼️ **Anexar Imagem**\n\n### 📌 **Paciente:** ${nome ? nome : id}`,
+          form: {
+            title: "",
+            fields: [
+              { 
+                label: "Descrição / Título", 
+                name: "descrição", 
+                type: "text", 
+                placeholder: "Ex: Raio-X do tórax",
+                suggestions: imageTypeOptions.map(t => ({ label: t, value: t }))
               }
-            }]);
-          })
-          .catch(err => {
-            console.error("Error fetching image options", err);
-            // Fallback without options
-            setMessages([{
-              role: "model",
-              text: `🖼️ **Anexar Imagem**\n\n### 📌 **Paciente:** ${nome ? nome : id}`,
-              form: {
-                title: "",
-                fields: [
-                  { label: "Descrição / Título", name: "descrição", type: "text", placeholder: "Ex: Raio-X do tórax" }
-                ],
-                submitLabel: "Enviar Imagem",
-                commandPrefix: `/img id: ${id},`,
-                backCommand: `/p ${id}`
-              }
-            }]);
-          })
-          .finally(() => {
-            setIsLoading(false);
-          });
+            ],
+            submitLabel: "Enviar Imagem",
+            commandPrefix: `/img id: ${id},`,
+            backCommand: `/p ${id}`
+          }
+        }]);
         return true;
       }
     }

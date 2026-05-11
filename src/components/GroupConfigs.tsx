@@ -43,7 +43,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 import { GroupIconBlue } from "./icons/GroupIcon";
 
-type ConfigType = "hospitals" | "patient_statuses" | "procedureOptions" | "surgery_types" | "affinity" | "members" | "general" | "document_categories";
+type ConfigType = "hospitals" | "patient_statuses" | "procedureOptions" | "surgery_types" | "affinity" | "members" | "general" | "document_categories" | "image_types";
 
 interface ConfigItem {
   id: string;
@@ -246,7 +246,8 @@ export function GroupConfigs() {
       surgery_types: ["URGENTE", "ELETIVA"],
       affinity: ["Filho(a)", "Irmão/Irmã", "Pai/Mãe", "Cônjuge", "Avô/Avó", "Amigo(a)"],
       hospitals: ["Hospital Municipal", "Hospital Santa Maria", "Santa Casa"],
-      document_categories: ["Saúde", "Seguros", "Imóveis", "Filhos", "Educação", "Financeiro"]
+      document_categories: ["Saúde", "Seguros", "Imóveis", "Filhos", "Educação", "Financeiro"],
+      image_types: ["raio x do tórax", "resposta de parecer", "evolução de alta", "descrição cirúrgica", "foto de ferida", "laudo de aih"]
     };
 
     const categoriesToInit = forceType === "all" ? Object.keys(defaults) : [targetType];
@@ -409,6 +410,7 @@ export function GroupConfigs() {
     { id: "procedureOptions", label: "Procedimentos", icon: <Stethoscope size={24} />, color: "text-purple-600", bg: "bg-purple-50", description: "Configurar tipos de procedimentos", hidden: activeGroup?.groupType === "personal" },
     { id: "patient_statuses", label: "Status de Paciente", icon: <Activity size={24} />, color: "text-emerald-600", bg: "bg-emerald-50", description: "Etapas do fluxo de atendimento", hidden: activeGroup?.groupType === "personal" },
     { id: "surgery_types", label: "Tipos de Cirurgia", icon: <Zap size={24} />, color: "text-amber-600", bg: "bg-amber-50", description: "Categorias e prioridades", hidden: activeGroup?.groupType === "personal" },
+    { id: "image_types", label: "Tipos de Imagem", icon: <Image size={24} />, color: "text-blue-600", bg: "bg-blue-50", description: "Categorias de anexos de imagem" },
     { id: "document_categories", label: "Categorias de Documento", icon: <FolderOpen size={24} />, color: "text-red-600", bg: "bg-red-50", description: "Organize seus documentos pessoais", hidden: activeGroup?.groupType !== "personal" },
     { id: "affinity", label: activeGroup?.groupType === "personal" ? "Parentesco" : "Afinidades", icon: <Heart size={24} />, color: "text-pink-600", bg: "bg-pink-50", description: "Graus de parentesco" },
     { id: "general", label: "Ajustes Gerais", icon: <Settings size={24} />, color: "text-indigo-600", bg: "bg-indigo-50", description: "Dados gerais e WhatsApp" },

@@ -168,6 +168,19 @@
       },
       "required": ["evento", "data", "hora", "groupId", "createdBy"]
     },
+    "ImageType": {
+      "title": "Tipo de Imagem",
+      "description": "Categorias de anexos de imagem (scoped per group)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "groupId": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "groupId"]
+    },
     "User": {
       "title": "User",
       "description": "Application user profile",
@@ -279,6 +292,10 @@
     "/surgery_types/{typeId}": {
       "schema": "SurgeryType",
       "description": "Surgery types defined by group"
+    },
+    "/image_types/{typeId}": {
+      "schema": "ImageType",
+      "description": "Categorias de anexos de imagem"
     },
     "/users/{userId}": {
       "schema": "User",
