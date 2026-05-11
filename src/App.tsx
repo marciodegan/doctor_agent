@@ -66,6 +66,7 @@ export default function App() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar" | "agenda" | "logs" | null>("agenda");
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
+  const [activePatientName, setActivePatientName] = useState<string | null>(null);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileGroupsOpen, setIsMobileGroupsOpen] = useState(false);
@@ -73,10 +74,11 @@ export default function App() {
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  const navigateAndAction = (view: "workspace" | "calendar" | "agenda" | "logs", command?: string, patientId?: string) => {
+  const navigateAndAction = (view: "workspace" | "calendar" | "agenda" | "logs", command?: string, patientId?: string, patientName?: string) => {
     setCurrentView(view);
     setIsMobileMenuOpen(false);
-    if (patientId) setActivePatientId(patientId);
+    setActivePatientId(patientId || null);
+    setActivePatientName(patientName || null);
     if (command) {
       setPendingCommand(command);
     }
@@ -620,13 +622,18 @@ export default function App() {
                       {currentView === "pricing" ? (
                         <Pricing onBack={() => setCurrentView("workspace")} />
                       ) : currentView === "calendar" ? (
-                        <FirestoreCalendar />
+                        <FirestoreCalendar prefilledPatientName={activePatientName || undefined} />
                       ) : currentView === "agenda" ? (
                         <GoogleAgenda />
                       ) : currentView === "logs" && activePatientId ? (
                         <PatientLogs 
                           patientId={activePatientId} 
-                          onBack={() => setCurrentView("workspace")} 
+                          onBack={() => {
+                            setCurrentView("workspace");
+                            setActivePatientId(null);
+                            setActivePatientName(null);
+                          }}
+                          onSchedule={(name) => navigateAndAction("calendar", undefined, activePatientId!, name)}
                         />
                       ) : activeGroup?.groupType === "personal" ? (
                         <PersonalDocuments />

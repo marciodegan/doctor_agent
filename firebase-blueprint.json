@@ -153,6 +153,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "nomePaciente": { "type": "string", "description": "Nome do paciente" },
         "evento": { "type": "string" },
         "data": { "type": "string", "description": "YYYY-MM-DD" },
         "hora": { "type": "string", "description": "HH:mm" },

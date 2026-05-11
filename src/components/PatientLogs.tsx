@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useGroup } from "../contexts/GroupContext";
-import { ChevronLeft, History, Clock, User, ClipboardList, Loader2, AlertCircle } from "lucide-react";
+import { ChevronLeft, History, Clock, User, ClipboardList, Loader2, AlertCircle, CalendarPlus } from "lucide-react";
 import { motion } from "motion/react";
 
 interface LogEntry {
@@ -11,7 +11,7 @@ interface LogEntry {
   patientId: string;
 }
 
-export function PatientLogs({ patientId, onBack }: { patientId: string, onBack: () => void }) {
+export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: string, onBack: () => void, onSchedule?: (name: string) => void }) {
   const { apiFetch } = useGroup();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [patientName, setPatientName] = useState("");
@@ -78,6 +78,16 @@ export function PatientLogs({ patientId, onBack }: { patientId: string, onBack: 
             {isLoading ? "Carregando..." : patientName || "Paciente"}
           </h1>
         </div>
+
+        {onSchedule && patientName && !isLoading && (
+          <button 
+            onClick={() => onSchedule(patientName)}
+            className="ml-auto flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95"
+          >
+            <CalendarPlus size={16} />
+            <span className="hidden sm:inline">Agendar</span>
+          </button>
+        )}
       </header>
 
       <div className="flex-1 overflow-y-auto px-6 py-8">

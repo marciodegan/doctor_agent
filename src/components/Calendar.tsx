@@ -13,7 +13,8 @@ import {
   Share2,
   Check,
   Building2,
-  Filter
+  Filter,
+  User
 } from "lucide-react";
 import { 
   collection, 
@@ -36,6 +37,7 @@ import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 
   interface CalendarEvent {
   id: string;
+  nomePaciente?: string;
   evento: string;
   data: string; // YYYY-MM-DD
   hora: string; // HH:mm
@@ -55,7 +57,7 @@ const MONTHS = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
-export function Calendar() {
+export function Calendar({ prefilledPatientName }: { prefilledPatientName?: string }) {
   const { activeGroup, whatsappNumber, userWhatsapp, apiFetch } = useGroup();
   const GROUP_ID = activeGroup?.id || "main-group";
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -77,6 +79,7 @@ export function Calendar() {
   
   // Form State
   const [formData, setFormData] = useState({
+    nomePaciente: "",
     evento: "",
     data: "",
     hora: "",
@@ -162,6 +165,12 @@ export function Calendar() {
   const [viewMode, setViewMode] = useState<"month" | "list">("list");
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split("T")[0]);
   const [listNavMode, setListNavMode] = useState<"day" | "month">("day");
+  
+  useEffect(() => {
+    if (prefilledPatientName && !isModalOpen && !editingEvent) {
+      openAddModal();
+    }
+  }, [prefilledPatientName]);
 
   // Handle month navigation for list view too
   const goToNextDay = () => {
@@ -234,10 +243,13 @@ export function Calendar() {
         const dateFormatted = `${d}/${m}/${y}`;
         const hosp = allHospitals.find(h => h.id === e.hospitalId)?.nome || "";
       
-      message += `❤️ *Paciente: ${e.evento}*\n`;
+      if (e.nomePaciente) {
+        message += `👤 *Paciente: ${e.nomePaciente}*\n`;
+      }
+      message += `🩺 *${e.evento || "Procedimento"}*\n`;
       message += `🕒 ${e.hora}\n`;
       message += `📅 ${dateFormatted}\n`;
-      message += `🩺 *${e.descricao || "Procedimento"}*\n`;
+      if (e.descricao) message += `📝 ${e.descricao}\n`;
       if (e.tipo) message += `🏷️ ${e.tipo}\n`;
       if (e.sala) message += `📍 ${e.sala}\n`;
       if (idx < selectedEvents.length - 1) message += `\n---\n\n`;
@@ -366,7 +378,9 @@ export function Calendar() {
                         <div className="text-[8px] font-black text-gray-400 font-mono tracking-tighter">{event.hora}</div>
                         {event.sala && <div className="text-[7px] font-black text-blue-400 uppercase tracking-tight">{event.sala}</div>}
                       </div>
-                      <div className="text-[10px] font-bold text-gray-700 leading-tight truncate">{event.evento}</div>
+                      <div className="text-[10px] font-bold text-gray-700 leading-tight truncate">
+                        {event.nomePaciente ? `${event.nomePaciente} - ${event.evento}` : event.evento}
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -383,6 +397,7 @@ export function Calendar() {
   const openAddModal = (dateStr?: string) => {
     setEditingEvent(null);
     setFormData({
+      nomePaciente: prefilledPatientName || "",
       evento: "",
       data: dateStr || today.toISOString().split("T")[0],
       hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }).replace(/^24/, "00"),
@@ -397,6 +412,7 @@ export function Calendar() {
   const openEditModal = (event: CalendarEvent) => {
     setEditingEvent(event);
     setFormData({
+      nomePaciente: event.nomePaciente || "",
       evento: event.evento,
       data: event.data,
       hora: event.hora,
@@ -568,21 +584,6 @@ export function Calendar() {
               </div>
             </div>
 
-            <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100 h-fit self-end">
-              <button 
-                onClick={() => setListNavMode("day")}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${listNavMode === "day" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400"}`}
-              >
-                MODO DIA
-              </button>
-              <button 
-                onClick={() => setListNavMode("month")}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${listNavMode === "month" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400"}`}
-              >
-                MODO MÊS
-              </button>
-            </div>
-
             <button 
               onClick={() => openAddModal(viewMode === "list" ? selectedDay : undefined)}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
@@ -694,8 +695,20 @@ export function Calendar() {
                         <div className={`absolute top-0 left-0 w-1 h-full transition-colors duration-300 ${isToday ? "bg-blue-500" : "bg-gray-100 group-hover:bg-blue-300"}`} />
 
                         <div className="flex items-start sm:items-center gap-3 sm:gap-6 flex-1 min-w-0 ml-1">
-                          {/* Selection Checkbox */}
-                          <div className="flex items-center shrink-0">
+                          {/* Date & Selection Group */}
+                          <div className="flex flex-col items-center gap-2 shrink-0">
+                            {/* Date Box */}
+                            <div className="flex flex-col items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-50 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shrink-0 shadow-inner">
+                              <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 mb-0.5">
+                                {start.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
+                              </span>
+                              <span className="text-[18px] sm:text-[20px] font-black leading-none tabular-nums">{start.getDate()}</span>
+                              <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100 mt-0.5">
+                                {start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
+                              </span>
+                            </div>
+
+                            {/* Selection Checkbox */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -709,17 +722,6 @@ export function Calendar() {
                             >
                               <Check size={14} strokeWidth={4} />
                             </button>
-                          </div>
-
-                          {/* Date Box */}
-                          <div className="flex flex-col items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-50 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shrink-0 shadow-inner">
-                            <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 mb-0.5">
-                              {start.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
-                            </span>
-                            <span className="text-[18px] sm:text-[20px] font-black leading-none tabular-nums">{start.getDate()}</span>
-                            <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100 mt-0.5">
-                              {start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
-                            </span>
                           </div>
                           
                           <div className="min-w-0 flex-1 py-0.5 sm:py-1">
@@ -743,7 +745,7 @@ export function Calendar() {
                             </div>
                             
                             <h4 className="font-bold text-[12px] sm:text-[14px] text-gray-900 leading-tight tracking-tight group-hover:text-blue-900 transition-colors mb-0.5 sm:mb-1 break-words line-clamp-1">
-                              {event.evento}
+                              {event.nomePaciente ? `${event.nomePaciente} - ${event.evento}` : event.evento}
                             </h4>
                             
                             {(event.descricao || hosp || event.sala) && (
@@ -838,9 +840,26 @@ export function Calendar() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
+              <form onSubmit={handleSubmit} className="pl-6 pr-6 pt-0 pb-[65px] space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Paciente / Procedimento</label>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Nome do Paciente</label>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors">
+                      <User size={18} />
+                    </div>
+                    <input 
+                      required
+                      type="text"
+                      value={formData.nomePaciente}
+                      onChange={e => setFormData({ ...formData, nomePaciente: e.target.value })}
+                      placeholder="Nome completo do paciente"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all placeholder:font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Procedimento</label>
                   <div className="relative group">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors">
                       <CalendarIcon size={18} />
@@ -850,7 +869,7 @@ export function Calendar() {
                       type="text"
                       value={formData.evento}
                       onChange={e => setFormData({ ...formData, evento: e.target.value })}
-                      placeholder="Ex: Nome do Paciente - Cirurgia"
+                      placeholder="Ex: Cirurgia Geral, Estética..."
                       className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all placeholder:font-medium"
                     />
                   </div>
@@ -947,7 +966,7 @@ export function Calendar() {
                   </div>
                 </div>
 
-                <div>
+                <div className="mb-0">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Observações Adicionais</label>
                   <div className="relative group">
                     <div className="absolute left-4 top-5 text-gray-400 group-focus-within:text-blue-600 transition-colors">
@@ -958,7 +977,7 @@ export function Calendar() {
                       onChange={e => setFormData({ ...formData, descricao: e.target.value })}
                       placeholder="Alguma recomendação ou detalhe importante?"
                       rows={3}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all resize-none min-h-[100px]"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl pt-[12px] pb-[3px] pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all resize-none min-h-[100px]"
                     />
                   </div>
                 </div>

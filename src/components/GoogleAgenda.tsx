@@ -49,6 +49,8 @@ export function GoogleAgenda() {
   const [viewMode, setViewMode] = useState<"month" | "list">("list");
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split("T")[0]);
   const [listNavMode, setListNavMode] = useState<"day" | "month">("day");
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
+  const [waError, setWaError] = useState<string | null>(null);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -111,6 +113,49 @@ export function GoogleAgenda() {
     if (d.getMonth() !== currentDate.getMonth() || d.getFullYear() !== currentDate.getFullYear()) {
       setCurrentDate(new Date(d.getFullYear(), d.getMonth(), 1));
     }
+  };
+
+  const toggleEventSelection = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const newSelected = new Set(selectedEventIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedEventIds(newSelected);
+  };
+
+  const handleSendToWhatsApp = () => {
+    if (selectedEventIds.size === 0) return;
+
+    const selectedEvents = events
+      .filter(e => selectedEventIds.has(e.id))
+      .sort((a, b) => {
+        const dateA = new Date(a.start.dateTime || a.start.date || "");
+        const dateB = new Date(b.start.dateTime || b.start.date || "");
+        return dateA.getTime() - dateB.getTime();
+      });
+
+    let message = `🏥 *GOOGLE AGENDA - COMPROMISSOS*\n\n`;
+    
+    selectedEvents.forEach((e, idx) => {
+      const start = new Date(e.start.dateTime || e.start.date || "");
+      const dateFormatted = start.toLocaleDateString("pt-BR");
+      const time = e.start.dateTime 
+        ? start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+        : "Dia todo";
+      
+      message += `📌 *${e.summary}*\n`;
+      message += `🕒 ${time}\n`;
+      message += `📅 ${dateFormatted}\n`;
+      if (e.description) message += `📝 ${e.description}\n`;
+      if (idx < selectedEvents.length - 1) message += `\n---\n\n`;
+    });
+
+    const encodedMessage = encodeURIComponent(message);
+    const waUrl = `https://wa.me/?text=${encodedMessage}`;
+    window.open(waUrl, "_blank");
   };
 
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
@@ -297,6 +342,18 @@ export function GoogleAgenda() {
         <div className="flex items-center gap-2">
           {isLoading && <Loader2 size={20} className="animate-spin text-gray-400 mr-2" />}
           
+          {selectedEventIds.size > 0 && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={handleSendToWhatsApp}
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all mr-2"
+            >
+              <Check size={18} />
+              <span className="hidden sm:inline">WhatsApp ({selectedEventIds.size})</span>
+            </motion.button>
+          )}
+
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <span className="text-[9px] font-black text-gray-400 uppercase w-8">Mês</span>
@@ -352,21 +409,6 @@ export function GoogleAgenda() {
                 </button>
               </div>
             </div>
-          </div>
-
-          <div className="flex bg-gray-50 rounded-xl p-1 border border-gray-100 h-fit self-end">
-            <button 
-              onClick={() => setListNavMode("day")}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${listNavMode === "day" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400"}`}
-            >
-              MODO DIA
-            </button>
-            <button 
-              onClick={() => setListNavMode("month")}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${listNavMode === "month" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400"}`}
-            >
-              MODO MÊS
-            </button>
           </div>
 
           <button 
@@ -468,14 +510,30 @@ export function GoogleAgenda() {
                         <div className={`absolute top-0 left-0 w-1 h-full transition-colors duration-300 ${isToday ? "bg-emerald-500" : "bg-gray-100 group-hover:bg-emerald-300"}`} />
 
                         <div className="flex items-start sm:items-center gap-3 sm:gap-6 flex-1 min-w-0 ml-1">
-                          <div className="flex flex-col items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-50 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0 shadow-inner">
-                            <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 mb-0.5">
-                              {start.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
-                            </span>
-                            <span className="text-[18px] sm:text-[20px] font-black leading-none tabular-nums">{start.getDate()}</span>
-                            <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100 mt-0.5">
-                              {start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
-                            </span>
+                          {/* Date & Selection Group */}
+                          <div className="flex flex-col items-center gap-2 shrink-0">
+                            {/* Date Box */}
+                            <div className="flex flex-col items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-50 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300 shrink-0 shadow-inner">
+                              <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 mb-0.5">
+                                {start.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
+                              </span>
+                              <span className="text-[18px] sm:text-[20px] font-black leading-none tabular-nums">{start.getDate()}</span>
+                              <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100 mt-0.5">
+                                {start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
+                              </span>
+                            </div>
+
+                            {/* Selection Checkbox */}
+                            <button
+                              onClick={(e) => toggleEventSelection(e, event.id)}
+                              className={`w-5 h-5 sm:w-6 sm:h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                                selectedEventIds.has(event.id) 
+                                  ? "bg-emerald-500 border-emerald-500 text-white shadow-lg" 
+                                  : "bg-white border-gray-100 text-transparent hover:border-emerald-300 shadow-inner"
+                              }`}
+                            >
+                              <Check size={14} strokeWidth={4} />
+                            </button>
                           </div>
                           
                           <div className="min-w-0 flex-1 py-0.5 sm:py-1">
@@ -556,7 +614,7 @@ export function GoogleAgenda() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
+              <form onSubmit={handleSubmit} className="pl-6 pr-6 pt-0 pb-[65px] space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Assunto / Compromisso</label>
                   <div className="relative group">
@@ -601,12 +659,12 @@ export function GoogleAgenda() {
                   </div>
                 </div>
 
-                <div>
+                <div className="mb-0">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Descrição / Notas</label>
                   <textarea 
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-600/5 focus:border-emerald-600 transition-all resize-none min-h-[100px]"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl pt-[12px] pb-[3px] px-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-600/5 focus:border-emerald-600 transition-all resize-none min-h-[100px]"
                     rows={3}
                     placeholder="Adicione detalhes extras aqui..."
                   />
