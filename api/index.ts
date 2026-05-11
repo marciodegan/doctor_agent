@@ -939,7 +939,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
-  const { nome, fone, idade, status, cpf, hospitalName, roomNumber } = req.body;
+  const { nome, fone, idade, status, cpf, hospitalName, roomNumber, procedimento } = req.body;
 
   if (!nome) return res.status(400).json({ error: "Nome é obrigatório." });
 
@@ -953,6 +953,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
       cpf: cpf || "",
       hospitalId: hospitalName?.toString() || "",
       roomNumber: roomNumber || "",
+      procedure: procedimento || "",
       groupId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()

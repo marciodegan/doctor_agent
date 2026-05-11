@@ -741,6 +741,16 @@ export const Chat: React.FC<{
               suggestions: statusOptions.map(s => ({ label: s.nome, value: s.id })),
               defaultValue: statusOptions.find(s => s.nome.toLowerCase().includes("pré"))?.id || statusOptions[0]?.id || ""
             },
+            { 
+              label: "Procedimento", 
+              name: "procedimento", 
+              type: "text", 
+              placeholder: "Escolha um procedimento",
+              // @ts-ignore
+              readOnly: true,
+              hideInput: true,
+              suggestions: procedureOptions.map(p => ({ label: p, value: p }))
+            },
             { label: "Quarto/Leito", name: "roomNumber", type: "text", placeholder: "Ex: 402B" },
           ],
           submitLabel: "Registrar Paciente",
@@ -1939,6 +1949,7 @@ export const Chat: React.FC<{
         const hospitalName = getVal("hospitalName");
         const roomNumber = getVal("roomNumber");
         const status = getVal("status");
+        const procedimento = getVal("procedimento");
 
         if (!nome) throw new Error("O campo 'nome:' é obrigatório.");
 
@@ -1959,7 +1970,8 @@ export const Chat: React.FC<{
             cpf, 
             hospitalName: resolvedHospitalId, 
             roomNumber,
-            status: resolvedStatusId
+            status: resolvedStatusId,
+            procedimento
           })
         });
         const data = await res.json();

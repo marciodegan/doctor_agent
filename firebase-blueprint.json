@@ -69,6 +69,7 @@
         "hospitalId": { "type": "string" },
         "roomNumber": { "type": "string" },
         "cpf": { "type": "string" },
+        "procedure": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
