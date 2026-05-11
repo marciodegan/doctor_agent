@@ -641,141 +641,169 @@ export function Calendar() {
                   return eventDate >= monthStart && eventDate <= monthEnd;
                 });
               } else {
-                // Day mode: Today and Tomorrow relative to selectedDay
-                const start = new Date(selectedDay + "T00:00:00");
-                const end = new Date(selectedDay + "T00:00:00");
-                end.setDate(end.getDate() + 1); // tomorrow relative to selectedDay
-                end.setHours(23, 59, 59, 999);
+                const sDay = new Date(selectedDay + "T00:00:00");
+                const nextDay = new Date(sDay);
+                nextDay.setDate(nextDay.getDate() + 1);
                 
-                filteredListEvents = filteredEvents.filter(e => {
-                  const eventDate = new Date(e.data + "T12:00:00");
-                  return eventDate >= start && eventDate <= end;
+                filteredListEvents = filteredEvents.filter(event => {
+                  const start = new Date(event.data + "T12:00:00");
+                  return (
+                    (start.getDate() === sDay.getDate() && start.getMonth() === sDay.getMonth() && start.getFullYear() === sDay.getFullYear()) ||
+                    (start.getDate() === nextDay.getDate() && start.getMonth() === nextDay.getMonth() && start.getFullYear() === nextDay.getFullYear())
+                  );
                 });
               }
 
               const sortedEvents = [...filteredListEvents].sort((a, b) => a.data.localeCompare(b.data) || a.hora.localeCompare(b.hora));
 
-              if (sortedEvents.length === 0) {
+              if (sortedEvents.length === 0 && !isLoading) {
                 return (
-                  <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-100">
-                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CalendarIcon className="text-gray-300" size={32} />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-700">Nenhum evento neste mês</h3>
-                    <p className="text-gray-400 text-sm mt-1">Utilize o botão "+" para adicionar novos procedimentos.</p>
-                  </div>
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-white rounded-3xl p-16 text-center border border-gray-100 shadow-sm"
+                  >
+                    <CalendarIcon className="w-16 h-16 text-gray-200 mx-auto mb-6" />
+                    <h3 className="text-lg font-bold text-gray-900">Nenhum procedimento</h3>
+                    <p className="text-gray-400 mt-2 text-sm">Sua agenda local está limpa no momento. Selecione outra data ou adicione um novo procedimento.</p>
+                  </motion.div>
                 );
               }
 
-              // Group by date
-              const grouped = sortedEvents.reduce((acc, e) => {
-                if (!acc[e.data]) acc[e.data] = [];
-                acc[e.data].push(e);
-                return acc;
-              }, {} as Record<string, CalendarEvent[]>);
+              return (
+                <div className="space-y-4">
+                  {sortedEvents.map((event, idx) => {
+                    const start = new Date(event.data + "T12:00:00");
+                    const isToday = event.data === today.toISOString().split("T")[0];
+                    const isSelected = selectedEventIds.has(event.id);
+                    const hosp = allHospitals.find(h => h.id === event.hospitalId);
 
-              return Object.entries(grouped).map(([date, dailyEvents]) => {
-                const [y, m, d] = date.split("-");
-                const dateObj = new Date(date + "T12:00:00");
-                const dayName = DAYS[dateObj.getDay()];
-                
-                return (
-                  <div key={date} className="mb-8 last:mb-0">
-                    <div className="flex items-center gap-4 mb-4 ml-2">
-                       <div className="flex flex-col items-center">
-                          <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{dayName}</span>
-                          <span className="text-2xl font-black text-gray-900 leading-none">{d}</span>
-                       </div>
-                       <div className="h-px flex-1 bg-gray-100"></div>
-                       <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{MONTHS[parseInt(m) - 1]}</span>
-                    </div>
-                    <div className="grid gap-4">
-                      {dailyEvents.map(event => {
-                        const isSelected = selectedEventIds.has(event.id);
-                        const hosp = allHospitals.find(h => h.id === event.hospitalId);
-                        return (
-                          <motion.div 
-                            key={event.id}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className={`bg-white p-5 rounded-3xl border-2 transition-all flex items-center gap-5 ${isSelected ? "border-emerald-500 shadow-xl shadow-emerald-50" : "border-gray-50 hover:border-blue-100 shadow-sm"}`}
-                          >
+                    return (
+                      <motion.div 
+                        key={event.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className={`bg-white p-3.5 sm:p-5 rounded-2xl border transition-all flex items-start sm:items-center justify-between gap-3 sm:gap-6 group relative overflow-hidden ${
+                          isSelected 
+                            ? "border-emerald-500 shadow-xl shadow-emerald-50" 
+                            : "border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-0.5"
+                        }`}
+                      >
+                        {/* Status bar */}
+                        <div className={`absolute top-0 left-0 w-1 h-full transition-colors duration-300 ${isToday ? "bg-blue-500" : "bg-gray-100 group-hover:bg-blue-300"}`} />
+
+                        <div className="flex items-start sm:items-center gap-3 sm:gap-6 flex-1 min-w-0 ml-1">
+                          {/* Selection Checkbox */}
+                          <div className="flex items-center shrink-0">
                             <button
-                              onClick={(e) => toggleEventSelection(e, event.id)}
-                              className={`shrink-0 w-9 h-9 rounded-2xl border-2 flex items-center justify-center transition-all ${
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleEventSelection(e, event.id);
+                              }}
+                              className={`w-5 h-5 sm:w-6 sm:h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
                                 isSelected 
                                   ? "bg-emerald-500 border-emerald-500 text-white shadow-lg" 
                                   : "bg-white border-gray-100 text-transparent hover:border-emerald-300 shadow-inner"
                               }`}
                             >
-                              <Check size={18} strokeWidth={4} />
+                              <Check size={14} strokeWidth={4} />
                             </button>
-                            
-                            <div className="flex-1 cursor-pointer" onClick={() => openEditModal(event)}>
-                              <div className="flex items-center gap-3 mb-1.5">
-                                <span className="text-[11px] font-black text-blue-600 font-mono tracking-tighter bg-blue-50 px-2.5 py-1 rounded-lg">
-                                  {event.hora}
-                                </span>
-                                {event.sala && (
-                                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2.5 py-1 rounded-lg">
-                                    {event.sala}
-                                  </span>
-                                )}
-                                {event.tipo && (
-                                  <span className={`text-[9px] font-black px-2.5 py-1 rounded-lg ${event.tipo === "URGÊNCIA" ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-500"}`}>
-                                    {event.tipo}
-                                  </span>
-                                )}
-                              </div>
-                              <h4 className="text-lg font-bold text-gray-800 leading-tight">{event.evento}</h4>
-                              <div className="flex flex-wrap items-center gap-4 mt-2.5">
-                                {hosp && (
-                                  <div className="flex items-center gap-1.5 text-gray-500 bg-gray-50 px-2.5 py-0.5 rounded-full">
-                                    <Building2 size={12} className="text-gray-400" />
-                                    <span className="text-[10px] font-bold">{hosp.nome}</span>
-                                  </div>
-                                )}
-                                {event.descricao && (
-                                  <div className="flex items-center gap-1.5 text-gray-400">
-                                    <FileText size={12} />
-                                    <span className="text-[10px] font-medium truncate max-w-[200px]">{event.descricao}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-1">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openEditModal(event);
-                                }}
-                                className="p-2.5 hover:bg-blue-50 hover:text-blue-600 rounded-2xl text-gray-300 transition-all active:scale-95"
-                                title="Editar"
-                              >
-                                <Edit3 size={18} />
-                              </button>
+                          </div>
 
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingEvent(event);
-                                  handleDelete();
-                                }}
-                                className="p-2.5 hover:bg-red-50 hover:text-red-500 rounded-2xl text-gray-300 transition-all active:scale-95"
-                                title="Excluir"
-                              >
-                                <Trash2 size={18} />
-                              </button>
+                          {/* Date Box */}
+                          <div className="flex flex-col items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-50 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shrink-0 shadow-inner">
+                            <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 mb-0.5">
+                              {start.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
+                            </span>
+                            <span className="text-[18px] sm:text-[20px] font-black leading-none tabular-nums">{start.getDate()}</span>
+                            <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100 mt-0.5">
+                              {start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
+                            </span>
+                          </div>
+                          
+                          <div className="min-w-0 flex-1 py-0.5 sm:py-1">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                              <span className="text-[9px] sm:text-[10px] font-black text-blue-600 bg-blue-50/50 px-2 py-0.5 rounded-lg flex items-center gap-1 border border-blue-100/30 group-hover:bg-blue-100/50 transition-colors">
+                                <Clock size={10} strokeWidth={3} />
+                                {event.hora}
+                              </span>
+                              {event.tipo && (
+                                <span className={`text-[8px] sm:text-[9px] font-black px-2 py-0.5 rounded-lg border tracking-wider uppercase ${
+                                  event.tipo === "URGÊNCIA" 
+                                    ? "bg-red-50 text-red-500 border-red-100" 
+                                    : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                }`}>
+                                  {event.tipo}
+                                </span>
+                              )}
+                              {isToday && (
+                                <span className="text-[8px] font-black text-white bg-blue-500 px-2 py-0.5 rounded-md shadow-sm tracking-wider uppercase">HOJE</span>
+                              )}
                             </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              });
-            })()}
+                            
+                            <h4 className="font-bold text-[12px] sm:text-[14px] text-gray-900 leading-tight tracking-tight group-hover:text-blue-900 transition-colors mb-0.5 sm:mb-1 break-words line-clamp-1">
+                              {event.evento}
+                            </h4>
+                            
+                            {(event.descricao || hosp || event.sala) && (
+                              <div className="space-y-0.5">
+                                {event.descricao && (
+                                  <p className="text-[9px] sm:text-[11px] font-medium text-gray-400 group-hover:text-gray-500 transition-colors break-words line-clamp-1 sm:line-clamp-2">
+                                    {event.descricao}
+                                  </p>
+                                )}
+                                {(hosp || event.sala) && (
+                                  <div className="flex items-center gap-3 mt-1">
+                                    {hosp && (
+                                      <div className="flex items-center gap-1 text-[8px] sm:text-[9px] font-bold text-gray-300">
+                                        <Building2 size={10} />
+                                        <span>{hosp.nome}</span>
+                                      </div>
+                                    )}
+                                    {event.sala && (
+                                      <div className="flex items-center gap-1 text-[8px] sm:text-[9px] font-bold text-blue-300">
+                                        <span className="w-1.5 h-1.5 bg-blue-200 rounded-full" />
+                                        <span>{event.sala}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all shrink-0 ml-1">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditModal(event);
+                            }}
+                            className="p-1.5 sm:p-2 text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all active:scale-90"
+                            title="Editar"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingEvent(event);
+                              handleDelete();
+                            }}
+                            className="p-1.5 sm:p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all active:scale-90"
+                            title="Excluir"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              );
+            })() }
           </div>
         )}
       </div>
