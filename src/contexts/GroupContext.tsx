@@ -22,9 +22,10 @@ interface Group {
   createdBy: string;
   groupType: "professional" | "personal";
   photoURL?: string;
-  status?: "active" | "pending";
+  status?: "active" | "pending" | "removed" | "terminated";
   active?: boolean;
   ativo?: boolean;
+  role?: string;
 }
 
 interface GroupMember {
@@ -65,6 +66,7 @@ interface GroupContextType {
   removeMember: (groupId: string, userId: string) => Promise<void>;
   updateMemberRole: (groupId: string, userId: string, role: string) => Promise<void>;
   toggleGroupStatus: (groupId: string, active: boolean) => Promise<void>;
+  terminateGroup: (groupId: string) => Promise<void>;
   cancelInvite: (groupId: string, email: string) => Promise<void>;
   updateProfile: (
     displayName: string,
@@ -212,6 +214,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   }, [activeGroup?.id]);
 
   const [rawMemberships, setRawMemberships] = useState<any[]>([]);
+  const [ownedGroups, setOwnedGroups] = useState<Group[]>([]);
+  const [emailInvites, setEmailInvites] = useState<Group[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -220,13 +224,15 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       setActiveGroup(null);
       setLoading(false);
       setRawMemberships([]);
+      setOwnedGroups([]);
+      setEmailInvites([]);
       return;
     }
 
     let isMounted = true;
     setLoading(true);
 
-    // Listen to memberships - strictly synchronous
+    // 1. Listen to memberships
     const membershipsPath = `users/${user.uid}/memberships`;
     const unsubscribeMemberships = onSnapshot(
       collection(db, membershipsPath),
@@ -244,8 +250,38 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       },
     );
+    
+    // 2. Listen to groups created by user (admins)
+    const groupsQuery = query(
+      collection(db, "groups"),
+      where("createdBy", "==", user.uid)
+    );
+    const unsubscribeOwnedGroups = onSnapshot(
+      groupsQuery,
+      (snapshot) => {
+        if (!isMounted) return;
+        const owned = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          const status = data.status || "active";
+          return {
+            id: doc.id,
+            name: data.name || "Grupo",
+            createdBy: data.createdBy,
+            groupType: data.groupType || "professional",
+            photoURL: data.photoURL || "",
+            status: status as any,
+            active: data.active !== false && data.ativo !== false,
+            ativo: data.ativo !== false && data.active !== false,
+          } as Group;
+        });
+        setOwnedGroups(owned);
+      },
+      (error) => {
+        console.error("Owned groups listener error", error);
+      }
+    );
 
-    // Listen to invitations by email
+    // 3. Listen to invitations by email
     let unsubscribeInvitations = () => {};
     if (user.email) {
       const cleanEmail = user.email.trim().toLowerCase();
@@ -258,7 +294,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         invitationsQuery,
         (snapshot) => {
           if (!isMounted) return;
-          const emailInvites = snapshot.docs.map((doc) => {
+          const items = snapshot.docs.map((doc) => {
             const data = doc.data();
             return {
               id: data.groupId,
@@ -266,21 +302,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
               createdBy: data.inviterId,
               status: "pending" as const,
               groupType: data.groupType || "professional",
-            };
+            } as Group;
           });
-
-          setInvites((prev) => {
-            // Keep invites that were fetched via rawMemberships (which are in groups or detailed fetch)
-            // But replace the ones fetched via the invitations query
-            const membershipIds = new Set(rawMemberships.map(m => m.id));
-            const otherInvites = prev.filter(p => membershipIds.has(p.id));
-            
-            // Avoid duplicates between detailed groups and email invites
-            const emailInviteIds = new Set(emailInvites.map(ei => ei.id));
-            const filteredOtherInvites = otherInvites.filter(oi => !emailInviteIds.has(oi.id));
-            
-            return [...filteredOtherInvites, ...emailInvites];
-          });
+          setEmailInvites(items);
         },
         (error) => {
           console.error("Invitations listener error", error);
@@ -291,6 +315,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
       unsubscribeMemberships();
+      unsubscribeOwnedGroups();
       unsubscribeInvitations();
     };
   }, [user?.uid, user?.email]);
@@ -321,50 +346,102 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeGroup?.name]);
 
-  // Effect to populate groups when rawMemberships change
+  // Effect to populate groups and invites when rawData change
   useEffect(() => {
-    if (rawMemberships.length === 0) {
-      setGroups([]);
-      if (!loading) setLoading(false);
-      return;
-    }
+    if (!user) return; // Wait for user
 
-    // Immediately populate groups from membership data to show UI fast
-    // This avoids sequential getDoc calls for each membership which was slowing down login
-    const membershipGroups = rawMemberships.map(m => ({
-      id: m.id,
-      name: m.groupName || m.name || "Grupo",
-      groupType: m.groupType || "professional",
-      status: (m.status === "conectado" || m.status === "active") ? "active" : (m.status || "active"),
-      photoURL: m.groupPhotoURL || m.photoURL || "",
-      active: true,
-      ativo: true,
-      createdBy: "" 
-    } as unknown as Group));
+    // 1. Process memberships
+    const membershipGroups = rawMemberships.map((m) => {
+      let status = m.status || "active";
+      if (status === "conectado") status = "active" as const;
 
-    const activeList = membershipGroups.filter(g => g.status === "active") as Group[];
-    const pendingList = membershipGroups.filter(g => g.status === "pending") as Group[];
+      return {
+        id: m.id,
+        name: m.groupName || m.name || "Grupo",
+        groupType: m.groupType || "professional",
+        status: status as "active" | "pending" | "removed" | "terminated",
+        photoURL: m.groupPhotoURL || m.photoURL || "",
+        active: status === "active",
+        ativo: status === "active",
+        createdBy: m.createdBy || "",
+        role: m.role || ""
+      } as Group;
+    });
+
+    // 2. Merge logic using Map for deduplication
+    // We prioritize ownedGroups first because they come directly from the groups collection
+    const groupsMap = new Map<string, Group>();
+    
+    // Map of owned groups for quick lookup
+    const ownedIds = new Set(ownedGroups.map(og => og.id));
+
+    // Add all from memberships, but FILTER OUT those that claim to be owned by user 
+    // but are NOT in the groups collection (stale memberships for deleted groups)
+    membershipGroups.forEach(mg => {
+      const isClaimedOwner = mg.createdBy === user.uid || mg.role === "owner";
+      
+      // If user is owner/creator but group is NOT in ownedGroups, it's likely deleted
+      // We only filter if ownedGroups has potentially loaded (at least checked once)
+      if (isClaimedOwner && !ownedIds.has(mg.id)) {
+        return; 
+      }
+      
+      groupsMap.set(mg.id, mg);
+    });
+    
+    // Supplement/Override with ownedGroups (direct from groups collection)
+    ownedGroups.forEach(g => {
+      if (g.status === "terminated") return;
+      
+      const existing = groupsMap.get(g.id);
+      if (existing) {
+        groupsMap.set(g.id, {
+          ...g,
+          status: existing.status,
+          active: existing.status === "active",
+          ativo: existing.status === "active",
+        });
+      } else if (g.active) {
+        groupsMap.set(g.id, g);
+      }
+    });
+
+    const combinedGroupsList = Array.from(groupsMap.values());
+
+    // 3. Filter and Sort Active Groups
+    const activeList = combinedGroupsList
+      .filter((g) => g.status === "active" || g.status === "removed")
+      .sort((a, b) => {
+        if (a.status === "active" && b.status === "removed") return -1;
+        if (a.status === "removed" && b.status === "active") return 1;
+        return a.name.localeCompare(b.name);
+      });
 
     setGroups(activeList);
 
-    setInvites((prev) => {
-      const existingIds = new Set(pendingList.map((p) => p.id));
-      const emailOnly = prev.filter((p) => !existingIds.has(p.id));
-      return [...pendingList, ...emailOnly];
+    // 4. Consolidate Invites (Pending memberships + Email invites)
+    const pendingFromMemberships = combinedGroupsList.filter(
+      (g) => g.status === "pending",
+    );
+    
+    const invitesMap = new Map<string, Group>();
+    pendingFromMemberships.forEach(i => invitesMap.set(i.id, i));
+    emailInvites.forEach(i => {
+      if (!invitesMap.has(i.id)) {
+        invitesMap.set(i.id, i);
+      }
     });
 
-    // Restore active group
+    setInvites(Array.from(invitesMap.values()));
+
+    // 5. Restore active group
     const savedGroupId = safeLocalStorage.getItem("activeGroupId");
     const found = activeList.find((g) => g.id === savedGroupId);
     
     if (found) {
       setActiveGroup((prev) => (prev?.id === found.id ? prev : found));
     } else if (activeList.length > 0) {
-      // If the group we were on is gone or we don't have one, pick the first valid one
-      if (
-        !activeGroup ||
-        !activeList.find((g) => g.id === activeGroup.id)
-      ) {
+      if (!activeGroup || !activeList.find((g) => g.id === activeGroup.id)) {
         setActiveGroup(activeList[0]);
         safeLocalStorage.setItem("activeGroupId", activeList[0].id);
       }
@@ -374,7 +451,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
     
     setLoading(false);
-  }, [rawMemberships]);
+  }, [rawMemberships, ownedGroups, emailInvites]);
 
   const setActiveGroupId = (id: string) => {
     safeLocalStorage.setItem("activeGroupId", id);
@@ -789,24 +866,148 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       const groupData = groupSnap.data();
       const isCreator = groupData?.createdBy === user.uid;
 
-      // 2. Check membership role (owner)
-      const myMembership = activeGroupMembers.find(m => m.userId === user.uid);
-      const isOwner = myMembership?.role === "owner";
+      // 2. Check membership role (owner) - look in groups list first for current user's role if possible
+      // or just assume if they got this far they might be allowed, but we'll check firestore memberships for safety
+      const myMembershipSnap = await getDoc(doc(db, `users/${user.uid}/memberships`, groupId));
+      const myMembershipData = myMembershipSnap.exists() ? myMembershipSnap.data() : null;
+      const isOwner = myMembershipData?.role === "owner";
 
       if (!isOwner && !isCreator) {
         throw new Error("Apenas o administrador do grupo pode desativá-lo.");
       }
 
-      // 3. Update the document with both field names to ensure compatibility
-      await setDoc(groupDocRef, {
-        active: active,
-        ativo: active,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+      const newStatus = active ? "active" : "removed";
 
-      // 4. Update local state immediately
+      // 3. Update the document with both field names to ensure compatibility
+      await setDoc(
+        groupDocRef,
+        {
+          active: active,
+          ativo: active,
+          status: newStatus,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      // 4. Update the CURRENT user's membership immediately for fast local UI sync
+      await setDoc(
+        doc(db, `users/${user.uid}/memberships`, groupId),
+        {
+          status: newStatus,
+        },
+        { merge: true },
+      );
+
+      // 5. Update other members' memberships as best effort
+      const membersSnap = await getDocs(
+        collection(db, `groups/${groupId}/members`),
+      );
+      
+      const otherMembersUpdates = membersSnap.docs
+        .filter(doc => doc.id !== user.uid)
+        .map((memberDoc) => {
+          const memberId = memberDoc.id;
+          return setDoc(
+            doc(db, `users/${memberId}/memberships`, groupId),
+            {
+              status: newStatus,
+            },
+            { merge: true },
+          ).catch(e => console.warn(`Failed to update membership for member ${memberId}`, e));
+        });
+      
+      await Promise.all(otherMembersUpdates);
+
+      // 6. Update local state immediately
       if (activeGroup?.id === groupId) {
-        setActiveGroup(prev => prev ? { ...prev, active, ativo: active } : null);
+        setActiveGroup((prev) =>
+          prev
+            ? {
+                ...prev,
+                active,
+                ativo: active,
+                status: newStatus as any,
+              }
+            : null,
+        );
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `groups/${groupId}`);
+    }
+  };
+
+  const terminateGroup = async (groupId: string) => {
+    if (!user) throw new Error("Must be logged in");
+    try {
+      const groupDocRef = doc(db, "groups", groupId);
+      const groupSnap = await getDoc(groupDocRef);
+      const groupData = groupSnap.data();
+      const isCreator = groupData?.createdBy === user.uid;
+
+      if (!isCreator) {
+        throw new Error(
+          "Apenas o criador do grupo pode terminá-lo definitivamente.",
+        );
+      }
+
+      // 1. Update group doc
+      await setDoc(
+        groupDocRef,
+        {
+          status: "terminated",
+          active: false,
+          ativo: false,
+          terminatedAt: serverTimestamp(),
+          terminatedBy: user.uid,
+        },
+        { merge: true },
+      );
+
+      // 2. Update CURRENT user's membership
+      await setDoc(
+        doc(db, `users/${user.uid}/memberships`, groupId),
+        {
+          status: "terminated",
+        },
+        { merge: true },
+      );
+
+      // 3. Update all members' memberships to "terminated" as best effort
+      const membersSnap = await getDocs(
+        collection(db, `groups/${groupId}/members`),
+      );
+      const updatePromises = membersSnap.docs
+        .filter(doc => doc.id !== user.uid)
+        .map((memberDoc) => {
+          const memberId = memberDoc.id;
+          return setDoc(
+            doc(db, `users/${memberId}/memberships`, groupId),
+            {
+              status: "terminated",
+            },
+            { merge: true },
+          ).catch(e => console.warn(`Failed to terminate membership for member ${memberId}`, e));
+        });
+      await Promise.all(updatePromises);
+
+      // 4. If it was the active group, switch to another one
+      if (activeGroup?.id === groupId) {
+        const remaining = groups.filter(
+          (g) => g.id !== groupId && g.status !== "terminated" && g.status !== "removed",
+        );
+        if (remaining.length > 0) {
+          setActiveGroupId(remaining[0].id);
+        } else {
+          // If no active ones, try a removed one? 
+          const sortedRemaining = groups.filter(g => g.id !== groupId && g.status !== "terminated");
+          if (sortedRemaining.length > 0) {
+            setActiveGroupId(sortedRemaining[0].id);
+          } else {
+            setActiveGroup(null);
+            safeLocalStorage.setItem("activeGroupId", "");
+          }
+        }
       }
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `groups/${groupId}`);
@@ -936,6 +1137,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         removeMember,
         updateMemberRole,
         toggleGroupStatus,
+        terminateGroup,
         cancelInvite,
         updateProfile,
         apiFetch,

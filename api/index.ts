@@ -886,7 +886,8 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       statusId: pData.statusId || "",
       hospitalName: hospitalsMap.get(pData.hospitalId) || pData.hospitalId,
       hospitalId: pData.hospitalId || "",
-      roomNumber: pData.roomNumber
+      roomNumber: pData.roomNumber,
+      surgery_type: pData.surgery_type || ""
     };
 
     // Process Files/Images
@@ -939,7 +940,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
-  const { nome, fone, idade, status, cpf, hospitalName, roomNumber, procedimento } = req.body;
+  const { nome, fone, idade, status, cpf, hospitalName, roomNumber, procedimento, surgery_type } = req.body;
 
   if (!nome) return res.status(400).json({ error: "Nome é obrigatório." });
 
@@ -954,6 +955,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
       hospitalId: hospitalName?.toString() || "",
       roomNumber: roomNumber || "",
       procedure: procedimento || "",
+      surgery_type: surgery_type || "",
       groupId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1045,7 +1047,7 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
-  const { id, nome, fone, idade, hospitalName, roomNumber, status } = req.body;
+  const { id, nome, fone, idade, hospitalName, roomNumber, status, surgery_type } = req.body;
 
   if (!id) return res.status(400).json({ error: "ID do paciente é obrigatório." });
 
@@ -1071,6 +1073,7 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
     if (hospitalName !== undefined) updateData.hospitalId = hospitalName.toString();
     if (roomNumber !== undefined) updateData.roomNumber = roomNumber;
     if (status !== undefined) updateData.statusId = status.toString();
+    if (surgery_type !== undefined) updateData.surgery_type = surgery_type;
 
     await patientRef.update(updateData);
     
@@ -1400,7 +1403,7 @@ app.get("/api/calendar/events", async (req, res) => {
       calendarId: "primary",
       timeMin: (timeMin as string) || new Date().toISOString(),
       timeMax: (timeMax as string) || undefined,
-      maxResults: 20,
+      maxResults: 250,
       singleEvents: true,
       orderBy: "startTime",
       timeZone: "America/Sao_Paulo"

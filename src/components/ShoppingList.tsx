@@ -30,11 +30,13 @@ import {
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
+import { getCategoryForItem, CATEGORY_LABELS } from "../lib/shoppingListUtils";
 
 interface ShoppingItem {
   id: string;
   name: string;
   checked: boolean;
+  category?: string;
   updatedAt?: any;
   updatedBy?: string;
   addedBy?: string;
@@ -111,9 +113,11 @@ export const ShoppingList: React.FC = () => {
     if (!itemId) return;
 
     try {
+      const category = getCategoryForItem(itemName);
       await setDoc(doc(db, `groups/${activeGroup.id}/shopping_list`, itemId), {
         name: itemName,
         checked: false,
+        category,
         addedBy: user?.uid,
         updatedAt: serverTimestamp()
       }, { merge: true });
@@ -146,9 +150,11 @@ export const ShoppingList: React.FC = () => {
           .replace(/[^a-z0-9_-]/g, "");
         
         const docRef = doc(db, `groups/${activeGroup.id}/shopping_list`, id);
+        const category = getCategoryForItem(name);
         batch.set(docRef, {
           name,
           checked: false,
+          category,
           addedBy: "system",
           updatedAt: serverTimestamp()
         }, { merge: true });
@@ -193,13 +199,39 @@ export const ShoppingList: React.FC = () => {
   const sortedItems = [...items]
     .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a, b) => {
-      // Checked items move to top
+      // Unchecked items move to top (wait, usually checked move to bottom or top?)
+      // The previous code had: if (a.checked !== b.checked) { return a.checked ? -1 : 1; }
+      // This means checked items are at the top. Let's keep that but group by category for unchecked.
+      
       if (a.checked !== b.checked) {
         return a.checked ? -1 : 1;
       }
-      // Unchecked items sorted alphabetically
+      
+      // If both same check status, sort by category then name
+      const catA = a.category || "others";
+      const catB = b.category || "others";
+      
+      if (catA !== catB) {
+        return catA.localeCompare(catB);
+      }
+
       return a.name.localeCompare(b.name);
     });
+
+  // Group items by category for the display
+  const groupedItems: Record<string, ShoppingItem[]> = sortedItems.reduce((acc, item) => {
+    const cat = item.checked ? "checked" : (item.category || "others");
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(item);
+    return acc;
+  }, {} as Record<string, ShoppingItem[]>);
+
+  // Define order of categories
+  const categoryOrder = [
+    ...Object.keys(CATEGORY_LABELS).filter(k => k !== "others"),
+    "others",
+    "checked"
+  ];
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
@@ -337,53 +369,77 @@ export const ShoppingList: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-2">
-              <AnimatePresence initial={false}>
-                {sortedItems.map((item) => (
-                  <motion.div
-                    key={item.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ type: "spring", bounce: 0.2 }}
-                    className={`group flex items-center gap-3 p-4 rounded-2xl border transition-all ${
-                      item.checked 
-                        ? "bg-emerald-50 border-emerald-100 shadow-sm" 
-                        : "bg-white border-slate-100 hover:border-slate-200"
-                    }`}
-                  >
-                    <button 
-                      onClick={() => handleToggleItem(item)}
-                      className={`shrink-0 transition-colors ${
-                        item.checked ? "text-emerald-500" : "text-slate-300 group-hover:text-slate-400"
-                      }`}
-                    >
-                      {item.checked ? <CheckCircle2 size={24} /> : <Circle size={24} />}
-                    </button>
+            <div className="space-y-6">
+              {categoryOrder.map(catKey => {
+                const groupItems = groupedItems[catKey];
+                if (!groupItems || groupItems.length === 0) return null;
 
-                    <div 
-                      className="flex-1 cursor-pointer"
-                      onClick={() => handleToggleItem(item)}
-                    >
-                      <span className={`text-[15px] font-bold tracking-tight transition-all ${
-                        item.checked ? "text-emerald-900" : "text-slate-700"
-                      }`}>
-                        {item.name}
-                      </span>
+                const catInfo = catKey === "checked" 
+                  ? { label: "Comprados", icon: "✅" }
+                  : CATEGORY_LABELS[catKey];
+
+                return (
+                  <div key={catKey} className="space-y-2">
+                    <div className="flex items-center gap-2 px-1 mb-2">
+                      <span className="text-sm">{catInfo.icon}</span>
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                        {catInfo.label}
+                      </h4>
+                      <div className="flex-1 h-[1px] bg-slate-100 ml-2"></div>
+                      <span className="text-[9px] font-bold text-slate-300 ml-2">{groupItems.length}</span>
                     </div>
 
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={() => handleRemoveItem(item.id)}
-                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                    <div className="grid grid-cols-1 gap-2">
+                      <AnimatePresence initial={false}>
+                        {groupItems.map((item) => (
+                          <motion.div
+                            key={item.id}
+                            layout
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ type: "spring", bounce: 0.2 }}
+                            className={`group flex items-center gap-3 p-4 rounded-2xl border transition-all ${
+                              item.checked 
+                                ? "bg-emerald-50 border-emerald-100 shadow-sm" 
+                                : "bg-white border-slate-100 hover:border-slate-200"
+                            }`}
+                          >
+                            <button 
+                              onClick={() => handleToggleItem(item)}
+                              className={`shrink-0 transition-colors ${
+                                item.checked ? "text-emerald-500" : "text-slate-300 group-hover:text-slate-400"
+                              }`}
+                            >
+                              {item.checked ? <CheckCircle2 size={24} /> : <Circle size={24} />}
+                            </button>
+        
+                            <div 
+                              className="flex-1 cursor-pointer"
+                              onClick={() => handleToggleItem(item)}
+                            >
+                              <span className={`text-[15px] font-bold tracking-tight transition-all ${
+                                item.checked ? "text-emerald-900" : "text-slate-700"
+                              }`}>
+                                {item.name}
+                              </span>
+                            </div>
+        
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => handleRemoveItem(item.id)}
+                                className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                     </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

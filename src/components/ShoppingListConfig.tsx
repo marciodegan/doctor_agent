@@ -23,22 +23,16 @@ import {
   orderBy,
   writeBatch
 } from "firebase/firestore";
+import { PRESET_CATEGORIES, getCategoryForItem } from "../lib/shoppingListUtils";
 import { db } from "../lib/firebase";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
-
-const PRESET_CATEGORIES = [
-  { id: "market", label: "Mercado", icon: "🛒", items: ["Arroz", "Feijão", "Açúcar", "Sal", "Óleo", "Café", "Milho", "Macarrão"] },
-  { id: "perishables", label: "Perecíveis", icon: "❄️", items: ["Leite", "Ovos", "Manteiga", "Queijo", "Presunto", "Iogurte", "Creme de Leite"] },
-  { id: "cleaning", label: "Limpeza", icon: "✨", items: ["Detergente", "Sabão em Pó", "Amaciante", "Desinfetante", "Água Sanitária", "Esponja"] },
-  { id: "hygiene", label: "Higiene", icon: "🧼", items: ["Sabonete", "Xampu", "Creme Dental", "Papel Higiênico", "Desodorante", "Fio Dental"] },
-  { id: "veg", label: "Hortifruti", icon: "🍎", items: ["Banana", "Maçã", "Laranja", "Cebola", "Alho", "Batata", "Tomate", "Alface"] },
-];
 
 export const ShoppingListConfig: React.FC = () => {
   const { activeGroup } = useGroup();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>("market");
+  const [activeTab, setActiveTab] = useState<string>(PRESET_CATEGORIES[0].id);
   const [isAdding, setIsAdding] = useState<string | null>(null);
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [existingItems, setExistingItems] = useState<Set<string>>(new Set());
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -73,9 +67,11 @@ export const ShoppingListConfig: React.FC = () => {
     
     setIsAdding(itemId);
     try {
+      const category = getCategoryForItem(name);
       await setDoc(doc(db, `groups/${activeGroup.id}/shopping_list`, itemId), {
         name,
         checked: false,
+        category,
         addedBy: user?.uid || "system",
         updatedAt: serverTimestamp()
       }, { merge: true });
@@ -96,8 +92,8 @@ export const ShoppingListConfig: React.FC = () => {
     });
 
     if (itemsToAdd.length === 0) return;
-    if (!confirm(`Deseja adicionar estes ${itemsToAdd.length} itens à lista?`)) return;
-
+    
+    setIsBulkLoading(true);
     try {
       const batch = writeBatch(db);
       itemsToAdd.forEach(name => {
@@ -109,9 +105,11 @@ export const ShoppingListConfig: React.FC = () => {
           .replace(/[^a-z0-9_-]/g, "");
         
         const docRef = doc(db, `groups/${activeGroup.id}/shopping_list`, id);
+        const category = getCategoryForItem(name);
         batch.set(docRef, {
           name,
           checked: false,
+          category,
           addedBy: user?.uid || "system",
           updatedAt: serverTimestamp()
         }, { merge: true });
@@ -119,6 +117,8 @@ export const ShoppingListConfig: React.FC = () => {
       await batch.commit();
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `groups/${activeGroup.id}/shopping_list/BATCH`);
+    } finally {
+      setIsBulkLoading(false);
     }
   };
 
@@ -207,12 +207,14 @@ export const ShoppingListConfig: React.FC = () => {
           >
             <div className="flex items-center justify-between">
               <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">{currentCategory.label} sugeridos</h4>
-              {!searchTerm && (
+              {filteredItems.some(name => !existingItems.has(name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, ""))) && (
                 <button 
-                  onClick={() => handleBulkAdd(currentCategory.items)}
-                  className="text-[10px] font-black text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded-lg transition-all border border-orange-100"
+                  onClick={() => handleBulkAdd(filteredItems)}
+                  disabled={isBulkLoading}
+                  className="flex items-center gap-2 text-[10px] font-black text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded-lg transition-all border border-orange-100 disabled:opacity-50"
                 >
-                  ADICIONAR TODOS
+                  {isBulkLoading ? <Loader2 size={12} className="animate-spin" /> : null}
+                  {searchTerm ? "ADICIONAR RESULTADOS" : "ADICIONAR TODOS"}
                 </button>
               )}
             </div>
@@ -264,8 +266,10 @@ export const ShoppingListConfig: React.FC = () => {
             </div>
             <button 
               onClick={() => handleBulkAdd(PRESET_CATEGORIES.flatMap(c => c.items))}
-              className="text-[10px] font-black text-gray-900 border-2 border-gray-200 bg-white px-4 py-2 rounded-xl hover:bg-gray-900 hover:text-white hover:border-gray-900 transition-all shadow-sm"
+              disabled={isBulkLoading}
+              className="flex items-center gap-2 text-[10px] font-black text-gray-900 border-2 border-gray-200 bg-white px-4 py-2 rounded-xl hover:bg-gray-900 hover:text-white hover:border-gray-900 transition-all shadow-sm disabled:opacity-50"
             >
+              {isBulkLoading ? <Loader2 size={12} className="animate-spin" /> : null}
               CARREGAR LISTA COMPLETA
             </button>
          </div>

@@ -63,19 +63,35 @@ export function GoogleAgenda() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  const toYMD = (d: Date) => {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
   const fetchEvents = async () => {
     setIsLoading(true);
+    setWaError(null);
     try {
-      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
+      // Broaden the range by one day on each side to handle timezone offsets safely
+      const startRange = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0, 0, 0, 0); 
+      const endRange = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1, 23, 59, 59);
       
-      const res = await apiFetch(`/api/calendar/events?timeMin=${startOfMonth.toISOString()}&timeMax=${endOfMonth.toISOString()}`);
+      const res = await apiFetch(`/api/calendar/events?timeMin=${startRange.toISOString()}&timeMax=${endRange.toISOString()}`);
+      
+      if (res.status === 401) {
+        setWaError("Sua sessão do Google expirou. Por favor, faça login novamente.");
+        return;
+      }
+
       const data = await res.json();
       if (Array.isArray(data)) {
         setEvents(data);
+      } else if (data.error) {
+         console.error("API error", data.error);
+         setWaError("Erro ao carregar eventos: " + data.error);
       }
     } catch (err) {
       console.error("Failed to fetch Google Calendar events", err);
+      setWaError("Não foi possível conectar ao Google Agenda.");
     } finally {
       setIsLoading(false);
     }
@@ -86,17 +102,21 @@ export function GoogleAgenda() {
   }, [currentDate]);
 
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    const d = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+    setCurrentDate(d);
+    setSelectedDay(toYMD(d));
   };
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    const d = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+    setCurrentDate(d);
+    setSelectedDay(toYMD(d));
   };
 
   const handlePrevDay = () => {
     const d = new Date(selectedDay + "T12:00:00");
     d.setDate(d.getDate() - 1);
-    const newDate = d.toISOString().split("T")[0];
+    const newDate = toYMD(d);
     setSelectedDay(newDate);
     // Sync currentDate (the month grid) if we move to a different month
     if (d.getMonth() !== currentDate.getMonth() || d.getFullYear() !== currentDate.getFullYear()) {
@@ -107,7 +127,7 @@ export function GoogleAgenda() {
   const handleNextDay = () => {
     const d = new Date(selectedDay + "T12:00:00");
     d.setDate(d.getDate() + 1);
-    const newDate = d.toISOString().split("T")[0];
+    const newDate = toYMD(d);
     setSelectedDay(newDate);
     // Sync currentDate (the month grid) if we move to a different month
     if (d.getMonth() !== currentDate.getMonth() || d.getFullYear() !== currentDate.getFullYear()) {
@@ -435,11 +455,25 @@ export function GoogleAgenda() {
           </div>
         ) : (
           <div className="w-full max-w-5xl mx-auto p-4 sm:p-10 space-y-8">
-            <div className="mb-10 pl-1">
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+                <button 
+                  onClick={() => setListNavMode("day")}
+                  className={`px-3 py-1 rounded-lg text-[9px] font-black transition-all ${listNavMode === "day" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400"}`}
+                >
+                  DIA
+                </button>
+                <button 
+                  onClick={() => setListNavMode("month")}
+                  className={`px-3 py-1 rounded-lg text-[9px] font-black transition-all ${listNavMode === "month" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400"}`}
+                >
+                  MÊS
+                </button>
+              </div>
+
               <motion.h1 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-[14px] font-black text-gray-900 leading-tight tracking-tight"
+                className="text-[14px] font-black text-gray-900 leading-tight tracking-tight mt-1"
               >
                 Olá, {auth.currentUser?.displayName?.split(" ")[0] || "Doutor(a)"}! 👋
               </motion.h1>
@@ -449,9 +483,26 @@ export function GoogleAgenda() {
                 transition={{ delay: 0.1 }}
                 className="text-gray-400 font-medium mt-1 text-[13px]"
               >
-                Confira seus compromissos no Google Agenda
+                {listNavMode === "day" 
+                  ? `Compromissos para ${new Date(selectedDay + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long" })}`
+                  : "Todos os compromissos do mês"}
               </motion.p>
-            </div>
+            {waError && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 mb-6"
+              >
+                <AlertCircle className="text-red-500" size={20} />
+                <p className="text-xs font-bold text-red-700">{waError}</p>
+                <button 
+                  onClick={() => window.location.href = "/api/auth/url"}
+                  className="ml-auto bg-red-600 text-white px-4 py-1.5 rounded-lg text-xs font-black"
+                >
+                  LOGIN GOOGLE
+                </button>
+              </motion.div>
+            )}
             {(() => {
               let filteredListEvents: GoogleEvent[] = [];
               
@@ -459,15 +510,11 @@ export function GoogleAgenda() {
                 filteredListEvents = events;
               } else {
                 const sDay = new Date(selectedDay + "T00:00:00");
-                const nextDay = new Date(sDay);
-                nextDay.setDate(nextDay.getDate() + 1);
+                const targetDateStr = toYMD(sDay);
                 
                 filteredListEvents = events.filter(event => {
-                  const start = new Date(event.start.dateTime || event.start.date || "");
-                  return (
-                    (start.getDate() === sDay.getDate() && start.getMonth() === sDay.getMonth() && start.getFullYear() === sDay.getFullYear()) ||
-                    (start.getDate() === nextDay.getDate() && start.getMonth() === nextDay.getMonth() && start.getFullYear() === nextDay.getFullYear())
-                  );
+                  const eventDateStr = (event.start.dateTime || event.start.date || "").split("T")[0];
+                  return eventDateStr === targetDateStr;
                 });
               }
 
@@ -485,8 +532,15 @@ export function GoogleAgenda() {
                     className="bg-white rounded-3xl p-16 text-center border border-gray-100 shadow-sm"
                   >
                     <CalendarIcon className="w-16 h-16 text-gray-200 mx-auto mb-6" />
-                    <h3 className="text-lg font-bold text-gray-900">Nenhum compromisso este mês</h3>
-                    <p className="text-gray-400 mt-2 text-sm">Sua agenda do Google está limpa no momento. Selecione outra data ou adicione um novo compromisso.</p>
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {listNavMode === "day" ? "Nenhum compromisso para este dia" : "Nenhum compromisso este mês"}
+                    </h3>
+                    <p className="text-gray-400 mt-2 text-sm">
+                      {listNavMode === "day" 
+                        ? "Sua agenda do Google está limpa para hoje." 
+                        : "Sua agenda do Google está limpa no momento."}
+                      Selecione outra data ou adicione um novo compromisso.
+                    </p>
                   </motion.div>
                 );
               }

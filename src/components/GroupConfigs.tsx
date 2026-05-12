@@ -62,6 +62,7 @@ export function GroupConfigs() {
     imageAnalysisPrompt, 
     updateSettings, 
     toggleGroupStatus,
+    terminateGroup,
     handleBackup,
     configsActiveTab: activeTab,
     setConfigsActiveTab: setActiveTab 
@@ -69,7 +70,8 @@ export function GroupConfigs() {
   const { user } = useAuth();
   
   const userRole = activeGroupMembers.find(m => m.userId === user?.uid)?.role;
-  const isOwner = userRole === "owner";
+  const isCreator = activeGroup?.createdBy === user?.uid;
+  const isAdmin = userRole === "owner" || isCreator;
   
   const [items, setItems] = useState<ConfigItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -179,18 +181,36 @@ export function GroupConfigs() {
 
   const handleToggleGroupActivation = async () => {
     if (!activeGroup) return;
-    const isCurrentlyActive = activeGroup.active !== false && activeGroup.ativo !== false;
+    const isCurrentlyActive = activeGroup.status === "active";
     const isActivating = !isCurrentlyActive;
     
     const confirmMsg = isActivating 
       ? "Deseja reativar este grupo?" 
-      : "Deseja desativar este grupo? Membros não poderão realizar ações até que seja reativado.";
+      : "Deseja DESATIVAR este grupo? Ele será movido para o final da lista e membros não poderão realizar ações até que seja reativado.";
     
     if (!confirm(confirmMsg)) return;
 
     try {
       setIsUpdatingSettings(true);
       await toggleGroupStatus(activeGroup.id, isActivating);
+    } catch (err: any) {
+      alert("Erro: " + err.message);
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
+  const handleTerminateGroup = async () => {
+    if (!activeGroup) return;
+    
+    const confirmMsg = "ATENÇÃO: Deseja REMOVER este grupo permanentemente da sua lista e da lista de todos os membros? Esta ação não pode ser desfeita e o grupo não será mais acessível.";
+    
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      setIsUpdatingSettings(true);
+      await terminateGroup(activeGroup.id);
+      alert("Grupo removido com sucesso!");
     } catch (err: any) {
       alert("Erro: " + err.message);
     } finally {
@@ -454,12 +474,12 @@ export function GroupConfigs() {
                   )}
                 </div>
                 <button
-                  onClick={() => isOwner && fileInputRef.current?.click()}
-                  disabled={!isOwner}
+                  onClick={() => isAdmin && fileInputRef.current?.click()}
+                  disabled={!isAdmin}
                   className={`absolute -bottom-2 -right-2 bg-white border border-gray-100 p-2.5 rounded-2xl text-indigo-600 shadow-xl transition-all ${
-                    isOwner ? "hover:scale-110 active:scale-95" : "opacity-50 cursor-not-allowed"
+                    isAdmin ? "hover:scale-110 active:scale-95" : "opacity-50 cursor-not-allowed"
                   }`}
-                  title={isOwner ? "Upload Foto" : "Apenas o admin pode alterar a foto"}
+                  title={isAdmin ? "Upload Foto" : "Apenas o admin pode alterar a foto"}
                 >
                   <Upload size={14} />
                 </button>
@@ -472,7 +492,7 @@ export function GroupConfigs() {
                 />
               </div>
               
-              {isOwner && (
+              {isAdmin && (
                 <button
                   onClick={handleUseDefaultIcon}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-all active:scale-95"
@@ -492,9 +512,9 @@ export function GroupConfigs() {
               value={localCompanyName} 
               onChange={(e) => setLocalCompanyName(e.target.value)}
               placeholder="Ex: Dr. Silva ou Clínica Pro"
-              disabled={!isOwner}
+              disabled={!isAdmin}
               className={`w-full bg-gray-50 border border-gray-100 px-5 py-4 rounded-2xl text-sm font-bold outline-none transition-all ${
-                isOwner ? "focus:ring-4 focus:ring-indigo-100" : "opacity-70 cursor-not-allowed"
+                isAdmin ? "focus:ring-4 focus:ring-indigo-100" : "opacity-70 cursor-not-allowed"
               }`}
             />
           </div>
@@ -506,15 +526,15 @@ export function GroupConfigs() {
               onChange={(e) => setLocalImageAnalysisPrompt(e.target.value)}
               placeholder="Instruções para a IA analisar as fotos..."
               rows={4}
-              disabled={!isOwner}
+              disabled={!isAdmin}
               className={`w-full bg-gray-50 border border-gray-100 px-5 py-4 rounded-2xl text-sm font-medium outline-none transition-all resize-none ${
-                isOwner ? "focus:ring-4 focus:ring-indigo-100" : "opacity-70 cursor-not-allowed"
+                isAdmin ? "focus:ring-4 focus:ring-indigo-100" : "opacity-70 cursor-not-allowed"
               }`}
             />
           </div>
 
           <div className="flex flex-col gap-3 pt-4">
-            {!isOwner && (
+            {!isAdmin && (
               <div className="bg-amber-50 border border-amber-100 px-4 py-3 rounded-2xl flex items-center gap-2 text-amber-700">
                 <Lock size={14} className="shrink-0" />
                 <span className="text-[10px] font-bold uppercase tracking-tight">Estas configurações podem ser alteradas apenas pelo Administrador.</span>
@@ -523,14 +543,14 @@ export function GroupConfigs() {
             <div className="flex gap-3">
               <button 
                 onClick={onUpdateSettings}
-                disabled={isUpdatingSettings || !isOwner}
+                disabled={isUpdatingSettings || !isAdmin}
                 className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isUpdatingSettings ? <Loader2 size={16} className="animate-spin" /> : "SALVAR ALTERAÇÕES"}
               </button>
             </div>
 
-            {isOwner && (
+            {isAdmin && (
               <div className="pt-6 border-t border-gray-100 mt-2">
                 <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-4 ml-1">Zona de Perigo</h4>
                 <button
@@ -538,18 +558,33 @@ export function GroupConfigs() {
                   onClick={handleToggleGroupActivation}
                   disabled={isUpdatingSettings}
                   className={`w-full py-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2 shadow-xl ${
-                    (activeGroup?.active !== false && activeGroup?.ativo !== false)
-                      ? "bg-red-50 text-red-600 hover:bg-red-100 shadow-red-50"
+                    activeGroup?.status === "active"
+                      ? "bg-amber-50 text-amber-600 hover:bg-amber-100 shadow-amber-50"
                       : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 shadow-emerald-50"
                   }`}
                 >
-                  {(activeGroup?.active !== false && activeGroup?.ativo !== false) ? <PowerOff size={16} /> : <Power size={16} />}
-                  {(activeGroup?.active !== false && activeGroup?.ativo !== false) ? "DESATIVAR GRUPO" : "REATIVAR GRUPO"}
+                  {activeGroup?.status === "active" ? <PowerOff size={16} /> : <Power size={16} />}
+                  {activeGroup?.status === "active" ? "DESATIVAR GRUPO" : "REATIVAR GRUPO"}
                 </button>
+                
+                {activeGroup?.status === "removed" && isCreator && (
+                  <button
+                    type="button"
+                    onClick={handleTerminateGroup}
+                    disabled={isUpdatingSettings}
+                    className="w-full py-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2 shadow-xl bg-red-50 text-red-600 hover:bg-red-100 shadow-red-50 mt-3"
+                  >
+                    <Trash2 size={16} />
+                    REMOVER GRUPO DEFINITIVAMENTE
+                  </button>
+                )}
+                
                 <p className="text-[9px] text-gray-400 mt-3 text-center px-4 leading-normal">
-                  {(activeGroup?.active !== false && activeGroup?.ativo !== false) 
+                  {activeGroup?.status === "active" 
                     ? "Desativar o grupo impedirá qualquer tipo de trabalho ou modificação por parte dos membros."
-                    : "Reativar o grupo permitirá que os membros voltem a trabalhar e realizar lançamentos."}
+                    : isCreator 
+                      ? "O grupo está desativado (estado: removed). Você pode reativá-lo ou removê-lo definitivamente."
+                      : "O grupo está desativado. Somente o criador pode removê-lo definitivamente."}
                 </p>
               </div>
             )}
@@ -613,17 +648,17 @@ export function GroupConfigs() {
           
           <button 
             onClick={() => {
-              if (!isOwner) return;
+              if (!isAdmin) return;
               setIsAdding(!isAdding);
               setEditingItem(null);
               setNewItemName("");
               setError(null);
             }}
-            disabled={!isOwner}
+            disabled={!isAdmin}
             className={`sm:ml-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${
               isAdding 
                 ? "bg-gray-100 text-gray-500 shadow-none" 
-                : isOwner 
+                : isAdmin 
                   ? "bg-blue-600 text-white shadow-blue-100 hover:bg-blue-700"
                   : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-50 shadow-none"
             }`}
@@ -765,8 +800,8 @@ export function GroupConfigs() {
           <p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mt-1">Carregue todos os padrões de uma só vez para este grupo</p>
         </div>
         <button 
-          onClick={() => isOwner && handleInitializeDefaults("all")}
-          disabled={isLoading || !isOwner}
+          onClick={() => isAdmin && handleInitializeDefaults("all")}
+          disabled={isLoading || !isAdmin}
           className="w-full sm:w-auto bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-xs hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-2 uppercase tracking-widest active:scale-95 disabled:opacity-50"
         >
           {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}

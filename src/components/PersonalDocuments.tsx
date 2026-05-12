@@ -85,6 +85,8 @@ export const PersonalDocuments: React.FC = () => {
   }, [activeGroup?.id]);
 
   const isOwner = activeGroupMembers.find(m => m.userId === user?.uid)?.role === "owner";
+  const isCreator = activeGroup?.createdBy === user?.uid;
+  const isAdmin = isOwner || isCreator;
 
   const fetchFiles = async () => {
     if (!activeGroup) return;
@@ -198,7 +200,7 @@ export const PersonalDocuments: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              {!selectedCategory && isOwner && (
+              {!selectedCategory && isAdmin && (
                 <button
                   onClick={() => {
                     setManagementMode("configs");

@@ -46,6 +46,8 @@ export function TeamManagement() {
 
   const currentUserMembership = activeGroupMembers.find(m => m.userId === user?.uid);
   const isOwner = currentUserMembership?.role === "owner";
+  const isCreator = activeGroup?.createdBy === user?.uid;
+  const isAdmin = isOwner || isCreator;
 
   // Reset to dashboard when opened (unless specified otherwise via external triggers)
   React.useEffect(() => {
@@ -112,7 +114,7 @@ export function TeamManagement() {
            </button>
          )}
 
-         {isOwner && member.userId && member.userId !== user?.uid && (member.status === 'active' || member.status === 'conectado') && (
+         {isAdmin && member.userId && member.userId !== user?.uid && (member.status === 'active' || member.status === 'conectado') && (
            <button
              onClick={() => handleToggleAdmin(member.userId, member.role)}
              disabled={isUpdatingRole === member.userId}
@@ -131,7 +133,7 @@ export function TeamManagement() {
            </button>
          )}
 
-         {isOwner && member.userId !== user?.uid && member.status !== 'removed' && (
+         {isAdmin && member.userId !== user?.uid && member.status !== 'removed' && (
            <button
              onClick={() => {
                if (member.status === 'active' || member.status === 'conectado') {
@@ -378,7 +380,7 @@ export function TeamManagement() {
                     </h3>
                   </div>
               
-              {isOwner ? (
+              {isAdmin ? (
                 <form onSubmit={handleInvite} className="flex flex-col gap-3">
                   <input 
                     type="email"

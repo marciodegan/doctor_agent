@@ -32,6 +32,7 @@ interface Message {
     hospitalId?: string;
     hospitalNome?: string;
     roomNumber?: string;
+    surgery_type?: string;
   };
   form?: {
     title?: string;
@@ -318,6 +319,7 @@ export const Chat: React.FC<{
   const [groupHospitals, setGroupHospitals] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupStatuses, setGroupStatuses] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupProcedures, setGroupProcedures] = useState<{id: string, nome: string, active?: boolean}[]>([]);
+  const [groupSurgeryTypes, setGroupSurgeryTypes] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [imageTypes, setImageTypes] = useState<{id: string, name: string, active?: boolean}[]>([]);
 
   useEffect(() => {
@@ -370,12 +372,24 @@ export const Chat: React.FC<{
       handleFirestoreError(err, OperationType.LIST, "image_types");
     });
 
+    // Surgery Types
+    const surgeryTypesRef = collection(db, "surgery_types");
+    const qSurgeryTypes = query(surgeryTypesRef, where("groupId", "==", gId), orderBy("nome"));
+    const unsubSurgeryTypes = onSnapshot(qSurgeryTypes, (snap) => {
+      if (!isMounted) return;
+      setGroupSurgeryTypes(snap.docs.map(d => ({ id: d.id, nome: d.data().nome, active: d.data().active })));
+    }, (err) => {
+      if (!isMounted) return;
+      handleFirestoreError(err, OperationType.LIST, "surgery_types");
+    });
+
     return () => {
       isMounted = false;
       unsubStatus();
       unsubHosp();
       unsubProc();
       unsubImageTypes();
+      unsubSurgeryTypes();
     };
   }, [activeGroup?.id]);
 
@@ -383,6 +397,7 @@ export const Chat: React.FC<{
   const hospitalOptions = groupHospitals.filter(h => h.active !== false && (h as any).status !== "removed");
   const statusOptions = groupStatuses.filter(s => s.active !== false && (s as any).status !== "removed");
   const procedureOptions = groupProcedures.filter(p => p.active !== false && (p as any).status !== "removed").map(p => p.nome);
+  const surgeryTypeOptions = groupSurgeryTypes.filter(s => s.active !== false && (s as any).status !== "removed").map(s => s.nome);
   const imageTypeOptions = imageTypes.filter(t => t.active !== false && (t as any).status !== "removed").map(t => t.name);
   
   // Full lists for lookup/display
@@ -552,9 +567,14 @@ export const Chat: React.FC<{
   <div style="margin-left: 0px; padding-left: 1px; font-size: 12px; font-weight: bold; color: #4b5563;">${cadFoneLink}</div>
 </div>` : "";
 
+    const surgeryTypeHeader = cad.surgery_type ? `
+<div style="margin-top: 5px; margin-bottom: 15px; padding: 6px 12px; background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6; border-radius: 4px; font-size: 13px; font-weight: 600; color: #1e40af;">
+  Prioridade/Tipo: ${cad.surgery_type}
+</div>` : "";
+
     const calendarLine = "";
 
-    return calendarLine +
+    return surgeryTypeHeader + calendarLine +
       `\`/novofamiliar id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Contatos:**\n\n<div style="margin-left: 40px; margin-top: 0px; padding-top: 0px; margin-right: 0px;">${patientContact}${fams || (patientContact ? "" : "Nenhum registro")}</div>\n\n\n\n\n\n\n\n\n\n` +
       `\`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Informações:**\n\n<div style="margin-left: 40px; margin-bottom: 0px;">${audios || "Nenhum registro"}</div>\n\n\n\n\n\n\n\n\n\n` +
       `\`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Imagens:**\n\n<div style="margin-left: 40px;">${docs || "Nenhum registro"}</div>`;
@@ -753,6 +773,15 @@ export const Chat: React.FC<{
               // @ts-ignore
               readOnly: true,
               suggestions: hospitalOptions.map(h => ({ label: h.nome, value: h.id }))
+            },
+            { 
+              label: "Prioridade/Tipo", 
+              name: "surgery_type", 
+              type: "text", 
+              placeholder: "Eletiva, Urgência...",
+              // @ts-ignore
+              readOnly: true,
+              suggestions: surgeryTypeOptions.map(s => ({ label: s, value: s }))
             },
             { 
               label: "Status Inicial", 
@@ -1302,7 +1331,8 @@ export const Chat: React.FC<{
             status: cad.Status,
             hospitalId: cad.hospitalId,
             hospitalNome: allHospitals.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome)?.nome || cad.hospital_nome || "Não informado",
-            roomNumber: cad.roomNumber || cad.room_number || "Sala ?"
+            roomNumber: cad.roomNumber || cad.room_number || "Sala ?",
+            surgery_type: cad.surgery_type || ""
           }
         }]);
         setTimeout(scrollToTop, 0);
@@ -1655,6 +1685,16 @@ export const Chat: React.FC<{
                 hideInput: true,
                 suggestions: statusOptions.map(s => ({ label: s.nome, value: s.id }))
               },
+              { 
+                label: "Prioridade/Tipo", 
+                name: "surgery_type", 
+                type: "text", 
+                defaultValue: p.surgery_type,
+                // @ts-ignore
+                readOnly: true,
+                hideInput: true,
+                suggestions: surgeryTypeOptions.map(s => ({ label: s, value: s }))
+              },
               { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.roomNumber || p.room_number || "" },
             ],
             submitLabel: "Salvar Alterações",
@@ -1682,6 +1722,7 @@ export const Chat: React.FC<{
         const hospitalName = cmdInput.match(/hospitalName:\s*([^,]+)/i)?.[1]?.trim();
         const roomNumber = cmdInput.match(/roomNumber:\s*([^,]+)/i)?.[1]?.trim();
         const status = cmdInput.match(/status:\s*([^,]+)/i)?.[1]?.trim();
+        const surgery_type = cmdInput.match(/surgery_type:\s*([^,]+)/i)?.[1]?.trim();
 
         if (!id) throw new Error("ID não identificado.");
 
@@ -1702,7 +1743,8 @@ export const Chat: React.FC<{
             idade, 
             hospitalName: resolvedHospitalId, 
             roomNumber,
-            status: resolvedStatusId
+            status: resolvedStatusId,
+            surgery_type
           })
         });
         const data = await res.json();
@@ -1945,6 +1987,7 @@ export const Chat: React.FC<{
         const roomNumber = getVal("roomNumber");
         const status = getVal("status");
         const procedimento = getVal("procedimento");
+        const surgery_type = getVal("surgery_type");
 
         if (!nome) throw new Error("O campo 'nome:' é obrigatório.");
 
@@ -1966,7 +2009,8 @@ export const Chat: React.FC<{
             hospitalName: resolvedHospitalId, 
             roomNumber,
             status: resolvedStatusId,
-            procedimento
+            procedimento,
+            surgery_type
           })
         });
         const data = await res.json();
