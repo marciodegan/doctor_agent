@@ -70,6 +70,8 @@ export default function App() {
   const [activePatientName, setActivePatientName] = useState<string | null>(null);
   const [activePatientProcedure, setActivePatientProcedure] = useState<string | null>(null);
   const [activePatientHospitalId, setActivePatientHospitalId] = useState<string | null>(null);
+  const [activePatientType, setActivePatientType] = useState<string | null>(null);
+  const [activePatientSala, setActivePatientSala] = useState<string | null>(null);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileGroupsOpen, setIsMobileGroupsOpen] = useState(false);
@@ -77,15 +79,29 @@ export default function App() {
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  const navigateAndAction = (view: "workspace" | "calendar" | "agenda" | "logs" | "shopping_list", command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string) => {
+  const navigateAndAction = (view: NavView, command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string, type?: string, sala?: string) => {
     setCurrentView(view);
     setIsMobileMenuOpen(false);
     setActivePatientId(patientId || null);
     setActivePatientName(patientName || null);
     setActivePatientProcedure(procedure || null);
     setActivePatientHospitalId(hospitalId || null);
+    setActivePatientType(type || null);
+    setActivePatientSala(sala || null);
+    
     if (command) {
       setPendingCommand(command);
+    } else {
+      setPendingCommand(null);
+    }
+
+    // Scroll all the way up to scroll 0 as requested
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    
+    // Also scroll the main container if it's the one scrolling
+    const container = document.getElementById("main-scroll-container");
+    if (container) {
+      container.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -644,6 +660,8 @@ export default function App() {
                           prefilledPatientName={activePatientName || undefined} 
                           prefilledProcedure={activePatientProcedure || undefined}
                           prefilledHospitalId={activePatientHospitalId || undefined}
+                          prefilledType={activePatientType || undefined}
+                          prefilledSala={activePatientSala || undefined}
                         />
                       ) : currentView === "agenda" ? (
                         <GoogleAgenda />
@@ -676,10 +694,9 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Sidebar - removed GroupSelector from right side as per request */}
               <div className="space-y-8 hidden xl:flex flex-col pt-24 pr-2">
-                <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm transform transition-all hover:shadow-md">
-                  <GroupSelector onSelect={handleGroupSelection} />
-                </div>
+                {/* Space reserved for other gadgets if needed, but GroupSelector is gone */}
               </div>
             </div>
           )}

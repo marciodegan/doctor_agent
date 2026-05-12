@@ -86,11 +86,14 @@ export function BottomNav({
             <button
               key={tab.id}
               id={tab.id === "management" ? "equipe-nav-button" : undefined}
-              onClick={() =>
-                tab.action
-                  ? tab.action()
-                  : onNavigate(tab.id, (tab as any).prompt)
-              }
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                if (tab.action) {
+                  tab.action();
+                } else {
+                  onNavigate(tab.id, (tab as any).prompt);
+                }
+              }}
               className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 min-w-[64px] relative group px-1"
             >
               <AnimatePresence>

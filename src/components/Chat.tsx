@@ -905,6 +905,8 @@ export const Chat: React.FC<{
       let pid = cmdInput.match(/pid:\s*([\w-]+)/i)?.[1]?.trim() || "";
       let hospId = cmdInput.match(/hospId:\s*([\w-]+)/i)?.[1]?.trim() || "";
       let roomNumber = cmdInput.match(/room:\s*([^,]+)/i)?.[1]?.trim() || "";
+      let surgeryType = cmdInput.match(/type:\s*([^,]+)/i)?.[1]?.trim() || "";
+      let procedure = cmdInput.match(/procedure:\s*([^,]+)/i)?.[1]?.trim() || "";
       
       const today = new Date();
       const pad = (n: number) => n.toString().padStart(2, "0");
@@ -927,7 +929,7 @@ export const Chat: React.FC<{
               name: "evento", 
               type: "text", 
               placeholder: "Ex: Cirurgia de Quadril", 
-              defaultValue: patientName ? `Cirurgia - ${patientName}` : "",
+              defaultValue: procedure || (patientName ? `Cirurgia - ${patientName}` : ""),
               // @ts-ignore
               suggestions: procedureOptions
             },
@@ -939,10 +941,23 @@ export const Chat: React.FC<{
               defaultValue: hospName
             },
             // @ts-ignore
-            { label: "Categoria", name: "categoria", type: "select", options: ["ELETIVA", "URGÊNCIA"], defaultValue: "ELETIVA" },
-            { label: "Sala", name: "sala", type: "select", options: ["SALA 1", "SALA 2"], defaultValue: "SALA 1" },
+            { 
+              label: "Categoria", 
+              name: "categoria", 
+              type: "select", 
+              options: ["ELETIVA", "URGÊNCIA"], 
+              defaultValue: surgeryType.toUpperCase() || "ELETIVA" 
+            },
+            { 
+              label: "Sala", 
+              name: "sala", 
+              type: "select", 
+              options: ["SALA 1", "SALA 2", "SALA 3", "SALA 4", "SALA 5"], 
+              defaultValue: roomNumber.toUpperCase().startsWith("SALA") ? roomNumber.toUpperCase() : "SALA 1" 
+            },
             { label: "Data", name: "data", type: "date", defaultValue: hojeStrIso },
-            { label: "Horário", name: "hora", type: "time", defaultValue: agoraStr }
+            { label: "Horário", name: "hora", type: "time", defaultValue: agoraStr },
+            { label: "Nome do Paciente", name: "nomePaciente", type: "text", defaultValue: patientName }
           ],
           submitLabel: "Adicionar ao Calendário",
           commandPrefix: pid ? `/calendario_add pid: ${pid},` : "/calendario_add",
@@ -1412,12 +1427,35 @@ export const Chat: React.FC<{
         const hospitals = masterHospitalsData.map((h: any) => h.nome).filter(Boolean);
         const statuses = Array.isArray(masterStatuses) ? masterStatuses.filter(Boolean) : [];
 
-        const PAGE_SIZE = 10;
-        const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
-        const pageToView = Math.max(1, Math.min(page, totalPages || 1));
-        const start = (pageToView - 1) * PAGE_SIZE;
-        const end = start + PAGE_SIZE;
-        const pageData = filteredData.slice(start, end);
+        const selectedStatus = masterStatuses.find((s: any) => s.id.toString() === statusFilter);
+        const isFilteringAlta = selectedStatus && selectedStatus.nome.toLowerCase() === "alta";
+
+        // Filter out 'Alta' if not explicitly requested
+        if (!isFilteringAlta) {
+          filteredData = filteredData.filter(p => {
+            const sName = p.status ? p.status.toLowerCase() : "";
+            return sName !== "alta";
+          });
+        }
+
+        let pageData = filteredData;
+        let nav = "";
+
+        if (isFilteringAlta) {
+          const PAGE_SIZE = 10;
+          const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+          const pageToView = Math.max(1, Math.min(page, totalPages || 1));
+          const start = (pageToView - 1) * PAGE_SIZE;
+          const end = start + PAGE_SIZE;
+          pageData = filteredData.slice(start, end);
+
+          if (totalPages > 1) {
+            const currentFilters = ` hospital:${hospitalFilter || ""} status:${statusFilter || ""}`;
+            nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
+            if (pageToView > 1) nav += ` [\`⬅️ Ant\`](/pacientes${currentFilters} pag:${pageToView - 1} sort:${sort}) `;
+            if (pageToView < totalPages) nav += ` [\`Próximo ➡️\`](/pacientes${currentFilters} pag:${pageToView + 1} sort:${sort}) `;
+          }
+        }
 
         let listText = `<div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">\n\n[➕ Novo Paciente](/iniciarcadastro)\n\n</div>\n\n`;
 
@@ -1431,9 +1469,9 @@ export const Chat: React.FC<{
           }
         }
         if (isStatusFiltered) {
-          const selectedStatus = masterStatuses.find((s: any) => s.id.toString() === statusFilter);
-          if (selectedStatus) {
-            listText += `<div style="font-size: 20px; font-weight: 800; color: #111827; margin-top: ${isHospFiltered ? "0" : "10"}px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center;"><span style="color: #3b82f6; margin-right: 10px;">📋</span> ${selectedStatus.nome}</div>\n\n`;
+          const selectedStatusObj = masterStatuses.find((s: any) => s.id.toString() === statusFilter);
+          if (selectedStatusObj) {
+            listText += `<div style="font-size: 20px; font-weight: 800; color: #111827; margin-top: ${isHospFiltered ? "0" : "10"}px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center;"><span style="color: #3b82f6; margin-right: 10px;">📋</span> ${selectedStatusObj.nome}</div>\n\n`;
           }
         }
 
@@ -1486,16 +1524,6 @@ export const Chat: React.FC<{
           listText += "_Nenhum paciente encontrado._\n";
         }
 
-        let nav = "";
-        const cmdName = "/pacientes";
-        const currentFilters = ` hospital:${hospitalFilter || ""} status:${statusFilter || ""}`;
-        
-        if (totalPages > 1) {
-          nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
-          if (pageToView > 1) nav += ` [\`⬅️ Ant\`](/pacientes${currentFilters} pag:${pageToView - 1} sort:${sort}) `;
-          if (pageToView < totalPages) nav += ` [\`Próximo ➡️\`](/pacientes${currentFilters} pag:${pageToView + 1} sort:${sort}) `;
-        }
-
         const actionGroups = [];
         if (hospitals.length > 0) {
           const sortedMasterHospitals = [...masterHospitalsData].sort((a, b) => a.nome.localeCompare(b.nome));
@@ -1532,7 +1560,7 @@ export const Chat: React.FC<{
 
         setMessages([{ 
           role: "model", 
-          text: listText + (nav ? nav : ""),
+          text: listText + nav,
           isListing: true,
           listingTitle: "", // User wants to remove the title
           actionGroups
@@ -2372,7 +2400,7 @@ export const Chat: React.FC<{
 
                         <div className="flex flex-col items-end relative z-10 shrink-0 ml-4">
                           <button 
-                            onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}`)}
+                            onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}, type: ${msg.profileData?.surgery_type}, procedure: ${msg.profileData?.procedure || ""}`)}
                             className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                           >
                             <CalendarPlus size={16} className="text-emerald-100" />

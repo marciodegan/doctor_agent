@@ -887,7 +887,8 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       hospitalName: hospitalsMap.get(pData.hospitalId) || pData.hospitalId,
       hospitalId: pData.hospitalId || "",
       roomNumber: pData.roomNumber,
-      surgery_type: pData.surgery_type || ""
+      surgery_type: pData.surgery_type || "",
+      procedure: pData.procedure || ""
     };
 
     // Process Files/Images

@@ -30,7 +30,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
-import { getCategoryForItem, CATEGORY_LABELS } from "../lib/shoppingListUtils";
+import { getCategoryForItem, CATEGORY_LABELS, PRESET_CATEGORIES } from "../lib/shoppingListUtils";
 
 interface ShoppingItem {
   id: string;
@@ -58,6 +58,7 @@ export const ShoppingList: React.FC = () => {
   const [newItemName, setNewItemName] = useState("");
   const [isSeeding, setIsSeeding] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [selectedQuickAddCat, setSelectedQuickAddCat] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeGroup?.id) return;
@@ -97,11 +98,10 @@ export const ShoppingList: React.FC = () => {
     }
   };
 
-  const handleAddItem = async (e?: React.FormEvent) => {
+  const handleAddItem = async (e?: React.FormEvent, nameOverride?: string) => {
     if (e) e.preventDefault();
-    if (!newItemName.trim() || !activeGroup?.id) return;
-
-    const itemName = newItemName.trim();
+    const itemName = nameOverride || newItemName.trim();
+    if (!itemName || !activeGroup?.id) return;
     // Normalize ID: remove accents, lowercase, replace spaces, remove non-alphanumeric
     const itemId = itemName
       .normalize("NFD")
@@ -339,6 +339,66 @@ export const ShoppingList: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-slate-100/50 border-none rounded-xl py-2.5 pl-10 pr-4 text-xs font-semibold text-slate-600 placeholder:text-slate-400 outline-none transition-all"
               />
+            </div>
+
+            {/* Quick Add Categorized */}
+            <div className="flex flex-col gap-2 mt-2">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Sugestões por Categoria</span>
+                {selectedQuickAddCat && (
+                  <button 
+                    onClick={() => setSelectedQuickAddCat(null)}
+                    className="text-[10px] font-bold text-blue-600 hover:underline"
+                  >
+                    Ver Todas
+                  </button>
+                )}
+              </div>
+              <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
+                {Object.entries(CATEGORY_LABELS).map(([id, info]) => {
+                  if (id === "others") return null;
+                  const isActive = selectedQuickAddCat === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setSelectedQuickAddCat(isActive ? null : id)}
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-[10px] font-bold transition-all whitespace-nowrap ${
+                        isActive 
+                          ? "bg-orange-600 border-orange-600 text-white shadow-md shadow-orange-100" 
+                          : "bg-white border-slate-100 text-slate-600 hover:border-orange-200"
+                      }`}
+                    >
+                      <span>{info.icon}</span>
+                      <span>{info.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <AnimatePresence>
+                {selectedQuickAddCat && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      {(PRESET_CATEGORIES.find(c => c.id === selectedQuickAddCat)?.items || [])
+                        .filter(name => !items.some(i => i.name.toLowerCase() === name.toLowerCase()))
+                        .map(name => (
+                          <button
+                            key={name}
+                            onClick={() => handleAddItem(undefined, name)}
+                            className="px-2.5 py-1 bg-white border border-slate-100 rounded-lg text-[10px] font-medium text-slate-500 hover:border-blue-200 hover:text-blue-600 transition-all active:scale-95 capitalize"
+                          >
+                            + {name}
+                          </button>
+                        ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
