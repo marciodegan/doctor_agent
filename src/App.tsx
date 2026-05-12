@@ -217,7 +217,7 @@ export default function App() {
     <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Top Header - Both Mobile and Desktop */}
       <header 
-        style={{ height: 'calc(3.5rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
+        style={{ height: 'calc(3.25rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
         className={`fixed top-0 left-0 lg:left-64 right-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-40 ${isFullscreen ? 'hidden' : ''}`}
       >
         <div className="h-full w-full flex items-center justify-center px-4 relative">
@@ -492,8 +492,8 @@ export default function App() {
 
       {/* Main Content */}
       <main 
-        style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}
-        className={`lg:pl-64 flex flex-col pb-20 sm:pb-24 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}
+        style={{ paddingTop: 'calc(3.25rem + env(safe-area-inset-top))' }}
+        className={`lg:pl-64 flex flex-col pb-16 sm:pb-20 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}
       >
         
         {/* Global Modals (Settings, Security, Profile) */}

@@ -1450,6 +1450,27 @@ app.delete("/api/calendar/events/:eventId", async (req, res) => {
   }
 });
 
+// Calendar: Update Event
+app.put("/api/calendar/events/:eventId", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const calendar = google.calendar({ version: "v3", auth });
+  const { eventId } = req.params;
+  try {
+    const response = await calendar.events.patch({
+      calendarId: "primary",
+      eventId: eventId,
+      requestBody: req.body,
+    });
+    console.log("[Calendar] Event updated successfully:", response.data.id);
+    res.json(response.data);
+  } catch (error) {
+    console.error("[Calendar] Error updating event:", (error as any).message);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // Generic Storage Upload
 app.post("/api/drive/upload", express.json({ limit: "25mb" }), async (req, res) => {
   const auth = getAuthClient(req);
