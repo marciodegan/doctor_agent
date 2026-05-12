@@ -487,7 +487,11 @@ export function Calendar({
         savedEventId = docRef.id;
       }
 
-      // 2. Sync to Google Calendar if requested (only for new events or explicit sync)
+      // Close modal immediately after Firestore save for responsiveness
+      setIsModalOpen(false);
+      setEditingEvent(null);
+
+      // 2. Sync to Google Calendar if requested (non-blocking)
       if (formData.syncToGoogle) {
         try {
           const [y, m, d] = formData.data.split("-");
@@ -514,18 +518,15 @@ export function Calendar({
             end: { dateTime: end.toISOString(), timeZone: "America/Sao_Paulo" }
           };
 
-          await apiFetch("/api/calendar/events", {
+          apiFetch("/api/calendar/events", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body)
-          });
+          }).catch(err => console.error("Non-blocking Google sync failed:", err));
         } catch (err) {
-          console.error("Failed to sync to Google Calendar:", err);
-          // We don't block the main save if sync fails, but maybe log it
+          console.error("Failed to prepare Google Calendar sync:", err);
         }
       }
-
-      setIsModalOpen(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `groups/${GROUP_ID}/calendario`);
     }
@@ -538,6 +539,7 @@ export function Calendar({
     try {
       await deleteDoc(doc(db, "groups", GROUP_ID, "calendario", editingEvent.id));
       setIsModalOpen(false);
+      setEditingEvent(null);
     } catch (error) {
       console.error("Error deleting event:", error);
       alert("Erro ao excluir evento.");

@@ -321,7 +321,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeGroup?.name]);
 
-  // Effect to fetch detailed group info when rawMemberships change
+  // Effect to populate groups when rawMemberships change
   useEffect(() => {
     if (rawMemberships.length === 0) {
       setGroups([]);
@@ -329,95 +329,51 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    let isSubscribed = true;
+    // Immediately populate groups from membership data to show UI fast
+    // This avoids sequential getDoc calls for each membership which was slowing down login
+    const membershipGroups = rawMemberships.map(m => ({
+      id: m.id,
+      name: m.groupName || m.name || "Grupo",
+      groupType: m.groupType || "professional",
+      status: (m.status === "conectado" || m.status === "active") ? "active" : (m.status || "active"),
+      photoURL: m.groupPhotoURL || m.photoURL || "",
+      active: true,
+      ativo: true,
+      createdBy: "" 
+    } as unknown as Group));
 
-    const fetchDetailedGroups = async () => {
-      try {
-        const activeGroupsData: Group[] = [];
-        const pendingGroupsData: Group[] = [];
+    const activeList = membershipGroups.filter(g => g.status === "active") as Group[];
+    const pendingList = membershipGroups.filter(g => g.status === "pending") as Group[];
 
-        for (const mData of rawMemberships) {
-          const groupId = mData.id;
-          let groupInfo: Group | null = null;
+    setGroups(activeList);
 
-          try {
-            const groupDoc = await getDoc(doc(db, "groups", groupId));
-            if (groupDoc.exists()) {
-              const gData = groupDoc.data();
-              groupInfo = {
-                id: groupId,
-                ...gData,
-                status: mData.status || "active",
-                active: gData.active !== false && gData.ativo !== false,
-                ativo: gData.ativo !== false && gData.active !== false,
-              } as Group;
-            } else {
-              // Group doc doesn't exist anymore - we ignore it to solve the "still showing" issue
-              console.log(
-                `Group ${groupId} deleted in Firestore, ignoring membership.`,
-              );
-              continue;
-            }
-          } catch (e) {
-            console.warn(`Failed to fetch group ${groupId}, ignoring...`, e);
-            continue;
-          }
+    setInvites((prev) => {
+      const existingIds = new Set(pendingList.map((p) => p.id));
+      const emailOnly = prev.filter((p) => !existingIds.has(p.id));
+      return [...pendingList, ...emailOnly];
+    });
 
-          if (groupInfo) {
-            if (groupInfo.status === "active") {
-              activeGroupsData.push(groupInfo);
-            } else if (groupInfo.status === "pending") {
-              pendingGroupsData.push(groupInfo);
-            }
-          }
-        }
-
-        if (!isSubscribed) return;
-
-        setGroups((prev) => {
-          if (JSON.stringify(prev) === JSON.stringify(activeGroupsData))
-            return prev;
-          return activeGroupsData;
-        });
-
-        setInvites((prev) => {
-          const existingIds = new Set(pendingGroupsData.map((p) => p.id));
-          const emailOnly = prev.filter((p) => !existingIds.has(p.id));
-          const next = [...pendingGroupsData, ...emailOnly];
-          if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-          return next;
-        });
-
-        // Restore active group
-        const savedGroupId = safeLocalStorage.getItem("activeGroupId");
-        const found = activeGroupsData.find((g) => g.id === savedGroupId);
-        if (found) {
-          setActiveGroup((prev) => (prev?.id === found.id ? prev : found));
-        } else if (activeGroupsData.length > 0) {
-          // If the group we were on is gone or we don't have one, pick the first valid one
-          if (
-            !activeGroup ||
-            !activeGroupsData.find((g) => g.id === activeGroup.id)
-          ) {
-            setActiveGroup(activeGroupsData[0]);
-            safeLocalStorage.setItem("activeGroupId", activeGroupsData[0].id);
-          }
-        } else {
-          setActiveGroup(null);
-          safeLocalStorage.setItem("activeGroupId", "");
-        }
-        setLoading(false);
-      } catch (err) {
-        console.error("Error processing memberships details", err);
-        if (isSubscribed) setLoading(false);
+    // Restore active group
+    const savedGroupId = safeLocalStorage.getItem("activeGroupId");
+    const found = activeList.find((g) => g.id === savedGroupId);
+    
+    if (found) {
+      setActiveGroup((prev) => (prev?.id === found.id ? prev : found));
+    } else if (activeList.length > 0) {
+      // If the group we were on is gone or we don't have one, pick the first valid one
+      if (
+        !activeGroup ||
+        !activeList.find((g) => g.id === activeGroup.id)
+      ) {
+        setActiveGroup(activeList[0]);
+        safeLocalStorage.setItem("activeGroupId", activeList[0].id);
       }
-    };
-
-    fetchDetailedGroups();
-
-    return () => {
-      isSubscribed = false;
-    };
+    } else {
+      setActiveGroup(null);
+      safeLocalStorage.setItem("activeGroupId", "");
+    }
+    
+    setLoading(false);
   }, [rawMemberships]);
 
   const setActiveGroupId = (id: string) => {

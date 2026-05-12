@@ -282,6 +282,7 @@ export function GoogleAgenda() {
 
       if (res.ok) {
         setIsModalOpen(false);
+        setEditingEvent(null);
         fetchEvents();
       }
     } catch (err) {
