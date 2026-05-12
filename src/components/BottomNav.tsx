@@ -62,7 +62,10 @@ export function BottomNav({
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 lg:left-64 right-0 z-[60] px-4 pb-4">
+    <div 
+      style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+      className="fixed bottom-0 left-0 lg:left-64 right-0 z-[60] px-4"
+    >
       <div className="relative h-16 sm:h-20 bg-white/95 backdrop-blur-3xl border border-gray-100 shadow-[0_20px_50px_rgba(37,99,235,0.15)] rounded-[28px] sm:rounded-3xl overflow-hidden flex items-center justify-around px-2">
         {tabs.map((tab, idx) => {
           const isActive = currentView === tab.id;

@@ -216,33 +216,38 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Top Header - Both Mobile and Desktop */}
-      <header className={`fixed top-0 left-0 lg:left-64 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-center px-4 z-40 ${isFullscreen ? 'hidden' : ''}`}>
-        {/* Left Toggle - Mobile Only */}
-        <div className="absolute left-4 flex items-center lg:hidden">
-          <button 
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
-          >
-            <Menu size={24} />
-          </button>
-        </div>
-
-        {/* Centered Logo */}
-        <div className="flex items-center gap-2 pointer-events-none">
-          <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
-            <Stethoscope size={14} />
+      <header 
+        style={{ height: 'calc(4rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
+        className={`fixed top-0 left-0 lg:left-64 right-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-40 ${isFullscreen ? 'hidden' : ''}`}
+      >
+        <div className="h-full w-full flex items-center justify-center px-4 relative">
+          {/* Left Toggle - Mobile Only */}
+          <div className="absolute left-4 flex items-center lg:hidden">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
+            >
+              <Menu size={24} />
+            </button>
           </div>
-          <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Doctor Pro</span>
-        </div>
 
-        <div className="absolute right-4 flex items-center gap-2">
-          <button 
-            onClick={() => setIsMobileGroupsOpen(true)}
-            className="p-2 text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1"
-          >
-            <Users size={20} />
-            {activeGroup && <div className="w-1.5 h-1.5 bg-blue-50 rounded-full"></div>}
-          </button>
+          {/* Centered Logo */}
+          <div className="flex items-center gap-2 pointer-events-none">
+            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
+              <Stethoscope size={14} />
+            </div>
+            <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Doctor Pro</span>
+          </div>
+
+          <div className="absolute right-4 flex items-center gap-2">
+            <button 
+              onClick={() => setIsMobileGroupsOpen(true)}
+              className="p-2 text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1"
+            >
+              <Users size={20} />
+              {activeGroup && <div className="w-1.5 h-1.5 bg-blue-50 rounded-full"></div>}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -262,6 +267,7 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              style={{ paddingTop: 'env(safe-area-inset-top)' }}
               className="fixed left-0 top-0 bottom-0 w-72 bg-white z-[70] flex flex-col p-6 lg:hidden"
             >
               <div className="flex items-center justify-between mb-10">
@@ -350,6 +356,7 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              style={{ paddingTop: 'env(safe-area-inset-top)' }}
               className="fixed right-0 top-0 bottom-0 w-[85%] max-w-sm bg-white z-[70] flex flex-col overflow-y-auto lg:hidden"
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
@@ -393,7 +400,10 @@ export default function App() {
       </AnimatePresence>
 
       {/* Sidebar - Desktop Only */}
-      <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-50">
+      <aside 
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-50"
+      >
         <div className="flex items-center justify-between mb-10 px-2">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
@@ -481,7 +491,10 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`lg:pl-64 flex flex-col pt-16 pb-28 sm:pb-32 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}>
+      <main 
+        style={{ paddingTop: 'calc(4rem + env(safe-area-inset-top))' }}
+        className={`lg:pl-64 flex flex-col pb-28 sm:pb-32 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}
+      >
         
         {/* Global Modals (Settings, Security, Profile) */}
         <AnimatePresence>
