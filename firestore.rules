@@ -16,21 +16,33 @@ service cloud.firestore {
     function existing() {
       return resource.data;
     }
+    function isValidId(id) {
+       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
     function isMember(groupId) {
+      let memberDoc = /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
+      let groupDoc = /databases/$(database)/documents/groups/$(groupId);
       return isSignedIn() && (
-        (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-         (get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "active" ||
-          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "conectado")) ||
-        (exists(/databases/$(database)/documents/groups/$(groupId)) && 
-         get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid)
+        (exists(memberDoc) && (get(memberDoc).data.status == "active" || get(memberDoc).data.status == "conectado")) ||
+        (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid)
       );
     }
     function isOwner(groupId) {
+      let memberDoc = /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
       return isSignedIn() && 
-        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role == "owner" &&
-        (get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "active" ||
-         get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == "conectado");
+        exists(memberDoc) &&
+        get(memberDoc).data.role == "owner" &&
+        (get(memberDoc).data.status == "active" || get(memberDoc).data.status == "conectado");
+    }
+
+    // Entity Validations
+    function isValidShoppingItem(data) {
+      return data.keys().hasAll(['name', 'checked']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.checked is bool &&
+             (data.get('updatedBy', null) == null || data.updatedBy == request.auth.uid) &&
+             (data.get('addedBy', null) == null || data.addedBy is string);
     }
 
     // User profiles
@@ -74,6 +86,13 @@ service cloud.firestore {
       
       match /calendario/{eventId} {
         allow read, write: if isMember(groupId);
+      }
+
+      match /shopping_list/{itemId} {
+        allow read: if isMember(groupId);
+        allow create: if isMember(groupId) && isValidShoppingItem(incoming()) && isValidId(itemId);
+        allow update: if isMember(groupId) && isValidShoppingItem(incoming());
+        allow delete: if isMember(groupId);
       }
     }
 

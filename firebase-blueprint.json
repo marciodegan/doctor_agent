@@ -230,6 +230,20 @@
         "active": { "type": "boolean" }
       },
       "required": ["name", "groupId"]
+    },
+    "ShoppingItem": {
+      "title": "Shopping Item",
+      "description": "Item in a shared shopping list",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "checked": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" },
+        "addedBy": { "type": "string" }
+      },
+      "required": ["id", "name", "checked"]
     }
   },
   "firestore": {
@@ -240,6 +254,10 @@
     "/groups/{groupId}/members/{memberId}": {
       "schema": "GroupMember",
       "description": "Group members and roles"
+    },
+    "/groups/{groupId}/shopping_list/{itemId}": {
+      "schema": "ShoppingItem",
+      "description": "Shared shopping list items"
     },
     "/procedureOptions/{optionId}": {
       "schema": "ProcedureOption",

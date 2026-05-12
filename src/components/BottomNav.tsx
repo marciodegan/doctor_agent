@@ -6,6 +6,7 @@ import {
   Users,
   Settings,
   FileText,
+  ShoppingCart,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGroup } from "../contexts/GroupContext";
@@ -24,10 +25,10 @@ export function BottomNav({
   const { activeGroup } = useGroup();
   const isPersonal = activeGroup?.groupType === "personal";
 
-  const tabs = [
+  const tabs: any[] = [
     {
       id: "workspace",
-      label: isPersonal ? "Documentos" : "Pacientes",
+      label: isPersonal ? "Doc" : "Pacientes",
       icon: isPersonal ? <FileText size={20} /> : <Users size={20} />,
       prompt: isPersonal ? "/drive" : "/pacientes",
     },
@@ -43,23 +44,33 @@ export function BottomNav({
       icon: <CalendarDays size={20} />,
       prompt: "/agenda",
     },
-    {
-      id: "management",
-      label: activeGroup?.name || "Equipe",
-      icon: activeGroup?.photoURL ? (
-        <img 
-          src={activeGroup.photoURL} 
-          className="w-7 h-7 rounded-xl object-cover border-2 border-white shadow-md"
-          alt="Group"
-        />
-      ) : (
-        <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
-          <Users size={18} />
-        </div>
-      ),
-      action: onOpenManagement,
-    },
   ];
+
+  if (isPersonal) {
+    tabs.push({
+      id: "shopping_list",
+      label: "Lista",
+      icon: <ShoppingCart size={20} />,
+      prompt: "/shopping_list",
+    });
+  }
+
+  tabs.push({
+    id: "management",
+    label: activeGroup?.name || "Equipe",
+    icon: activeGroup?.photoURL ? (
+      <img 
+        src={activeGroup.photoURL} 
+        className="w-7 h-7 rounded-xl object-cover border-2 border-white shadow-md"
+        alt="Group"
+      />
+    ) : (
+      <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
+        <Users size={18} />
+      </div>
+    ),
+    action: onOpenManagement,
+  });
 
   return (
     <div 

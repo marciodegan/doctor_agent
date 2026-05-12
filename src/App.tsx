@@ -45,6 +45,7 @@ import { BottomNav } from "./components/BottomNav";
 import { TeamManagement } from "./components/TeamManagement";
 import { PersonalDocuments } from "./components/PersonalDocuments";
 import { PatientLogs } from "./components/PatientLogs";
+import { ShoppingList } from "./components/ShoppingList";
 
 export default function App() {
   const { isAuthenticated, user, login, logout } = useAuth();
@@ -64,7 +65,7 @@ export default function App() {
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar" | "agenda" | "logs" | null>("agenda");
+  const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar" | "agenda" | "logs" | "shopping_list" | null>("agenda");
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
   const [activePatientName, setActivePatientName] = useState<string | null>(null);
   const [activePatientProcedure, setActivePatientProcedure] = useState<string | null>(null);
@@ -76,7 +77,7 @@ export default function App() {
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  const navigateAndAction = (view: "workspace" | "calendar" | "agenda" | "logs", command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string) => {
+  const navigateAndAction = (view: "workspace" | "calendar" | "agenda" | "logs" | "shopping_list", command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string) => {
     setCurrentView(view);
     setIsMobileMenuOpen(false);
     setActivePatientId(patientId || null);
@@ -646,6 +647,8 @@ export default function App() {
                         />
                       ) : currentView === "agenda" ? (
                         <GoogleAgenda />
+                      ) : currentView === "shopping_list" ? (
+                        <ShoppingList />
                       ) : currentView === "logs" && activePatientId ? (
                         <PatientLogs 
                           patientId={activePatientId} 
