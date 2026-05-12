@@ -74,8 +74,8 @@ interface GroupContextType {
   apiFetch: (url: string, init?: RequestInit) => Promise<Response>;
   isManagementOpen: boolean;
   setIsManagementOpen: (open: boolean) => void;
-  managementMode: "dashboard" | "members" | "configs";
-  setManagementMode: (mode: "dashboard" | "members" | "configs") => void;
+  managementMode: "dashboard" | "members" | "configs" | "shopping_config";
+  setManagementMode: (mode: "dashboard" | "members" | "configs" | "shopping_config") => void;
   configsActiveTab: string | null;
   setConfigsActiveTab: (tab: string | null) => void;
 }
@@ -96,7 +96,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [userWhatsapp, setUserWhatsapp] = useState("");
   const [imageAnalysisPrompt, setImageAnalysisPrompt] = useState("");
   const [isManagementOpen, setIsManagementOpen] = useState(false);
-  const [managementMode, setManagementMode] = useState<"dashboard" | "members" | "configs">("dashboard");
+  const [managementMode, setManagementMode] = useState<"dashboard" | "members" | "configs" | "shopping_config">("dashboard");
   const [configsActiveTab, setConfigsActiveTab] = useState<string | null>(null);
 
   const safeLocalStorage = {

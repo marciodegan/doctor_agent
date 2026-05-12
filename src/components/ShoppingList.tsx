@@ -10,7 +10,8 @@ import {
   RefreshCw,
   MoreVertical,
   ChevronUp,
-  X
+  X,
+  MessageCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGroup } from "../contexts/GroupContext";
@@ -178,6 +179,17 @@ export const ShoppingList: React.FC = () => {
     }
   };
 
+  const shareToWhatsApp = () => {
+    const checkedItems = items.filter(i => i.checked);
+    if (checkedItems.length === 0) return;
+
+    const title = `*🛒 Lista de Compras - ${activeGroup?.name || "Grupo"}*\n\n`;
+    const list = checkedItems.map(item => `✅ ${item.name}`).join('\n');
+    const message = encodeURIComponent(title + list);
+    
+    window.open(`https://wa.me/?text=${message}`, '_blank');
+  };
+
   const sortedItems = [...items]
     .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a, b) => {
@@ -227,17 +239,30 @@ export const ShoppingList: React.FC = () => {
                     </button>
                   </motion.div>
                 ) : (
-                  items.length > 0 && items.some(i => i.checked) && (
-                    <motion.button 
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      onClick={() => setShowClearConfirm(true)}
-                      className="p-2.5 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-colors"
-                      title="Limpar marcados"
-                    >
-                      <Trash2 size={18} />
-                    </motion.button>
-                  )
+                  <>
+                    {items.some(i => i.checked) && (
+                      <motion.button 
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={shareToWhatsApp}
+                        className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors"
+                        title="Compartilhar no WhatsApp"
+                      >
+                        <MessageCircle size={18} />
+                      </motion.button>
+                    )}
+                    {items.length > 0 && items.some(i => i.checked) && (
+                      <motion.button 
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={() => setShowClearConfirm(true)}
+                        className="p-2.5 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-colors"
+                        title="Limpar marcados"
+                      >
+                        <Trash2 size={18} />
+                      </motion.button>
+                    )}
+                  </>
                 )}
               </AnimatePresence>
               {items.length === 0 && !isLoading && (

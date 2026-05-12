@@ -15,10 +15,12 @@ import {
   ArrowLeft,
   Trash2,
   MessageCircle,
-  ExternalLink
+  ExternalLink,
+  ShoppingCart
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GroupConfigs } from "./GroupConfigs";
+import { ShoppingListConfig } from "./ShoppingListConfig";
 
 export function TeamManagement() {
   const { 
@@ -281,13 +283,31 @@ export function TeamManagement() {
                          <Settings size={80} />
                       </div>
                       <div className="p-4 bg-white text-emerald-600 rounded-[24px] shadow-lg group-hover:scale-110 transition-all">
-                        <Settings size={32} />
+                         <Settings size={32} />
                       </div>
                       <div className="text-center">
                         <h4 className="text-[15px] font-black uppercase tracking-tight mb-1">Configurações</h4>
                         <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:text-emerald-50">Ajustes do Grupo</p>
                       </div>
                     </button>
+
+                    {activeGroup.groupType === 'personal' && (
+                      <button 
+                        onClick={() => setManagementMode("shopping_config")}
+                        className="flex flex-col items-center justify-center gap-4 p-8 bg-orange-50/50 border-2 border-orange-100 rounded-[40px] hover:bg-orange-600 hover:text-white hover:border-orange-500 hover:shadow-2xl hover:shadow-orange-200 transition-all group relative overflow-hidden sm:col-span-2"
+                      >
+                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                           <ShoppingCart size={80} />
+                        </div>
+                        <div className="p-4 bg-white text-orange-600 rounded-[24px] shadow-lg group-hover:scale-110 transition-all">
+                          <ShoppingCart size={32} />
+                        </div>
+                        <div className="text-center">
+                          <h4 className="text-[15px] font-black uppercase tracking-tight mb-1">Lista de Compras</h4>
+                          <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:text-orange-50">Produtos & Categorias</p>
+                        </div>
+                      </button>
+                    )}
                  </div>
 
                  <div className="pt-8 border-t border-gray-100">
@@ -315,6 +335,22 @@ export function TeamManagement() {
                    </div>
                 </div>
                 <GroupConfigs />
+              </div>
+            ) : managementMode === "shopping_config" ? (
+              <div className="space-y-6">
+                <div className="flex items-center gap-4 mb-4">
+                   <button 
+                     onClick={() => setManagementMode("dashboard")}
+                     className="p-3 bg-gray-100 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-2xl transition-all"
+                   >
+                     <ArrowLeft size={20} />
+                   </button>
+                   <div>
+                      <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Configuração da Lista</h3>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Produtos Essenciais e Categorias</p>
+                   </div>
+                </div>
+                <ShoppingListConfig />
               </div>
             ) : (
               <div className="space-y-10">
