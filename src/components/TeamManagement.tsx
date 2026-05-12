@@ -13,7 +13,9 @@ import {
   UserPlus,
   X,
   ArrowLeft,
-  Trash2
+  Trash2,
+  MessageCircle,
+  ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GroupConfigs } from "./GroupConfigs";
@@ -34,6 +36,7 @@ export function TeamManagement() {
   } = useGroup();
   const { user } = useAuth();
   const [inviteEmail, setInviteEmail] = useState("");
+  const [lastInvitedEmail, setLastInvitedEmail] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState<string | null>(null);
   const [isUpdatingRole, setIsUpdatingRole] = useState<string | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<{ id: string, email: string, status: string } | null>(null);
@@ -93,6 +96,20 @@ export function TeamManagement() {
       </div>
 
       <div className="flex items-center gap-2">
+         {member.status === 'pending' && (
+           <button
+             onClick={() => {
+               const text = `Olá! Convidei você para participar do grupo "${activeGroup.name}" no sistema Doctor Pro. 🩺\n\nAcesse para aceitar o convite: ${window.location.origin}`;
+               const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+               window.open(url, '_blank');
+             }}
+             className="w-8 h-8 flex items-center justify-center bg-emerald-100 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl transition-all shrink-0"
+             title="Enviar convite por WhatsApp"
+           >
+             <MessageCircle size={14} />
+           </button>
+         )}
+
          {isOwner && member.userId && member.userId !== user?.uid && (member.status === 'active' || member.status === 'conectado') && (
            <button
              onClick={() => handleToggleAdmin(member.userId, member.role)}
@@ -141,9 +158,10 @@ export function TeamManagement() {
     if (!inviteEmail.trim() || !activeGroup) return;
     try {
       setError("");
-      await inviteUser(activeGroup.id, inviteEmail);
+      const email = inviteEmail.trim();
+      await inviteUser(activeGroup.id, email);
+      setLastInvitedEmail(email);
       setInviteEmail("");
-      alert("Convite enviado com sucesso!");
     } catch (err: any) {
       setError(err.message);
     }
@@ -330,7 +348,10 @@ export function TeamManagement() {
                     type="email"
                     placeholder="email@exemplo.com"
                     value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onChange={(e) => {
+                      setInviteEmail(e.target.value);
+                      if (lastInvitedEmail) setLastInvitedEmail(null);
+                    }}
                     className="w-full bg-white border border-gray-200 px-5 py-4 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                     required
                   />
@@ -340,6 +361,34 @@ export function TeamManagement() {
                   >
                     ENVIAR CONVITE
                   </button>
+
+                  <AnimatePresence>
+                    {lastInvitedEmail && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl space-y-3"
+                      >
+                        <div className="flex items-center gap-3 text-emerald-700">
+                          <Check size={18} />
+                          <span className="text-xs font-bold">Convite enviado para {lastInvitedEmail}!</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const text = `Olá! Convidei você para participar do grupo "${activeGroup.name}" no sistema Doctor Pro. 🩺\n\nAcesse para aceitar o convite: ${window.location.origin}`;
+                            const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+                            window.open(url, '_blank');
+                          }}
+                          className="w-full bg-emerald-600 text-white px-4 py-3 rounded-xl font-black text-xs hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg shadow-emerald-100"
+                        >
+                          <MessageCircle size={16} />
+                          Enviar por WhatsApp
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </form>
               ) : (
                 <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex items-center gap-3 text-amber-700">
