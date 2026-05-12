@@ -493,7 +493,7 @@ export default function App() {
       {/* Main Content */}
       <main 
         style={{ paddingTop: 'calc(3.25rem + env(safe-area-inset-top))' }}
-        className={`lg:pl-64 flex flex-col pb-16 sm:pb-20 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}
+        className={`lg:pl-64 flex flex-col pb-12 sm:pb-16 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}
       >
         
         {/* Global Modals (Settings, Security, Profile) */}

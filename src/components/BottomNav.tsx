@@ -63,10 +63,10 @@ export function BottomNav({
 
   return (
     <div 
-      style={{ paddingBottom: 'max(4px, env(safe-area-inset-bottom))' }}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       className="fixed bottom-0 left-0 lg:left-64 right-0 z-[60] bg-white border-t border-gray-100 shadow-[0_-1px_10px_rgba(0,0,0,0.02)]"
     >
-      <div className="h-12 sm:h-14 flex items-center justify-around px-2">
+      <div className="h-10 sm:h-12 flex items-center justify-around px-2">
         {tabs.map((tab, idx) => {
           const isActive = currentView === tab.id;
           const isEquipe = tab.id === "management";
