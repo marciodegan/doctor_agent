@@ -244,9 +244,26 @@
         "addedBy": { "type": "string" }
       },
       "required": ["id", "name", "checked"]
+    },
+    "Note": {
+      "title": "Personal Note",
+      "description": "User specific quick note",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "content"]
     }
   },
   "firestore": {
+    "/user_notes/{noteId}": {
+      "schema": "Note",
+      "description": "Personal user notes"
+    },
     "/groups/{groupId}": {
       "schema": "Group",
       "description": "Collaborative groups"

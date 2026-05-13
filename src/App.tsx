@@ -47,7 +47,7 @@ import { PersonalDocuments } from "./components/PersonalDocuments";
 import { PatientLogs } from "./components/PatientLogs";
 import { ShoppingList } from "./components/ShoppingList";
 
-type NavView = "workspace" | "pricing" | "calendar" | "agenda" | "logs" | "shopping_list";
+type NavView = "workspace" | "pricing" | "calendar" | "agenda" | "logs" | "shopping_list" | "notes";
 
 export default function App() {
   const { isAuthenticated, user, login, logout } = useAuth();
@@ -67,7 +67,7 @@ export default function App() {
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [currentView, setCurrentView] = useState<"workspace" | "pricing" | "calendar" | "agenda" | "logs" | "shopping_list" | null>("agenda");
+  const [currentView, setCurrentView] = useState<NavView | null>("agenda");
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
   const [activePatientName, setActivePatientName] = useState<string | null>(null);
   const [activePatientProcedure, setActivePatientProcedure] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export default function App() {
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  const navigateAndAction = (view: "workspace" | "pricing" | "calendar" | "agenda" | "logs" | "shopping_list", command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string, type?: string, sala?: string) => {
+  const navigateAndAction = (view: NavView, command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string, type?: string, sala?: string) => {
     setCurrentView(view);
     setIsMobileMenuOpen(false);
     setActivePatientId(patientId || null);
@@ -532,7 +532,11 @@ export default function App() {
                 animate={{ scale: 1, y: 0 }}
                 className="w-full max-w-sm"
               >
-                <Profile onHose={() => setShowProfile(false)} />
+                <Profile 
+                  onHose={() => setShowProfile(false)} 
+                  installPrompt={installPrompt}
+                  onInstall={handleInstall}
+                />
               </motion.div>
             </motion.div>
           )}
@@ -683,6 +687,13 @@ export default function App() {
                             setActivePatientHospitalId(null);
                           }}
                           onSchedule={(name, proc, hospId) => navigateAndAction("calendar", undefined, activePatientId!, name, proc, hospId)}
+                        />
+                      ) : currentView === "notes" ? (
+                        <Chat 
+                          onNavigateToCalendar={() => setCurrentView("calendar")} 
+                          onViewLogs={(pid) => navigateAndAction("logs", undefined, pid)}
+                          initialCommand={pendingCommand}
+                          onCommandExecuted={() => setPendingCommand(null)}
                         />
                       ) : activeGroup?.groupType === "personal" ? (
                         <PersonalDocuments />

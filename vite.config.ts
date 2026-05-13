@@ -12,6 +12,11 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        injectRegister: 'auto',
+        devOptions: {
+          enabled: true,
+          type: 'module'
+        },
         includeAssets: ['favicon.ico'],
         workbox: {
           navigateFallback: "/index.html",
@@ -22,8 +27,8 @@ export default defineConfig(({mode}) => {
         },
         manifest: {
           name: 'Doctor Agent',
-          short_name: 'Doctor Agent',
-          description: 'Seu assistente inteligente integrado ao Google Workspace.',
+          short_name: 'DrAgent',
+          description: 'Seu assistente inteligente integrado ao Google Workspace. Gerencie pacientes, calendário e documentos com segurança e automação.',
           theme_color: '#2563eb',
           background_color: '#ffffff',
           display: 'standalone',
@@ -31,13 +36,14 @@ export default defineConfig(({mode}) => {
           start_url: '/',
           icons: [
             {
-              src: 'https://placehold.co/192x192/2563eb/white?text=DP',
-              sizes: '192x192',
-              type: 'image/png'
+              src: 'https://cdn-icons-png.flaticon.com/512/3774/3774299.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any maskable'
             },
             {
-              src: 'https://placehold.co/512x512/2563eb/white?text=DP',
-              sizes: '512x512',
+              src: 'https://cdn-icons-png.flaticon.com/192/3774/3774299.png',
+              sizes: '192x192',
               type: 'image/png'
             }
           ]

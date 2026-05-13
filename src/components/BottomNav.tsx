@@ -7,6 +7,7 @@ import {
   Settings,
   FileText,
   ShoppingCart,
+  StickyNote,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGroup } from "../contexts/GroupContext";
@@ -43,6 +44,12 @@ export function BottomNav({
       label: "Agenda",
       icon: <CalendarDays size={20} />,
       prompt: "/agenda",
+    },
+    {
+      id: "notes",
+      label: "Notas",
+      icon: <StickyNote size={20} />,
+      prompt: "/notes",
     },
   ];
 

@@ -3,10 +3,10 @@ import { useAuth } from "../hooks/useAuth";
 import { useGroup } from "../contexts/GroupContext";
 import { db } from "../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import { Camera, Loader2, Check, User as UserIcon, X } from "lucide-react";
+import { Camera, Loader2, Check, User as UserIcon, X, Smartphone } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-export function Profile({ onHose }: { onHose?: () => void }) {
+export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => void, installPrompt?: any, onInstall?: () => void }) {
   const { user } = useAuth();
   const { updateProfile } = useGroup();
   const [displayName, setDisplayName] = useState("");
@@ -188,6 +188,17 @@ export function Profile({ onHose }: { onHose?: () => void }) {
             "SALVAR ALTERAÇÕES"
           )}
         </button>
+
+        {installPrompt && (
+          <button 
+            type="button"
+            onClick={onInstall}
+            className="w-full bg-green-50 text-green-700 font-bold py-3 rounded-2xl flex items-center justify-center gap-2 border border-green-100 hover:bg-green-100 transition-all active:scale-95 mt-4"
+          >
+            <Smartphone size={18} />
+            INSTALAR APLICATIVO
+          </button>
+        )}
       </form>
     </div>
   );
