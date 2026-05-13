@@ -211,7 +211,7 @@ export default function App() {
           <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
             <Layout size={32} />
           </div>
-          <p className="text-gray-400 font-medium tracking-tight">Initializing Doctor Pro...</p>
+          <p className="text-gray-400 font-medium tracking-tight">Initializing Doctor Agent...</p>
         </div>
       </div>
     );
@@ -233,7 +233,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-[100dvh] bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Top Header - Both Mobile and Desktop */}
       <header 
         style={{ height: 'calc(3.25rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
@@ -255,7 +255,7 @@ export default function App() {
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
               <Stethoscope size={14} />
             </div>
-            <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Doctor Pro</span>
+            <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Doctor Agent</span>
           </div>
 
           <div className="absolute right-4 flex items-center gap-2">
@@ -286,7 +286,7 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              style={{ paddingTop: 'env(safe-area-inset-top)' }}
+              style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
               className="fixed left-0 top-0 bottom-0 w-72 bg-white z-[70] flex flex-col p-6 lg:hidden"
             >
               <div className="flex items-center justify-between mb-10">
@@ -294,7 +294,7 @@ export default function App() {
                   <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
                     <Stethoscope size={18} />
                   </div>
-                  <h1 className="font-bold text-xl tracking-tight text-blue-600">Doctor Pro</h1>
+                  <h1 className="font-bold text-xl tracking-tight text-blue-600">Doctor Agent</h1>
                 </div>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-gray-400">
                   <X size={20} />
@@ -375,7 +375,7 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              style={{ paddingTop: 'env(safe-area-inset-top)' }}
+              style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
               className="fixed right-0 top-0 bottom-0 w-[85%] max-w-sm bg-white z-[70] flex flex-col overflow-y-auto lg:hidden"
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
@@ -401,7 +401,7 @@ export default function App() {
                       <Zap size={20} />
                     </div>
                   </div>
-                  <h4 className="font-bold text-sm mb-1">Doctor Pro Business</h4>
+                  <h4 className="font-bold text-sm mb-1">Doctor Agent Business</h4>
                   <p className="text-[10px] text-blue-50 mb-4 line-clamp-2">Acesso total a automações, IA avançada e relatórios personalizados.</p>
                   <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest">
                     <span>Assinar agora</span>
@@ -420,7 +420,7 @@ export default function App() {
 
       {/* Sidebar - Desktop Only */}
       <aside 
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
         className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-50"
       >
         <div className="flex items-center justify-between mb-10 px-2">
@@ -428,7 +428,7 @@ export default function App() {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
               <Stethoscope size={18} />
             </div>
-            <h1 className="font-bold text-xl tracking-tight text-blue-600 truncate max-w-[140px]">Doctor Pro</h1>
+            <h1 className="font-bold text-xl tracking-tight text-blue-600 truncate max-w-[140px]">Doctor Agent</h1>
           </div>
         </div>
 
@@ -511,8 +511,11 @@ export default function App() {
 
       {/* Main Content */}
       <main 
-        style={{ paddingTop: 'calc(3.25rem + env(safe-area-inset-top))' }}
-        className={`lg:pl-64 flex flex-col pb-20 sm:pb-24 ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}
+        style={{ 
+          paddingTop: 'calc(3.25rem + env(safe-area-inset-top))',
+          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))'
+        }}
+        className={`lg:pl-64 flex flex-col ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}
       >
         
         {/* Global Modals (Settings, Security, Profile) */}
@@ -619,7 +622,7 @@ export default function App() {
                   <span className="text-blue-600">Simpler Than Ever.</span>
                 </h1>
                 <p className="text-gray-500 text-lg max-w-md mx-auto">
-                  Connect your Google account to let Doctor Pro Agent manage your schedule, documents, and tasks with AI.
+                  Connect your Google account to let Doctor Agent manage your schedule, documents, and tasks with AI.
                 </p>
               </motion.div>
 

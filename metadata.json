@@ -1,5 +1,5 @@
 {
-  "name": "Doctor Pro",
+  "name": "Doctor Agent",
   "description": "Seu assistente inteligente integrado ao Google Workspace. Gerencie pacientes, calendário e documentos com segurança e automação.",
   "requestFramePermissions": [
     "camera"

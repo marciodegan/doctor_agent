@@ -94,7 +94,7 @@ export function Pricing({ onBack }: PricingProps) {
           className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-xs font-bold tracking-tight uppercase border border-blue-100 mb-4"
         >
           <Sparkles size={12} />
-          Doctor Pro
+          Doctor Agent
         </motion.div>
         <motion.h2 
           initial={{ opacity: 0, y: 20 }}
@@ -111,7 +111,7 @@ export function Pricing({ onBack }: PricingProps) {
           transition={{ delay: 0.2 }}
           className="text-gray-500 text-lg max-w-2xl mx-auto"
         >
-          Elimine tarefas manuais e escale sua operação com o Doctor Pro Agent. 
+          Elimine tarefas manuais e escale sua operação com o Doctor Agent. 
           Gerenciamento ilimitado e insights automáticos.
         </motion.p>
       </div>
@@ -128,7 +128,7 @@ export function Pricing({ onBack }: PricingProps) {
           </div>
 
           <div className="mb-10 text-center">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Doctor Pro Agent</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Doctor Agent</h3>
             <div className="flex items-baseline justify-center gap-1">
               <span className="text-gray-400 text-lg font-medium">R$</span>
               <span className="text-6xl font-black text-gray-900 tracking-tighter">149</span>
@@ -157,7 +157,7 @@ export function Pricing({ onBack }: PricingProps) {
               ) : (
                 <>
                   <Zap size={20} className="fill-white" />
-                  {isAuthenticated ? "Começar agora com Doctor Pro" : "Conectar Google e Assinar"}
+                  {isAuthenticated ? "Começar agora com Doctor Agent" : "Conectar Google e Assinar"}
                 </>
               )}
             </button>

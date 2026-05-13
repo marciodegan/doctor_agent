@@ -325,7 +325,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
     res.send(`
       <html>
         <head>
-          <title>Autenticação Doctor Pro</title>
+          <title>Autenticação Doctor Agent</title>
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f3f4f6; color: #111827; }
@@ -378,7 +378,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
                 
                 if (count >= 15) {
                   clearInterval(interval);
-                  document.getElementById('content').innerHTML = "<h2>Login Pronto</h2><p>Pode fechar esta janela e voltar ao Doctor Pro.</p>";
+                  document.getElementById('content').innerHTML = "<h2>Login Pronto</h2><p>Pode fechar esta janela e voltar ao Doctor Agent.</p>";
                   document.getElementById('debug-status').innerText = "Processo finalizado.";
                 }
               }, 1000);
@@ -729,7 +729,7 @@ app.get("/api/app/settings", async (req, res) => {
     const data = doc.data() || {};
 
     res.json({
-      companyName: data.companyName || "Doctor Pro",
+      companyName: data.companyName || "Doctor Agent",
       whatsappNumber: data.whatsappNumber || "",
       imageAnalysisPrompt: data.imageAnalysisPrompt || "Aja como um médico experiente em cirurgia cardíaca e descreva esta imagem médica indicando possíveis achados e soluções ideais."
     });

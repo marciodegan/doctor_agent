@@ -1781,7 +1781,7 @@ export const Chat: React.FC<{
 
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: "🤖 **Doctor Pro Shortcuts (Zero Tokens):**\n\n" +
+          text: "🤖 **Doctor Agent Shortcuts (Zero Tokens):**\n\n" +
                 "- `/pacientes`: Lista todos os pacientes (Banco Compartilhado).\n" +
                 "- `/buscar [NOME]`: Busca paciente por nome.\n" +
                 "- `/p [ID]`: Relatório rápido (ex: `/p 2`).\n" +

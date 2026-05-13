@@ -8,6 +8,7 @@
     overflow: auto;
     overflow-x: hidden;
     overscroll-behavior: none;
+    background-color: #FDFDFD;
   }
 
   .markdown-body {

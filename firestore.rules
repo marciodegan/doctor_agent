@@ -142,6 +142,13 @@ service cloud.firestore {
       allow delete: if isMember(resource.data.groupId);
     }
 
+    match /image_types/{typeId} {
+      allow read: if isMember(resource.data.groupId);
+      allow create: if isMember(request.resource.data.groupId);
+      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
+      allow delete: if isMember(resource.data.groupId);
+    }
+
     // Entities linked by groupId
     match /patients/{patientId} {
       allow read: if isMember(existing().groupId);

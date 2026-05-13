@@ -21,8 +21,8 @@ export default defineConfig(({mode}) => {
           ],
         },
         manifest: {
-          name: 'Doctor Pro',
-          short_name: 'Doctor Pro',
+          name: 'Doctor Agent',
+          short_name: 'Doctor Agent',
           description: 'Seu assistente inteligente integrado ao Google Workspace.',
           theme_color: '#2563eb',
           background_color: '#ffffff',

@@ -103,7 +103,7 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
           <Users size={32} />
         </div>
         <h2 className="text-2xl font-black text-gray-900 text-center mb-2">
-          Bem-vindo ao Doctor Pro!
+          Bem-vindo ao Doctor Agent!
         </h2>
         <p className="text-gray-500 text-center mb-8">
           Para começar, crie o seu primeiro grupo de trabalho.
