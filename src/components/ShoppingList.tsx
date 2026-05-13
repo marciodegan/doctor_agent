@@ -475,9 +475,14 @@ export const ShoppingList: React.FC = () => {
                             </button>
         
                             <div 
-                              className="flex-1 cursor-pointer"
+                              className="flex-1 cursor-pointer flex items-center gap-2"
                               onClick={() => handleToggleItem(item)}
                             >
+                              {!item.checked && item.category && CATEGORY_LABELS[item.category] && (
+                                <span className="text-xs grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all">
+                                  {CATEGORY_LABELS[item.category].icon}
+                                </span>
+                              )}
                               <span className={`text-[15px] font-bold tracking-tight transition-all ${
                                 item.checked ? "text-emerald-900" : "text-slate-700"
                               }`}>

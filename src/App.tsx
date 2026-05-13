@@ -47,6 +47,8 @@ import { PersonalDocuments } from "./components/PersonalDocuments";
 import { PatientLogs } from "./components/PatientLogs";
 import { ShoppingList } from "./components/ShoppingList";
 
+type NavView = "workspace" | "pricing" | "calendar" | "agenda" | "logs" | "shopping_list";
+
 export default function App() {
   const { isAuthenticated, user, login, logout } = useAuth();
   const { 
@@ -79,7 +81,7 @@ export default function App() {
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  const navigateAndAction = (view: NavView, command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string, type?: string, sala?: string) => {
+  const navigateAndAction = (view: "workspace" | "pricing" | "calendar" | "agenda" | "logs" | "shopping_list", command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string, type?: string, sala?: string) => {
     setCurrentView(view);
     setIsMobileMenuOpen(false);
     setActivePatientId(patientId || null);

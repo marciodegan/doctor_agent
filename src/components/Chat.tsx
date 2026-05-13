@@ -33,6 +33,7 @@ interface Message {
     hospitalNome?: string;
     roomNumber?: string;
     surgery_type?: string;
+    procedure?: string;
   };
   form?: {
     title?: string;
@@ -77,28 +78,8 @@ const MessageForm: React.FC<{
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
       reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 800;
-          const MAX_HEIGHT = 800;
-          let width = img.width;
-          let height = img.height;
-          if (width > height) {
-            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-          } else {
-            if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL("image/jpeg", 0.7));
-        };
-      };
     });
   };
 
@@ -472,35 +453,8 @@ export const Chat: React.FC<{
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
       reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 800; // Resize to save tokens
-          const MAX_HEIGHT = 800;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL("image/jpeg", 0.7)); // Compress to 70% JPEG
-        };
-      };
     });
   };
 
@@ -820,44 +774,45 @@ export const Chat: React.FC<{
         if (k && v) parts[k.toLowerCase()] = v;
       });
 
-      const evento = parts.evento || "";
-      const dataStr = parts.data || "";
-      const hora = parts.hora || "";
-      const categoria = parts.categoria || "";
-      const sala = parts.sala || "";
-      const hospName = parts.hospitalid || ""; // form fields use names as values for selects often, but let's check
+    const evento = parts.evento || "";
+    const dataStr = parts.data || "";
+    const hora = parts.hora || "";
+    const tipo = parts.tipo || parts.categoria || "";
+    const sala = parts.sala || "";
+    const descricao = parts.descricao || parts.observações || "";
+    const hospName = parts.hospitalid || "";
+    
+    const selectedHospital = hospitalOptions.find(h => h.nome === hospName || h.id === hospName);
+    const hostIdResolved = selectedHospital ? selectedHospital.id : "";
+
+    const pid = parts.pid || "";
+
+    if (!evento || !dataStr || !hora) {
+      setMessages(prev => [...prev, { role: "model", text: "❌ Dados incompletos para o calendário." }]);
+      return true;
+    }
+
+    setIsLoading(true);
+    try {
+      if (!auth.currentUser) throw new Error("Usuário não autenticado");
+
+      const GROUP_ID = activeGroup?.id || "main-group";
+      const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
       
-      const selectedHospital = hospitalOptions.find(h => h.nome === hospName || h.id === hospName);
-      const hostIdResolved = selectedHospital ? selectedHospital.id : "";
-
-      const pid = parts.pid || "";
-
-      if (!evento || !dataStr || !hora) {
-        setMessages(prev => [...prev, { role: "model", text: "❌ Dados incompletos para o calendário." }]);
-        return true;
-      }
-
-      setIsLoading(true);
-      try {
-        if (!auth.currentUser) throw new Error("Usuário não autenticado");
-
-        const GROUP_ID = activeGroup?.id || "main-group";
-        const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
-        
-        await addDoc(eventsRef, {
-          evento,
-          data: dataStr,
-          hora,
-          tipo: categoria,
-          sala,
-          descricao: `Categoria: ${categoria}, Sala: ${sala}`,
-          groupId: GROUP_ID,
-          patientId: pid,
-          hospitalId: hostIdResolved,
-          createdBy: auth.currentUser.uid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
+      await addDoc(eventsRef, {
+        evento,
+        data: dataStr,
+        hora,
+        tipo: tipo,
+        sala,
+        descricao: descricao || `Categoria: ${tipo}, Sala: ${sala}`,
+        groupId: GROUP_ID,
+        patientId: pid,
+        hospitalId: hostIdResolved,
+        createdBy: auth.currentUser.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
 
         if (pid) {
           setMessages([]);
@@ -865,7 +820,7 @@ export const Chat: React.FC<{
         } else {
           setMessages(prev => [...prev, { 
             role: "model", 
-            text: `✅ **Evento adicionado ao Calendário!**\n\n📅 **${evento}**\n🕒 ${dataStr} às ${hora}\n📍 ${sala} (${categoria})` 
+            text: `✅ **Evento adicionado ao Calendário!**\n\n📅 **${evento}**\n🕒 ${dataStr} às ${hora}\n📍 ${sala} (${tipo})` 
           }]);
         }
       } catch (err: any) {
@@ -924,42 +879,42 @@ export const Chat: React.FC<{
           hospitalName: hospName,
           roomNumber: roomNumber,
           fields: [
+            { label: "NOME DO PACIENTE", name: "nomePaciente", type: "text", defaultValue: patientName },
             { 
-              label: "Evento / Descrição", 
+              label: "PROCEDIMENTO", 
               name: "evento", 
               type: "text", 
-              placeholder: "Ex: Cirurgia de Quadril", 
+              placeholder: "Ex: Cirurgia Geral, Estética...", 
               defaultValue: procedure || (patientName ? `Cirurgia - ${patientName}` : ""),
               // @ts-ignore
               suggestions: procedureOptions
             },
+            { label: "DATA DA CIRURGIA", name: "data", type: "date", defaultValue: hojeStrIso },
+            { label: "HORÁRIO", name: "hora", type: "time", defaultValue: agoraStr },
             { 
-              label: "Hospital", 
-              name: "hospitalId", 
-              type: "select", 
-              options: hospitalOptions.map(h => h.nome),
-              defaultValue: hospName
-            },
-            // @ts-ignore
-            { 
-              label: "Categoria", 
-              name: "categoria", 
+              label: "TIPO", 
+              name: "tipo", 
               type: "select", 
               options: ["ELETIVA", "URGÊNCIA"], 
               defaultValue: surgeryType.toUpperCase() || "ELETIVA" 
             },
             { 
-              label: "Sala", 
+              label: "HOSPITAL / CLÍNICA", 
+              name: "hospitalId", 
+              type: "select", 
+              options: hospitalOptions.map(h => h.nome),
+              defaultValue: hospName
+            },
+            { 
+              label: "SALA / UNIDADE", 
               name: "sala", 
               type: "select", 
               options: ["SALA 1", "SALA 2", "SALA 3", "SALA 4", "SALA 5"], 
               defaultValue: roomNumber.toUpperCase().startsWith("SALA") ? roomNumber.toUpperCase() : "SALA 1" 
             },
-            { label: "Data", name: "data", type: "date", defaultValue: hojeStrIso },
-            { label: "Horário", name: "hora", type: "time", defaultValue: agoraStr },
-            { label: "Nome do Paciente", name: "nomePaciente", type: "text", defaultValue: patientName }
+            { label: "OBSERVAÇÕES ADICIONAIS", name: "descricao", type: "textarea", placeholder: "Alguma recomendação?" }
           ],
-          submitLabel: "Adicionar ao Calendário",
+          submitLabel: "Agendar Procedimento",
           commandPrefix: pid ? `/calendario_add pid: ${pid},` : "/calendario_add",
           backCommand: pid ? `/p ${pid}` : undefined
         }
