@@ -410,10 +410,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
     // 3. Filter and Sort Active Groups
     const activeList = combinedGroupsList
-      .filter((g) => g.status === "active" || g.status === "removed")
+      .filter((g) => g.status === "active")
       .sort((a, b) => {
-        if (a.status === "active" && b.status === "removed") return -1;
-        if (a.status === "removed" && b.status === "active") return 1;
         return a.name.localeCompare(b.name);
       });
 
@@ -434,24 +432,29 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
     setInvites(Array.from(invitesMap.values()));
 
-    // 5. Restore active group
+    // 5. Restore active group or handle removal
     const savedGroupId = safeLocalStorage.getItem("activeGroupId");
-    const found = activeList.find((g) => g.id === savedGroupId);
     
-    if (found) {
-      setActiveGroup((prev) => (prev?.id === found.id ? prev : found));
+    // Explicitly check if current user is still active in the group
+    const activeMemberRecord = combinedGroupsList.find(g => g.id === activeGroup?.id);
+    const isStillActiveInCurrent = activeMemberRecord && activeMemberRecord.status === "active";
+
+    const foundInActiveList = activeList.find((g) => g.id === savedGroupId);
+    
+    if (foundInActiveList && isStillActiveInCurrent) {
+      setActiveGroup((prev) => (prev?.id === foundInActiveList.id ? prev : foundInActiveList));
     } else if (activeList.length > 0) {
-      if (!activeGroup || !activeList.find((g) => g.id === activeGroup.id)) {
-        setActiveGroup(activeList[0]);
-        safeLocalStorage.setItem("activeGroupId", activeList[0].id);
-      }
+      // If we are currently in a group that was removed or doesn't exist in activeList anymore
+      const firstActive = activeList[0];
+      setActiveGroup(firstActive);
+      safeLocalStorage.setItem("activeGroupId", firstActive.id);
     } else {
       setActiveGroup(null);
       safeLocalStorage.setItem("activeGroupId", "");
     }
     
     setLoading(false);
-  }, [rawMemberships, ownedGroups, emailInvites]);
+  }, [rawMemberships, ownedGroups, emailInvites, user?.uid]); // Added user?.uid to dependencies for safety
 
   const setActiveGroupId = (id: string) => {
     safeLocalStorage.setItem("activeGroupId", id);

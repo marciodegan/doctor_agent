@@ -36,7 +36,7 @@ export const PRESET_CATEGORIES = [
     label: "Padaria",
     icon: "🥖",
     items: [
-      "pão francês", "pão de forma", "pão integral", "pão de queijo", "pão docente", "bolo", "torrada", 
+      "pão francês", "pão de forma", "pão integral", "pão de queijo", "pão doce", "bolo", "torrada", 
       "biscoito salgado", "croissant", "massa de pastel", "massa de pizza"
     ]
   },
@@ -53,7 +53,7 @@ export const PRESET_CATEGORIES = [
   },
   {
     id: "seasoning",
-    label: "Temperos",
+    label: "Temperos e Condimentos",
     icon: "🧂",
     items: [
       "pimenta do reino", "páprica", "orégano", "cominho", "curry", "açafrão", "canela", "noz-moscada", 
@@ -71,7 +71,7 @@ export const PRESET_CATEGORIES = [
   },
   {
     id: "sweets",
-    label: "Doces",
+    label: "Doces e Sobremesas",
     icon: "🍩",
     items: [
       "chocolate", "barra de chocolate", "bombom", "bala", "chiclete", "doce de leite", "goiabada", "paçoca", 
@@ -81,7 +81,7 @@ export const PRESET_CATEGORIES = [
   },
   {
     id: "snacks",
-    label: "Snacks",
+    label: "Snacks e Biscoitos",
     icon: "🍪",
     items: [
       "bolacha recheada", "biscoito doce", "biscoito salgado", "salgadinho", "batata chips", "pipoca", 
@@ -99,7 +99,7 @@ export const PRESET_CATEGORIES = [
   },
   {
     id: "hygiene",
-    label: "Higiene",
+    label: "Higiene Pessoal",
     icon: "🧴",
     items: [
       "sabonete", "shampoo", "condicionador", "desodorante", "papel higiênico", "absorvente", "algodão", 
@@ -118,7 +118,7 @@ export const PRESET_CATEGORIES = [
   },
   {
     id: "cleaning",
-    label: "Limpeza",
+    label: "Limpeza da Casa",
     icon: "🧹",
     items: [
       "amaciante", "sabão em pó", "sabão líquido", "detergente", "desinfetante", "água sanitária", 
@@ -128,7 +128,7 @@ export const PRESET_CATEGORIES = [
   },
   {
     id: "utensils",
-    label: "Utensílios",
+    label: "Utensílios e Descartáveis",
     icon: "🍴",
     items: [
       "papel toalha", "guardanapo", "papel alumínio", "filme plástico", "saco de lixo", "esponja", 
@@ -172,15 +172,15 @@ export const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = 
   dairy: { label: "Laticínios e Frios", icon: "🧀" },
   bakery: { label: "Padaria", icon: "🥖" },
   pantry: { label: "Mercearia", icon: "🥫" },
-  seasoning: { label: "Temperos", icon: "🧂" },
+  seasoning: { label: "Temperos e Condimentos", icon: "🧂" },
   drinks: { label: "Bebidas", icon: "🥤" },
-  sweets: { label: "Doces", icon: "🍩" },
-  snacks: { label: "Snacks", icon: "🍪" },
+  sweets: { label: "Doces e Sobremesas", icon: "🍩" },
+  snacks: { label: "Snacks e Biscoitos", icon: "🍪" },
   frozen: { label: "Congelados", icon: "❄️" },
-  hygiene: { label: "Higiene", icon: "🧴" },
+  hygiene: { label: "Higiene Pessoal", icon: "🧴" },
   oral: { label: "Higiene Bucal", icon: "🪥" },
-  cleaning: { label: "Limpeza", icon: "🧹" },
-  utensils: { label: "Utensílios", icon: "🍴" },
+  cleaning: { label: "Limpeza da Casa", icon: "🧹" },
+  utensils: { label: "Utensílios e Descartáveis", icon: "🍴" },
   pet: { label: "Pet Shop", icon: "🐶" },
   baby: { label: "Bebê", icon: "🍼" },
   others: { label: "Outros", icon: "📦" }

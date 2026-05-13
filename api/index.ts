@@ -231,6 +231,71 @@ const getGroupId = (req: express.Request) => {
   return req.headers["x-group-id"]?.toString() || null;
 };
 
+// Cache for user ID to avoid redundant userinfo.get() calls
+const userIdCache = new Map<string, { id: string; expires: number }>();
+
+const getUserId = async (req: express.Request) => {
+  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME];
+  if (!token) return null;
+  
+  // Hash the token for cache key
+  const cacheKey = JSON.stringify(token);
+  const cached = userIdCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    return cached.id;
+  }
+
+  const authClient = getAuthClient(req);
+  if (!authClient) return null;
+  try {
+    const oauth2 = google.oauth2({ version: "v2", auth: authClient });
+    const userRes = await oauth2.userinfo.get();
+    const id = userRes.data.id;
+    if (id) {
+      userIdCache.set(cacheKey, { id, expires: Date.now() + 5 * 60 * 1000 }); // 5 min cache
+      return id;
+    }
+    return null;
+  } catch (e) {
+    console.error("[API] Error getting user ID:", e);
+    return null;
+  }
+};
+
+const verifyMembership = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    const groupId = getGroupId(req);
+    if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+    
+    const userId = await getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    // 1. Check member document
+    const memberDoc = await db.collection("groups").doc(groupId).collection("members").doc(userId).get();
+    
+    if (memberDoc.exists) {
+      const status = memberDoc.data()?.status;
+      if (status === "active" || status === "conectado") {
+        return next();
+      }
+      console.warn(`[API] Access denied for user ${userId} in group ${groupId}: status is ${status}`);
+      return res.status(403).json({ error: "Access denied: membership is not active" });
+    }
+
+    // 2. Fallback: check if user is creator
+    const groupDoc = await db.collection("groups").doc(groupId).get();
+    if (groupDoc.exists && groupDoc.data()?.createdBy === userId) {
+      return next();
+    }
+
+    console.warn(`[API] Access denied for user ${userId} in group ${groupId}: not a member`);
+    res.status(403).json({ error: "Access denied: you are not a member of this group" });
+  } catch (err: any) {
+    console.error("[API] Membership verification error:", err);
+    res.status(500).json({ error: "Failed to verify membership" });
+  }
+};
+
 // --- Auth Routes ---
 app.get("/api/ping", (req, res) => {
   res.json({ 
@@ -523,6 +588,8 @@ app.post("/api/auth/logout", (req, res) => {
   res.json({ success: true });
 });
 
+app.use("/api/app", verifyMembership);
+
 // --- Direct App Shortcuts (To save tokens/LLM calls) ---
 
 // --- Firestore Data Operations ---
@@ -561,7 +628,10 @@ app.get("/api/app/patient-contacts/:patientId", async (req, res) => {
       return res.status(403).json({ error: "Unauthorized group access to this patient" });
     }
 
-    const snap = await db.collection("patients_contacts").where("patientId", "==", patientId).get();
+    const snap = await db.collection("patients_contacts")
+      .where("patientId", "==", patientId)
+      .where("status", "!=", "removed")
+      .get();
     const contacts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.json(contacts);
   } catch (error) {
@@ -906,26 +976,30 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       });
 
     // Process Clinical Logs (patient_logs)
-    report.audios = logsSnap.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        conteudo: data.text,
-        tipo: data.type || "texto",
-        data: data.createdAt ? data.createdAt.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "Recent"
-      };
-    });
+    report.audios = logsSnap.docs
+      .filter(doc => doc.data().status !== "removed")
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          conteudo: data.text,
+          tipo: data.type || "texto",
+          data: data.createdAt ? data.createdAt.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "Recent"
+        };
+      });
 
     // Process Family Members
-    report.familiares = contactsSnap.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        nome: data.name,
-        relacao: data.relationship,
-        fone: data.phone
-      };
-    });
+    report.familiares = contactsSnap.docs
+      .filter(doc => doc.data().status !== "removed")
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          nome: data.name,
+          relacao: data.relationship,
+          fone: data.phone
+        };
+      });
 
     res.json(report);
   } catch (error) {
@@ -1386,6 +1460,108 @@ app.post("/api/app/files/remove", express.json(), async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     handleApiError(res, error, "Removing file");
+  }
+});
+
+// Update patient log
+app.post("/api/app/patient-logs/update", express.json(), async (req, res) => {
+  const { logId, text } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  if (!logId || !text) return res.status(400).json({ error: "ID e texto são obrigatórios." });
+
+  try {
+    const logRef = db.collection("patient_logs").doc(logId);
+    const logDoc = await logRef.get();
+    if (!logDoc.exists) return res.status(404).json({ error: "Informação não encontrada." });
+    if (logDoc.data()?.groupId !== groupId) return res.status(403).json({ error: "Unauthorized group access" });
+
+    await logRef.update({
+      text,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    res.json({ success: true });
+  } catch (error) {
+    handleApiError(res, error, "Updating patient log");
+  }
+});
+
+// Update patient contact
+app.post("/api/app/patient-contacts/update", express.json(), async (req, res) => {
+  const { contactId, name, relationship, phone } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  if (!contactId) return res.status(400).json({ error: "ID é obrigatório." });
+
+  try {
+    const contactRef = db.collection("patients_contacts").doc(contactId);
+    const contactDoc = await contactRef.get();
+    if (!contactDoc.exists) return res.status(404).json({ error: "Contato não encontrado." });
+    if (contactDoc.data()?.groupId !== groupId) return res.status(403).json({ error: "Unauthorized group access" });
+
+    await contactRef.update({
+      name: name !== undefined ? name : contactDoc.data()?.name,
+      relationship: relationship !== undefined ? relationship : contactDoc.data()?.relationship,
+      phone: phone !== undefined ? phone : contactDoc.data()?.phone,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    res.json({ success: true });
+  } catch (error) {
+    handleApiError(res, error, "Updating patient contact");
+  }
+});
+
+// Remove patient contact (soft delete)
+app.post("/api/app/patient-contacts/remove", express.json(), async (req, res) => {
+  const { contactId } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  if (!contactId) return res.status(400).json({ error: "ID é obrigatório." });
+
+  try {
+    const contactRef = db.collection("patients_contacts").doc(contactId);
+    const contactDoc = await contactRef.get();
+    if (!contactDoc.exists) return res.status(404).json({ error: "Contato não encontrado." });
+    if (contactDoc.data()?.groupId !== groupId) return res.status(403).json({ error: "Unauthorized group access" });
+
+    await contactRef.update({
+      status: "removed",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    res.json({ success: true });
+  } catch (error) {
+    handleApiError(res, error, "Removing patient contact");
+  }
+});
+
+// Remove patient log (soft delete)
+app.post("/api/app/patient-logs/remove", express.json(), async (req, res) => {
+  const { logId } = req.body;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  if (!logId) return res.status(400).json({ error: "LogID é obrigatório." });
+
+  try {
+    const logRef = db.collection("patient_logs").doc(logId);
+    const logDoc = await logRef.get();
+
+    if (!logDoc.exists) {
+      return res.status(404).json({ error: "Informação não encontrada." });
+    }
+
+    if (logDoc.data()?.groupId !== groupId) {
+      return res.status(403).json({ error: "Unauthorized group access" });
+    }
+
+    await logRef.update({
+      status: "removed",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    handleApiError(res, error, "Removing patient log");
   }
 });
 

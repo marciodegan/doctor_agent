@@ -197,14 +197,15 @@ export const ShoppingList: React.FC = () => {
   };
 
   const sortedItems = [...items]
-    .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = !selectedQuickAddCat || item.category === selectedQuickAddCat;
+      return matchesSearch && matchesCategory;
+    })
     .sort((a, b) => {
-      // Unchecked items move to top (wait, usually checked move to bottom or top?)
-      // The previous code had: if (a.checked !== b.checked) { return a.checked ? -1 : 1; }
-      // This means checked items are at the top. Let's keep that but group by category for unchecked.
-      
+      // Unchecked items move to top, checked to bottom
       if (a.checked !== b.checked) {
-        return a.checked ? -1 : 1;
+        return a.checked ? 1 : -1;
       }
       
       // If both same check status, sort by category then name
@@ -344,17 +345,20 @@ export const ShoppingList: React.FC = () => {
             {/* Quick Add Categorized */}
             <div className="flex flex-col gap-2 mt-2">
               <div className="flex items-center justify-between px-1">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Sugestões por Categoria</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
+                  {selectedQuickAddCat ? "Adicionar da Categoria" : "Explorar Categorias"}
+                </span>
                 {selectedQuickAddCat && (
                   <button 
                     onClick={() => setSelectedQuickAddCat(null)}
-                    className="text-[10px] font-bold text-blue-600 hover:underline"
+                    className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full transition-all"
                   >
-                    Ver Todas
+                    <X size={10} />
+                    Limpar Filtro
                   </button>
                 )}
               </div>
-              <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
+              <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide -mx-1 px-1">
                 {Object.entries(CATEGORY_LABELS).map(([id, info]) => {
                   if (id === "others") return null;
                   const isActive = selectedQuickAddCat === id;
@@ -362,13 +366,13 @@ export const ShoppingList: React.FC = () => {
                     <button
                       key={id}
                       onClick={() => setSelectedQuickAddCat(isActive ? null : id)}
-                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-[10px] font-bold transition-all whitespace-nowrap ${
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-bold transition-all whitespace-nowrap ${
                         isActive 
-                          ? "bg-orange-600 border-orange-600 text-white shadow-md shadow-orange-100" 
-                          : "bg-white border-slate-100 text-slate-600 hover:border-orange-200"
+                          ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200 scale-105 active:scale-100" 
+                          : "bg-white border-slate-100 text-slate-600 hover:border-blue-200 active:scale-95"
                       }`}
                     >
-                      <span>{info.icon}</span>
+                      <span className={isActive ? "scale-110" : ""}>{info.icon}</span>
                       <span>{info.label}</span>
                     </button>
                   );
@@ -378,23 +382,34 @@ export const ShoppingList: React.FC = () => {
               <AnimatePresence>
                 {selectedQuickAddCat && (
                   <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
+                    initial={{ opacity: 0, scaleY: 0 }}
+                    animate={{ opacity: 1, scaleY: 1 }}
+                    exit={{ opacity: 0, scaleY: 0 }}
+                    style={{ originY: 0 }}
                     className="overflow-hidden"
                   >
-                    <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                      {(PRESET_CATEGORIES.find(c => c.id === selectedQuickAddCat)?.items || [])
-                        .filter(name => !items.some(i => i.name.toLowerCase() === name.toLowerCase()))
-                        .map(name => (
-                          <button
-                            key={name}
-                            onClick={() => handleAddItem(undefined, name)}
-                            className="px-2.5 py-1 bg-white border border-slate-100 rounded-lg text-[10px] font-medium text-slate-500 hover:border-blue-200 hover:text-blue-600 transition-all active:scale-95 capitalize"
-                          >
-                            + {name}
-                          </button>
-                        ))}
+                    <div className="flex flex-col gap-2 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm mb-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Toque para adicionar</span>
+                        <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 rounded-md">Presets</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(PRESET_CATEGORIES.find(c => c.id === selectedQuickAddCat)?.items || [])
+                          .filter(name => !items.some(i => i.name.toLowerCase() === name.toLowerCase()))
+                          .map(name => (
+                            <button
+                              key={name}
+                              onClick={() => handleAddItem(undefined, name)}
+                              className="px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 hover:bg-white hover:border-blue-200 hover:text-blue-600 transition-all active:scale-95 capitalize"
+                            >
+                              + {name}
+                            </button>
+                          ))}
+                        {(PRESET_CATEGORIES.find(c => c.id === selectedQuickAddCat)?.items || [])
+                          .filter(name => !items.some(i => i.name.toLowerCase() === name.toLowerCase())).length === 0 && (
+                          <p className="text-[10px] font-medium text-slate-400 italic py-2">Todos os itens sugeridos já estão na sua lista!</p>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -415,18 +430,26 @@ export const ShoppingList: React.FC = () => {
           ) : sortedItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 grayscale opacity-30 text-center">
               <ShoppingCart size={60} className="text-slate-300 mb-4" />
-              <p className="text-lg font-black text-slate-400">Sua lista está vazia</p>
-              <p className="text-xs font-medium text-slate-400 mt-1 max-w-[200px]">
-                Adicione itens manualmente ou carregue uma lista básica de mercado.
+              <p className="text-lg font-black text-slate-400">
+                {selectedQuickAddCat 
+                  ? `Nenhum item em ${CATEGORY_LABELS[selectedQuickAddCat]?.label || "esta categoria"}` 
+                  : "Sua lista está vazia"}
               </p>
-              <button 
-                onClick={seedInitialItems}
-                disabled={isSeeding}
-                className="mt-6 flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-orange-100"
-              >
-                {isSeeding ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                Carregar lista padrão
-              </button>
+              <p className="text-xs font-medium text-slate-400 mt-1 max-w-[200px]">
+                {selectedQuickAddCat 
+                  ? "Adicione itens das sugestões acima ou limpe o filtro." 
+                  : "Adicione itens manualmente ou carregue uma lista básica de mercado."}
+              </p>
+              {!selectedQuickAddCat && (
+                <button 
+                  onClick={seedInitialItems}
+                  disabled={isSeeding}
+                  className="mt-6 flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-orange-100"
+                >
+                  {isSeeding ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                  Carregar lista padrão
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-6">

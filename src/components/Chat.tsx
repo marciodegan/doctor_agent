@@ -35,6 +35,7 @@ interface Message {
     surgery_type?: string;
     procedure?: string;
   };
+  reportData?: any;
   form?: {
     title?: string;
     hospitalName?: string;
@@ -75,6 +76,8 @@ const MessageForm: React.FC<{
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -105,6 +108,49 @@ const MessageForm: React.FC<{
 
   return (
     <form onSubmit={handleSubmit} className="mt-4 p-5 bg-white rounded-[2rem] border border-blue-50 space-y-5 shadow-2xl shadow-blue-900/10 transition-all">
+      <AnimatePresence>
+        {showRemoveConfirm && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                <X size={32} strokeWidth={3} />
+              </div>
+              <h3 className="text-xl font-black text-gray-900 mb-2 uppercase tracking-tight">Confirmar Remoção</h3>
+              <p className="text-gray-500 text-sm mb-8 leading-relaxed">Você tem certeza que deseja remover esta foto selecionada?</p>
+              <div className="flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setShowRemoveConfirm(false)}
+                  className="flex-1 px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all"
+                >
+                  Não, Manter
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    onSelectImage?.(null);
+                    setShowRemoveConfirm(false);
+                  }}
+                  className="flex-1 px-6 py-3 bg-red-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200"
+                >
+                  Sim, Remover
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex items-center gap-3 mb-1 border-b border-gray-50 pb-3">
         <div className="flex flex-col">
           {form.title && <h4 className="text-xs font-black text-blue-900 uppercase tracking-widest leading-tight">{form.title}</h4>}
@@ -128,7 +174,7 @@ const MessageForm: React.FC<{
               <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
               <button 
                 type="button"
-                onClick={() => onSelectImage?.(null)}
+                onClick={() => setShowRemoveConfirm(true)}
                 className="absolute top-3 right-3 px-3 py-1.5 bg-red-600/90 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-black uppercase tracking-widest backdrop-blur-sm"
               >
                 <X size={12} strokeWidth={3} />
@@ -172,9 +218,9 @@ const MessageForm: React.FC<{
                   value={values[field.name]}
                   onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer pr-10"
-                  required
+                  required={!field.optional}
                 >
-                  <option value="" disabled>Selecione uma opção</option>
+                  <option value="" disabled={!field.optional}>{field.optional ? "Opcional (Deixar em branco)" : "Selecione uma opção"}</option>
                   {field.options?.map((opt: string) => (
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
@@ -202,7 +248,7 @@ const MessageForm: React.FC<{
                 onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
                 placeholder={field.placeholder}
                 className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
-                required
+                required={!field.optional}
                 {...(field.type === "number" ? { inputMode: "numeric" } : {})}
               />
             )
@@ -296,11 +342,14 @@ export const Chat: React.FC<{
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [confirmCommand, setConfirmCommand] = useState<{ title: string, cmd: string, shouldClear?: boolean } | null>(null);
+
   // Group Configurations
   const [groupHospitals, setGroupHospitals] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupStatuses, setGroupStatuses] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupProcedures, setGroupProcedures] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupSurgeryTypes, setGroupSurgeryTypes] = useState<{id: string, nome: string, active?: boolean}[]>([]);
+  const [groupAffinities, setGroupAffinities] = useState<{id: string, name: string}[]>([]);
   const [imageTypes, setImageTypes] = useState<{id: string, name: string, active?: boolean}[]>([]);
 
   useEffect(() => {
@@ -308,6 +357,17 @@ export const Chat: React.FC<{
 
     let isMounted = true;
     const gId = activeGroup.id;
+    
+    // Afinidades
+    const affinityRef = collection(db, "affinity");
+    const qAffinity = query(affinityRef, where("groupId", "==", gId), orderBy("name"));
+    const unsubAffinity = onSnapshot(qAffinity, (snap) => {
+      if (!isMounted) return;
+      setGroupAffinities(snap.docs.map(d => ({ id: d.id, name: d.data().name })));
+    }, (err) => {
+      if (!isMounted) return;
+      handleFirestoreError(err, OperationType.LIST, "affinity");
+    });
     
     // Statuses
     const statusRef = collection(db, "patient_statuses");
@@ -379,6 +439,7 @@ export const Chat: React.FC<{
   const statusOptions = groupStatuses.filter(s => s.active !== false && (s as any).status !== "removed");
   const procedureOptions = groupProcedures.filter(p => p.active !== false && (p as any).status !== "removed").map(p => p.nome);
   const surgeryTypeOptions = groupSurgeryTypes.filter(s => s.active !== false && (s as any).status !== "removed").map(s => s.nome);
+  const affinityOptions = groupAffinities.map(a => a.name);
   const imageTypeOptions = imageTypes.filter(t => t.active !== false && (t as any).status !== "removed").map(t => t.name);
   
   // Full lists for lookup/display
@@ -471,7 +532,10 @@ export const Chat: React.FC<{
     const audios = data.audios.map((a: any) => `
 <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
   <div style="margin-bottom: 2px;">${a.conteudo}</div>
-  <div style="font-size: 10px; font-weight: bold; color: #4b5563;">${a.data}</div>
+  <div style="font-size: 10px; font-weight: bold; color: #4b5563; margin-bottom: 8px;">${a.data}</div>
+
+\`/editar_log id: ${a.id}, pId: ${cad.ID} label:✏️\` \`/remover_informacao id: ${a.id}, pId: ${cad.ID} label:🗑️\`
+
 </div>`).join("");
     
       const docs = data.imagens.map((i: any) => {
@@ -492,7 +556,8 @@ export const Chat: React.FC<{
   ${aiPart}
   <div className="text-[10px] font-medium text-gray-500 mt-3 mb-3">${i.data}</div>
   
-  \`/remover_imagem id: ${i.id}, pId: ${cad.ID} label:🗑️ REMOVER FOTO\`
+\`/remover_imagem id: ${i.id}, pId: ${cad.ID} label:🗑️\`
+
 </div>`;
       }).join("");
 
@@ -504,8 +569,13 @@ export const Chat: React.FC<{
         : "📞 Sem fone";
       return `
 <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef; margin-left: 0px;">
-  <div style="margin-bottom: 2px; margin-left: 0px; padding-left: 1px;">${f.nome} (${f.relacao})</div>
+  <div style="margin-bottom: 2px; margin-left: 0px; padding-left: 1px;">${f.nome}${f.relacao ? ` (${f.relacao})` : ""}</div>
   <div style="margin-left: 0px; padding-left: 1px; font-size: 12px; font-weight: bold; color: #4b5563;">${foneLink}</div>
+  <div style="margin-top: 8px;">
+
+\`/editar_familiar id: ${f.id}, pId: ${cad.ID} label:✏️\` \`/remover_familiar id: ${f.id}, pId: ${cad.ID} label:🗑️\`
+
+  </div>
 </div>`;
     }).join("");
 
@@ -771,7 +841,7 @@ export const Chat: React.FC<{
         const partsArr = p.split(":");
         const k = partsArr[0]?.trim();
         const v = partsArr.slice(1).join(":").trim();
-        if (k && v) parts[k.toLowerCase()] = v;
+        if (k && v !== undefined) parts[k.toLowerCase()] = v;
       });
 
     const evento = parts.evento || "";
@@ -805,7 +875,7 @@ export const Chat: React.FC<{
         hora,
         tipo: tipo,
         sala,
-        descricao: descricao || `Categoria: ${tipo}, Sala: ${sala}`,
+        descricao,
         groupId: GROUP_ID,
         patientId: pid,
         hospitalId: hostIdResolved,
@@ -909,10 +979,11 @@ export const Chat: React.FC<{
               label: "SALA / UNIDADE", 
               name: "sala", 
               type: "select", 
-              options: ["SALA 1", "SALA 2", "SALA 3", "SALA 4", "SALA 5"], 
-              defaultValue: roomNumber.toUpperCase().startsWith("SALA") ? roomNumber.toUpperCase() : "SALA 1" 
+              options: ["", "SALA 1", "SALA 2", "SALA 3", "SALA 4", "SALA 5"], 
+              defaultValue: roomNumber.toUpperCase().startsWith("SALA") ? roomNumber.toUpperCase() : (roomNumber ? roomNumber : ""),
+              optional: true
             },
-            { label: "OBSERVAÇÕES ADICIONAIS", name: "descricao", type: "textarea", placeholder: "Alguma recomendação?" }
+            { label: "OBSERVAÇÕES ADICIONAIS", name: "descricao", type: "textarea", placeholder: "Alguma recomendação?", optional: true }
           ],
           submitLabel: "Agendar Procedimento",
           commandPrefix: pid ? `/calendario_add pid: ${pid},` : "/calendario_add",
@@ -1150,7 +1221,14 @@ export const Chat: React.FC<{
             title: "",
             fields: [
               { label: "Nome", name: "name", type: "text" },
-              { label: "Afinidade", name: "relationship", type: "text", placeholder: "Ex: Filho(a), Esposa..." },
+              { 
+                label: "Afinidade", 
+                name: "relationship", 
+                type: "text", 
+                placeholder: "Ex: Filho(a), Esposa...",
+                suggestions: affinityOptions.length > 0 ? affinityOptions : ["Esposa", "Marido", "Filho(a)", "Pai", "Mãe", "Irmão(ã)", "Cuidador", "Amigo(a)"],
+                optional: true
+              },
               { label: "Telefone", name: "phone", type: "text", placeholder: "(xx) xxxxx-xxxx" },
             ],
             submitLabel: "+Salvar",
@@ -1294,6 +1372,7 @@ export const Chat: React.FC<{
           role: "model", 
           text: reportText,
           isProfile: true,
+          reportData: data,
           profileData: {
             id: cad.ID.toString(),
             nome: cad.Nome,
@@ -1448,7 +1527,10 @@ export const Chat: React.FC<{
             listText += `<div style="font-size: 17px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center; border-left: 4px solid #3b82f6;"><span style="margin-right: 6px;">🏥</span> ${hName}</div>`;
             patients.forEach(p => {
               const roomDisplay = p.roomNumber ? ` - ${p.roomNumber}` : "";
-              listText += `<div style="padding: 4px 12px; border-bottom: 1px solid #f3f4f6; font-size: 15px;">• <a href="/p ${p.id}"><strong>${p.nome}</strong></a>${roomDisplay}</div>`;
+              listText += `<div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 15px;">
+                • <a href="/p ${p.id}"><strong>${p.nome}</strong></a><br/>
+                <span style="font-size: 12px; color: #6b7280; margin-left: 14px;">${hName}${roomDisplay}</span>
+              </div>`;
             });
           });
         } else {
@@ -1469,8 +1551,11 @@ export const Chat: React.FC<{
             listText += `<div style="font-size: 17px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center; border-left: 4px solid #3b82f6;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
             patients.forEach(p => {
               const roomDisplay = p.roomNumber ? ` - ${p.roomNumber}` : "";
-              const hDisplay = p.hospitalName && !isHospFiltered ? ` <span style="color: #6b7280; font-size: 13px;">(${p.hospitalName})</span>` : "";
-              listText += `<div style="padding: 4px 12px; border-bottom: 1px solid #f3f4f6; font-size: 15px;">• <a href="/p ${p.id}"><strong>${p.nome}</strong></a>${roomDisplay}${hDisplay}</div>`;
+              const hDisplay = p.hospitalName && !isHospFiltered ? p.hospitalName : "";
+              listText += `<div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 15px;">
+                • <a href="/p ${p.id}"><strong>${p.nome}</strong></a><br/>
+                <span style="font-size: 12px; color: #6b7280; margin-left: 14px;">${hDisplay}${roomDisplay}</span>
+              </div>`;
             });
           });
         }
@@ -1818,7 +1903,7 @@ export const Chat: React.FC<{
       try {
         const patientId = cmdInput.match(/patientId:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
         const name = cmdInput.match(/name:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome_familiar:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/nome:\s*([^,]+)/i)?.[1]?.trim();
-        const relationship = cmdInput.match(/relationship:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/tipo_parentesco:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/relacao:\s*([^,]+)/i)?.[1]?.trim();
+        const relationship = cmdInput.match(/relationship:\s*([^,]*)/i)?.[1]?.trim() || cmdInput.match(/tipo_parentesco:\s*([^,]*)/i)?.[1]?.trim() || cmdInput.match(/relacao:\s*([^,]*)/i)?.[1]?.trim();
         const phone = cmdInput.match(/phone:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/telefone:\s*([^,]+)/i)?.[1]?.trim() || cmdInput.match(/fone:\s*(.+)/i)?.[1]?.trim();
 
         if (!patientId || !name) throw new Error("ID do paciente e Nome são obrigatórios.");
@@ -2044,6 +2129,219 @@ export const Chat: React.FC<{
         }
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao remover imagem: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/remover_informacao")) {
+      const rawText = cmdInput.slice("/remover_informacao".length).trim();
+      const parts: Record<string, string> = {};
+      const pairs = rawText.split(",");
+      pairs.forEach(p => {
+        const partsArr = p.split(":");
+        const k = partsArr[0]?.trim();
+        const v = partsArr.slice(1).join(":").trim();
+        if (k && v) parts[k.toLowerCase()] = v;
+      });
+
+      const logId = parts.id || "";
+      const pId = parts.pid || "";
+
+      if (!logId) {
+        setMessages(prev => [...prev, { role: "model", text: "❌ ID da informação não informado." }]);
+        return true;
+      }
+
+      setIsLoading(true);
+      try {
+        const res = await apiFetch("/api/app/patient-logs/remove", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ logId })
+        });
+        const resData = await res.json();
+        if (resData.error) throw new Error(resData.error);
+
+        setMessages(prev => [...prev, { role: "model", text: "✅ Informação removida com sucesso." }]);
+        if (pId) {
+          await handleDirectCommand(`/p ${pId}`);
+        }
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao remover informação: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/remover_familiar")) {
+      const rawText = cmdInput.slice("/remover_familiar".length).trim();
+      const parts: Record<string, string> = {};
+      const pairs = rawText.split(",");
+      pairs.forEach(p => {
+        const partsArr = p.split(":");
+        const k = partsArr[0]?.trim();
+        const v = partsArr.slice(1).join(":").trim();
+        if (k && v) parts[k.toLowerCase()] = v;
+      });
+
+      const contactId = parts.id || "";
+      const pId = parts.pid || "";
+
+      if (!contactId) {
+        setMessages(prev => [...prev, { role: "model", text: "❌ ID do contato não informado." }]);
+        return true;
+      }
+
+      setIsLoading(true);
+      try {
+        const res = await apiFetch("/api/app/patient-contacts/remove", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contactId })
+        });
+        const resData = await res.json();
+        if (resData.error) throw new Error(resData.error);
+
+        setMessages(prev => [...prev, { role: "model", text: "✅ Contato removido com sucesso." }]);
+        if (pId) {
+          await handleDirectCommand(`/p ${pId}`);
+        }
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao remover contato: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/editar_log")) {
+      const rawText = cmdInput.slice("/editar_log".length).trim();
+      const logId = rawText.match(/id:\s*([^,]+)/i)?.[1]?.trim();
+      const pId = rawText.match(/pId:\s*([^,]+)/i)?.[1]?.trim();
+
+      if (!logId) return true;
+
+      const reportMsg = [...messages].reverse().find(m => m.isProfile && m.reportData);
+      const log = reportMsg?.reportData?.audios?.find((a: any) => a.id === logId);
+
+      if (log) {
+        setMessages([{
+          role: "model",
+          text: `✏️ **Editar Informação**`,
+          form: {
+            title: "",
+            fields: [
+              { label: "Informação", name: "text", type: "textarea", defaultValue: log.conteudo }
+            ],
+            submitLabel: "Atualizar",
+            commandPrefix: `/atualizar_log logId: ${logId}, pId: ${pId},`,
+            backCommand: `/p ${pId}`
+          }
+        }]);
+      }
+      return true;
+    }
+
+    if (cmd.startsWith("/atualizar_log")) {
+      const rawText = cmdInput.slice("/atualizar_log".length).trim();
+      const getVal = (label: string) => {
+        const regex = new RegExp(`${label}:\\s*([^,]*)`, "i");
+        const match = cmdInput.match(regex);
+        return match ? match[1].trim() : "";
+      };
+      
+      const logId = getVal("logId");
+      const pId = getVal("pId");
+      const text = getVal("text");
+
+      setIsLoading(true);
+      try {
+        const res = await apiFetch("/api/app/patient-logs/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ logId, text })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        setMessages(prev => [...prev, { role: "model", text: "✅ Informação atualizada com sucesso!" }]);
+        if (pId) await handleDirectCommand(`/p ${pId}`);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao atualizar: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/editar_familiar")) {
+      const rawText = cmdInput.slice("/editar_familiar".length).trim();
+      const contactId = rawText.match(/id:\s*([^,]+)/i)?.[1]?.trim();
+      const pId = rawText.match(/pId:\s*([^,]+)/i)?.[1]?.trim();
+
+      if (!contactId) return true;
+
+      const reportMsg = [...messages].reverse().find(m => m.isProfile && m.reportData);
+      const contact = reportMsg?.reportData?.familiares?.find((f: any) => f.id === contactId);
+
+      if (contact) {
+        setMessages([{
+          role: "model",
+          text: `✏️ **Editar Contato**`,
+          form: {
+            title: "",
+            fields: [
+              { label: "Nome", name: "name", type: "text", defaultValue: contact.nome },
+              { 
+                label: "Afinidade", 
+                name: "relationship", 
+                type: "text", 
+                defaultValue: contact.relacao,
+                suggestions: affinityOptions.length > 0 ? affinityOptions : ["Esposa", "Marido", "Filho(a)", "Pai", "Mãe", "Irmão(ã)", "Cuidador", "Amigo(a)"],
+                optional: true
+              },
+              { label: "Telefone", name: "phone", type: "text", defaultValue: contact.fone },
+            ],
+            submitLabel: "Atualizar",
+            commandPrefix: `/atualizar_familiar contactId: ${contactId}, pId: ${pId},`,
+            backCommand: `/p ${pId}`
+          }
+        }]);
+      }
+      return true;
+    }
+
+    if (cmd.startsWith("/atualizar_familiar")) {
+      const rawText = cmdInput.slice("/atualizar_familiar".length).trim();
+      const getVal = (label: string) => {
+        const regex = new RegExp(`${label}:\\s*([^,]*)`, "i");
+        const match = cmdInput.match(regex);
+        return match ? match[1].trim() : "";
+      };
+      
+      const contactId = getVal("contactId");
+      const pId = getVal("pId");
+      const name = getVal("name");
+      const relationship = getVal("relationship");
+      const phone = getVal("phone");
+
+      setIsLoading(true);
+      try {
+        const res = await apiFetch("/api/app/patient-contacts/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contactId, name, relationship, phone })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        setMessages(prev => [...prev, { role: "model", text: "✅ Contato atualizado com sucesso!" }]);
+        if (pId) await handleDirectCommand(`/p ${pId}`);
+      } catch (err: any) {
+        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao atualizar: ${err.message}` }]);
       } finally {
         setIsLoading(false);
         return true;
@@ -2339,54 +2637,48 @@ export const Chat: React.FC<{
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                         
                         <div className="flex flex-col items-start gap-1 relative z-10 min-w-0 flex-1 px-1">
-                          <h3 className="text-[18px] font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full">
+                          <h3 className="text-[18px] font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full mb-1">
                             {msg.profileData.nome}
                           </h3>
+                          <div className="text-[13px] font-bold text-blue-800/80 mb-2 flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <Building2 size={14} className="text-blue-400" />
+                              <span className="truncate">{msg.profileData?.hospitalNome || "Sem Hospital"}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <User size={14} className="text-blue-400" />
+                              <span>Quarto: {msg.profileData?.roomNumber || "Não inf."}</span>
+                            </div>
+                          </div>
                           <div className="flex flex-row items-center gap-3">
-                            <span className="text-[12px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-lg shrink-0">{msg.profileData.idade} ANOS</span>
+                            <span className="text-[11px] font-black text-blue-700 bg-blue-100/50 px-2.5 py-1 rounded-lg shrink-0 uppercase tracking-wider">{msg.profileData.idade} ANOS</span>
                             <button 
                               onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
-                              className="text-[9px] font-black uppercase tracking-wider text-white bg-blue-600/90 px-2 py-0.5 rounded-md hover:bg-blue-700 transition-all shadow-sm active:scale-95 shrink-0"
+                              className="text-[9px] font-black uppercase tracking-wider text-white bg-blue-600/90 px-3 py-1 rounded-lg hover:bg-blue-700 transition-all shadow-sm active:scale-95 shrink-0"
                             >
                               Editar
                             </button>
                           </div>
                         </div>
+                      </div>
 
-                        <div className="flex flex-col items-end relative z-10 shrink-0 ml-4">
+                      <div className="px-4 py-3 bg-white border-b border-gray-100 flex flex-row items-center justify-between gap-4 mb-6">
+                        <div className="flex flex-col items-start shrink-0">
+                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1.5">Status</span>
+                          <button 
+                            onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
+                            className="bg-blue-50/50 border border-blue-100 px-3 py-1.5 rounded-xl text-blue-700 text-[11px] font-black flex items-center hover:bg-blue-100/70 transition-all active:scale-95 shadow-sm shadow-blue-500/5 whitespace-nowrap"
+                          >
+                            <span className="max-w-[120px] truncate">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
+                          </button>
+                        </div>
+                        <div className="flex flex-col items-end shrink-0 pl-4 border-l border-gray-50">
                           <button 
                             onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}, type: ${msg.profileData?.surgery_type}, procedure: ${msg.profileData?.procedure || ""}`)}
                             className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                           >
                             <CalendarPlus size={16} className="text-emerald-100" />
                             <span className="text-[10px] font-black uppercase tracking-tight">Agendar Novo</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="px-4 py-3 bg-white border-b border-gray-100 flex flex-row items-center justify-between gap-4 mb-6">
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <div className="flex flex-col mb-1.5 min-w-0">
-                            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-0.5">Hospital</span>
-                            <span className="text-[14px] font-extrabold text-gray-900 leading-tight truncate">
-                              {msg.profileData?.hospitalNome || "Sem Hospital"}
-                            </span>
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-0.5">Leito</span>
-                            <span className="text-[11px] font-bold text-gray-500 leading-tight truncate">
-                              {msg.profileData?.roomNumber || "Sala não informada"}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col items-end shrink-0 pl-4 border-l border-gray-50">
-                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1.5">Status</span>
-                          <button 
-                            onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
-                            className="bg-blue-50/50 border border-blue-100 px-3 py-1.5 rounded-xl text-blue-700 text-[11px] font-black flex items-center hover:bg-blue-100/70 transition-all active:scale-95 shadow-sm shadow-blue-500/5 whitespace-nowrap"
-                          >
-                            <span className="max-w-[80px] truncate">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
                           </button>
                         </div>
                       </div>
@@ -2435,18 +2727,19 @@ export const Chat: React.FC<{
                             },
                             code({ children, ...props }) {
                               const content = String(children);
-                              // Check if it's inline (no className which usually defines language-*)
                               const isInline = !props.className;
                               if (isInline && content.startsWith("/")) {
-                                // Customize labels for common commands
                                 let label = content;
 
-                                // General label override support
                                 if (content.includes(" label:")) {
                                   label = content.split(" label:")[1].trim();
                                 } else {
                                   if (content.startsWith("/remover_evento")) label = "🗑️";
-                                  if (content.startsWith("/remover_imagem")) label = "🗑️ Remover Imagem";
+                                  if (content.startsWith("/remover_informacao")) label = "🗑️";
+                                  if (content.startsWith("/remover_imagem")) label = "🗑️";
+                                  if (content.startsWith("/remover_familiar")) label = "🗑️";
+                                  if (content.startsWith("/editar_log")) label = "✏️";
+                                  if (content.startsWith("/editar_familiar")) label = "✏️";
                                   if (content.startsWith("/pacientes")) label = "📋 Pacientes";
                                   if (content.startsWith("/prep_img")) label = "Anexar Foto";
                                   if (content.startsWith("/prep_p") || content.startsWith("/p ")) {
@@ -2466,6 +2759,7 @@ export const Chat: React.FC<{
                                     }
                                   }
                                 }
+
                                 if (content.startsWith("/status_select")) {
                                   label = content.split("/status_select ")[1] || "Selecionar";
                                 }
@@ -2485,42 +2779,62 @@ export const Chat: React.FC<{
                                   const hojeStr = `${pad(today.getDate())}-${pad(today.getMonth() + 1)}-${today.getFullYear()}`;
                                   const tomorrow = new Date();
                                   tomorrow.setDate(today.getDate() + 1);
-                                  const amanhaStr = `${pad(tomorrow.getDate())}-${pad(tomorrow.getMonth() + 1)}-${tomorrow.getFullYear()}`;
+                                  const amanhaStr = `${pad(tomorrow.getDate())}-${pad(tomorrow.getMonth() + 1)}-${today.getFullYear()}`;
                                   
                                   if (date === hojeStr) label = `Hoje ${date}`;
                                   else if (date === amanhaStr) label = `Amanhã ${date}`;
                                   else label = content;
                                 }
 
-                                  const isPlusLabel = label === "+";
-                                  const isRemover = content.startsWith("/remover");
-                                  const isReport = content.startsWith("/p ") || content.startsWith("/prep_p");
+                                const isPlusLabel = label === "+";
+                                const isRemover = content.startsWith("/remover");
+                                const isReport = content.startsWith("/p ") || content.startsWith("/prep_p");
+                                const isIconLabel = label.length <= 4 && !label.includes(" ");
 
-                                  return (
-                                    <button
-                                      onClick={() => {
-                                        const shouldClear = content.startsWith("/p") || 
-                                                            content.startsWith("/edit_name") || 
-                                                            content.startsWith("/pacientes") || 
-                                                            content.startsWith("/cadastro") ||
-                                                            content.startsWith("/status_alterar") ||
-                                                            content.startsWith("/buscar") ||
-                                                            content.startsWith("/hospitais") ||
-                                                            content.startsWith("/agenda");
-                                        handleSend(undefined, content, shouldClear);
-                                      }}
-                                      className={isPlusLabel 
-                                        ? "not-prose bg-blue-600 text-white w-7 h-7 inline-flex items-center justify-center rounded-full font-bold hover:bg-blue-700 transition-all cursor-pointer shadow-md mx-1 active:scale-90"
+                                return (
+                                  <button
+                                    onClick={() => {
+                                      const isRemoverImagem = content.startsWith("/remover_imagem");
+                                      const isRemoverEvento = content.startsWith("/remover_evento");
+                                      const isRemoverInfo = content.startsWith("/remover_informacao");
+                                      const isRemoverFamiliar = content.startsWith("/remover_familiar");
+                                      
+                                      if (isRemoverImagem || isRemoverEvento || isRemoverInfo || isRemoverFamiliar) {
+                                        setConfirmCommand({ 
+                                          title: isRemoverImagem ? "Remover esta imagem?" : 
+                                                 isRemoverEvento ? "Remover este evento do calendário?" : 
+                                                 isRemoverInfo ? "Remover esta informação do histórico?" : 
+                                                 "Remover este contato do histórico?", 
+                                          cmd: content,
+                                          shouldClear: false 
+                                        });
+                                        return;
+                                      }
+
+                                      const shouldClear = content.startsWith("/p") || 
+                                                          content.startsWith("/edit_name") || 
+                                                          content.startsWith("/pacientes") || 
+                                                          content.startsWith("/cadastro") ||
+                                                          content.startsWith("/status_alterar") ||
+                                                          content.startsWith("/buscar") ||
+                                                          content.startsWith("/hospitais") ||
+                                                          content.startsWith("/agenda");
+                                      handleSend(undefined, content, shouldClear);
+                                    }}
+                                    className={isPlusLabel 
+                                      ? "not-prose bg-blue-600 text-white w-7 h-7 inline-flex items-center justify-center rounded-full font-bold hover:bg-blue-700 transition-all cursor-pointer shadow-md mx-1 active:scale-90"
+                                      : isIconLabel
+                                        ? `not-prose ${isRemover ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'} w-8 h-8 inline-flex items-center justify-center rounded-lg hover:brightness-95 transition-all cursor-pointer border shadow-sm mx-1 active:scale-90`
                                         : isRemover
                                           ? "not-prose bg-gray-100 text-gray-500 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 hover:text-gray-700 transition-all cursor-pointer border border-gray-200 mx-1 shadow-md active:scale-95 flex items-center gap-2 group"
                                           : isReport
                                             ? "not-prose bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all cursor-pointer border border-emerald-100 mx-1 shadow-lg shadow-emerald-900/5 active:scale-95 flex items-center gap-2"
                                             : "not-prose bg-blue-50 text-blue-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all cursor-pointer border border-blue-100 mx-1 shadow-lg shadow-blue-900/5 active:scale-95 flex items-center gap-2"
-                                      }
-                                    >
-                                      {label}
-                                    </button>
-                                  );
+                                    }
+                                  >
+                                    {label}
+                                  </button>
+                                );
                               }
                               return <code {...props}>{children}</code>;
                             }
@@ -2588,6 +2902,47 @@ export const Chat: React.FC<{
           )}
         </AnimatePresence>
       </div>
+
+      <AnimatePresence>
+        {confirmCommand && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                <X size={32} strokeWidth={3} />
+              </div>
+              <h3 className="text-xl font-black text-gray-900 mb-2 uppercase tracking-tight">Confirmar Ação</h3>
+              <p className="text-gray-500 text-sm mb-8 leading-relaxed">{confirmCommand.title}</p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setConfirmCommand(null)}
+                  className="flex-1 px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => {
+                    handleSend(undefined, confirmCommand.cmd, confirmCommand.shouldClear);
+                    setConfirmCommand(null);
+                  }}
+                  className="flex-1 px-6 py-3 bg-red-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200"
+                >
+                  Sim, Remover
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
