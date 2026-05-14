@@ -503,17 +503,20 @@ export const Chat: React.FC<{
   };
 
   useEffect(() => {
-    window.scrollTo({
-      top: document.documentElement.scrollHeight,
-      behavior: "smooth"
-    });
+    const mainElement = document.querySelector("main");
+    if (mainElement) {
+      mainElement.scrollTo({
+        top: mainElement.scrollHeight,
+        behavior: "smooth"
+      });
+    }
   }, [messages, isLoading]);
 
   const scrollToTop = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = 0;
+    const mainElement = document.querySelector("main");
+    if (mainElement) {
+      mainElement.scrollTo({ top: 0, behavior: "smooth" });
     }
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const resizeImage = (file: File): Promise<string> => {

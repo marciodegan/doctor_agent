@@ -2,25 +2,46 @@
 
 @layer base {
   html, body, #root {
-    height: 100vh;
-    height: 100dvh;
+    height: 100%;
+    width: 100%;
     margin: 0;
     padding: 0;
-    padding-bottom: env(safe-area-inset-bottom);
     overflow: hidden;
-    position: fixed;
-    width: 100%;
-    overscroll-behavior: none;
     background-color: #FDFDFD;
     color-scheme: light;
   }
 
-  main {
+  #root {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* This targets the main div inside App.tsx */
+  #root > div {
+    display: flex;
+    flex-direction: column;
     height: 100%;
     width: 100%;
-    overflow-y: auto;
+    overflow: hidden;
+    position: relative;
+  }
+
+  main {
+    flex: 1;
+    height: 100%;
+    width: 100%;
+    overflow-y: auto !important;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  #main-scroll-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: min-content;
   }
 
   .markdown-body {

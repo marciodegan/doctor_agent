@@ -98,13 +98,10 @@ export default function App() {
       setPendingCommand(null);
     }
 
-    // Scroll all the way up to scroll 0 as requested
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    
-    // Also scroll the main container if it's the one scrolling
-    const container = document.getElementById("main-scroll-container");
-    if (container) {
-      container.scrollTo({ top: 0, behavior: "smooth" });
+    // Scroll the main container to top
+    const mainElement = document.querySelector("main");
+    if (mainElement) {
+      mainElement.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -240,7 +237,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
+    <div className="h-full flex flex-col bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
       {/* Top Header - Both Mobile and Desktop */}
       <header 
         style={{ height: 'calc(3.25rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
