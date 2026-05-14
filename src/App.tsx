@@ -46,6 +46,7 @@ import { TeamManagement } from "./components/TeamManagement";
 import { PersonalDocuments } from "./components/PersonalDocuments";
 import { PatientLogs } from "./components/PatientLogs";
 import { ShoppingList } from "./components/ShoppingList";
+import { PersonalNotes } from "./components/PersonalNotes";
 
 type NavView = "workspace" | "pricing" | "calendar" | "agenda" | "logs" | "shopping_list" | "notes";
 
@@ -695,12 +696,7 @@ export default function App() {
                           onSchedule={(name, proc, hospId) => navigateAndAction("calendar", undefined, activePatientId!, name, proc, hospId)}
                         />
                       ) : currentView === "notes" ? (
-                        <Chat 
-                          onNavigateToCalendar={() => setCurrentView("calendar")} 
-                          onViewLogs={(pid) => navigateAndAction("logs", undefined, pid)}
-                          initialCommand={pendingCommand}
-                          onCommandExecuted={() => setPendingCommand(null)}
-                        />
+                        <PersonalNotes />
                       ) : activeGroup?.groupType === "personal" ? (
                         <PersonalDocuments />
                       ) : (

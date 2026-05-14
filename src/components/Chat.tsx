@@ -354,7 +354,6 @@ export const Chat: React.FC<{
   const [groupProcedures, setGroupProcedures] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupSurgeryTypes, setGroupSurgeryTypes] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupAffinities, setGroupAffinities] = useState<{id: string, name: string}[]>([]);
-  const [userNotes, setUserNotes] = useState<{id: string, content: string, createdAt: any}[]>([]);
   const [imageTypes, setImageTypes] = useState<{id: string, name: string, active?: boolean}[]>([]);
 
   useEffect(() => {
@@ -429,25 +428,6 @@ export const Chat: React.FC<{
       handleFirestoreError(err, OperationType.LIST, "surgery_types");
     });
 
-    // User Personal Notes
-    const userId = auth.currentUser?.uid;
-    let unsubNotes = () => {};
-    if (userId) {
-      const notesRef = collection(db, "user_notes");
-      const qNotes = query(notesRef, where("userId", "==", userId), orderBy("createdAt", "desc"));
-      unsubNotes = onSnapshot(qNotes, (snap) => {
-        if (!isMounted) return;
-        setUserNotes(snap.docs.map(d => ({ 
-          id: d.id, 
-          content: d.data().content, 
-          createdAt: d.data().createdAt 
-        })));
-      }, (err) => {
-        if (!isMounted) return;
-        handleFirestoreError(err, OperationType.LIST, "user_notes");
-      });
-    }
-
     return () => {
       isMounted = false;
       unsubAffinity();
@@ -456,9 +436,8 @@ export const Chat: React.FC<{
       unsubProc();
       unsubImageTypes();
       unsubSurgeryTypes();
-      unsubNotes();
     };
-  }, [activeGroup?.id, auth.currentUser?.uid]);
+  }, [activeGroup?.id]);
 
   // Compatibility aliases - only for FORMS, filter active
   const hospitalOptions = groupHospitals.filter(h => h.active !== false && (h as any).status !== "removed");
@@ -736,148 +715,6 @@ export const Chat: React.FC<{
         await handleDirectCommand("/agenda");
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao agendar: ${err.message}` }]);
-      } finally {
-        setIsLoading(false);
-        return true;
-      }
-    }
-
-    if (cmd === "/notes") {
-      const listingText = userNotes.length > 0 
-        ? userNotes.map(n => `📝 **Nota**\n${n.content}\n\n\`/note_edit_form id: ${n.id} label:✏️ Editar\` \`/note_remove id: ${n.id} label:🗑️ Remover\``).join("\n\n---\n\n")
-        : "_Você ainda não tem notas salvas._";
-
-      setMessages([{ 
-        role: "model", 
-        text: `🗒️ **Minhas Notas Pessoais**\n\n${listingText}`,
-        actionGroups: [
-          {
-            title: "Ações",
-            actions: [
-              { label: "➕ Nova Nota", cmd: "/note_form" }
-            ]
-          }
-        ]
-      }]);
-      setTimeout(scrollToTop, 0);
-      return true;
-    }
-
-    if (cmd === "/note_form") {
-      setMessages([{ 
-        role: "model", 
-        text: "📝 **Criar Nova Nota**\n\nEscreva sua nota abaixo:",
-        form: {
-          title: "Nova Nota",
-          fields: [
-            { label: "Conteúdo", name: "content", type: "textarea", placeholder: "Escreva algo rápido..." }
-          ],
-          submitLabel: "Salvar Nota",
-          commandPrefix: "/note_add"
-        }
-      }]);
-      return true;
-    }
-
-    if (cmd.startsWith("/note_add")) {
-      const rawText = cmdInput.slice("/note_add".length).trim();
-      const contentMatch = rawText.match(/content:\s*(.+)/is);
-      const content = contentMatch ? contentMatch[1].trim() : "";
-
-      if (!content) return true;
-
-      setIsLoading(true);
-      try {
-        const userId = auth.currentUser?.uid;
-        if (!userId) throw new Error("Usuário não autenticado");
-
-        await addDoc(collection(db, "user_notes"), {
-          userId,
-          content,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        await handleDirectCommand("/notes");
-      } catch (err: any) {
-        handleFirestoreError(err, OperationType.WRITE, "user_notes");
-      } finally {
-        setIsLoading(false);
-        return true;
-      }
-    }
-
-    if (cmd.startsWith("/note_edit_form")) {
-      const idMatch = cmdInput.match(/id:\s*([\w-]+)/i);
-      const id = idMatch ? idMatch[1] : "";
-      const note = userNotes.find(n => n.id === id);
-      
-      if (!note) return true;
-
-      setMessages([{ 
-        role: "model", 
-        text: "📝 **Editar Nota**",
-        form: {
-          title: "Editar Nota",
-          fields: [
-            { label: "Conteúdo", name: "content", type: "textarea", defaultValue: note.content }
-          ],
-          submitLabel: "Salvar Alterações",
-          commandPrefix: `/note_edit id: ${id},`
-        }
-      }]);
-      return true;
-    }
-
-    if (cmd.startsWith("/note_edit")) {
-      const rawText = cmdInput.slice("/note_edit".length).trim();
-      const idMatch = rawText.match(/id:\s*([\w-]+)/i);
-      const contentMatch = rawText.match(/content:\s*(.+)/is);
-      
-      const id = idMatch ? idMatch[1] : "";
-      const content = contentMatch ? contentMatch[1].trim() : "";
-
-      if (!id || !content) return true;
-
-      setIsLoading(true);
-      try {
-        await updateDoc(doc(db, "user_notes", id), {
-          content,
-          updatedAt: serverTimestamp()
-        });
-        await handleDirectCommand("/notes");
-      } catch (err: any) {
-        handleFirestoreError(err, OperationType.WRITE, "user_notes");
-      } finally {
-        setIsLoading(false);
-        return true;
-      }
-    }
-
-    if (cmd.startsWith("/note_remove")) {
-      const idMatch = cmdInput.match(/id:\s*([\w-]+)/i);
-      const id = idMatch ? idMatch[1] : "";
-      if (!id) return true;
-
-      setConfirmCommand({
-        title: "Deseja remover esta nota?",
-        cmd: `/note_remove_confirm id: ${id}`,
-        shouldClear: false
-      });
-      return true;
-    }
-
-    if (cmd.startsWith("/note_remove_confirm")) {
-      const idMatch = cmdInput.match(/id:\s*([\w-]+)/i);
-      const id = idMatch ? idMatch[1] : "";
-      if (!id) return true;
-
-      setIsLoading(true);
-      try {
-        await deleteDoc(doc(db, "user_notes", id));
-        setConfirmCommand(null);
-        await handleDirectCommand("/notes");
-      } catch (err: any) {
-        handleFirestoreError(err, OperationType.DELETE, "user_notes");
       } finally {
         setIsLoading(false);
         return true;
