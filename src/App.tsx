@@ -135,10 +135,16 @@ export default function App() {
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
+      console.log("[PWA] beforeinstallprompt event fired");
       e.preventDefault();
       setInstallPrompt(e);
     };
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+    
+    // Check if running as PWA
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    console.log("[PWA] Running as PWA:", isPWA);
+    
     return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
   }, []);
 

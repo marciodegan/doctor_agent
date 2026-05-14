@@ -26,6 +26,8 @@ export default defineConfig(({mode}) => {
           ],
         },
         manifest: {
+          id: '/',
+          scope: '/',
           name: 'Doctor Agent',
           short_name: 'DrAgent',
           description: 'Seu assistente inteligente integrado ao Google Workspace. Gerencie pacientes, calendário e documentos com segurança e automação.',

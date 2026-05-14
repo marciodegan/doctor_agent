@@ -42,6 +42,18 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
+import { registerSW } from 'virtual:pwa-register';
+
+if (typeof window !== 'undefined') {
+  registerSW({
+    onNeedRefresh() {
+      if (confirm('Nova versão disponível. Atualizar?')) {
+        window.location.reload();
+      }
+    },
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
@@ -54,14 +66,3 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-/*
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then((registration) => {
-      console.log('SW registered: ', registration);
-    }).catch((registrationError) => {
-      console.log('SW registration failed: ', registrationError);
-    });
-  });
-}
-*/

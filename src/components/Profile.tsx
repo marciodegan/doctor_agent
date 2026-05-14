@@ -189,7 +189,7 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
           )}
         </button>
 
-        {installPrompt && (
+        {installPrompt ? (
           <button 
             type="button"
             onClick={onInstall}
@@ -198,6 +198,16 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
             <Smartphone size={18} />
             INSTALAR APLICATIVO
           </button>
+        ) : (
+          <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl mt-4 text-center">
+            <div className="flex items-center justify-center gap-2 text-blue-700 font-bold text-xs mb-1 uppercase tracking-wider">
+              <Smartphone size={16} />
+              Como instalar?
+            </div>
+            <p className="text-[11px] text-blue-600 font-medium leading-relaxed">
+              Para instalar, clique no ícone <span className="font-black">"..."</span> (no Chrome/Samsung) ou <span className="font-black">"Compartilhar"</span> (no Safari) e escolha <span className="font-black">"Adicionar à tela de início"</span>.
+            </p>
+          </div>
         )}
       </form>
     </div>
