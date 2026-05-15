@@ -63,17 +63,13 @@ service cloud.firestore {
     // User personal notes
     match /user_notes/{noteId} {
       allow read: if isSignedIn() && 
-                    request.auth.token.email_verified == true && 
                     resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && 
-                       request.auth.token.email_verified == true && 
                        incoming().userId == request.auth.uid;
       allow update: if isSignedIn() && 
-                       request.auth.token.email_verified == true && 
                        existing().userId == request.auth.uid && 
                        incoming().userId == request.auth.uid;
       allow delete: if isSignedIn() && 
-                       request.auth.token.email_verified == true && 
                        existing().userId == request.auth.uid;
     }
 

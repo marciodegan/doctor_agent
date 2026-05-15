@@ -93,7 +93,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     [],
   );
   const [loading, setLoading] = useState(true);
-  const [companyName, setCompanyName] = useState("Doctor Agent");
+  const [companyName, setCompanyName] = useState("Persono Agent");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [userWhatsapp, setUserWhatsapp] = useState("");
   const [imageAnalysisPrompt, setImageAnalysisPrompt] = useState("");
@@ -342,7 +342,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     if (activeGroup?.name) {
       document.title = activeGroup.name;
     } else {
-      document.title = "Doctor Agent";
+      document.title = "Persono Agent";
     }
   }, [activeGroup?.name]);
 

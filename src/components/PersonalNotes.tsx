@@ -118,12 +118,12 @@ export const PersonalNotes: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-yellow-50/30">
+    <div className="flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-yellow-100 p-4 sticky top-0 z-20">
+      <div className="bg-white border-b border-slate-100 p-4 sticky top-0 z-20">
         <div className="max-w-xl mx-auto flex flex-col gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-yellow-50 flex items-center justify-center border border-yellow-100 text-yellow-600">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100 text-blue-600">
               <StickyNote size={22} />
             </div>
             <div>
@@ -133,22 +133,24 @@ export const PersonalNotes: React.FC = () => {
           </div>
 
           <form onSubmit={handleAddNote} className="relative">
-            <div className="relative flex flex-col gap-2">
-              <textarea 
-                placeholder="Escreva algo rápido..."
-                value={newNoteContent}
-                onChange={(e) => setNewNoteContent(e.target.value)}
-                className="w-full bg-slate-100 border-none rounded-xl py-3 px-4 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-yellow-200 outline-none transition-all resize-none min-h-[80px]"
-              />
+            <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" size={18} />
+            <input 
+              type="text"
+              placeholder="Adicionar nota rápida..."
+              value={newNoteContent}
+              onChange={(e) => setNewNoteContent(e.target.value)}
+              className="w-full bg-slate-100 border-none rounded-xl py-3 pl-10 pr-16 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+            />
+            {newNoteContent.trim() && (
               <button 
                 type="submit"
-                disabled={!newNoteContent.trim() || isAdding}
-                className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-white py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                disabled={isAdding}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-600 text-white px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center gap-1"
               >
-                {isAdding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                Salvar Nota
+                {isAdding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                Add
               </button>
-            </div>
+            )}
           </form>
         </div>
       </div>
@@ -178,7 +180,7 @@ export const PersonalNotes: React.FC = () => {
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="bg-white border border-yellow-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all relative group"
+                  className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all relative group"
                 >
                   {editingId === note.id ? (
                     <div className="flex flex-col gap-2">
@@ -239,9 +241,9 @@ export const PersonalNotes: React.FC = () => {
       </div>
 
       {/* Footer */}
-      <div className="p-4 bg-white border-t border-yellow-100">
+      <div className="p-4 bg-white border-t border-slate-100">
         <div className="max-w-xl mx-auto flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-          <div className="flex items-center gap-2 font-black text-yellow-600">
+          <div className="flex items-center gap-2 font-black text-blue-600">
             TOTAL DE NOTAS: {notes.length}
           </div>
           <div className="text-[8px] opacity-60">Sincronizado com sua conta</div>

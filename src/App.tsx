@@ -215,7 +215,7 @@ export default function App() {
           <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
             <Layout size={32} />
           </div>
-          <p className="text-gray-400 font-medium tracking-tight">Initializing Doctor Agent...</p>
+          <p className="text-gray-400 font-medium tracking-tight">Initializing Persono Agent...</p>
         </div>
       </div>
     );
@@ -259,7 +259,7 @@ export default function App() {
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
               <Stethoscope size={14} />
             </div>
-            <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Doctor Agent</span>
+            <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Persono Agent</span>
           </div>
 
           <div className="absolute right-4 flex items-center gap-2">
@@ -298,7 +298,7 @@ export default function App() {
                   <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
                     <Stethoscope size={18} />
                   </div>
-                  <h1 className="font-bold text-xl tracking-tight text-blue-600">Doctor Agent</h1>
+                  <h1 className="font-bold text-xl tracking-tight text-blue-600">Persono Agent</h1>
                 </div>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-gray-400">
                   <X size={20} />
@@ -405,7 +405,7 @@ export default function App() {
                       <Zap size={20} />
                     </div>
                   </div>
-                  <h4 className="font-bold text-sm mb-1">Doctor Agent Business</h4>
+                  <h4 className="font-bold text-sm mb-1">Persono Agent Business</h4>
                   <p className="text-[10px] text-blue-50 mb-4 line-clamp-2">Acesso total a automações, IA avançada e relatórios personalizados.</p>
                   <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest">
                     <span>Assinar agora</span>
@@ -432,7 +432,7 @@ export default function App() {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
               <Stethoscope size={18} />
             </div>
-            <h1 className="font-bold text-xl tracking-tight text-blue-600 truncate max-w-[140px]">Doctor Agent</h1>
+            <h1 className="font-bold text-xl tracking-tight text-blue-600 truncate max-w-[140px]">Persono Agent</h1>
           </div>
         </div>
 
@@ -630,7 +630,7 @@ export default function App() {
                   <span className="text-blue-600">Simpler Than Ever.</span>
                 </h1>
                 <p className="text-gray-500 text-lg max-w-md mx-auto">
-                  Connect your Google account to let Doctor Agent manage your schedule, documents, and tasks with AI.
+                  Connect your Google account to let Persono Agent manage your schedule, documents, and tasks with AI.
                 </p>
               </motion.div>
 

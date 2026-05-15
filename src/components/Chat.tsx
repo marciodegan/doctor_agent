@@ -1257,7 +1257,7 @@ export const Chat: React.FC<{
                 suggestions: affinityOptions.length > 0 ? affinityOptions : ["Esposa", "Marido", "Filho(a)", "Pai", "Mãe", "Irmão(ã)", "Cuidador", "Amigo(a)"],
                 optional: true
               },
-              { label: "Telefone", name: "phone", type: "text", placeholder: "(xx) xxxxx-xxxx" },
+              { label: "Telefone", name: "phone", type: "number", placeholder: "Ex: 11999998888" },
             ],
             submitLabel: "+Salvar",
             commandPrefix: `/salvarfamiliar patientId: ${id},`,
@@ -1429,7 +1429,7 @@ export const Chat: React.FC<{
           title: "",
           fields: [
             { label: "Nome do Hospital", name: "nome", type: "text", placeholder: "Ex: Hospital São Camilo" },
-            { label: "Telefone / Contato", name: "telefone", type: "text", placeholder: "(11) 99999-9999" }
+            { label: "Telefone / Contato", name: "telefone", type: "number", placeholder: "Ex: 11999998888" }
           ],
           submitLabel: "Salvar Hospital",
           commandPrefix: "/hospital"
@@ -1894,7 +1894,7 @@ export const Chat: React.FC<{
 
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: "🤖 **Doctor Agent Shortcuts (Zero Tokens):**\n\n" +
+          text: "🤖 **Persono Agent Shortcuts (Zero Tokens):**\n\n" +
                 "- `/pacientes`: Lista todos os pacientes (Banco Compartilhado).\n" +
                 "- `/buscar [NOME]`: Busca paciente por nome.\n" +
                 "- `/p [ID]`: Relatório rápido (ex: `/p 2`).\n" +
@@ -2331,7 +2331,7 @@ export const Chat: React.FC<{
                 suggestions: affinityOptions.length > 0 ? affinityOptions : ["Esposa", "Marido", "Filho(a)", "Pai", "Mãe", "Irmão(ã)", "Cuidador", "Amigo(a)"],
                 optional: true
               },
-              { label: "Telefone", name: "phone", type: "text", defaultValue: contact.fone },
+              { label: "Telefone", name: "phone", type: "number", defaultValue: contact.fone },
             ],
             submitLabel: "Atualizar",
             commandPrefix: `/atualizar_familiar contactId: ${contactId}, pId: ${pId},`,

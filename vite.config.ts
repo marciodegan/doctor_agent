@@ -28,8 +28,8 @@ export default defineConfig(({mode}) => {
         manifest: {
           id: '/',
           scope: '/',
-          name: 'Doctor Agent',
-          short_name: 'DrAgent',
+          name: 'Persono Agent',
+          short_name: 'Persono',
           description: 'Seu assistente inteligente integrado ao Google Workspace. Gerencie pacientes, calendário e documentos com segurança e automação.',
           theme_color: '#2563eb',
           background_color: '#ffffff',
