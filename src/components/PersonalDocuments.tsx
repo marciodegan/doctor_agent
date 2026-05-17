@@ -43,7 +43,8 @@ export const PersonalDocuments: React.FC = () => {
     activeGroupMembers, 
     setIsManagementOpen,
     setManagementMode,
-    setConfigsActiveTab
+    setConfigsActiveTab,
+    apiFetch
   } = useGroup();
   const { user } = useAuth();
   const [files, setFiles] = useState<DriveFile[]>([]);
@@ -90,30 +91,37 @@ export const PersonalDocuments: React.FC = () => {
 
   // Fetch Drive Config
   useEffect(() => {
+    if (!activeGroup) return;
+
     const fetchConfig = async () => {
       try {
-        const res = await fetch("/api/drive/config");
+        const res = await apiFetch("/api/drive/config");
         if (!res.ok) throw new Error("Failed to fetch drive config");
         const data = await res.json();
         setDriveConfig(data);
         if (!data.mainFolderId) {
           setShowSetup(true);
+        } else {
+          setShowSetup(false);
         }
       } catch (error) {
         console.error("Config fetch error:", error);
       }
     };
     fetchConfig();
-  }, []);
+  }, [activeGroup?.id]);
 
   const setupDrive = async () => {
-    if (!setupFolderName.trim()) return;
+    if (!setupFolderName.trim() || !activeGroup) return;
     try {
       setIsSettingUp(true);
-      const res = await fetch("/api/drive/setup", {
+      const res = await apiFetch("/api/drive/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rootFolderName: setupFolderName }),
+        body: JSON.stringify({ 
+          rootFolderName: setupFolderName,
+          adminEmail: user?.email 
+        }),
       });
       
       const data = await res.json();
@@ -141,7 +149,7 @@ export const PersonalDocuments: React.FC = () => {
     if (!activeGroup || !driveConfig?.mainFolderId) return;
     try {
       setIsLoading(true);
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/drive/list?folderName=${encodeURIComponent(selectedCategory || "")}&mainFolderId=${driveConfig.mainFolderId}`,
       );
       if (!res.ok) {
@@ -181,7 +189,7 @@ export const PersonalDocuments: React.FC = () => {
         const prefix = memberInfo ? `[${memberInfo.displayName || "Membro"}] ` : "";
         const finalFileName = `${prefix}${file.name}`;
 
-        const res = await fetch("/api/drive/upload", {
+        const res = await apiFetch("/api/drive/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -253,6 +261,31 @@ export const PersonalDocuments: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              {isAdmin && driveConfig?.mainFolderId && (
+                <button
+                  onClick={async () => {
+                    try {
+                      setIsLoading(true);
+                      const res = await apiFetch("/api/drive/sync-sharing", { method: "POST" });
+                      if (res.ok) {
+                        const data = await res.json();
+                        alert(`Acessos sincronizados com ${data.sharedWithCount} membros.`);
+                      } else {
+                        throw new Error("Falha ao sincronizar");
+                      }
+                    } catch (e: any) {
+                      alert("Erro ao sincronizar: " + e.message);
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  className="bg-white border border-gray-100 text-gray-500 hover:text-sky-600 hover:bg-sky-50 p-2.5 rounded-xl transition-all flex items-center gap-2 active:scale-95 shadow-sm"
+                  title="Sincronizar Permissões com Membros"
+                >
+                  <ShieldCheck size={18} />
+                  <span className="text-xs font-black uppercase tracking-tight hidden sm:block">SINCRONIZAR</span>
+                </button>
+              )}
               {!selectedCategory && isAdmin && (
                 <button
                   onClick={() => {
@@ -396,49 +429,70 @@ export const PersonalDocuments: React.FC = () => {
       <div className="flex-1 p-6 overflow-y-auto">
         <div className="max-w-5xl mx-auto">
           {showSetup ? (
-            <div className="bg-white rounded-[40px] border border-sky-100 p-10 flex flex-col items-center text-center shadow-xl shadow-sky-100/20 max-w-lg mx-auto">
-              <div className="w-20 h-20 rounded-3xl bg-sky-50 flex items-center justify-center text-sky-500 mb-6 shadow-inner">
-                <FolderPlus size={40} />
-              </div>
-              <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-2">Configurar Pasta Segura</h3>
-              <p className="text-sm font-medium text-gray-500 mb-8 max-w-sm">
-                Para começar, dê um nome à pasta principal que será criada no seu <strong>Google Drive</strong>. 
-                Todos os documentos serão salvos apenas lá.
-              </p>
-              
-              <div className="w-full space-y-4">
-                <input 
-                  type="text"
-                  placeholder="Ex: Documentos Dr. Agent"
-                  value={setupFolderName}
-                  onChange={(e) => setSetupFolderName(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold focus:ring-4 focus:ring-sky-100 transition-all outline-none"
-                />
-                <button 
-                  onClick={setupDrive}
-                  disabled={!setupFolderName.trim() || isSettingUp}
-                  className="w-full bg-sky-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-sky-100 hover:bg-sky-700 active:scale-95 transition-all disabled:bg-gray-200 disabled:shadow-none"
-                >
-                  {isSettingUp ? (
-                    <Loader2 size={18} className="animate-spin mx-auto" />
-                  ) : (
-                    "CRIAR NO MEU DRIVE"
-                  )}
-                </button>
-
-                <div className="pt-4 border-t border-gray-50 mt-4 flex flex-col items-center gap-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                    Problemas com permissão?
-                  </p>
+            isAdmin ? (
+              <div className="bg-white rounded-[40px] border border-sky-100 p-10 flex flex-col items-center text-center shadow-xl shadow-sky-100/20 max-w-lg mx-auto">
+                <div className="w-20 h-20 rounded-3xl bg-sky-50 flex items-center justify-center text-sky-500 mb-6 shadow-inner">
+                  <FolderPlus size={40} />
+                </div>
+                <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-2">Configurar Pasta Compartilhada</h3>
+                <p className="text-sm font-medium text-gray-500 mb-8 max-w-sm">
+                  Como administrador, você deve configurar a pasta principal no seu <strong>Google Drive</strong>. 
+                  Ela será compartilhada automaticamente com todos os membros do grupo.
+                </p>
+                
+                <div className="w-full space-y-4">
+                  <input 
+                    type="text"
+                    placeholder="Ex: Documentos Dr. Agent - Grupo X"
+                    value={setupFolderName}
+                    onChange={(e) => setSetupFolderName(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold focus:ring-4 focus:ring-sky-100 transition-all outline-none"
+                  />
                   <button 
-                    onClick={() => window.location.href = "/api/auth/google"}
-                    className="text-[10px] font-black text-sky-600 hover:text-sky-700 uppercase tracking-widest flex items-center gap-1.5 py-1 px-3 bg-sky-50 rounded-lg"
+                    onClick={setupDrive}
+                    disabled={!setupFolderName.trim() || isSettingUp}
+                    className="w-full bg-sky-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-sky-100 hover:bg-sky-700 active:scale-95 transition-all disabled:bg-gray-200 disabled:shadow-none"
                   >
-                    RE-CONECTAR GOOGLE
+                    {isSettingUp ? (
+                      <Loader2 size={18} className="animate-spin mx-auto" />
+                    ) : (
+                      "CRIAR E COMPARTILHAR"
+                    )}
                   </button>
+
+                  <div className="pt-4 border-t border-gray-50 mt-4 flex flex-col items-center gap-2">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                      Problemas com permissão?
+                    </p>
+                    <button 
+                      onClick={() => window.location.href = "/api/auth/google"}
+                      className="text-[10px] font-black text-sky-600 hover:text-sky-700 uppercase tracking-widest flex items-center gap-1.5 py-1 px-3 bg-sky-50 rounded-lg"
+                    >
+                      RE-CONECTAR GOOGLE
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-white rounded-[40px] border border-gray-100 p-10 flex flex-col items-center text-center shadow-sm max-w-lg mx-auto">
+                <div className="w-20 h-20 rounded-3xl bg-gray-50 flex items-center justify-center text-gray-400 mb-6">
+                  <FolderOpen size={40} />
+                </div>
+                <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-2">Pasta em Configuração</h3>
+                <p className="text-sm font-medium text-gray-500 mb-8 max-w-sm">
+                  O administrador do grupo ainda não configurou a pasta do Google Drive. 
+                  Por favor, aguarde a configuração inicial para acessar os documentos.
+                </p>
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    VOCÊ É O ADMIN?
+                  </p>
+                  <p className="text-[10px] text-gray-400">
+                    Se você for o dono do grupo, verifique seu status de login.
+                  </p>
+                </div>
+              </div>
+            )
           ) : !selectedCategory ? (
             // Category View
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -589,11 +643,11 @@ export const PersonalDocuments: React.FC = () => {
           </div>
           <div>
             <h4 className="text-[11px] font-black text-sky-900 leading-tight uppercase tracking-widest">
-              Ambiente Seguro e Privado
+              Ambiente Seguro e Compartilhado
             </h4>
             <p className="text-[11px] text-sky-800/60 font-medium mt-1 leading-relaxed">
-              Todos os seus documentos são salvos diretamente no **Google Drive** da sua conta pessoal. 
-              Garantimos sua privacidade e a soberania total sobre seus dados.
+              Todos os documentos do grupo são salvos diretamente no **Google Drive** do administrador e compartilhados com a equipe. 
+              Garantimos privacidade e controle total sobre os dados.
             </p>
           </div>
         </div>

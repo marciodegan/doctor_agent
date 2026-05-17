@@ -1658,10 +1658,23 @@ app.put("/api/calendar/events/:eventId", async (req, res) => {
 app.get("/api/drive/config", async (req, res) => {
   const userId = await getUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  
+  const groupId = getGroupId(req);
 
   try {
-    const doc = await db.collection("users").doc(userId).collection("settings").doc("drive").get();
-    res.json(doc.data() || {});
+    let configData = {};
+    if (groupId) {
+      const groupDoc = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
+      configData = groupDoc.data() || {};
+    }
+
+    // Fallback or secondary check for user-level if groupId not provided or group config empty
+    if (!configData || Object.keys(configData).length === 0) {
+      const userDoc = await db.collection("users").doc(userId).collection("settings").doc("drive").get();
+      configData = userDoc.data() || {};
+    }
+
+    res.json(configData);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -1674,13 +1687,16 @@ app.post("/api/drive/setup", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const { rootFolderName } = req.body;
+  const groupId = getGroupId(req);
+
   if (!rootFolderName) return res.status(400).json({ error: "Root folder name is required" });
 
   const drive = google.drive({ version: "v3", auth });
 
   try {
-    console.log("[Drive] Setting up folder:", rootFolderName, "for user:", userId);
-    // 1. Check if folder already exists in drive (optional but good for recovery)
+    console.log("[Drive] Setting up folder:", rootFolderName, "for user:", userId, "Group:", groupId);
+    
+    // 1. Check if folder already exists in drive
     const folderRes = await drive.files.list({
       q: `name = '${rootFolderName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
       fields: "files(id)",
@@ -1708,16 +1724,48 @@ app.post("/api/drive/setup", async (req, res) => {
       folderId = createFolderRes.data.id!;
     }
 
-    // 3. Save to user settings
-    console.log("[Drive] Saving config to Firestore forId:", folderId);
-    await db.collection("users").doc(userId).collection("settings").doc("drive").set({
-      mainFolderId: folderId,
-      mainFolderName: rootFolderName,
-      setupAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true }).catch(err => {
-      console.error("[Drive] Firestore error during config save:", err.message);
-      throw new Error(`Erro ao salvar configurações: ${err.message}`);
-    });
+    // 3. Save to Group or User settings
+    if (groupId) {
+      console.log("[Drive] Saving config to Group Firestore:", groupId);
+      await db.collection("groups").doc(groupId).collection("settings").doc("drive").set({
+        mainFolderId: folderId,
+        mainFolderName: rootFolderName,
+        adminId: userId,
+        setupAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      // 4. Share with all current group members (as requested)
+      try {
+        const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
+        const emails = membersSnap.docs
+          .map(d => d.data().userEmail)
+          .filter(e => !!e && e.toLowerCase() !== req.body.adminEmail?.toLowerCase());
+
+        console.log(`[Drive] Sharing folder ${folderId} with ${emails.length} members`);
+        
+        for (const email of emails) {
+          await drive.permissions.create({
+            fileId: folderId,
+            requestBody: {
+              type: 'user',
+              role: 'writer',
+              emailAddress: email
+            },
+            sendNotificationEmail: false
+          }).catch(e => console.error(`[Drive] Failed to share with ${email}:`, e.message));
+        }
+      } catch (shareErr) {
+        console.error("[Drive] Error during member sharing:", shareErr);
+        // We don't fail setup just because sharing failed for one member
+      }
+    } else {
+      console.log("[Drive] Saving config to User Firestore:", userId);
+      await db.collection("users").doc(userId).collection("settings").doc("drive").set({
+        mainFolderId: folderId,
+        mainFolderName: rootFolderName,
+        setupAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
 
     res.json({ mainFolderId: folderId, mainFolderName: rootFolderName });
   } catch (error: any) {
@@ -1728,6 +1776,48 @@ app.post("/api/drive/setup", async (req, res) => {
       error: `Erro no Setup: ${message}`,
       details: details 
     });
+  }
+});
+
+// New endpoint to refresh sharing for a group
+app.post("/api/drive/sync-sharing", async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Group ID required" });
+
+  try {
+    const configSnap = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
+    if (!configSnap.exists) return res.status(404).json({ error: "Drive not configured for this group" });
+    
+    const { mainFolderId } = configSnap.data()!;
+    const drive = google.drive({ version: "v3", auth });
+    
+    const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
+    const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
+
+    let successCount = 0;
+    for (const email of emails) {
+      try {
+        await drive.permissions.create({
+          fileId: mainFolderId,
+          requestBody: {
+            type: 'user',
+            role: 'writer',
+            emailAddress: email
+          },
+          sendNotificationEmail: false
+        });
+        successCount++;
+      } catch (e) {
+        console.error(`[Drive] Sync sharing failed for ${email}:`, (e as any).message);
+      }
+    }
+
+    res.json({ success: true, sharedWithCount: successCount });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
