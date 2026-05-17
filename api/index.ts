@@ -168,7 +168,8 @@ const SCOPES = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/calendar.events"
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/drive.file"
 ];
 
 // Resource caching to reduce consumption
@@ -800,7 +801,7 @@ app.get("/api/app/settings", async (req, res) => {
 
     const groupDoc = await db.collection("groups").doc(groupId).get();
     const groupType = groupDoc.data()?.groupType;
-    const defaultName = groupType === "professional" ? "Dr. Agent" : "Persono Agent";
+    const defaultName = "Dr. Agent";
 
     res.json({
       companyName: data.companyName || defaultName,

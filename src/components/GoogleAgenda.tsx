@@ -343,7 +343,7 @@ export function GoogleAgenda() {
                    className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1.5 ${viewMode === "month" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400"}`}
                 >
                   <CalendarDays size={12} />
-                  MÊS
+                  GRADE
                 </button>
                 <button 
                   onClick={() => setViewMode("list")}
@@ -355,7 +355,7 @@ export function GoogleAgenda() {
               </div>
             </div>
             <p className="text-[8px] font-black text-emerald-600/80 uppercase tracking-[0.2em] font-mono">
-              Google Agenda • {companyName}
+              Google Agenda
             </p>
           </div>
         </div>

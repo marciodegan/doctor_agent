@@ -93,14 +93,10 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     [],
   );
   const [loading, setLoading] = useState(true);
-  const [companyName, setCompanyName] = useState("Persono Agent");
+  const [companyName, setCompanyName] = useState("Dr. Agent");
 
   useEffect(() => {
-    if (activeGroup?.groupType === "professional") {
-      setCompanyName("Dr. Agent");
-    } else if (activeGroup?.groupType === "personal") {
-      setCompanyName("Persono Agent");
-    }
+    setCompanyName("Dr. Agent");
   }, [activeGroup?.groupType]);
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [userWhatsapp, setUserWhatsapp] = useState("");
@@ -194,8 +190,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
             if (!prev) return prev;
             if (prev.name === data.name && prev.photoURL === data.photoURL) return prev;
             
-            // Sync companyName with group name for consistency across UI
-            if (data.name && data.name !== companyName) {
+            // Skip automatic name sync to keep app brand as Dr. Agent
+            if (data.name && data.name !== companyName && !companyName) {
               setCompanyName(data.name);
             }
             
@@ -347,7 +343,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
   // Restore active group effect
   useEffect(() => {
-    const defaultName = activeGroup?.groupType === "professional" ? "Dr. Agent" : "Persono Agent";
+    const defaultName = "Dr. Agent";
     if (activeGroup?.name) {
       document.title = activeGroup.name;
     } else {
@@ -443,21 +439,23 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
     // 5. Restore active group or handle removal
     const savedGroupId = safeLocalStorage.getItem("activeGroupId");
-    
-    // Explicitly check if current user is still active in the group
-    const activeMemberRecord = combinedGroupsList.find(g => g.id === activeGroup?.id);
-    const isStillActiveInCurrent = activeMemberRecord && activeMemberRecord.status === "active";
+    const foundSaved = activeList.find((g) => g.id === savedGroupId);
+    const foundCurrent = activeList.find((g) => g.id === activeGroup?.id);
 
-    const foundInActiveList = activeList.find((g) => g.id === savedGroupId);
-    
-    if (foundInActiveList && isStillActiveInCurrent) {
-      setActiveGroup((prev) => (prev?.id === foundInActiveList.id ? prev : foundInActiveList));
+    if (foundSaved) {
+      // Restore from storage if valid (priority)
+      setActiveGroup((prev) => (prev?.id === foundSaved.id ? prev : foundSaved));
+    } else if (foundCurrent) {
+      // Maintain current if current is valid but storage was missing/invalid
+      // This helps if state updates but storage hasn't caught up
+      setActiveGroup(foundCurrent);
     } else if (activeList.length > 0) {
-      // If we are currently in a group that was removed or doesn't exist in activeList anymore
+      // Fallback to first available if both storage and current are invalid
       const firstActive = activeList[0];
       setActiveGroup(firstActive);
       safeLocalStorage.setItem("activeGroupId", firstActive.id);
     } else {
+      // No active groups available at all
       setActiveGroup(null);
       safeLocalStorage.setItem("activeGroupId", "");
     }

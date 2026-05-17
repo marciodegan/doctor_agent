@@ -128,7 +128,7 @@ export const tools = [
   }
 ];
 
-export const createAgent = (agentName: string = "Persono Agent") => ai.chats.create({
+export const createAgent = (agentName: string = "Dr. Agent") => ai.chats.create({
   model: "gemini-3-flash-preview", 
   config: {
     systemInstruction: `You are ${agentName}, a highly professional medical workspace assistant. 

@@ -568,7 +568,7 @@ export function Calendar({
                   onClick={() => setViewMode("month")}
                   className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${viewMode === "month" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400"}`}
                 >
-                  MÊS
+                  GRADE
                 </button>
                 <button 
                   onClick={() => setViewMode("list")}

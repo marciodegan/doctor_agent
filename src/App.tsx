@@ -97,11 +97,11 @@ export default function App() {
     } else {
       setPendingCommand(null);
     }
-
-    // Scroll the main container to top
+    
+    // Force scroll to top regardless of view change
     const mainElement = document.querySelector("main");
     if (mainElement) {
-      mainElement.scrollTo({ top: 0, behavior: "smooth" });
+      mainElement.scrollTop = 0;
     }
   };
 
@@ -130,6 +130,14 @@ export default function App() {
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
+
+  // Effect to scroll to top when view changes
+  useEffect(() => {
+    const mainElement = document.querySelector("main");
+    if (mainElement) {
+      mainElement.scrollTop = 0;
+    }
+  }, [currentView]);
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
@@ -226,6 +234,8 @@ export default function App() {
     setIsMobileGroupsOpen(false);
     setIsMobileMenuOpen(false);
     setIsManagementOpen(false);
+    const mainElement = document.querySelector("main");
+    if (mainElement) mainElement.scrollTop = 0;
   };
 
   if (isAuthenticated && !activeGroup) {
@@ -259,7 +269,7 @@ export default function App() {
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
               <Stethoscope size={14} />
             </div>
-            <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">{companyName}</span>
+            <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Dr. Agent</span>
           </div>
 
           <div className="absolute right-4 flex items-center gap-2">
@@ -298,7 +308,7 @@ export default function App() {
                   <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
                     <Stethoscope size={18} />
                   </div>
-                  <h1 className="font-bold text-xl tracking-tight text-blue-600">{companyName}</h1>
+                  <h1 className="font-bold text-xl tracking-tight text-blue-600">Dr. Agent</h1>
                 </div>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-gray-400">
                   <X size={20} />
@@ -333,10 +343,7 @@ export default function App() {
                     icon={<Zap size={18} className="text-blue-600" />} 
                     label="Assinatura Pro" 
                     active={currentView === "pricing"}
-                    onClick={() => {
-                      setCurrentView("pricing");
-                      setIsMobileMenuOpen(false);
-                    }}
+                    onClick={() => navigateAndAction("pricing")}
                   />
                   <NavItem 
                     icon={<User size={18} />} 
@@ -394,10 +401,7 @@ export default function App() {
 
               <div className="p-6 space-y-8">
                 <motion.div 
-                  onClick={() => {
-                    setCurrentView("pricing");
-                    setIsMobileGroupsOpen(false);
-                  }}
+                  onClick={() => navigateAndAction("pricing")}
                   className="bg-blue-600 rounded-3xl p-6 text-white cursor-pointer hover:bg-blue-700 transition-all border border-blue-500 shadow-xl shadow-blue-100"
                 >
                   <div className="flex items-center justify-between mb-4">
@@ -405,7 +409,7 @@ export default function App() {
                       <Zap size={20} />
                     </div>
                   </div>
-                  <h4 className="font-bold text-sm mb-1">{companyName} Business</h4>
+                  <h4 className="font-bold text-sm mb-1">Dr. Agent Business</h4>
                   <p className="text-[10px] text-blue-50 mb-4 line-clamp-2">Acesso total a automações, IA avançada e relatórios personalizados.</p>
                   <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest">
                     <span>Assinar agora</span>
@@ -432,7 +436,7 @@ export default function App() {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
               <Stethoscope size={18} />
             </div>
-            <h1 className="font-bold text-xl tracking-tight text-blue-600 truncate max-w-[140px]">{companyName}</h1>
+            <h1 className="font-bold text-xl tracking-tight text-blue-600 truncate max-w-[140px]">Dr. Agent</h1>
           </div>
         </div>
 
@@ -442,7 +446,7 @@ export default function App() {
             icon={activeGroup?.groupType === "personal" ? <FileText size={18} /> : <Layout size={18} />} 
             label={activeGroup?.groupType === "personal" ? "Documentos" : "Agent Dashboard"} 
             active={currentView === "workspace"} 
-            onClick={() => setCurrentView("workspace")}
+            onClick={() => navigateAndAction("workspace")}
           />
           <NavItem 
             icon={<Users size={18} />} 
@@ -453,13 +457,13 @@ export default function App() {
             icon={<Calendar size={18} />} 
             label="Calendário" 
             active={currentView === "calendar"}
-            onClick={() => setCurrentView("calendar")}
+            onClick={() => navigateAndAction("calendar")}
           />
           <NavItem 
             icon={<Calendar size={18} className="text-emerald-500" />} 
             label="Agenda" 
             active={currentView === "agenda"}
-            onClick={() => setCurrentView("agenda")}
+            onClick={() => navigateAndAction("agenda")}
           />
           <NavItem icon={<FileText size={18} />} label="Drive & Files" />
           
@@ -469,7 +473,7 @@ export default function App() {
               icon={<Zap size={18} className="text-blue-600" />} 
               label="Assinatura Pro" 
               active={currentView === "pricing"}
-              onClick={() => setCurrentView("pricing")}
+              onClick={() => navigateAndAction("pricing")}
             />
             <NavItem 
               icon={<User size={18} />} 
@@ -667,7 +671,7 @@ export default function App() {
                       className="h-full"
                     >
                       {currentView === "pricing" ? (
-                        <Pricing onBack={() => setCurrentView("workspace")} />
+                        <Pricing onBack={() => navigateAndAction("workspace")} />
                       ) : currentView === "calendar" ? (
                         <FirestoreCalendar 
                           prefilledPatientName={activePatientName || undefined} 
@@ -683,13 +687,7 @@ export default function App() {
                       ) : currentView === "logs" && activePatientId ? (
                         <PatientLogs 
                           patientId={activePatientId} 
-                          onBack={() => {
-                            setCurrentView("workspace");
-                            setActivePatientId(null);
-                            setActivePatientName(null);
-                            setActivePatientProcedure(null);
-                            setActivePatientHospitalId(null);
-                          }}
+                          onBack={() => navigateAndAction("workspace")}
                           onSchedule={(name, proc, hospId) => navigateAndAction("calendar", undefined, activePatientId!, name, proc, hospId)}
                         />
                       ) : currentView === "notes" ? (
@@ -698,7 +696,7 @@ export default function App() {
                         <PersonalDocuments />
                       ) : (
                         <Chat 
-                          onNavigateToCalendar={() => setCurrentView("calendar")} 
+                          onNavigateToCalendar={() => navigateAndAction("calendar")} 
                           onViewLogs={(pid) => navigateAndAction("logs", undefined, pid)}
                           initialCommand={pendingCommand}
                           onCommandExecuted={() => setPendingCommand(null)}
