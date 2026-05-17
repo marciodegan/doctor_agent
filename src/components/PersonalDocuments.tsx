@@ -58,10 +58,10 @@ export const PersonalDocuments: React.FC = () => {
   const [showUploadOptions, setShowUploadOptions] = useState(false);
   const [uploadTargetMemberId, setUploadTargetMemberId] = useState<string>("");
 
-  const baseFolderName = `DoctorPro_${activeGroup?.name || "Documents"}`;
-  const currentFolderName = selectedCategory 
-    ? `${baseFolderName}_${selectedCategory}` 
-    : baseFolderName;
+  const [driveConfig, setDriveConfig] = useState<{ mainFolderId?: string; mainFolderName?: string } | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
+  const [setupFolderName, setSetupFolderName] = useState("");
+  const [isSettingUp, setIsSettingUp] = useState(false);
 
   // Listen to categories
   useEffect(() => {
@@ -88,12 +88,51 @@ export const PersonalDocuments: React.FC = () => {
   const isCreator = activeGroup?.createdBy === user?.uid;
   const isAdmin = isOwner || isCreator;
 
+  // Fetch Drive Config
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch("/api/drive/config");
+        if (!res.ok) throw new Error("Failed to fetch drive config");
+        const data = await res.json();
+        setDriveConfig(data);
+        if (!data.mainFolderId) {
+          setShowSetup(true);
+        }
+      } catch (error) {
+        console.error("Config fetch error:", error);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const setupDrive = async () => {
+    if (!setupFolderName.trim()) return;
+    try {
+      setIsSettingUp(true);
+      const res = await fetch("/api/drive/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rootFolderName: setupFolderName }),
+      });
+      if (!res.ok) throw new Error("Setup failed");
+      const data = await res.json();
+      setDriveConfig(data);
+      setShowSetup(false);
+    } catch (error) {
+      console.error("Setup error:", error);
+      alert("Erro ao configurar pasta: " + (error as Error).message);
+    } finally {
+      setIsSettingUp(false);
+    }
+  };
+
   const fetchFiles = async () => {
-    if (!activeGroup) return;
+    if (!activeGroup || !driveConfig?.mainFolderId) return;
     try {
       setIsLoading(true);
       const res = await fetch(
-        `/api/drive/list?folderName=${encodeURIComponent(currentFolderName)}`,
+        `/api/drive/list?folderName=${encodeURIComponent(selectedCategory || "")}&mainFolderId=${driveConfig.mainFolderId}`,
       );
       if (!res.ok) throw new Error("Failed to fetch files");
       const data = await res.json();
@@ -106,17 +145,17 @@ export const PersonalDocuments: React.FC = () => {
   };
 
   useEffect(() => {
-    if (activeGroup && selectedCategory) {
+    if (activeGroup && selectedCategory && driveConfig?.mainFolderId) {
       fetchFiles();
     } else if (activeGroup && !selectedCategory) {
       setFiles([]);
       setIsLoading(false);
     }
-  }, [activeGroup, selectedCategory]);
+  }, [activeGroup, selectedCategory, driveConfig?.mainFolderId]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedCategory) return;
+    if (!file || !selectedCategory || !driveConfig?.mainFolderId) return;
 
     try {
       setIsUploading(true);
@@ -136,7 +175,8 @@ export const PersonalDocuments: React.FC = () => {
             name: finalFileName,
             mimeType: file.type,
             base64Data,
-            folderName: currentFolderName,
+            folderName: selectedCategory,
+            mainFolderId: driveConfig.mainFolderId
           }),
         });
 
@@ -159,9 +199,9 @@ export const PersonalDocuments: React.FC = () => {
 
   const getFileIcon = (mimeType: string) => {
     if (mimeType.startsWith("image/"))
-      return <ImageIcon className="text-pink-500" size={20} />;
+      return <ImageIcon className="text-sky-500" size={20} />;
     if (mimeType.includes("pdf"))
-      return <FileText className="text-red-500" size={20} />;
+      return <FileText className="text-sky-600" size={20} />;
     return <File className="text-blue-500" size={20} />;
   };
 
@@ -185,15 +225,15 @@ export const PersonalDocuments: React.FC = () => {
         <div className="flex flex-col gap-6 max-w-5xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center border border-red-100">
-                <ShieldCheck size={24} className="text-red-600" />
+              <div className="w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center border border-sky-100">
+                <ShieldCheck size={24} className="text-sky-600" />
               </div>
               <div>
                 <h3 className="text-xl font-black text-gray-900 tracking-tight">
                   Meus Documentos
                 </h3>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mt-0.5">
-                  <FolderOpen size={12} className="text-red-400" />
+                  <FolderOpen size={12} className="text-sky-400" />
                   {selectedCategory ? `${selectedCategory}` : "Categorias"}
                 </p>
               </div>
@@ -207,7 +247,7 @@ export const PersonalDocuments: React.FC = () => {
                     setConfigsActiveTab("document_categories");
                     setIsManagementOpen(true);
                   }}
-                  className="bg-white border border-gray-100 text-gray-500 hover:text-red-600 hover:bg-red-50 p-2.5 rounded-xl transition-all flex items-center gap-2 active:scale-95 shadow-sm"
+                  className="bg-white border border-gray-100 text-gray-500 hover:text-sky-600 hover:bg-sky-50 p-2.5 rounded-xl transition-all flex items-center gap-2 active:scale-95 shadow-sm"
                   title="Configurar Categorias"
                 >
                   <FolderPlus size={18} />
@@ -219,7 +259,7 @@ export const PersonalDocuments: React.FC = () => {
                   <button
                     onClick={() => setShowUploadOptions(!showUploadOptions)}
                     disabled={isUploading}
-                    className="bg-red-600 text-white px-5 py-2.5 rounded-xl text-sm font-black shadow-lg shadow-red-100 hover:bg-red-700 transition-all flex items-center gap-2 active:scale-95 disabled:bg-gray-300 disabled:shadow-none"
+                    className="bg-sky-600 text-white px-5 py-2.5 rounded-xl text-sm font-black shadow-lg shadow-sky-100 hover:bg-sky-700 transition-all flex items-center gap-2 active:scale-95 disabled:bg-gray-300 disabled:shadow-none"
                   >
                     {isUploading ? (
                       <Loader2 size={18} className="animate-spin" />
@@ -252,16 +292,16 @@ export const PersonalDocuments: React.FC = () => {
                             <button 
                               key={m.userId}
                               onClick={() => { setUploadTargetMemberId(m.userId); fileInputRef.current?.click(); }}
-                              className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-red-50/50 flex items-center gap-2 transition-colors group border border-transparent hover:border-red-100"
+                              className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-sky-50/50 flex items-center gap-2 transition-colors group border border-transparent hover:border-sky-100"
                             >
                               {m.photoURL ? (
                                 <img src={m.photoURL} className="w-8 h-8 rounded-lg object-cover" />
                               ) : (
-                                <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-400">
+                                <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center text-sky-400">
                                   <User size={14} />
                                 </div>
                               )}
-                              <span className="text-sm font-bold text-gray-700 group-hover:text-red-700">{m.displayName || "Membro"}</span>
+                              <span className="text-sm font-bold text-gray-700 group-hover:text-sky-700">{m.displayName || "Membro"}</span>
                             </button>
                           ))}
                         </div>
@@ -299,7 +339,7 @@ export const PersonalDocuments: React.FC = () => {
                   placeholder={selectedCategory ? `Buscar em ${selectedCategory}...` : "Buscar categorias..."}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-gray-100 border-none rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium focus:ring-2 focus:ring-red-100 transition-all"
+                  className="w-full bg-gray-100 border-none rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium focus:ring-2 focus:ring-sky-100 transition-all"
                 />
               </div>
             </div>
@@ -310,7 +350,7 @@ export const PersonalDocuments: React.FC = () => {
                   onClick={() => setSelectedMemberId("all")}
                   className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                     selectedMemberId === "all" 
-                      ? "bg-red-600 text-white shadow-lg shadow-red-100" 
+                      ? "bg-sky-600 text-white shadow-lg shadow-sky-100" 
                       : "bg-white border border-gray-100 text-gray-400 hover:bg-gray-50"
                   }`}
                 >
@@ -322,7 +362,7 @@ export const PersonalDocuments: React.FC = () => {
                     onClick={() => setSelectedMemberId(m.userId)}
                     className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${
                       selectedMemberId === m.userId 
-                        ? "bg-red-600 text-white shadow-lg shadow-red-100" 
+                        ? "bg-sky-600 text-white shadow-lg shadow-sky-100" 
                         : "bg-white border border-gray-100 text-gray-400 hover:bg-gray-50"
                     }`}
                   >
@@ -342,7 +382,39 @@ export const PersonalDocuments: React.FC = () => {
 
       <div className="flex-1 p-6 overflow-y-auto">
         <div className="max-w-5xl mx-auto">
-          {!selectedCategory ? (
+          {showSetup ? (
+            <div className="bg-white rounded-[40px] border border-sky-100 p-10 flex flex-col items-center text-center shadow-xl shadow-sky-100/20 max-w-lg mx-auto">
+              <div className="w-20 h-20 rounded-3xl bg-sky-50 flex items-center justify-center text-sky-500 mb-6 shadow-inner">
+                <FolderPlus size={40} />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-2">Configurar Pasta Segura</h3>
+              <p className="text-sm font-medium text-gray-500 mb-8 max-w-sm">
+                Para começar, dê um nome à pasta principal que será criada no seu <strong>Google Drive</strong>. 
+                Todos os documentos serão salvos apenas lá.
+              </p>
+              
+              <div className="w-full space-y-4">
+                <input 
+                  type="text"
+                  placeholder="Ex: Documentos Dr. Agent"
+                  value={setupFolderName}
+                  onChange={(e) => setSetupFolderName(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold focus:ring-4 focus:ring-sky-100 transition-all outline-none"
+                />
+                <button 
+                  onClick={setupDrive}
+                  disabled={!setupFolderName.trim() || isSettingUp}
+                  className="w-full bg-sky-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-sky-100 hover:bg-sky-700 active:scale-95 transition-all disabled:bg-gray-200 disabled:shadow-none"
+                >
+                  {isSettingUp ? (
+                    <Loader2 size={18} className="animate-spin mx-auto" />
+                  ) : (
+                    "CRIAR NO MEU DRIVE"
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : !selectedCategory ? (
             // Category View
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {categories.length === 0 ? (
@@ -358,7 +430,7 @@ export const PersonalDocuments: React.FC = () => {
                       setConfigsActiveTab("document_categories");
                       setIsManagementOpen(true);
                     }}
-                    className="bg-red-600 text-white px-6 py-3 rounded-2xl text-sm font-black shadow-xl shadow-red-100 hover:bg-red-700 transition-all flex items-center gap-2 active:scale-95"
+                    className="bg-sky-600 text-white px-6 py-3 rounded-2xl text-sm font-black shadow-xl shadow-sky-100 hover:bg-sky-700 transition-all flex items-center gap-2 active:scale-95"
                   >
                     <Plus size={18} strokeWidth={3} />
                     ADICIONAR CATEGORIA
@@ -374,12 +446,9 @@ export const PersonalDocuments: React.FC = () => {
                       setSelectedCategory(cat.name);
                       setSearchTerm("");
                     }}
-                    className="flex flex-col items-center gap-4 p-6 bg-white border border-gray-100 rounded-[40px] hover:shadow-xl hover:shadow-red-200/20 transition-all group overflow-hidden relative"
+                    className="flex flex-col items-center gap-4 p-6 bg-white border border-gray-100 rounded-[40px] hover:shadow-xl hover:shadow-sky-200/20 transition-all group overflow-hidden relative"
                   >
-                    <div className="absolute top-0 right-0 p-4 opacity-5">
-                      <FolderOpen size={80} />
-                    </div>
-                    <div className="w-16 h-16 rounded-[24px] bg-red-50 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform shadow-inner">
+                    <div className="w-16 h-16 rounded-[24px] bg-sky-50 flex items-center justify-center text-sky-500 group-hover:scale-110 transition-transform shadow-inner">
                       <FolderOpen size={32} />
                     </div>
                     <span className="font-black text-gray-900 text-[11px] uppercase tracking-wider text-center px-2">
@@ -394,7 +463,7 @@ export const PersonalDocuments: React.FC = () => {
             <>
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-4">
-                  <Loader2 className="animate-spin text-red-500" size={40} />
+                  <Loader2 className="animate-spin text-sky-500" size={40} />
                   <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">
                     Buscando arquivos no Drive...
                   </p>
@@ -434,7 +503,7 @@ export const PersonalDocuments: React.FC = () => {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 {memberName && (
-                                  <span className="px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-[8px] font-black uppercase tracking-tighter shrink-0 border border-red-100/50">
+                                  <span className="px-1.5 py-0.5 bg-sky-50 text-sky-600 rounded text-[8px] font-black uppercase tracking-tighter shrink-0 border border-sky-100/50">
                                     {memberName}
                                   </span>
                                 )}
@@ -468,7 +537,7 @@ export const PersonalDocuments: React.FC = () => {
                               href={file.webViewLink}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex-1 bg-gray-50 hover:bg-red-50 text-gray-600 hover:text-red-700 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all border border-gray-100 hover:border-red-100"
+                              className="flex-1 bg-gray-50 hover:bg-sky-50 text-gray-600 hover:text-sky-700 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all border border-gray-100 hover:border-sky-100"
                             >
                               <ExternalLink size={14} />
                               ABRIR NO DRIVE
@@ -488,18 +557,18 @@ export const PersonalDocuments: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-6 bg-red-50/50 border-t border-red-100">
+      <div className="p-6 bg-sky-50/50 border-t border-sky-100">
         <div className="max-w-5xl mx-auto flex items-start gap-4">
           <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shrink-0 shadow-sm">
-            <ShieldCheck size={20} className="text-red-600" />
+            <ShieldCheck size={20} className="text-sky-600" />
           </div>
           <div>
-            <h4 className="text-[11px] font-black text-red-900 leading-tight uppercase tracking-widest">
+            <h4 className="text-[11px] font-black text-sky-900 leading-tight uppercase tracking-widest">
               Ambiente Seguro e Privado
             </h4>
-            <p className="text-[11px] text-red-800/60 font-medium mt-1 leading-relaxed">
-              Todos os seus documentos são criptografados e salvos diretamente no **Google Drive** do administrador. 
-              Sua privacidade e soberania de dados são nossa prioridade.
+            <p className="text-[11px] text-sky-800/60 font-medium mt-1 leading-relaxed">
+              Todos os seus documentos são salvos diretamente no **Google Drive** da sua conta pessoal. 
+              Garantimos sua privacidade e a soberania total sobre seus dados.
             </p>
           </div>
         </div>
@@ -507,5 +576,3 @@ export const PersonalDocuments: React.FC = () => {
     </div>
   );
 };
-
-

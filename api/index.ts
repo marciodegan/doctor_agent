@@ -1657,11 +1657,71 @@ app.put("/api/calendar/events/:eventId", async (req, res) => {
 });
 
 // Generic Storage Upload
+app.get("/api/drive/config", async (req, res) => {
+  const userId = await getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const doc = await db.collection("users").doc(userId).collection("settings").doc("drive").get();
+    res.json(doc.data() || {});
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.post("/api/drive/setup", express.json(), async (req, res) => {
+  const auth = getAuthClient(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  const userId = await getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { rootFolderName } = req.body;
+  if (!rootFolderName) return res.status(400).json({ error: "Root folder name is required" });
+
+  const drive = google.drive({ version: "v3", auth });
+
+  try {
+    // 1. Check if folder already exists in drive (optional but good for recovery)
+    const folderRes = await drive.files.list({
+      q: `name = '${rootFolderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: "files(id)",
+    });
+
+    let folderId = "";
+    if (folderRes.data.files && folderRes.data.files.length > 0) {
+      folderId = folderRes.data.files[0].id!;
+    } else {
+      // 2. Create the main folder
+      const createFolderRes = await drive.files.create({
+        requestBody: {
+          name: rootFolderName,
+          mimeType: "application/vnd.google-apps.folder",
+          description: "App Storage Folder - Dr. Agent",
+        },
+        fields: "id",
+      });
+      folderId = createFolderRes.data.id!;
+    }
+
+    // 3. Save to user settings
+    await db.collection("users").doc(userId).collection("settings").doc("drive").set({
+      mainFolderId: folderId,
+      mainFolderName: rootFolderName,
+      setupAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    res.json({ mainFolderId: folderId, mainFolderName: rootFolderName });
+  } catch (error) {
+    console.error("[Drive] Setup error:", error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 app.post("/api/drive/upload", express.json({ limit: "25mb" }), async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
-  const { name, mimeType, base64Data, folderName } = req.body;
+  const { name, mimeType, base64Data, parentFolderId, folderName, mainFolderId } = req.body;
 
   if (!base64Data) {
     return res.status(400).json({ error: "Missing base64Data" });
@@ -1670,25 +1730,27 @@ app.post("/api/drive/upload", express.json({ limit: "25mb" }), async (req, res) 
   const drive = google.drive({ version: "v3", auth });
 
   try {
-    // 1. Find or Create Folder
-    let folderId = "";
-    if (folderName) {
+    let finalParentId = parentFolderId;
+
+    // If we have a folderName and mainFolderId, we ensure the subfolder exists inside mainFolderId
+    if (!finalParentId && folderName && mainFolderId) {
       const folderRes = await drive.files.list({
-        q: `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        q: `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and '${mainFolderId}' in parents and trashed = false`,
         fields: "files(id)",
       });
       
       if (folderRes.data.files && folderRes.data.files.length > 0) {
-        folderId = folderRes.data.files[0].id!;
+        finalParentId = folderRes.data.files[0].id!;
       } else {
         const createFolderRes = await drive.files.create({
           requestBody: {
             name: folderName,
             mimeType: "application/vnd.google-apps.folder",
+            parents: [mainFolderId],
           },
           fields: "id",
         });
-        folderId = createFolderRes.data.id!;
+        finalParentId = createFolderRes.data.id!;
       }
     }
 
@@ -1700,7 +1762,7 @@ app.post("/api/drive/upload", express.json({ limit: "25mb" }), async (req, res) 
 
     const fileMetadata = {
       name: name || `Upload_${Date.now()}`,
-      parents: folderId ? [folderId] : [],
+      parents: finalParentId ? [finalParentId] : (mainFolderId ? [mainFolderId] : []),
     };
     const media = {
       mimeType: mimeType || "image/jpeg",
@@ -1724,23 +1786,31 @@ app.get("/api/drive/list", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
-  const { folderName } = req.query;
+  const { folderName, mainFolderId, parentFolderId } = req.query;
   const drive = google.drive({ version: "v3", auth });
 
   try {
     let q = "trashed = false";
-    if (folderName) {
-      // First find the folder ID
+    let targetParentId = parentFolderId as string;
+
+    if (!targetParentId && folderName && mainFolderId) {
+      // Find the subfolder ID inside mainFolderId
       const folderRes = await drive.files.list({
-        q: `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        q: `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and '${mainFolderId}' in parents and trashed = false`,
         fields: "files(id)",
       });
       
       if (folderRes.data.files && folderRes.data.files.length > 0) {
-        q += ` and '${folderRes.data.files[0].id}' in parents`;
+        targetParentId = folderRes.data.files[0].id!;
       } else {
-        return res.json([]); // Folder doesn't exist yet
+        return res.json([]); // Subfolder doesn't exist yet
       }
+    } else if (!targetParentId && mainFolderId) {
+       targetParentId = mainFolderId as string;
+    }
+
+    if (targetParentId) {
+      q += ` and '${targetParentId}' in parents`;
     }
 
     const response = await drive.files.list({
