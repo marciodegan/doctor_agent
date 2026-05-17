@@ -58,10 +58,8 @@ const _getDb = () => {
   if (!admin.apps.length) {
     throw new Error("Firebase Admin not initialized. Ensure firebase-applet-config.json exists or FIREBASE_SERVICE_ACCOUNT is set in environment.");
   }
-  if (!firebaseConfig.firestoreDatabaseId) {
-    throw new Error("Firestore Database ID is not configured in firebase-applet-config.json");
-  }
-  return getFirestore(firebaseConfig.firestoreDatabaseId);
+  const dbId = firebaseConfig.firestoreDatabaseId || "(default)";
+  return getFirestore(dbId);
 };
 
 const _getStorage = () => {
@@ -1669,7 +1667,7 @@ app.get("/api/drive/config", async (req, res) => {
   }
 });
 
-app.post("/api/drive/setup", express.json(), async (req, res) => {
+app.post("/api/drive/setup", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
   const userId = await getUserId(req);
@@ -1681,10 +1679,14 @@ app.post("/api/drive/setup", express.json(), async (req, res) => {
   const drive = google.drive({ version: "v3", auth });
 
   try {
+    console.log("[Drive] Setting up folder:", rootFolderName, "for user:", userId);
     // 1. Check if folder already exists in drive (optional but good for recovery)
     const folderRes = await drive.files.list({
-      q: `name = '${rootFolderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      q: `name = '${rootFolderName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
       fields: "files(id)",
+    }).catch(err => {
+      console.error("[Drive] Error listing folders during setup:", err.message);
+      throw new Error(`Google Drive Error: ${err.message}. Certifique-se de ter dado permissão para o Google Drive.`);
     });
 
     let folderId = "";
@@ -1699,25 +1701,37 @@ app.post("/api/drive/setup", express.json(), async (req, res) => {
           description: "App Storage Folder - Dr. Agent",
         },
         fields: "id",
+      }).catch(err => {
+        console.error("[Drive] Error creating root folder:", err.message);
+        throw new Error(`Erro ao criar pasta no Drive: ${err.message}`);
       });
       folderId = createFolderRes.data.id!;
     }
 
     // 3. Save to user settings
+    console.log("[Drive] Saving config to Firestore forId:", folderId);
     await db.collection("users").doc(userId).collection("settings").doc("drive").set({
       mainFolderId: folderId,
       mainFolderName: rootFolderName,
       setupAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
+    }, { merge: true }).catch(err => {
+      console.error("[Drive] Firestore error during config save:", err.message);
+      throw new Error(`Erro ao salvar configurações: ${err.message}`);
+    });
 
     res.json({ mainFolderId: folderId, mainFolderName: rootFolderName });
-  } catch (error) {
-    console.error("[Drive] Setup error:", error);
-    res.status(500).json({ error: (error as Error).message });
+  } catch (error: any) {
+    console.error("[Drive] Setup Exception:", error);
+    const message = error.response?.data?.error?.message || error.message || String(error);
+    const details = error.response?.data?.error || null;
+    res.status(500).json({ 
+      error: `Erro no Setup: ${message}`,
+      details: details 
+    });
   }
 });
 
-app.post("/api/drive/upload", express.json({ limit: "25mb" }), async (req, res) => {
+app.post("/api/drive/upload", async (req, res) => {
   const auth = getAuthClient(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
@@ -1803,7 +1817,21 @@ app.get("/api/drive/list", async (req, res) => {
       if (folderRes.data.files && folderRes.data.files.length > 0) {
         targetParentId = folderRes.data.files[0].id!;
       } else {
-        return res.json([]); // Subfolder doesn't exist yet
+        // Create the subfolder if it doesn't exist (Lazy creation per requirements)
+        try {
+          const createFolderRes = await drive.files.create({
+            requestBody: {
+              name: folderName as string,
+              mimeType: "application/vnd.google-apps.folder",
+              parents: [mainFolderId as string],
+            },
+            fields: "id",
+          });
+          targetParentId = createFolderRes.data.id!;
+        } catch (createErr: any) {
+          console.error("[Drive] Error creating subfolder during list:", createErr);
+          return res.json([]); // Fallback to empty list if creation fails
+        }
       }
     } else if (!targetParentId && mainFolderId) {
        targetParentId = mainFolderId as string;

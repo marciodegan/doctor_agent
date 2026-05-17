@@ -446,22 +446,19 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       // Restore from storage if valid (priority)
       setActiveGroup((prev) => (prev?.id === foundSaved.id ? prev : foundSaved));
     } else if (foundCurrent) {
-      // Maintain current if current is valid but storage was missing/invalid
-      // This helps if state updates but storage hasn't caught up
+      // Maintain current if current is valid
       setActiveGroup(foundCurrent);
     } else if (activeList.length > 0) {
-      // Fallback to first available if both storage and current are invalid
+      // Default to first active group if none saved/found
       const firstActive = activeList[0];
       setActiveGroup(firstActive);
       safeLocalStorage.setItem("activeGroupId", firstActive.id);
     } else {
-      // No active groups available at all
       setActiveGroup(null);
-      safeLocalStorage.setItem("activeGroupId", "");
     }
     
     setLoading(false);
-  }, [rawMemberships, ownedGroups, emailInvites, user?.uid]); // Added user?.uid to dependencies for safety
+  }, [rawMemberships, ownedGroups, emailInvites, user?.uid]); // Consolidate into a stable dependency list
 
   const setActiveGroupId = (id: string) => {
     safeLocalStorage.setItem("activeGroupId", id);

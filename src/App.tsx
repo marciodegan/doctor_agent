@@ -99,9 +99,10 @@ export default function App() {
     }
     
     // Force scroll to top regardless of view change
+    window.scrollTo({ top: 0, behavior: 'instant' });
     const mainElement = document.querySelector("main");
     if (mainElement) {
-      mainElement.scrollTop = 0;
+      mainElement.scrollTo({ top: 0, behavior: 'instant' });
     }
   };
 
@@ -133,9 +134,10 @@ export default function App() {
 
   // Effect to scroll to top when view changes
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
     const mainElement = document.querySelector("main");
     if (mainElement) {
-      mainElement.scrollTop = 0;
+      mainElement.scrollTo({ top: 0, behavior: 'instant' });
     }
   }, [currentView]);
 
@@ -523,7 +525,7 @@ export default function App() {
           paddingTop: 'calc(3.25rem + env(safe-area-inset-top))',
           paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))'
         }}
-        className={`lg:pl-64 flex flex-col ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : ""}`}
+        className={`lg:pl-64 flex flex-col overflow-y-auto custom-scrollbar ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : "min-h-screen"}`}
       >
         
         {/* Global Modals (Settings, Security, Profile) */}

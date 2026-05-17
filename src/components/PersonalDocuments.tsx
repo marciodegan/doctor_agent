@@ -115,13 +115,23 @@ export const PersonalDocuments: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rootFolderName: setupFolderName }),
       });
-      if (!res.ok) throw new Error("Setup failed");
+      
       const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || "Erro desconhecido no servidor");
+      }
+      
       setDriveConfig(data);
       setShowSetup(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Setup error:", error);
-      alert("Erro ao configurar pasta: " + (error as Error).message);
+      const msg = error.message;
+      if (msg.toLowerCase().includes("insufficient permissions") || msg.toLowerCase().includes("grant") || msg.toLowerCase().includes("permission")) {
+        alert("Erro de Permissão: Você precisa re-conectar sua conta Google para autorizar o acesso ao Drive. \n\nDetalhes: " + msg);
+      } else {
+        alert("Erro ao configurar pasta: " + msg);
+      }
     } finally {
       setIsSettingUp(false);
     }
@@ -134,7 +144,10 @@ export const PersonalDocuments: React.FC = () => {
       const res = await fetch(
         `/api/drive/list?folderName=${encodeURIComponent(selectedCategory || "")}&mainFolderId=${driveConfig.mainFolderId}`,
       );
-      if (!res.ok) throw new Error("Failed to fetch files");
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to fetch files");
+      }
       const data = await res.json();
       setFiles(data);
     } catch (error) {
@@ -412,6 +425,18 @@ export const PersonalDocuments: React.FC = () => {
                     "CRIAR NO MEU DRIVE"
                   )}
                 </button>
+
+                <div className="pt-4 border-t border-gray-50 mt-4 flex flex-col items-center gap-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    Problemas com permissão?
+                  </p>
+                  <button 
+                    onClick={() => window.location.href = "/api/auth/google"}
+                    className="text-[10px] font-black text-sky-600 hover:text-sky-700 uppercase tracking-widest flex items-center gap-1.5 py-1 px-3 bg-sky-50 rounded-lg"
+                  >
+                    RE-CONECTAR GOOGLE
+                  </button>
+                </div>
               </div>
             </div>
           ) : !selectedCategory ? (
