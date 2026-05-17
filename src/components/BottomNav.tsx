@@ -1,10 +1,8 @@
 import React from "react";
 import {
-  MessageSquare,
   Calendar,
   CalendarDays,
   Users,
-  Settings,
   FileText,
   ShoppingCart,
   StickyNote,
@@ -66,8 +64,8 @@ export function BottomNav({
     id: "management",
     label: activeGroup?.name || "Equipe",
     icon: activeGroup?.photoURL ? (
-      <img 
-        src={activeGroup.photoURL} 
+      <img
+        src={activeGroup.photoURL}
         className="w-7 h-7 rounded-xl object-cover border-2 border-white shadow-md"
         alt="Group"
       />
@@ -80,12 +78,9 @@ export function BottomNav({
   });
 
   return (
-    <div 
-      style={{ paddingBottom: 0 }}
-      className="fixed bottom-0 left-0 lg:left-64 right-0 z-[60] bg-white border-t border-gray-100 shadow-[0_-1px_10px_rgba(0,0,0,0.02)]"
-    >
-      <div className="h-11 sm:h-12 flex items-center justify-around px-2">
-        {tabs.map((tab, idx) => {
+    <div className="fixed bottom-0 left-0 lg:left-64 right-0 z-[60] bg-white border-t border-gray-100 shadow-[0_-1px_10px_rgba(0,0,0,0.02)]">
+      <div className="h-11 sm:h-12 flex items-end justify-around px-2 pb-1">
+        {tabs.map((tab) => {
           const isActive = currentView === tab.id;
           const isEquipe = tab.id === "management";
 
@@ -95,13 +90,14 @@ export function BottomNav({
               id={tab.id === "management" ? "equipe-nav-button" : undefined}
               onClick={() => {
                 window.scrollTo({ top: 0, behavior: "smooth" });
+
                 if (tab.action) {
                   tab.action();
                 } else {
-                  onNavigate(tab.id, (tab as any).prompt);
+                  onNavigate(tab.id, tab.prompt);
                 }
               }}
-              className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 min-w-[64px] relative group px-1"
+              className="h-full flex flex-col items-center justify-end gap-0 min-w-[64px] relative group px-1 pb-0.5"
             >
               <AnimatePresence>
                 {isActive && (
@@ -111,7 +107,11 @@ export function BottomNav({
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
                     className="absolute inset-0 bg-blue-50/50 rounded-2xl -z-10"
-                    transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
+                    transition={{
+                      type: "spring",
+                      bounce: 0.3,
+                      duration: 0.6,
+                    }}
                   />
                 )}
               </AnimatePresence>
@@ -121,18 +121,23 @@ export function BottomNav({
                   scale: isActive ? 1.15 : 1,
                   color: isActive ? "#2563eb" : "#9ca3af",
                 }}
-                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 400,
+                  damping: 25,
+                }}
                 className="relative"
               >
                 {isEquipe ? (
                   <div className="relative">
                     {tab.icon}
-                    {/* Status Dot for the whole team - only if no photo to keep it clean, or always? User wants it to look like the group */}
+
                     <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm" />
                   </div>
                 ) : (
                   tab.icon
                 )}
+
                 {isActive && !isEquipe && (
                   <motion.div
                     layoutId="active-dot"
@@ -146,7 +151,7 @@ export function BottomNav({
                   isActive ? "text-blue-600" : "text-gray-400"
                 }`}
               >
-                {(tab.label).split(" ")[0]}
+                {tab.label.split(" ")[0]}
               </span>
             </button>
           );
