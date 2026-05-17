@@ -390,7 +390,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
     res.send(`
       <html>
         <head>
-          <title>Autenticação Persono Agent</title>
+          <title>Autenticação</title>
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f3f4f6; color: #111827; }
@@ -443,7 +443,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
                 
                 if (count >= 15) {
                   clearInterval(interval);
-                  document.getElementById('content').innerHTML = "<h2>Login Pronto</h2><p>Pode fechar esta janela e voltar ao Persono Agent.</p>";
+                  document.getElementById('content').innerHTML = "<h2>Login Pronto</h2><p>Pode fechar esta janela e voltar ao aplicativo.</p>";
                   document.getElementById('debug-status').innerText = "Processo finalizado.";
                 }
               }, 1000);
@@ -798,8 +798,12 @@ app.get("/api/app/settings", async (req, res) => {
     const doc = await db.collection("settings").doc(groupId).get();
     const data = doc.data() || {};
 
+    const groupDoc = await db.collection("groups").doc(groupId).get();
+    const groupType = groupDoc.data()?.groupType;
+    const defaultName = groupType === "professional" ? "Dr. Agent" : "Persono Agent";
+
     res.json({
-      companyName: data.companyName || "Persono Agent",
+      companyName: data.companyName || defaultName,
       whatsappNumber: data.whatsappNumber || "",
       imageAnalysisPrompt: data.imageAnalysisPrompt || "Aja como um médico experiente em cirurgia cardíaca e descreva esta imagem médica indicando possíveis achados e soluções ideais."
     });

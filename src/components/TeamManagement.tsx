@@ -34,7 +34,8 @@ export function TeamManagement() {
     setIsManagementOpen,
     managementMode,
     setManagementMode,
-    setConfigsActiveTab
+    setConfigsActiveTab,
+    companyName
   } = useGroup();
   const { user } = useAuth();
   const [inviteEmail, setInviteEmail] = useState("");
@@ -103,7 +104,7 @@ export function TeamManagement() {
          {member.status === 'pending' && (
            <button
              onClick={() => {
-               const text = `Olá! Convidei você para participar do grupo "${activeGroup.name}" no sistema Persono Agent. 🩺\n\nAcesse para aceitar o convite: ${window.location.origin}`;
+               const text = `Olá! Convidei você para participar do grupo "${activeGroup.name}" no sistema ${companyName}. 🩺\n\nAcesse para aceitar o convite: ${window.location.origin}`;
                const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
                window.open(url, '_blank');
              }}
@@ -415,7 +416,7 @@ export function TeamManagement() {
                         <button
                           type="button"
                           onClick={() => {
-                            const text = `Olá! Convidei você para participar do grupo "${activeGroup.name}" no sistema Persono Agent. 🩺\n\nAcesse para aceitar o convite: ${window.location.origin}`;
+                            const text = `Olá! Convidei você para participar do grupo "${activeGroup.name}" no sistema ${companyName}. 🩺\n\nAcesse para aceitar o convite: ${window.location.origin}`;
                             const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
                             window.open(url, '_blank');
                           }}

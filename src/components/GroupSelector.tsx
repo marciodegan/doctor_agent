@@ -37,6 +37,7 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
     isManagementOpen,
     setIsManagementOpen,
     loading,
+    companyName
   } = useGroup();
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
@@ -103,7 +104,7 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
           <Users size={32} />
         </div>
         <h2 className="text-2xl font-black text-gray-900 text-center mb-2">
-          Bem-vindo ao Persono Agent!
+          Bem-vindo ao {companyName}!
         </h2>
         <p className="text-gray-500 text-center mb-8">
           Para começar, crie o seu primeiro grupo de trabalho.

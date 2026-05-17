@@ -466,7 +466,7 @@ export const Chat: React.FC<{
     ]);
 
     import("../lib/gemini").then(({ createAgent }) => {
-      if (!agentRef.current) agentRef.current = createAgent();
+      if (!agentRef.current) agentRef.current = createAgent(companyName);
       setIsReady(true);
     });
   }, [companyName, auth.currentUser?.displayName]);
@@ -480,7 +480,7 @@ export const Chat: React.FC<{
 
   const resetAgent = async () => {
     const { createAgent } = await import("../lib/gemini");
-    agentRef.current = createAgent();
+    agentRef.current = createAgent(companyName);
     setMessages([{ role: "model", text: `Hello ${companyName} ❤️\n\nHoje é um lindo dia para salvar vidas.` }]);
     setSelectedImage(null);
     setLastProcessedFile(null);
@@ -1894,7 +1894,7 @@ export const Chat: React.FC<{
 
         setMessages(prev => [...prev, { 
           role: "model", 
-          text: "🤖 **Persono Agent Shortcuts (Zero Tokens):**\n\n" +
+          text: `🤖 **${companyName} Shortcuts (Zero Tokens):**\n\n` +
                 "- `/pacientes`: Lista todos os pacientes (Banco Compartilhado).\n" +
                 "- `/buscar [NOME]`: Busca paciente por nome.\n" +
                 "- `/p [ID]`: Relatório rápido (ex: `/p 2`).\n" +
@@ -2617,7 +2617,7 @@ export const Chat: React.FC<{
       if (shouldClearMemory) {
         setTimeout(async () => {
           const { createAgent } = await import("../lib/gemini");
-          agentRef.current = createAgent();
+          agentRef.current = createAgent(companyName);
           setMessages(prev => [...prev, { role: "model", text: "🧹 *Memória interna da IA limpa automaticamente para economizar cota. O histórico acima será mantido na tela apenas para sua leitura.*" }]);
           setLastProcessedFile(null);
         }, 800);

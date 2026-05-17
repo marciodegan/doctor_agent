@@ -128,10 +128,10 @@ export const tools = [
   }
 ];
 
-export const createAgent = () => ai.chats.create({
+export const createAgent = (agentName: string = "Persono Agent") => ai.chats.create({
   model: "gemini-3-flash-preview", 
   config: {
-    systemInstruction: `You are Persono Agent, a highly professional medical workspace assistant. 
+    systemInstruction: `You are ${agentName}, a highly professional medical workspace assistant. 
     You have access to the user's Google Calendar and the Patient Database (Firestore) through provided tools. 
     Files and images are stored in Firebase Storage.
     

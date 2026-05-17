@@ -94,6 +94,14 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   );
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState("Persono Agent");
+
+  useEffect(() => {
+    if (activeGroup?.groupType === "professional") {
+      setCompanyName("Dr. Agent");
+    } else if (activeGroup?.groupType === "personal") {
+      setCompanyName("Persono Agent");
+    }
+  }, [activeGroup?.groupType]);
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [userWhatsapp, setUserWhatsapp] = useState("");
   const [imageAnalysisPrompt, setImageAnalysisPrompt] = useState("");
@@ -339,12 +347,13 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
   // Restore active group effect
   useEffect(() => {
+    const defaultName = activeGroup?.groupType === "professional" ? "Dr. Agent" : "Persono Agent";
     if (activeGroup?.name) {
       document.title = activeGroup.name;
     } else {
-      document.title = "Persono Agent";
+      document.title = defaultName;
     }
-  }, [activeGroup?.name]);
+  }, [activeGroup?.name, activeGroup?.groupType]);
 
   // Effect to populate groups and invites when rawData change
   useEffect(() => {

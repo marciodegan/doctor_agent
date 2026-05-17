@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Check, Sparkles, Zap, Shield, ArrowLeft, ExternalLink, Settings } from "lucide-react";
 import { motion } from "motion/react";
 import { useAuth } from "../hooks/useAuth";
+import { useGroup } from "../contexts/GroupContext";
 
 interface PricingProps {
   onBack: () => void;
@@ -11,6 +12,7 @@ export function Pricing({ onBack }: PricingProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [stripeStatus, setStripeStatus] = useState<{ subscribed: boolean; configured: boolean; error?: string } | null>(null);
   const { isAuthenticated, login } = useAuth();
+  const { companyName } = useGroup();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -94,7 +96,7 @@ export function Pricing({ onBack }: PricingProps) {
           className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-xs font-bold tracking-tight uppercase border border-blue-100 mb-4"
         >
           <Sparkles size={12} />
-          Persono Agent
+          {companyName}
         </motion.div>
         <motion.h2 
           initial={{ opacity: 0, y: 20 }}
@@ -111,7 +113,7 @@ export function Pricing({ onBack }: PricingProps) {
           transition={{ delay: 0.2 }}
           className="text-gray-500 text-lg max-w-2xl mx-auto"
         >
-          Elimine tarefas manuais e escale sua operação com o Persono Agent. 
+          Elimine tarefas manuais e escale sua operação com o {companyName}. 
           Gerenciamento ilimitado e insights automáticos.
         </motion.p>
       </div>
@@ -128,7 +130,7 @@ export function Pricing({ onBack }: PricingProps) {
           </div>
 
           <div className="mb-10 text-center">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Persono Agent</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">{companyName}</h3>
             <div className="flex items-baseline justify-center gap-1">
               <span className="text-gray-400 text-lg font-medium">R$</span>
               <span className="text-6xl font-black text-gray-900 tracking-tighter">149</span>
@@ -157,7 +159,7 @@ export function Pricing({ onBack }: PricingProps) {
               ) : (
                 <>
                   <Zap size={20} className="fill-white" />
-                  {isAuthenticated ? "Começar agora com Persono Agent" : "Conectar Google e Assinar"}
+                  {isAuthenticated ? `Começar agora com ${companyName}` : "Conectar Google e Assinar"}
                 </>
               )}
             </button>

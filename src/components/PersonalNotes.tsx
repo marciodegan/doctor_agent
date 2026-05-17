@@ -38,9 +38,8 @@ export const PersonalNotes: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newNoteContent, setNewNoteContent] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -94,36 +93,29 @@ export const PersonalNotes: React.FC = () => {
     }
   };
 
-  const startEditing = (note: Note) => {
-    setEditingId(note.id);
-    setEditContent(note.content);
-  };
-
-  const cancelEditing = () => {
-    setEditingId(null);
-    setEditContent("");
-  };
-
-  const handleUpdateNote = async (id: string) => {
-    if (!editContent.trim()) return;
+  const handleUpdateNote = async (id: string, newContent: string) => {
+    if (!newContent.trim()) return;
     try {
       await updateDoc(doc(db, "user_notes", id), {
-        content: editContent.trim(),
+        content: newContent.trim(),
         updatedAt: serverTimestamp()
       });
-      setEditingId(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `user_notes/${id}`);
     }
   };
 
+  const filteredNotes = notes.filter(n => 
+    n.content.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="flex flex-col h-full bg-slate-50">
       {/* Header */}
       <div className="bg-white border-b border-slate-100 p-4 sticky top-0 z-20">
-        <div className="max-w-xl mx-auto flex flex-col gap-4">
+        <div className="max-max-xl mx-auto flex flex-col gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100 text-blue-600">
+            <div className="w-10 h-10 rounded-2xl bg-yellow-50 flex items-center justify-center border border-yellow-100 text-yellow-600">
               <StickyNote size={22} />
             </div>
             <div>
@@ -132,107 +124,93 @@ export const PersonalNotes: React.FC = () => {
             </div>
           </div>
 
-          <form onSubmit={handleAddNote} className="relative">
-            <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" size={18} />
-            <input 
-              type="text"
-              placeholder="Adicionar nota rápida..."
-              value={newNoteContent}
-              onChange={(e) => setNewNoteContent(e.target.value)}
-              className="w-full bg-slate-100 border-none rounded-xl py-3 pl-10 pr-16 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-            />
-            {newNoteContent.trim() && (
-              <button 
-                type="submit"
-                disabled={isAdding}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-600 text-white px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center gap-1"
-              >
-                {isAdding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-                Add
-              </button>
-            )}
-          </form>
+          <div className="flex flex-col gap-2">
+            <form onSubmit={handleAddNote} className="relative">
+              <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-yellow-400" size={18} />
+              <input 
+                type="text"
+                placeholder="Escreva algo novo..."
+                value={newNoteContent}
+                onChange={(e) => setNewNoteContent(e.target.value)}
+                className="w-full bg-slate-100 border-none rounded-xl py-3 pl-10 pr-16 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-yellow-200 outline-none transition-all"
+              />
+              {newNoteContent.trim() && (
+                <button 
+                  type="submit"
+                  disabled={isAdding}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-yellow-600 text-white px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center gap-1"
+                >
+                  {isAdding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                  ADD
+                </button>
+              )}
+            </form>
+
+            <div className="relative">
+              <input 
+                type="text"
+                placeholder="Buscar nas notas..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-slate-100/50 border-none rounded-xl py-2 px-4 text-xs font-semibold text-slate-600 placeholder:text-slate-400 outline-none transition-all"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
       {/* List */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="max-w-xl mx-auto space-y-3">
+        <div className="max-w-xl mx-auto space-y-2">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 grayscale opacity-30">
               <Loader2 size={40} className="animate-spin text-yellow-500 mb-2" />
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando Notas...</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Sincronizando...</p>
             </div>
-          ) : notes.length === 0 ? (
+          ) : filteredNotes.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 grayscale opacity-30 text-center">
               <StickyNote size={60} className="text-slate-300 mb-4" />
-              <p className="text-lg font-black text-slate-400">Nenhuma nota ainda</p>
-              <p className="text-xs font-medium text-slate-400 mt-1 max-w-[200px]">
-                Use o campo acima para salvar lembretes e anotações rápidas.
+              <p className="text-lg font-black text-slate-400">
+                {searchTerm ? "Nenhuma nota encontrada" : "Sua lista está vazia"}
               </p>
             </div>
           ) : (
             <AnimatePresence initial={false}>
-              {notes.map((note) => (
+              {filteredNotes.map((note) => (
                 <motion.div
                   key={note.id}
                   layout
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all relative group"
+                  className="group flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-100 transition-all hover:border-slate-200 shadow-sm"
                 >
-                  {editingId === note.id ? (
-                    <div className="flex flex-col gap-2">
-                      <textarea 
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-sm text-slate-700 outline-none focus:ring-1 focus:ring-yellow-400 min-h-[80px] resize-none"
-                        autoFocus
-                      />
-                      <div className="flex items-center gap-2 justify-end">
-                        <button 
-                          onClick={cancelEditing}
-                          className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                          <X size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleUpdateNote(note.id)}
-                          className="bg-yellow-500 text-white p-2 rounded-lg font-bold text-xs flex items-center gap-1"
-                        >
-                          <Check size={16} /> Salvar
-                        </button>
-                      </div>
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      className="w-full bg-transparent border-none p-0 text-[15px] font-bold tracking-tight text-slate-700 focus:ring-0 outline-none"
+                      defaultValue={note.content}
+                      onBlur={(e) => {
+                        if (e.target.value !== note.content) {
+                          handleUpdateNote(note.id, e.target.value);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                    />
+                    <div className="text-[8px] font-black text-slate-300 uppercase mt-1">
+                      {note.createdAt?.toDate ? note.createdAt.toDate().toLocaleDateString('pt-BR') : 'Recent'}
                     </div>
-                  ) : (
-                    <>
-                      <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap leading-relaxed pr-8">
-                        {note.content}
-                      </p>
-                      
-                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
-                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                          {note.createdAt?.toDate ? note.createdAt.toDate().toLocaleDateString('pt-BR') : 'Agora'}
-                        </span>
-                        
-                        <div className="flex items-center gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => startEditing(note)}
-                            className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button 
-                            onClick={() => handleRemoveNote(note.id)}
-                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  </div>
+                  <button 
+                    onClick={() => handleRemoveNote(note.id)}
+                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -240,13 +218,14 @@ export const PersonalNotes: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer Info */}
       <div className="p-4 bg-white border-t border-slate-100">
         <div className="max-w-xl mx-auto flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-          <div className="flex items-center gap-2 font-black text-blue-600">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
             TOTAL DE NOTAS: {notes.length}
           </div>
-          <div className="text-[8px] opacity-60">Sincronizado com sua conta</div>
+          <div>Sincronizado via Cloud</div>
         </div>
       </div>
     </div>
