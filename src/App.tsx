@@ -134,11 +134,25 @@ export default function App() {
 
   // Effect to scroll to top when view changes or patient changes
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
-    const mainElement = document.querySelector("main");
-    if (mainElement) {
-      mainElement.scrollTo({ top: 0, behavior: 'instant' });
-    }
+    const scrollToTop = () => {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      const mainElement = document.querySelector("main");
+      if (mainElement) {
+        mainElement.scrollTo({ top: 0, behavior: 'instant' });
+      }
+    };
+    
+    // Immediate scroll
+    scrollToTop();
+    
+    // Brief delay to handle AnimatePresence transitions and dynamic content loading
+    const timer = setTimeout(scrollToTop, 50);
+    const timer2 = setTimeout(scrollToTop, 150);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(timer2);
+    };
   }, [currentView, activePatientId, activePatientName]);
 
   useEffect(() => {

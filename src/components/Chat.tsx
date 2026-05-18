@@ -505,10 +505,20 @@ export const Chat: React.FC<{
   useEffect(() => {
     const mainElement = document.querySelector("main");
     if (mainElement) {
-      mainElement.scrollTo({
-        top: mainElement.scrollHeight,
-        behavior: "smooth"
-      });
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage?.isListing) {
+        // If it's a listing (like patient table), scroll to top of main to see the title/actions
+        mainElement.scrollTo({
+          top: 0,
+          behavior: "smooth"
+        });
+      } else {
+        // Normal chat messages scroll to bottom
+        mainElement.scrollTo({
+          top: mainElement.scrollHeight,
+          behavior: "smooth"
+        });
+      }
     }
   }, [messages, isLoading]);
 
