@@ -61,7 +61,7 @@ export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: stri
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50/50">
+    <div className="flex flex-col bg-gray-50/50">
       <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center gap-4 sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-10 transition-all">
         <button 
           onClick={onBack}

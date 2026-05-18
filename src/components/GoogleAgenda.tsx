@@ -445,7 +445,7 @@ export function GoogleAgenda() {
       {/* Content */}
       <div className="flex-1 bg-gray-50/20 custom-scrollbar">
         {viewMode === "month" ? (
-          <div className="min-w-[800px] lg:min-w-full grid grid-cols-7 h-full">
+          <div className="min-w-[800px] lg:min-w-full grid grid-cols-7 border-b border-gray-100">
             {DAYS.map(day => (
               <div key={day} className="py-3 text-center text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white border-b border-gray-100">
                 {day}

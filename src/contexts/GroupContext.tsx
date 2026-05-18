@@ -513,6 +513,30 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       // Set as active
       setActiveGroupId(groupId);
 
+      // --- Drive Automation ---
+      if (type === "personal") {
+        try {
+          console.log("[Drive] Triggering automatic setup for personal group:", name);
+          const driveRes = await apiFetch("/api/drive/setup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              rootFolderName: name,
+              adminEmail: user.email 
+            }),
+          });
+          
+          if (!driveRes.ok) {
+            console.warn("[Drive] Automatic setup returned non-OK status:", driveRes.status);
+          } else {
+            console.log("[Drive] Automatic setup completed successfully");
+          }
+        } catch (driveErr) {
+          console.error("[Drive] Automatic setup failed:", driveErr);
+          // Do not fail group creation because Drive failed
+        }
+      }
+
       return groupId;
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, "groups");
@@ -605,6 +629,20 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         );
       }
 
+      // --- Drive Sharing ---
+      if (activeGroup?.groupType === "personal") {
+        try {
+          console.log(`[Drive] Triggering manual share for ${cleanEmail}`);
+          await apiFetch("/api/drive/share", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: cleanEmail }),
+          });
+        } catch (driveErr) {
+          console.error("[Drive] Sharing failed:", driveErr);
+        }
+      }
+
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `group_invitations`);
     }
@@ -666,6 +704,25 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       }
 
       setActiveGroupId(groupId);
+
+      // --- Drive Sharing (on Accept) ---
+      if (user.email) {
+        try {
+          const groupSnap = await getDoc(doc(db, "groups", groupId));
+          if (groupSnap.exists() && groupSnap.data()?.groupType === "personal") {
+            await apiFetch("/api/drive/share", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ 
+                email: user.email, 
+                forceSync: true 
+              }),
+            });
+          }
+        } catch (driveErr) {
+          console.error("[Drive] Auto-share on accept failed:", driveErr);
+        }
+      }
     } catch (err) {
       handleFirestoreError(
         err,

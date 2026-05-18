@@ -2632,7 +2632,7 @@ export const Chat: React.FC<{
   };
 
   return (
-    <div id="nexus-chat" className="flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative">
+    <div id="nexus-chat" className="flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 relative">
       {/* Messages */}
       <div ref={scrollRef} className="px-2 sm:px-6 py-4 space-y-6">
 

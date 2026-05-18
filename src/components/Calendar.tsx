@@ -703,7 +703,7 @@ export function Calendar({
       {/* Calendar Content */}
       <div className="flex-1 bg-gray-50/30">
         {viewMode === "month" ? (
-          <div className="min-w-[600px] grid grid-cols-7 h-full">
+          <div className="min-w-[600px] grid grid-cols-7 border-b border-gray-100">
             {DAYS.map(day => (
               <div key={day} className="py-2 text-center text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white border-b border-gray-100">
                 {day}

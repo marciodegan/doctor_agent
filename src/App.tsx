@@ -99,10 +99,10 @@ export default function App() {
     }
     
     // Force scroll to top regardless of view change
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     const mainElement = document.querySelector("main");
     if (mainElement) {
-      mainElement.scrollTo({ top: 0, behavior: 'instant' });
+      mainElement.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -661,8 +661,8 @@ export default function App() {
           ) : (
             <div className={`grid grid-cols-1 xl:grid-cols-4 gap-6 h-full max-w-[1600px] mx-auto w-full ${isFullscreen ? "max-w-none" : ""}`}>
               {/* Chat column */}
-              <div className="xl:col-span-3 flex flex-col min-h-0 overflow-hidden">
-                <div className="flex-1 min-h-0">
+              <div className="xl:col-span-3 flex flex-col">
+                <div className="flex-1">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={currentView}
@@ -670,7 +670,7 @@ export default function App() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.15 }}
-                      className="h-full"
+                      className="w-full"
                     >
                       {currentView === "pricing" ? (
                         <Pricing onBack={() => navigateAndAction("workspace")} />
