@@ -112,55 +112,56 @@ export const PersonalNotes: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 p-4 sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-20 shadow-sm">
-        <div className="max-w-xl mx-auto flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-yellow-50 flex items-center justify-center border border-yellow-100 text-yellow-600">
-              <StickyNote size={22} />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-slate-900 tracking-tight">Minhas Notas</h3>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Particulares</p>
-            </div>
+      <div className="bg-white border-b border-slate-100 p-4 z-20 shadow-sm">
+        <div className="max-w-xl mx-auto flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-yellow-50 flex items-center justify-center border border-yellow-100 text-yellow-600">
+            <StickyNote size={22} />
           </div>
+          <div>
+            <h3 className="text-lg font-black text-slate-900 tracking-tight">Minhas Notas</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Particulares</p>
+          </div>
+        </div>
+      </div>
 
-          <div className="flex flex-col gap-2">
-            <form onSubmit={handleAddNote} className="relative">
-              <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-yellow-500" size={18} />
-              <input 
-                type="text"
-                placeholder="Escreva algo novo..."
-                value={newNoteContent}
-                onChange={(e) => setNewNoteContent(e.target.value)}
-                className="w-full bg-slate-100 border border-slate-200 rounded-xl py-4 pl-10 pr-16 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500 outline-none transition-all"
-              />
-              {newNoteContent.trim() && (
-                <button 
-                  type="submit"
-                  disabled={isAdding}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-yellow-600 text-white px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center gap-1 shadow-lg shadow-yellow-600/20"
-                >
-                  {isAdding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-                  ADD
-                </button>
-              )}
-            </form>
+      {/* Sticky Form */}
+      <div className="sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-30 bg-white border-b border-slate-100 px-4 py-3 shadow-sm">
+        <div className="max-w-xl mx-auto flex flex-col gap-2">
+          <form onSubmit={handleAddNote} className="relative">
+            <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-yellow-500" size={18} />
+            <input 
+              type="text"
+              placeholder="Escreva algo novo..."
+              value={newNoteContent}
+              onChange={(e) => setNewNoteContent(e.target.value)}
+              className="w-full bg-slate-100 border border-slate-200 rounded-xl py-4 pl-10 pr-16 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500 outline-none transition-all"
+            />
+            {newNoteContent.trim() && (
+              <button 
+                type="submit"
+                disabled={isAdding}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-yellow-600 text-white px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center gap-1 shadow-lg shadow-yellow-600/20"
+              >
+                {isAdding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                ADD
+              </button>
+            )}
+          </form>
 
-            <div className="relative">
-              <input 
-                type="text"
-                placeholder="Buscar nas notas..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-100/50 border border-slate-100 rounded-xl py-2 px-4 text-xs font-semibold text-slate-600 placeholder:text-slate-400 outline-none transition-all"
-              />
-            </div>
+          <div className="relative">
+            <input 
+              type="text"
+              placeholder="Buscar nas notas..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-100/50 border border-slate-100 rounded-xl py-2 px-4 text-xs font-semibold text-slate-600 placeholder:text-slate-400 outline-none transition-all"
+            />
           </div>
         </div>
       </div>
 
       {/* List */}
-      <div className="flex-1 px-4 py-8">
+      <div className="flex-1 px-4 py-4">
         <div className="max-w-xl mx-auto space-y-3">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 grayscale opacity-30">
