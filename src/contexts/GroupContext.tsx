@@ -604,6 +604,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           { merge: true },
         );
       }
+
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `group_invitations`);
     }
