@@ -112,7 +112,7 @@ export const PersonalNotes: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 p-4 sticky top-0 z-20">
+      <div className="bg-white border-b border-slate-100 p-4 sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-20">
         <div className="max-max-xl mx-auto flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-yellow-50 flex items-center justify-center border border-yellow-100 text-yellow-600">
@@ -160,7 +160,7 @@ export const PersonalNotes: React.FC = () => {
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 px-4 py-4">
         <div className="max-w-xl mx-auto space-y-2">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 grayscale opacity-30">

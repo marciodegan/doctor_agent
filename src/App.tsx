@@ -132,14 +132,14 @@ export default function App() {
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
-  // Effect to scroll to top when view changes
+  // Effect to scroll to top when view changes or patient changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
     const mainElement = document.querySelector("main");
     if (mainElement) {
       mainElement.scrollTo({ top: 0, behavior: 'instant' });
     }
-  }, [currentView]);
+  }, [currentView, activePatientId, activePatientName]);
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {

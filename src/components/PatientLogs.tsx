@@ -62,7 +62,7 @@ export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: stri
 
   return (
     <div className="flex flex-col h-full bg-gray-50/50">
-      <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center gap-4 sticky top-0 z-10">
+      <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center gap-4 sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-10 transition-all">
         <button 
           onClick={onBack}
           className="p-2 -ml-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
@@ -87,7 +87,7 @@ export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: stri
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto px-6 py-8">
+      <div className="flex-1 px-6 py-8">
         <div className="max-w-3xl mx-auto">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">

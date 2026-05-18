@@ -325,7 +325,7 @@ export function GoogleAgenda() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="flex flex-col bg-white rounded-3xl border border-gray-100 shadow-sm">
       {/* Header */}
       <div className="p-4 sm:p-6 border-b border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -443,7 +443,7 @@ export function GoogleAgenda() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto bg-gray-50/20 custom-scrollbar">
+      <div className="flex-1 bg-gray-50/20 custom-scrollbar">
         {viewMode === "month" ? (
           <div className="min-w-[800px] lg:min-w-full grid grid-cols-7 h-full">
             {DAYS.map(day => (
