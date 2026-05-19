@@ -1775,12 +1775,13 @@ app.post("/api/drive/share", async (req, res) => {
       },
       sendNotificationEmail: false
     }).catch((err: any) => {
+      console.error("[Drive] Google Drive API permissions.create FULL error:", err);
       throw new Error(`Erro ao compartilhar pasta com o novo membro: ${err.message}`);
     });
 
     res.json({ success: true });
   } catch (err: any) {
-    console.error(`[Drive] Share failed for ${email}:`, err.message);
+    console.error(`[Drive] Share failed for ${email}:`, err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1821,6 +1822,13 @@ app.post("/api/drive/setup", async (req, res) => {
           if (groupData.driveRootFolderId) {
             folderId = groupData.driveRootFolderId;
             console.log("[Drive] Reusing existing driveRootFolderId from group doc:", folderId);
+          } else {
+            // Verify if the current user is owner/creator of the group (Rule 3)
+            if (groupData.createdBy !== userId) {
+              return res.status(403).json({ 
+                error: "A pasta principal deste grupo ainda não foi criada pelo administrador." 
+              });
+            }
           }
         } else {
           const configSnap = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
@@ -1889,6 +1897,7 @@ app.post("/api/drive/setup", async (req, res) => {
           driveRootFolderName: groupName,
           driveOwnerUserId: userId,
           driveOwnerEmail: finalOwnerEmail,
+          driveCreatedByAdmin: true,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
 

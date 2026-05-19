@@ -13,6 +13,7 @@ import {
   FolderOpen
 } from "lucide-react";
 import { useGroup } from "../contexts/GroupContext";
+import { useAuth } from "../hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface DriveFile {
@@ -33,6 +34,8 @@ interface DriveConfig {
 
 export const PersonalDocuments: React.FC = () => {
   const { activeGroup, apiFetch, activeGroupMembers } = useGroup();
+  const { user } = useAuth();
+  const isAdmin = activeGroup?.createdBy === user?.uid;
   const [config, setConfig] = useState<DriveConfig | null>(null);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,7 +114,10 @@ export const PersonalDocuments: React.FC = () => {
         body: JSON.stringify({ email: sharingEmail }),
       });
       
-      if (!res.ok) throw new Error("Falha ao compartilhar");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Falha ao compartilhar");
+      }
       
       setShareSuccess(true);
       setSharingEmail("");
@@ -175,6 +181,9 @@ export const PersonalDocuments: React.FC = () => {
   }
 
   if (!config) {
+    const isPersonal = activeGroup?.groupType === "personal";
+    const showSetupButton = !isPersonal || isAdmin;
+
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] bg-gray-50/50 p-10 text-center">
         <div className="w-24 h-24 rounded-[2.5rem] bg-indigo-50 flex items-center justify-center text-indigo-600 mb-8 shadow-xl shadow-indigo-900/5 border border-indigo-100">
@@ -192,14 +201,21 @@ export const PersonalDocuments: React.FC = () => {
           </div>
         )}
 
-        <button
-          onClick={handleSetup}
-          disabled={isSettingUp}
-          className="flex items-center gap-3 bg-indigo-600 text-white px-10 py-5 rounded-3xl font-black shadow-2xl shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 group"
-        >
-          {isSettingUp ? <Loader2 className="animate-spin" size={20} /> : <Plus size={24} className="group-hover:rotate-90 transition-transform" /> }
-          <span className="uppercase tracking-widest text-sm">Configurar Pasta de Grupo</span>
-        </button>
+        {showSetupButton ? (
+          <button
+            onClick={handleSetup}
+            disabled={isSettingUp}
+            className="flex items-center gap-3 bg-indigo-600 text-white px-10 py-5 rounded-3xl font-black shadow-2xl shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 group"
+          >
+            {isSettingUp ? <Loader2 className="animate-spin" size={20} /> : <Plus size={24} className="group-hover:rotate-90 transition-transform" /> }
+            <span className="uppercase tracking-widest text-sm">Configurar Pasta de Grupo</span>
+          </button>
+        ) : (
+          <div className="mb-8 p-6 bg-amber-50 rounded-2xl border border-amber-100 flex items-center gap-3 text-amber-700 text-left max-w-md font-bold">
+            <ShieldAlert size={20} className="shrink-0 text-amber-600" />
+            <p className="text-sm">A pasta principal deste grupo ainda não foi criada pelo administrador.</p>
+          </div>
+        )}
         
         <p className="mt-8 text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Sincronização Segura via Google OAuth</p>
       </div>
