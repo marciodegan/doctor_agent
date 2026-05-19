@@ -3,7 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useGroup } from "../contexts/GroupContext";
 import { db } from "../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import { Camera, Loader2, Check, User as UserIcon, X, Smartphone } from "lucide-react";
+import { Camera, Loader2, Check, User as UserIcon, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => void, installPrompt?: any, onInstall?: () => void }) {
@@ -188,27 +188,6 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
             "SALVAR ALTERAÇÕES"
           )}
         </button>
-
-        {installPrompt ? (
-          <button 
-            type="button"
-            onClick={onInstall}
-            className="w-full bg-green-50 text-green-700 font-bold py-3 rounded-2xl flex items-center justify-center gap-2 border border-green-100 hover:bg-green-100 transition-all active:scale-95 mt-4"
-          >
-            <Smartphone size={18} />
-            INSTALAR APLICATIVO
-          </button>
-        ) : (
-          <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl mt-4 text-center">
-            <div className="flex items-center justify-center gap-2 text-blue-700 font-bold text-xs mb-1 uppercase tracking-wider">
-              <Smartphone size={16} />
-              Como instalar?
-            </div>
-            <p className="text-[11px] text-blue-600 font-medium leading-relaxed">
-              Para instalar, clique no ícone <span className="font-black">"..."</span> (no Chrome/Samsung) ou <span className="font-black">"Compartilhar"</span> (no Safari) e escolha <span className="font-black">"Adicionar à tela de início"</span>.
-            </p>
-          </div>
-        )}
       </form>
     </div>
   );

@@ -11,6 +11,7 @@ import {
   deleteDoc,
   serverTimestamp,
   getDocs,
+  collectionGroup,
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import { useAuth } from "../hooks/useAuth";
@@ -316,11 +317,112 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       );
     }
 
+    // 4. Self-healing membership finder (userId check)
+    let unsubscribeGroupByUid = () => {};
+    try {
+      unsubscribeGroupByUid = onSnapshot(
+        query(collectionGroup(db, "members"), where("userId", "==", user.uid)),
+        async (snapshot) => {
+          if (!isMounted) return;
+          for (const memberDoc of snapshot.docs) {
+            const memberData = memberDoc.data();
+            const parentGroupRef = memberDoc.ref.parent?.parent;
+            if (parentGroupRef) {
+              const groupId = parentGroupRef.id;
+              try {
+                const membershipRef = doc(db, `users/${user.uid}/memberships`, groupId);
+                const mSnap = await getDoc(membershipRef);
+                if (!mSnap.exists()) {
+                  const groupSnap = await getDoc(parentGroupRef);
+                  if (groupSnap.exists()) {
+                    const groupData = groupSnap.data();
+                    const status = memberData.status === "conectado" ? "active" : (memberData.status || "active");
+                    await setDoc(membershipRef, {
+                      groupId,
+                      groupName: groupData.name || "Grupo",
+                      groupType: groupData.groupType || "professional",
+                      role: memberData.role || "member",
+                      status: status,
+                    }, { merge: true });
+                  }
+                }
+              } catch (err) {
+                console.warn("Failed self-healing sync by UID for group", groupId, err);
+              }
+            }
+          }
+        },
+        (error) => {
+          console.warn("Collection group members UID listener error:", error);
+        }
+      );
+    } catch (e) {
+      console.warn("Member UID group query failed to initialize", e);
+    }
+
+    // 5. Self-healing membership finder (userEmail check)
+    let unsubscribeGroupByEmail = () => {};
+    if (user.email) {
+      const cleanEmail = user.email.trim().toLowerCase();
+      try {
+        unsubscribeGroupByEmail = onSnapshot(
+          query(collectionGroup(db, "members"), where("userEmail", "==", cleanEmail)),
+          async (snapshot) => {
+            if (!isMounted) return;
+            for (const memberDoc of snapshot.docs) {
+              const memberData = memberDoc.data();
+              const parentGroupRef = memberDoc.ref.parent?.parent;
+              if (parentGroupRef) {
+                const groupId = parentGroupRef.id;
+                
+                // If the group member document has no userId associated, heal it in the background
+                if (!memberData.userId) {
+                  try {
+                    await setDoc(memberDoc.ref, { userId: user.uid }, { merge: true });
+                  } catch (err) {
+                    console.warn("Failed self-healing userId sync for member document:", err);
+                  }
+                }
+
+                try {
+                  const membershipRef = doc(db, `users/${user.uid}/memberships`, groupId);
+                  const mSnap = await getDoc(membershipRef);
+                  if (!mSnap.exists()) {
+                    const groupSnap = await getDoc(parentGroupRef);
+                    if (groupSnap.exists()) {
+                      const groupData = groupSnap.data();
+                      const status = memberData.status === "conectado" ? "active" : (memberData.status || "active");
+                      await setDoc(membershipRef, {
+                        groupId,
+                        groupName: groupData.name || "Grupo",
+                        groupType: groupData.groupType || "professional",
+                        role: memberData.role || "member",
+                        status: status,
+                      }, { merge: true });
+                    }
+                  }
+                } catch (err) {
+                  console.warn("Failed self-healing sync by Email for group", groupId, err);
+                }
+              }
+            }
+          },
+          (error) => {
+            console.warn("Collection group members Email listener error:", error);
+          }
+        );
+      } catch (e) {
+        console.warn("Member Email group query failed to initialize", e);
+      }
+    }
+
     return () => {
       isMounted = false;
       unsubscribeMemberships();
       unsubscribeOwnedGroups();
       unsubscribeInvitations();
+      unsubscribeGroupByUid();
+      unsubscribeGroupByEmail();
     };
   }, [user?.uid, user?.email]);
 
