@@ -53,14 +53,7 @@ export function BottomNav({
     },
   ];
 
-  if (isPersonal) {
-    tabs.push({
-      id: "shopping_list",
-      label: "Lista",
-      icon: <ShoppingCart size={20} />,
-      prompt: "/shopping_list",
-    });
-  }
+
 
   tabs.push({
     id: "management",

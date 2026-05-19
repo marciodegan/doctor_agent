@@ -699,7 +699,7 @@ export default function App() {
                       ) : currentView === "agenda" ? (
                         <GoogleAgenda />
                       ) : currentView === "shopping_list" ? (
-                        <ShoppingList />
+                        <ShoppingList onBack={() => navigateAndAction("notes")} />
                       ) : currentView === "logs" && activePatientId ? (
                         <PatientLogs 
                           patientId={activePatientId} 
@@ -707,7 +707,7 @@ export default function App() {
                           onSchedule={(name, proc, hospId) => navigateAndAction("calendar", undefined, activePatientId!, name, proc, hospId)}
                         />
                       ) : currentView === "notes" ? (
-                        <PersonalNotes />
+                        <PersonalNotes onNavigateToShoppingList={() => navigateAndAction("shopping_list")} />
                       ) : activeGroup?.groupType === "personal" ? (
                         <PersonalDocuments />
                       ) : (
