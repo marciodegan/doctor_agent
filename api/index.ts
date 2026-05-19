@@ -1654,18 +1654,63 @@ app.put("/api/calendar/events/:eventId", async (req, res) => {
   }
 });
 
+// Share helper to apply editing permissions (writer) to secondary members
+const shareItemWithMembers = async (drive: any, fileId: string, emails: string[]) => {
+  for (const email of emails) {
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      console.warn(`[Drive] Skipping share for invalid email: "${email}"`);
+      continue;
+    }
+    try {
+      await drive.permissions.create({
+        fileId: fileId,
+        requestBody: {
+          type: 'user',
+          role: 'writer',
+          emailAddress: email.trim().toLowerCase()
+        },
+        sendNotificationEmail: false
+      });
+    } catch (e: any) {
+      console.warn(`[Drive] Failed to share item ${fileId} with ${email}:`, e.message);
+    }
+  }
+};
+
 // Generic Storage Upload
 app.get("/api/drive/config", async (req, res) => {
   const userId = await getUserId(req);
-  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  if (!userId) {
+    return res.status(401).json({ error: "Autorização do Google Drive necessária ou expirada. Reconecte sua conta do Google." });
+  }
   
   const groupId = getGroupId(req);
 
   try {
-    let configData = {};
+    let configData: any = {};
     if (groupId) {
-      const groupDoc = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
-      configData = groupDoc.data() || {};
+      const groupDoc = await db.collection("groups").doc(groupId).get();
+      if (groupDoc.exists) {
+        const groupData = groupDoc.data() || {};
+        if (groupData.groupType === "personal") {
+          // Rule 7: Retrieve using driveRootFolderId from Firestore group document
+          if (groupData.driveRootFolderId) {
+            configData = {
+              mainFolderId: groupData.driveRootFolderId,
+              mainFolderName: groupData.driveRootFolderName || groupData.name || "Pasta Principal",
+              adminId: groupData.driveOwnerUserId || "",
+              adminEmail: groupData.driveOwnerEmail || "",
+              setupAt: groupData.createdAt || null,
+            };
+          } else {
+            configData = {};
+          }
+        } else {
+          // Professional group compatibility
+          const driveDoc = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
+          configData = driveDoc.data() || {};
+        }
+      }
     }
 
     // Fallback or secondary check for user-level if groupId not provided or group config empty
@@ -1675,38 +1720,62 @@ app.get("/api/drive/config", async (req, res) => {
     }
 
     res.json(configData);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || String(error) });
   }
 });
 
 // New endpoint to share with a specific email
 app.post("/api/drive/share", async (req, res) => {
   const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  if (!auth) {
+    return res.status(401).json({ error: "Acesso ao Google Drive não autorizado. Certifique-se de realizar o login." });
+  }
   
   const groupId = getGroupId(req);
   const { email } = req.body;
-  if (!groupId || !email) return res.status(400).json({ error: "Group ID and email required" });
+  if (!email || typeof email !== "string" || !email.includes("@")) {
+    return res.status(400).json({ error: "Membro não possui um e-mail válido." });
+  }
+
+  if (!groupId) return res.status(400).json({ error: "ID do grupo é obrigatório." });
 
   try {
-    const configSnap = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
-    if (!configSnap.exists) {
-      // Not an error if Drive isn't set up yet, just return success: false or similar
-      return res.json({ success: false, message: "Drive not configured for this group" });
+    const groupDoc = await db.collection("groups").doc(groupId).get();
+    if (!groupDoc.exists) return res.status(404).json({ error: "Grupo não encontrado." });
+
+    const groupData = groupDoc.data()!;
+    let folderId = "";
+
+    if (groupData.groupType === "personal") {
+      folderId = groupData.driveRootFolderId;
+      if (!folderId) {
+        return res.status(400).json({ error: "A pasta principal do Google Drive não está configurada para este grupo." });
+      }
+    } else {
+      const configSnap = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
+      if (!configSnap.exists) {
+        return res.json({ success: false, message: "Drive não configurado para este grupo" });
+      }
+      folderId = configSnap.data()!.mainFolderId;
     }
-    
-    const { mainFolderId } = configSnap.data()!;
+
+    if (!folderId) {
+      return res.status(400).json({ error: "A pasta principal do Google Drive está ausente para este grupo." });
+    }
+
     const drive = google.drive({ version: "v3", auth });
 
     await drive.permissions.create({
-      fileId: mainFolderId,
+      fileId: folderId,
       requestBody: {
         type: 'user',
-        role: 'writer',
-        emailAddress: email
+        role: 'writer', // Permission of editing (permissão de edição)
+        emailAddress: email.trim().toLowerCase()
       },
       sendNotificationEmail: false
+    }).catch((err: any) => {
+      throw new Error(`Erro ao compartilhar pasta com o novo membro: ${err.message}`);
     });
 
     res.json({ success: true });
@@ -1718,98 +1787,165 @@ app.post("/api/drive/share", async (req, res) => {
 
 app.post("/api/drive/setup", async (req, res) => {
   const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  if (!auth) {
+    return res.status(401).json({ error: "Acesso ao Google Drive não autorizado. Certifique-se de realizar o login e conceder as permissões necessárias." });
+  }
   const userId = await getUserId(req);
-  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  if (!userId) {
+    return res.status(401).json({ error: "Usuário não autenticado." });
+  }
 
   const { rootFolderName, adminEmail } = req.body;
   const groupId = getGroupId(req);
 
-  if (!rootFolderName) return res.status(400).json({ error: "Root folder name is required" });
+  if (!rootFolderName) return res.status(400).json({ error: "Nome completo da pasta é obrigatório." });
 
   const drive = google.drive({ version: "v3", auth });
 
   try {
-    console.log("[Drive] Setting up folder:", rootFolderName, "for user:", userId, "Group:", groupId);
-    
-    // 1. Check if folder already exists in drive
-    const folderRes = await drive.files.list({
-      q: `name = '${rootFolderName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-      fields: "files(id)",
-    }).catch(err => {
-      console.error("[Drive] Error listing folders during setup:", err.message);
-      throw new Error(`Google Drive Error: ${err.message}. Certifique-se de ter dado permissão para o Google Drive.`);
-    });
-
     let folderId = "";
-    if (folderRes.data.files && folderRes.data.files.length > 0) {
-      folderId = folderRes.data.files[0].id!;
-    } else {
-      // 2. Create the main folder
-      const createFolderRes = await drive.files.create({
-        requestBody: {
-          name: rootFolderName,
-          mimeType: "application/vnd.google-apps.folder",
-          description: "App Storage Folder - Dr. Agent",
-        },
-        fields: "id",
-      }).catch(err => {
-        console.error("[Drive] Error creating root folder:", err.message);
-        throw new Error(`Erro ao criar pasta no Drive: ${err.message}`);
-      });
-      folderId = createFolderRes.data.id!;
+    let isPersonal = false;
+    let groupName = rootFolderName;
+
+    // 1. If we have a groupId, check group type and see if folder already exists in Firestore (Rule 8)
+    if (groupId) {
+      const groupDoc = await db.collection("groups").doc(groupId).get();
+      if (groupDoc.exists) {
+        const groupData = groupDoc.data()!;
+        isPersonal = groupData.groupType === "personal";
+        if (isPersonal) {
+          groupName = groupData.name || rootFolderName;
+          if (!groupName.endsWith(" - principal")) {
+            groupName = `${groupName} - principal`;
+          }
+          if (groupData.driveRootFolderId) {
+            folderId = groupData.driveRootFolderId;
+            console.log("[Drive] Reusing existing driveRootFolderId from group doc:", folderId);
+          }
+        } else {
+          const configSnap = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
+          if (configSnap.exists) {
+            const driveData = configSnap.data()!;
+            if (driveData.mainFolderId) {
+              folderId = driveData.mainFolderId;
+              console.log("[Drive] Reusing existing mainFolderId from settings collection:", folderId);
+            }
+          }
+        }
+      }
     }
 
-    // 3. Save to Group or User settings
-    if (groupId) {
-      console.log("[Drive] Saving config to Group Firestore:", groupId);
-      await db.collection("groups").doc(groupId).collection("settings").doc("drive").set({
-        mainFolderId: folderId,
-        mainFolderName: rootFolderName,
-        adminId: userId,
-        setupAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
+    // 2. If no folderId was found in Firestore, search or create folder on Drive
+    if (!folderId) {
+      console.log("[Drive] Setting up folder:", groupName, "for user:", userId, "Group:", groupId);
+      
+      const folderRes = await drive.files.list({
+        q: `name = '${groupName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        fields: "files(id)",
+      }).catch(err => {
+        console.error("[Drive] Error listing folders during setup:", err.message);
+        throw new Error(`Acesso ao Google Drive não autorizado. Certifique-se de realizar o login e conceder as permissões necessárias.`);
+      });
 
-      // 4. Share with all current group members (as requested)
+      if (folderRes.data.files && folderRes.data.files.length > 0) {
+        folderId = folderRes.data.files[0].id!;
+        console.log("[Drive] Found existing folder on Drive, reusing:", folderId);
+      } else {
+        const createFolderRes = await drive.files.create({
+          requestBody: {
+            name: groupName,
+            mimeType: "application/vnd.google-apps.folder",
+            description: "App Storage Folder - Dr. Agent",
+          },
+          fields: "id",
+        }).catch(err => {
+          console.error("[Drive] Error creating root folder:", err.message);
+          throw new Error(`Erro ao criar pasta no Drive: ${err.message}`);
+        });
+        folderId = createFolderRes.data.id!;
+        console.log("[Drive] Created new folder on Drive:", folderId);
+      }
+    }
+
+    // 3. Save configuration
+    if (groupId) {
+      if (isPersonal) {
+        console.log("[Drive] Saving personal config to Group Firestore:", groupId);
+        
+        let finalOwnerEmail = adminEmail || "";
+        if (!finalOwnerEmail) {
+          try {
+            const oauth2 = google.oauth2({ version: "v2", auth });
+            const userRes = await oauth2.userinfo.get();
+            finalOwnerEmail = userRes.data.email || "";
+          } catch (e) {
+            console.warn("[Drive] Failed to fetch email from oauth2 userinfo:", e);
+          }
+        }
+
+        // Save directly in the group document (Rule 2)
+        await db.collection("groups").doc(groupId).set({
+          driveRootFolderId: folderId,
+          driveRootFolderName: groupName,
+          driveOwnerUserId: userId,
+          driveOwnerEmail: finalOwnerEmail,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        // Also save in settings/drive subcollection for complete query consistency
+        await db.collection("groups").doc(groupId).collection("settings").doc("drive").set({
+          mainFolderId: folderId,
+          mainFolderName: groupName,
+          adminId: userId,
+          setupAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } else {
+        console.log("[Drive] Saving professional config to Settings Collection:", groupId);
+        await db.collection("groups").doc(groupId).collection("settings").doc("drive").set({
+          mainFolderId: folderId,
+          mainFolderName: groupName,
+          adminId: userId,
+          setupAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+
+      // 4. Share with all current group members (as requested) (Rule 3)
       try {
         const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
+        let finalOwnerEmail = adminEmail || "";
+        if (!finalOwnerEmail && isPersonal) {
+          try {
+            const oauth2 = google.oauth2({ version: "v2", auth });
+            const userRes = await oauth2.userinfo.get();
+            finalOwnerEmail = userRes.data.email || "";
+          } catch (e) {}
+        }
+
         const emails = membersSnap.docs
           .map(d => d.data().userEmail)
-          .filter(e => !!e && e.toLowerCase() !== (adminEmail || "").toLowerCase());
+          .filter(e => !!e && e.toLowerCase() !== (finalOwnerEmail || "").toLowerCase());
 
         console.log(`[Drive] Sharing folder ${folderId} with ${emails.length} members`);
-        
-        for (const email of emails) {
-          await drive.permissions.create({
-            fileId: folderId,
-            requestBody: {
-              type: 'user',
-              role: 'writer',
-              emailAddress: email
-            },
-            sendNotificationEmail: false
-          }).catch(e => console.error(`[Drive] Failed to share with ${email}:`, e.message));
-        }
+        await shareItemWithMembers(drive, folderId, emails);
       } catch (shareErr) {
         console.error("[Drive] Error during member sharing:", shareErr);
-        // We don't fail setup just because sharing failed for one member
       }
     } else {
       console.log("[Drive] Saving config to User Firestore:", userId);
       await db.collection("users").doc(userId).collection("settings").doc("drive").set({
         mainFolderId: folderId,
-        mainFolderName: rootFolderName,
+        mainFolderName: groupName,
         setupAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
     }
 
-    res.json({ mainFolderId: folderId, mainFolderName: rootFolderName });
+    res.json({ mainFolderId: folderId, mainFolderName: groupName });
   } catch (error: any) {
     console.error("[Drive] Setup Exception:", error);
     const message = error.response?.data?.error?.message || error.message || String(error);
     const details = error.response?.data?.error || null;
     res.status(500).json({ 
-      error: `Erro no Setup: ${message}`,
+      error: message.includes("permissão") || message.includes("autorizado") ? message : `Erro ao criar pasta no Drive: ${message}`,
       details: details 
     });
   }
@@ -1818,40 +1954,40 @@ app.post("/api/drive/setup", async (req, res) => {
 // New endpoint to refresh sharing for a group
 app.post("/api/drive/sync-sharing", async (req, res) => {
   const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  if (!auth) return res.status(401).json({ error: "Acesso ao Google Drive não autorizado. Certifique-se de realizar o login." });
   
   const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Group ID required" });
+  if (!groupId) return res.status(400).json({ error: "ID do grupo é obrigatório." });
 
   try {
-    const configSnap = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
-    if (!configSnap.exists) return res.status(404).json({ error: "Drive not configured for this group" });
-    
-    const { mainFolderId } = configSnap.data()!;
+    let folderId = "";
+    const groupDoc = await db.collection("groups").doc(groupId).get();
+    if (groupDoc.exists) {
+      const groupData = groupDoc.data()!;
+      if (groupData.groupType === "personal") {
+        folderId = groupData.driveRootFolderId || "";
+      }
+    }
+
+    if (!folderId) {
+      const configSnap = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
+      if (configSnap.exists) {
+        folderId = configSnap.data()!.mainFolderId || "";
+      }
+    }
+
+    if (!folderId) {
+      return res.status(400).json({ error: "A pasta principal do Google Drive está ausente para este grupo." });
+    }
+
     const drive = google.drive({ version: "v3", auth });
     
     const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
     const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
 
-    let successCount = 0;
-    for (const email of emails) {
-      try {
-        await drive.permissions.create({
-          fileId: mainFolderId,
-          requestBody: {
-            type: 'user',
-            role: 'writer',
-            emailAddress: email
-          },
-          sendNotificationEmail: false
-        });
-        successCount++;
-      } catch (e) {
-        console.error(`[Drive] Sync sharing failed for ${email}:`, (e as any).message);
-      }
-    }
+    await shareItemWithMembers(drive, folderId, emails);
 
-    res.json({ success: true, sharedWithCount: successCount });
+    res.json({ success: true, sharedWithCount: emails.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -1859,7 +1995,7 @@ app.post("/api/drive/sync-sharing", async (req, res) => {
 
 app.post("/api/drive/upload", async (req, res) => {
   const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  if (!auth) return res.status(401).json({ error: "Acesso ao Google Drive não autorizado. Certifique-se de realizar o login." });
 
   const { name, mimeType, base64Data, parentFolderId, folderName, mainFolderId } = req.body;
 
@@ -1867,15 +2003,38 @@ app.post("/api/drive/upload", async (req, res) => {
     return res.status(400).json({ error: "Missing base64Data" });
   }
 
+  const groupId = getGroupId(req);
+  let finalMainFolderId = mainFolderId;
+
+  // 1. Resolve correct mainFolderId if using personal group (Rule 4)
+  if (groupId) {
+    try {
+      const groupDoc = await db.collection("groups").doc(groupId).get();
+      if (groupDoc.exists) {
+        const groupData = groupDoc.data()!;
+        if (groupData.groupType === "personal") {
+          finalMainFolderId = groupData.driveRootFolderId || finalMainFolderId;
+        }
+      }
+    } catch (e) {
+      console.warn("[Drive] Failed to fetch personal group doc inside upload:", e);
+    }
+  }
+
+  // 2. Error case: Upload attempt without mainFolderId configured (Rule 9)
+  if (!finalMainFolderId) {
+    return res.status(400).json({ error: "Tentativa de upload de arquivo sem uma pasta principal do Google Drive configurada." });
+  }
+
   const drive = google.drive({ version: "v3", auth });
 
   try {
     let finalParentId = parentFolderId;
 
-    // If we have a folderName and mainFolderId, we ensure the subfolder exists inside mainFolderId
-    if (!finalParentId && folderName && mainFolderId) {
+    // 3. Resolve parentFolderId when custom folderName is provided (Rule 5)
+    if (!finalParentId && folderName && finalMainFolderId) {
       const folderRes = await drive.files.list({
-        q: `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and '${mainFolderId}' in parents and trashed = false`,
+        q: `name = '${folderName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and '${finalMainFolderId}' in parents and trashed = false`,
         fields: "files(id)",
       });
       
@@ -1886,15 +2045,28 @@ app.post("/api/drive/upload", async (req, res) => {
           requestBody: {
             name: folderName,
             mimeType: "application/vnd.google-apps.folder",
-            parents: [mainFolderId],
+            parents: [finalMainFolderId],
           },
           fields: "id",
+        }).catch(err => {
+          throw new Error(`Erro ao criar subpasta no Drive: ${err.message}`);
         });
         finalParentId = createFolderRes.data.id!;
+
+        // 4. Ensure newly created subfolder has the correct permissions shared (Rule 6)
+        if (groupId) {
+          try {
+            const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
+            const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
+            await shareItemWithMembers(drive, finalParentId, emails);
+          } catch (e: any) {
+            console.warn("[Drive] Failed to auto-share newly created subfolder:", e.message);
+          }
+        }
       }
     }
 
-    // 2. Upload File
+    // 5. Upload File
     const buffer = Buffer.from(base64Data, "base64");
     const stream = new Readable();
     stream.push(buffer);
@@ -1902,7 +2074,7 @@ app.post("/api/drive/upload", async (req, res) => {
 
     const fileMetadata = {
       name: name || `Upload_${Date.now()}`,
-      parents: finalParentId ? [finalParentId] : (mainFolderId ? [mainFolderId] : []),
+      parents: finalParentId ? [finalParentId] : (finalMainFolderId ? [finalMainFolderId] : []),
     };
     const media = {
       mimeType: mimeType || "image/jpeg",
@@ -1913,30 +2085,73 @@ app.post("/api/drive/upload", async (req, res) => {
       requestBody: fileMetadata,
       media: media,
       fields: "id, name, webViewLink, webContentLink",
+    }).catch(err => {
+      throw new Error(`Erro ao enviar arquivo para o Google Drive: ${err.message}`);
     });
 
+    const fileId = response.data.id!;
+
+    // 6. Ensure newly uploaded file is visible/shared with all group members if needed (Rule 6)
+    if (groupId) {
+      try {
+        const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
+        const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
+        await shareItemWithMembers(drive, fileId, emails);
+      } catch (e: any) {
+        console.warn("[Drive] Failed to auto-share uploaded file:", e.message);
+      }
+    }
+
     res.json(response.data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Drive] Upload error:", error);
-    res.status(500).json({ error: (error as Error).message });
+    res.status(500).json({ error: error.message || String(error) });
   }
 });
 
 app.get("/api/drive/list", async (req, res) => {
   const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  if (!auth) {
+    return res.status(403).json({ error: "Autorização do Google Drive necessária ou expirada. Reconecte sua conta do Google." });
+  }
 
   const { folderName, mainFolderId, parentFolderId } = req.query;
+  const groupId = getGroupId(req);
   const drive = google.drive({ version: "v3", auth });
 
   try {
+    let finalMainFolderId = mainFolderId as string;
+    let isPersonal = false;
+
+    // 1. Resolve correct mainFolderId if personal group (Rule 7)
+    if (groupId) {
+      const groupDoc = await db.collection("groups").doc(groupId).get();
+      if (groupDoc.exists) {
+        const groupData = groupDoc.data()!;
+        if (groupData.groupType === "personal") {
+          isPersonal = true;
+          finalMainFolderId = groupData.driveRootFolderId;
+          
+          // Rule 9: driveRootFolderId checking
+          if (!finalMainFolderId) {
+            return res.status(400).json({ error: "A pasta principal do Google Drive não está configurada para este grupo." });
+          }
+        }
+      }
+    }
+
+    // If still missing, check if required but missing
+    if (!finalMainFolderId) {
+      return res.status(400).json({ error: "A pasta principal do Google Drive não está configurada para este grupo." });
+    }
+
     let q = "trashed = false";
     let targetParentId = parentFolderId as string;
 
-    if (!targetParentId && folderName && mainFolderId) {
-      // Find the subfolder ID inside mainFolderId
+    if (!targetParentId && folderName && finalMainFolderId) {
+      // Find the subfolder ID inside finalMainFolderId
       const folderRes = await drive.files.list({
-        q: `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and '${mainFolderId}' in parents and trashed = false`,
+        q: `name = '${(folderName as string).replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and '${finalMainFolderId}' in parents and trashed = false`,
         fields: "files(id)",
       });
       
@@ -1949,18 +2164,25 @@ app.get("/api/drive/list", async (req, res) => {
             requestBody: {
               name: folderName as string,
               mimeType: "application/vnd.google-apps.folder",
-              parents: [mainFolderId as string],
+              parents: [finalMainFolderId],
             },
             fields: "id",
           });
           targetParentId = createFolderRes.data.id!;
+          
+          // Share newly created lazy subfolder with all group members! (Rule 6)
+          if (groupId) {
+            const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
+            const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
+            await shareItemWithMembers(drive, targetParentId, emails);
+          }
         } catch (createErr: any) {
           console.error("[Drive] Error creating subfolder during list:", createErr);
           return res.json([]); // Fallback to empty list if creation fails
         }
       }
-    } else if (!targetParentId && mainFolderId) {
-       targetParentId = mainFolderId as string;
+    } else if (!targetParentId && finalMainFolderId) {
+       targetParentId = finalMainFolderId;
     }
 
     if (targetParentId) {
@@ -1974,9 +2196,12 @@ app.get("/api/drive/list", async (req, res) => {
     });
 
     res.json(response.data.files || []);
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Drive] List error:", error);
-    res.status(500).json({ error: (error as Error).message });
+    if (error.status === 401 || error.status === 403 || error.message?.includes("auth") || error.message?.includes("credentials") || error.message?.includes("permission")) {
+      return res.status(403).json({ error: "Autorização do Google Drive necessária ou expirada. Reconecte sua conta do Google." });
+    }
+    res.status(500).json({ error: error.message || String(error) });
   }
 });
 

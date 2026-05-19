@@ -621,7 +621,10 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           console.log("[Drive] Triggering automatic setup for personal group:", name);
           const driveRes = await apiFetch("/api/drive/setup", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "x-group-id": groupId
+            },
             body: JSON.stringify({ 
               rootFolderName: name,
               adminEmail: user.email 
