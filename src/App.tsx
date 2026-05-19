@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { auth } from "./lib/firebase";
 import { useGroup } from "./contexts/GroupContext";
@@ -81,8 +81,6 @@ export default function App() {
   
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [showHeader, setShowHeader] = useState(true);
-  const mainRef = useRef<HTMLElement | null>(null);
 
   const navigateAndAction = (view: NavView, command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string, type?: string, sala?: string) => {
     setCurrentView(view);
@@ -99,9 +97,6 @@ export default function App() {
     } else {
       setPendingCommand(null);
     }
-
-    // Always show the header when navigating
-    setShowHeader(true);
     
     // Force scroll to top regardless of view change
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -110,48 +105,6 @@ export default function App() {
       mainElement.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
-
-  // Handle header show/hide scroll behavior
-  useEffect(() => {
-    const mainElement = mainRef.current;
-    if (!mainElement) return;
-
-    let lastScrollTop = 0;
-    const threshold = 15; // px threshold before triggering hide/show
-    const topZone = 60; // always show header if within 60px of the top
-
-    const handleScroll = () => {
-      const currentScrollTop = mainElement.scrollTop;
-
-      // Always show near the top of the container
-      if (currentScrollTop <= topZone) {
-        setShowHeader(true);
-        lastScrollTop = currentScrollTop;
-        return;
-      }
-
-      // Check threshold of movement before toggling
-      const delta = currentScrollTop - lastScrollTop;
-      if (Math.abs(delta) < threshold) {
-        return;
-      }
-
-      if (delta > 0) {
-        // Scrolling down -> hide
-        setShowHeader(false);
-      } else {
-        // Scrolling up -> show
-        setShowHeader(true);
-      }
-
-      lastScrollTop = currentScrollTop;
-    };
-
-    mainElement.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      mainElement.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -310,21 +263,11 @@ export default function App() {
   }
 
   return (
-    <div 
-      style={{
-        "--header-offset": showHeader ? "var(--header-offset-static)" : "var(--safe-top)"
-      } as React.CSSProperties}
-      className="h-full flex flex-col bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden"
-    >
+    <div className="h-full flex flex-col bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
       {/* Top Header - Both Mobile and Desktop */}
       <header 
-        style={{ 
-          height: 'var(--header-offset-static)', 
-          paddingTop: 'var(--safe-top)',
-          transform: showHeader ? 'translateY(0)' : 'translateY(-100%)',
-          opacity: showHeader ? 1 : 0
-        }}
-        className={`fixed top-0 left-0 lg:left-64 right-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-40 transition-all duration-300 ease-in-out ${isFullscreen ? 'hidden' : ''}`}
+        style={{ height: 'calc(3.25rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
+        className={`fixed top-0 left-0 lg:left-64 right-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-40 ${isFullscreen ? 'hidden' : ''}`}
       >
         <div className="h-full w-full flex items-center justify-center px-4 relative">
           {/* Left Toggle - Mobile Only */}
@@ -373,7 +316,7 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              style={{ paddingTop: 'var(--safe-top)', paddingBottom: 'var(--safe-bottom)' }}
+              style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
               className="fixed left-0 top-0 bottom-0 w-72 bg-white z-[70] flex flex-col p-6 lg:hidden"
             >
               <div className="flex items-center justify-between mb-10">
@@ -459,7 +402,7 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              style={{ paddingTop: 'var(--safe-top)', paddingBottom: 'var(--safe-bottom)' }}
+              style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
               className="fixed right-0 top-0 bottom-0 w-[85%] max-w-sm bg-white z-[70] flex flex-col overflow-y-auto lg:hidden"
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
@@ -501,7 +444,7 @@ export default function App() {
 
       {/* Sidebar - Desktop Only */}
       <aside 
-        style={{ paddingTop: 'var(--safe-top)', paddingBottom: 'var(--safe-bottom)' }}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
         className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-50"
       >
         <div className="flex items-center justify-between mb-10 px-2">
@@ -592,10 +535,9 @@ export default function App() {
 
       {/* Main Content */}
       <main 
-        ref={mainRef}
         style={{ 
-          paddingTop: 'var(--header-offset-static)',
-          paddingBottom: 'var(--bottom-offset)'
+          paddingTop: 'calc(3.25rem + env(safe-area-inset-top))',
+          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))'
         }}
         className={`lg:pl-64 flex flex-col overflow-y-auto custom-scrollbar ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : "min-h-screen"}`}
       >

@@ -237,7 +237,7 @@ export const ShoppingList: React.FC = () => {
   return (
     <div className="flex flex-col bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 p-4 sticky top-[var(--header-offset)] lg:top-[var(--safe-top)] z-20">
+      <div className="bg-white border-b border-slate-100 p-4 sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-20">
         <div className="max-w-xl mx-auto flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

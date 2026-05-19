@@ -327,7 +327,7 @@ export function GoogleAgenda() {
   return (
     <div className="flex flex-col bg-white rounded-3xl border border-gray-100 shadow-sm">
       {/* Header */}
-      <div className="p-4 sm:p-6 border-b border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-[var(--header-offset)] lg:top-[var(--safe-top)] z-20 bg-white/95 backdrop-blur-sm">
+      <div className="p-4 sm:p-6 border-b border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-emerald-500 text-white rounded-2xl">
             <CalendarIcon size={24} />

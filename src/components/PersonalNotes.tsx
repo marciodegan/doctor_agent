@@ -125,7 +125,7 @@ export const PersonalNotes: React.FC = () => {
       </div>
 
       {/* Sticky Form */}
-      <div className="sticky top-[var(--header-offset)] lg:top-[var(--safe-top)] z-30 bg-white border-b border-slate-100 px-4 py-3 shadow-sm">
+      <div className="sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-30 bg-white border-b border-slate-100 px-4 py-3 shadow-sm">
         <div className="max-w-xl mx-auto flex flex-col gap-2">
           <form onSubmit={handleAddNote} className="relative">
             <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-yellow-500" size={18} />
