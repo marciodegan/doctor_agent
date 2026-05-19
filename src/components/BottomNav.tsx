@@ -81,7 +81,7 @@ export function BottomNav({
 
   return (
     <div 
-      className="fixed left-1/2 lg:left-[calc(16rem+((100vw-16rem)/2))] bottom-[calc(env(safe-area-inset-bottom)+16px)] -translate-x-1/2 z-[60] w-[calc(100%-32px)] max-w-md"
+      className="fixed left-1/2 lg:left-[calc(16rem+((100vw-16rem)/2))] bottom-[max(0px,calc(env(safe-area-inset-bottom)-24px))] -translate-x-1/2 z-[60] w-[calc(100%-32px)] max-w-md"
     >
       <div className="h-14 sm:h-16 flex items-center justify-around px-3 bg-white border border-gray-100 rounded-[28px] shadow-[0_12px_35px_rgba(15,23,42,0.12)]">
         {tabs.map((tab, idx) => {
@@ -129,7 +129,6 @@ export function BottomNav({
                 {isEquipe ? (
                   <div className="relative">
                     {tab.icon}
-                    {/* Status Dot for the whole team - only if no photo to keep it clean, or always? User wants it to look like the group */}
                     <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm" />
                   </div>
                 ) : (
