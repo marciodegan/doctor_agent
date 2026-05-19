@@ -9,6 +9,7 @@
   --bottom-nav-height: 5rem;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --header-offset-static: calc(var(--header-height) + var(--safe-top));
   --header-offset: calc(var(--header-height) + var(--safe-top));
   --bottom-offset: calc(var(--bottom-nav-height) + var(--safe-bottom));
 }
