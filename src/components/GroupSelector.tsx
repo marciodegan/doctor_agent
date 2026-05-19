@@ -369,7 +369,7 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
             <div className="space-y-1">
               {groups.length > 0 && (
                 <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest px-2">
-                  Ativos
+                  Grupos de Trabalho Ativos (Working Active Groups)
                 </div>
               )}
               {groups.map((group) => (
