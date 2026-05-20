@@ -26,6 +26,18 @@ export function BottomNav({
   const { activeGroup } = useGroup();
   const isPersonal = activeGroup?.groupType === "personal";
 
+  const [isIosStandalone, setIsIosStandalone] = React.useState(false);
+
+  React.useEffect(() => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                  (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+    const isStandalone = (window.navigator as any).standalone === true || 
+                         window.matchMedia("(display-mode: standalone)").matches;
+    if (isIOS && isStandalone) {
+      setIsIosStandalone(true);
+    }
+  }, []);
+
   const tabs: any[] = [
     {
       id: "workspace",
@@ -75,7 +87,9 @@ export function BottomNav({
   return (
     <div 
       style={{
-        bottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))'
+        bottom: isIosStandalone 
+          ? 'max(6px, env(safe-area-inset-bottom, 0px))' 
+          : 'calc(0.75rem + env(safe-area-inset-bottom, 0px))'
       }}
       className="fixed left-1/2 lg:left-[calc(16rem+((100vw-16rem)/2))] -translate-x-1/2 z-[60] w-[calc(100%-32px)] max-w-md"
     >

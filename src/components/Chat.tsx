@@ -2707,25 +2707,20 @@ export const Chat: React.FC<{
                         </div>
                       </div>
 
-                      <div className="px-4 py-3 bg-white border-b border-gray-100 flex flex-row items-center justify-between gap-4 mb-6">
-                        <div className="flex flex-col items-start shrink-0">
-                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1.5">Status</span>
-                          <button 
-                            onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
-                            className="bg-blue-50/50 border border-blue-100 px-3 py-1.5 rounded-xl text-blue-700 text-[11px] font-black flex items-center hover:bg-blue-100/70 transition-all active:scale-95 shadow-sm shadow-blue-500/5 whitespace-nowrap"
-                          >
-                            <span className="max-w-[120px] truncate">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
-                          </button>
-                        </div>
-                        <div className="flex flex-col items-end shrink-0 pl-4 border-l border-gray-50">
-                          <button 
-                            onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}, type: ${msg.profileData?.surgery_type}, procedure: ${msg.profileData?.procedure || ""}`)}
-                            className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
-                          >
-                            <CalendarPlus size={16} className="text-emerald-100" />
-                            <span className="text-[10px] font-black uppercase tracking-tight">Agendar Novo</span>
-                          </button>
-                        </div>
+                      <div className="px-4 py-3 bg-white border-b border-gray-100 flex flex-row items-center justify-between gap-3 mb-6">
+                        <button 
+                          onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
+                          className="w-1/2 bg-blue-50/50 border border-blue-100 h-11 rounded-xl text-blue-700 text-[11px] font-black flex items-center justify-center hover:bg-blue-100/70 transition-all active:scale-95 shadow-sm shadow-blue-500/5"
+                        >
+                          <span className="max-w-[125px] sm:max-w-none truncate px-1 uppercase">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
+                        </button>
+                        <button 
+                          onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}, type: ${msg.profileData?.surgery_type}, procedure: ${msg.profileData?.procedure || ""}`)}
+                          className="w-1/2 bg-emerald-600 text-white h-11 rounded-xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                        >
+                          <CalendarPlus size={16} className="text-emerald-100 shrink-0" />
+                          <span className="text-[10px] font-black uppercase tracking-tight truncate px-1">Agendar Novo</span>
+                        </button>
                       </div>
                     </>
                   )}
