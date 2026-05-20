@@ -265,18 +265,22 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       groupsQuery,
       (snapshot) => {
         if (!isMounted) return;
-        const owned = snapshot.docs.map((doc) => {
-          const data = doc.data();
+        const owned = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
           const status = data.status || "active";
+          if (!data.status) {
+            setDoc(docSnap.ref, { status: "active" }, { merge: true })
+              .catch(err => console.warn("Self-heal group status failed:", err));
+          }
           return {
-            id: doc.id,
+            id: docSnap.id,
             name: data.name || "Grupo",
             createdBy: data.createdBy,
             groupType: data.groupType || "professional",
             photoURL: data.photoURL || "",
             status: status as any,
-            active: data.active !== false && data.ativo !== false,
-            ativo: data.ativo !== false && data.active !== false,
+            active: status === "active",
+            ativo: status === "active",
           } as Group;
         });
         setOwnedGroups(owned);
@@ -426,10 +430,16 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         const memberCheckPromises = groupsSnap.docs.map(async (groupDoc) => {
           const groupId = groupDoc.id;
           const groupData = groupDoc.data();
+          const groupStatus = groupData.status || "active";
+
+          if (!groupData.status) {
+            setDoc(groupDoc.ref, { status: "active" }, { merge: true })
+              .catch(err => console.warn("Self heal status in queryGroupsDirect failed:", err));
+          }
 
           if (groupData.createdBy === user.uid) {
             // User is the creator, definitely a member
-            return { groupDoc, isMember: true, role: "owner", status: "active" };
+            return { groupDoc, isMember: true, role: "owner", status: groupStatus };
           }
 
           // Fetch the member document to confirm membership
@@ -575,25 +585,36 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       if (existing) {
         groupsMap.set(g.id, {
           ...g,
-          status: existing.status,
-          active: existing.status === "active",
-          ativo: existing.status === "active",
+          status: g.status || existing.status || "active",
+          active: (g.status || existing.status || "active") === "active",
+          ativo: (g.status || existing.status || "active") === "active",
         });
-      } else if (g.active) {
-        groupsMap.set(g.id, g);
+      } else {
+        groupsMap.set(g.id, {
+          ...g,
+          active: g.status === "active",
+          ativo: g.status === "active",
+        });
       }
     });
 
-    const combinedGroupsList = Array.from(groupsMap.values());
+    const combinedGroupsList = Array.from(groupsMap.values()).filter(g => g.status !== "terminated");
 
-    // 3. Filter and Sort Active Groups
+    // 3. Filter and Sort Groups
     const activeList = combinedGroupsList
       .filter((g) => g.status === "active")
       .sort((a, b) => {
         return a.name.localeCompare(b.name);
       });
 
-    setGroups(activeList);
+    const removedList = combinedGroupsList
+      .filter((g) => g.status === "removed")
+      .sort((a, b) => {
+        return a.name.localeCompare(b.name);
+      });
+
+    const sortedGroups = [...activeList, ...removedList];
+    setGroups(sortedGroups);
 
     // 4. Consolidate Invites (Pending memberships + Email invites)
     const pendingFromMemberships = combinedGroupsList.filter(
@@ -616,10 +637,10 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     const foundCurrent = activeList.find((g) => g.id === activeGroup?.id);
 
     if (foundSaved) {
-      // Restore from storage if valid (priority)
+      // Restore from storage if valid and active
       setActiveGroup((prev) => (prev?.id === foundSaved.id ? prev : foundSaved));
     } else if (foundCurrent) {
-      // Maintain current if current is valid
+      // Maintain current if current is valid and active
       setActiveGroup(foundCurrent);
     } else if (activeList.length > 0) {
       // Default to first active group if none saved/found
@@ -628,6 +649,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       safeLocalStorage.setItem("activeGroupId", firstActive.id);
     } else {
       setActiveGroup(null);
+      safeLocalStorage.setItem("activeGroupId", "");
     }
     
     setLoading(false);
@@ -1243,14 +1265,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         if (remaining.length > 0) {
           setActiveGroupId(remaining[0].id);
         } else {
-          // If no active ones, try a removed one? 
-          const sortedRemaining = groups.filter(g => g.id !== groupId && g.status !== "terminated");
-          if (sortedRemaining.length > 0) {
-            setActiveGroupId(sortedRemaining[0].id);
-          } else {
-            setActiveGroup(null);
-            safeLocalStorage.setItem("activeGroupId", "");
-          }
+          setActiveGroup(null);
+          safeLocalStorage.setItem("activeGroupId", "");
         }
       }
     } catch (err) {

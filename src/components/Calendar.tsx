@@ -551,7 +551,7 @@ export function Calendar({
   };
 
   return (
-    <div className="flex flex-col bg-white rounded-3xl border border-gray-100 shadow-sm">
+    <div className="flex flex-col min-h-screen bg-white rounded-3xl border border-gray-100 shadow-sm">
       {/* Header */}
       <div className="p-4 sm:p-6 border-b border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -701,7 +701,12 @@ export function Calendar({
       </div>
 
       {/* Calendar Content */}
-      <div className="flex-1 bg-gray-50/30">
+      <div 
+        style={{
+          paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))"
+        }}
+        className="flex-1 bg-gray-50/30 overflow-y-auto custom-scrollbar"
+      >
         {viewMode === "month" ? (
           <div className="min-w-[600px] grid grid-cols-7 border-b border-gray-100">
             {DAYS.map(day => (

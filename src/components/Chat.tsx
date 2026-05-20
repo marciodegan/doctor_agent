@@ -2642,9 +2642,13 @@ export const Chat: React.FC<{
   };
 
   return (
-    <div id="nexus-chat" className="flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 relative">
+    <div 
+      id="nexus-chat" 
+      className="flex flex-col min-h-screen bg-white rounded-2xl shadow-xl border border-gray-100 relative overflow-y-auto"
+      style={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))" }}
+    >
       {/* Messages */}
-      <div ref={scrollRef} className="px-2 sm:px-6 py-4 space-y-6">
+      <div ref={scrollRef} className="px-2 sm:px-6 py-4 space-y-6 flex-1">
 
         <AnimatePresence initial={false}>
           {messages.filter(m => m.role === "model").map((msg, i) => (
@@ -2656,7 +2660,7 @@ export const Chat: React.FC<{
               className="flex justify-start"
             >
               <div className="flex gap-3 w-full">
-                <div className={`p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full overflow-hidden ${msg.isProfile ? 'pt-0 ring-1 ring-blue-100' : ''}`}>
+                <div className={`p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full overflow-y-auto ${msg.isProfile ? 'pt-0 ring-1 ring-blue-100' : ''}`}>
                   {msg.isListing && msg.listingTitle && (
                     <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
                       <h3 className="text-base font-extrabold text-gray-800 tracking-tight">{msg.listingTitle}</h3>

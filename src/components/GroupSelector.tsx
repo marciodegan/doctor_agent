@@ -37,7 +37,8 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
     isManagementOpen,
     setIsManagementOpen,
     loading,
-    companyName
+    companyName,
+    toggleGroupStatus
   } = useGroup();
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
@@ -200,6 +201,9 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
       </div>
     );
   }
+
+  const activeGroups = groups.filter((g) => g.status === "active");
+  const removedGroups = groups.filter((g) => g.status === "removed");
 
   return (
     <div className="space-y-2.5">
@@ -378,13 +382,13 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
             )}
 
             {/* Active Groups List */}
-            <div className="space-y-1">
-              {groups.length > 0 && (
+            <div className="space-y-3">
+              {activeGroups.length > 0 && (
                 <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest px-2">
-                  Grupos de Trabalho Ativos (Working Active Groups)
+                  Ambientes Ativos
                 </div>
               )}
-              {groups.map((group) => (
+              {activeGroups.map((group) => (
                 <div key={group.id} className="relative group/item">
                   <button
                     onClick={() => {
@@ -393,12 +397,8 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
                     }}
                     className={`w-full flex items-center gap-2.5 p-2 rounded-xl transition-all border-2 ${
                       activeGroup?.id === group.id
-                        ? group.status === "removed"
-                          ? "bg-gray-50 border-gray-300 opacity-80"
-                          : "bg-blue-50 border-blue-600 shadow-sm"
-                        : group.status === "removed"
-                          ? "bg-gray-50 border-transparent opacity-60 grayscale"
-                          : "bg-white border-transparent hover:border-gray-100 hover:bg-gray-50"
+                        ? "bg-blue-50 border-blue-600 shadow-sm"
+                        : "bg-white border-transparent hover:border-gray-100 hover:bg-gray-50"
                     }`}
                   >
                     <div
@@ -435,9 +435,7 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
                         )}
                       </div>
                       <div className="text-[7px] font-bold text-gray-400 uppercase tracking-widest leading-none">
-                        {group.status === "removed" ? (
-                          <span className="text-red-500 font-black">DESATIVADO</span>
-                        ) : activeGroup?.id === group.id ? "Em uso" : "Selecionar"}
+                        {activeGroup?.id === group.id ? "Em uso" : "Selecionar"}
                       </div>
                     </div>
                     {activeGroup?.id === group.id && (
@@ -461,6 +459,71 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
                   </button>
                 </div>
               ))}
+
+              {/* Removed Groups Section */}
+              {removedGroups.length > 0 && (
+                <div className="space-y-1.5 pt-3 border-t border-gray-100">
+                  <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest px-2 flex items-center justify-between">
+                    <span>Desativados / Removidos</span>
+                    <span className="text-[7px] text-gray-400 font-normal normal-case">Recuperáveis</span>
+                  </div>
+                  {removedGroups.map((group) => (
+                    <div key={group.id} className="relative group/item opacity-65">
+                      <div
+                        className="w-full flex items-center justify-between gap-2.5 p-2 rounded-xl bg-gray-50 border border-gray-100/60"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div
+                            className="w-6 h-6 rounded-md flex items-center justify-center bg-gray-200 text-gray-400 shrink-0 overflow-hidden grayscale"
+                          >
+                            {group.photoURL ? (
+                              <img
+                                src={group.photoURL}
+                                alt={group.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-[10px] font-black">
+                                {(group.name || "G").charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1 text-left min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <div className="font-bold text-[11px] text-gray-500 uppercase tracking-tight truncate line-through">
+                                {group.name}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="bg-gray-200/50 text-gray-500 border border-gray-200/50 px-1 py-0.5 rounded text-[5px] font-black uppercase tracking-widest">
+                                REMOVIDO
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (confirm(`Deseja reativar o grupo "${group.name}"?`)) {
+                              try {
+                                await toggleGroupStatus(group.id, true);
+                                setActiveGroupId(group.id);
+                                if (onSelect) onSelect();
+                              } catch (err: any) {
+                                alert("Erro: " + err.message);
+                              }
+                            }
+                          }}
+                          className="px-2.5 py-1 bg-white hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-100 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95"
+                        >
+                          Reativar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         )}
