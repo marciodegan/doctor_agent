@@ -636,94 +636,98 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ onBack }) => {
   // SCREEN 3: MAIN LISTING (SELECTION IN CHIPS GRID)
   return (
     <div className="flex flex-col lg:min-h-screen bg-slate-50">
-      {/* Sticky Header */}
-      <div className="bg-white border-b border-slate-100 p-4 sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-30 shadow-sm">
-        <div className="max-w-xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {onBack ? (
-              <button 
-                onClick={onBack}
-                className="p-2 -ml-2 rounded-xl text-slate-600 hover:bg-slate-50 transition-all"
-              >
-                <ChevronLeft size={20} />
-              </button>
-            ) : (
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100 text-blue-600">
-                <ShoppingCart size={22} />
+      {/* Sticky Top Section containing Header, Categories, and Search/Input */}
+      <div className="sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-30 bg-white border-b border-slate-100 shadow-sm">
+        {/* Header */}
+        <div className="p-4 border-b border-slate-50 bg-white">
+          <div className="max-w-xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {onBack ? (
+                <button 
+                  onClick={onBack}
+                  className="p-2 -ml-2 rounded-xl text-slate-600 hover:bg-slate-50 transition-all"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+              ) : (
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100 text-blue-600">
+                  <ShoppingCart size={22} />
+                </div>
+              )}
+              <div>
+                <h3 className="text-lg font-black text-slate-900 tracking-tight">Shopping Lista</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sua Lista do Dia</p>
               </div>
-            )}
-            <div>
-              <h3 className="text-lg font-black text-slate-900 tracking-tight">Shopping Lista</h3>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sua Lista do Dia</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Pulsing visual cart tracker */}
+              {preferences.cartItems.length > 0 && (
+                <button
+                  onClick={() => setScreen("cart")}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-blue-500/15 active:scale-95 animate-pulse-subtle"
+                >
+                  <ShoppingCart size={15} />
+                  <span>{preferences.cartItems.length} {preferences.cartItems.length === 1 ? "item" : "itens"}</span>
+                </button>
+              )}
+
+              {/* Config loader button */}
+              <button
+                onClick={() => {
+                  setScreen("config");
+                  setSelectedCategory(null);
+                }}
+                className="p-2.5 bg-slate-100 hover:bg-slate-200/80 text-slate-600 rounded-2xl transition-all"
+                title="Configurar produtos disponíveis"
+              >
+                <Settings size={18} />
+              </button>
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2">
-            {/* Pulsing visual cart tracker */}
-            {preferences.cartItems.length > 0 && (
-              <button
-                onClick={() => setScreen("cart")}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-blue-500/15 active:scale-95 animate-pulse-subtle"
-              >
-                <ShoppingCart size={15} />
-                <span>{preferences.cartItems.length} {preferences.cartItems.length === 1 ? "item" : "itens"}</span>
-              </button>
-            )}
+        {/* Categories Tab Bar & Search Input Container */}
+        <div className="px-4 py-3 bg-white space-y-3">
+          <div className="max-w-xl mx-auto space-y-3">
+            {/* Categories */}
+            <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide -mx-4 px-4">
+              {CATEGORIES.map(cat => {
+                const isActive = selectedCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(isActive ? null : cat.id)}
+                    className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 border rounded-full text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                      isActive
+                        ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/15 active:scale-95"
+                        : "bg-white border-slate-100 text-slate-600 hover:border-slate-300 active:scale-95"
+                    }`}
+                  >
+                    <span>{cat.icon}</span>
+                    <span>{cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-            {/* Config loader button */}
-            <button
-              onClick={() => {
-                setScreen("config");
-                setSelectedCategory(null);
-              }}
-              className="p-2.5 bg-slate-100 hover:bg-slate-200/80 text-slate-600 rounded-2xl transition-all"
-              title="Configurar produtos disponíveis"
-            >
-              <Settings size={18} />
-            </button>
+            {/* Filter Search Bar Input */}
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+              <input
+                type="text"
+                placeholder="Buscar produto cadastrado..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-slate-100 border border-slate-200 rounded-xl py-3.5 pl-11 pr-4 text-xs font-bold text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              />
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Main Grid Area */}
       <div className="flex-1 px-4 py-6 max-w-xl mx-auto w-full space-y-6">
-        {/* Categories Tab Bar */}
-        <div className="space-y-2">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">
-            Filtrar Categoria
-          </span>
-          <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide -mx-4 px-4">
-            {CATEGORIES.map(cat => {
-              const isActive = selectedCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(isActive ? null : cat.id)}
-                  className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 border rounded-full text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
-                    isActive
-                      ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/15 active:scale-95"
-                      : "bg-white border-slate-100 text-slate-600 hover:border-slate-300 active:scale-95"
-                  }`}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{cat.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Filter search bar */}
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-          <input
-            type="text"
-            placeholder="Buscar produto cadastrado..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white border border-slate-100 rounded-2xl py-3.5 pl-11 pr-4 text-xs font-semibold text-slate-600 placeholder:text-slate-400 outline-none focus:border-blue-300 transition-all shadow-sm"
-          />
-        </div>
-
         {/* Active Products Block */}
         <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm min-h-[250px] flex flex-col justify-between">
           <div>

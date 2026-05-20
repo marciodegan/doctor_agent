@@ -656,6 +656,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         groupType: type,
         createdBy: user.uid,
         createdAt: serverTimestamp(),
+        status: "active",
+        active: true,
+        ativo: true,
       });
 
       const groupId = groupRef.id;

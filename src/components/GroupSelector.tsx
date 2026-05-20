@@ -41,6 +41,7 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
   } = useGroup();
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupType, setNewGroupType] = useState<"professional" | "personal">(
     "professional",
@@ -51,9 +52,10 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newGroupName.trim()) return;
+    if (!newGroupName.trim() || isCreatingGroup) return;
     try {
       setError("");
+      setIsCreatingGroup(true);
       await createGroup(newGroupName, newGroupType);
       setNewGroupName("");
       setNewGroupType("professional");
@@ -61,6 +63,8 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
       if (onSelect) onSelect();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setIsCreatingGroup(false);
     }
   };
 
@@ -235,16 +239,18 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
               type="text"
               placeholder="Nome do grupo (ex: Equipe Cirúrgica)"
               value={newGroupName}
+              disabled={isCreatingGroup}
               onChange={(e) => setNewGroupName(e.target.value)}
-              className="w-full bg-white border border-gray-200 px-4 py-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              className="w-full bg-white border border-gray-200 px-4 py-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all disabled:opacity-50"
               autoFocus
             />
 
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
+                disabled={isCreatingGroup}
                 onClick={() => setNewGroupType("professional")}
-                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${
+                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1 disabled:opacity-50 ${
                   newGroupType === "professional"
                     ? "bg-blue-50 border-blue-600 text-blue-600"
                     : "bg-white border-gray-100 text-gray-400 hover:border-gray-200"
@@ -257,8 +263,9 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
               </button>
               <button
                 type="button"
+                disabled={isCreatingGroup}
                 onClick={() => setNewGroupType("personal")}
-                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${
+                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1 disabled:opacity-50 ${
                   newGroupType === "personal"
                     ? "bg-rose-50 border-rose-600 text-rose-600"
                     : "bg-white border-gray-100 text-gray-400 hover:border-gray-200"
@@ -283,14 +290,19 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
             <div className="flex flex-col gap-2">
               <button
                 type="submit"
-                className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold text-[11px] hover:bg-blue-700 transition-all shadow-sm uppercase tracking-widest"
+                disabled={isCreatingGroup}
+                className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold text-[11px] hover:bg-blue-700 transition-all shadow-sm uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
               >
+                {isCreatingGroup ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : null}
                 CRIAR GRUPO
               </button>
               <button
                 type="button"
+                disabled={isCreatingGroup}
                 onClick={() => setIsCreating(false)}
-                className="w-full py-2 rounded-lg font-bold text-[9px] text-gray-400 hover:text-gray-600 transition-all border border-transparent hover:border-gray-100 uppercase tracking-widest"
+                className="w-full py-2 rounded-lg font-bold text-[9px] text-gray-400 hover:text-gray-600 transition-all border border-transparent hover:border-gray-100 uppercase tracking-widest disabled:opacity-50"
               >
                 CANCELAR
               </button>
