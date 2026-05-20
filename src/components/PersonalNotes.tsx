@@ -119,9 +119,14 @@ export const PersonalNotes: React.FC<PersonalNotesProps> = ({ onNavigateToShoppi
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50">
-      {/* Sticky Top Section containing both Header and Input Form */}
-      <div className="sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-30 bg-white border-b border-slate-100 shadow-sm">
+    <div 
+      className="flex flex-col min-h-screen bg-slate-50 overflow-y-auto"
+      style={{
+        paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))"
+      }}
+    >
+      {/* Top Section containing both Header and Input Form */}
+      <div className="bg-white border-b border-slate-100 shadow-sm">
         {/* Header content */}
         <div className="p-4 border-b border-slate-50 bg-white">
           <div className="max-w-xl mx-auto flex items-center justify-between gap-3">
