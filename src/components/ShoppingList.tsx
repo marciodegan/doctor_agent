@@ -356,9 +356,14 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ onBack }) => {
   // SCREEN 1: THE CONFIGURATION BUILDER VIEW
   if (screen === "config") {
     return (
-      <div className="flex flex-col lg:min-h-screen bg-slate-50">
-        {/* Sticky Header */}
-        <div className="bg-white border-b border-slate-100 p-4 sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-30 shadow-sm">
+      <div 
+        className="flex flex-col min-h-screen bg-slate-50 overflow-y-auto"
+        style={{
+          paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))"
+        }}
+      >
+        {/* Header */}
+        <div className="bg-white border-b border-slate-100 p-4 shadow-sm">
           <div className="max-w-xl mx-auto flex items-center justify-between">
             <button 
               onClick={() => setScreen("list")}
@@ -408,7 +413,7 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ onBack }) => {
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">
               Selecione a categoria para gerenciar
             </span>
-            <div className="flex overflow-x-auto gap-1.5 pb-2 scrollbar-hide -mx-4 px-4 sticky top-0 z-10 bg-slate-50/80 backdrop-blur-sm">
+            <div className="flex overflow-x-auto gap-1.5 pb-2 scrollbar-hide -mx-4 px-4 bg-slate-50/80 backdrop-blur-sm">
               {CATEGORIES.map(cat => (
                 <button
                   key={cat.id}
@@ -499,9 +504,14 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ onBack }) => {
     }
 
     return (
-      <div className="flex flex-col lg:min-h-screen bg-slate-50">
+      <div 
+        className="flex flex-col min-h-screen bg-slate-50 overflow-y-auto"
+        style={{
+          paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))"
+        }}
+      >
         {/* Header */}
-        <div className="bg-white border-b border-slate-100 p-4 sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-30 shadow-sm">
+        <div className="bg-white border-b border-slate-100 p-4 shadow-sm">
           <div className="max-w-xl mx-auto flex items-center justify-between">
             <button 
               onClick={() => {
@@ -635,9 +645,14 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ onBack }) => {
 
   // SCREEN 3: MAIN LISTING (SELECTION IN CHIPS GRID)
   return (
-    <div className="flex flex-col lg:min-h-screen bg-slate-50">
-      {/* Sticky Top Section containing Header, Categories, and Search/Input */}
-      <div className="sticky top-[calc(3.25rem+env(safe-area-inset-top))] lg:top-[env(safe-area-inset-top)] z-30 bg-white border-b border-slate-100 shadow-sm">
+    <div 
+      className="flex flex-col min-h-screen bg-slate-50 overflow-y-auto"
+      style={{
+        paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))"
+      }}
+    >
+      {/* Top Section containing Header, Categories, and Search/Input */}
+      <div className="bg-white border-b border-slate-100 shadow-sm">
         {/* Header */}
         <div className="p-4 border-b border-slate-50 bg-white">
           <div className="max-w-xl mx-auto flex items-center justify-between">

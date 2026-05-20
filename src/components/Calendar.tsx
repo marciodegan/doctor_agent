@@ -177,7 +177,7 @@ export function Calendar({
 
   const [viewMode, setViewMode] = useState<"month" | "list">("list");
   const [selectedDay, setSelectedDay] = useState(new Date().toISOString().split("T")[0]);
-  const [listNavMode, setListNavMode] = useState<"day" | "month">("day");
+  const [listNavMode, setListNavMode] = useState<"day" | "month">("month");
   
   useEffect(() => {
     if ((prefilledPatientName || prefilledProcedure || prefilledHospitalId || prefilledType || prefilledSala) && !isModalOpen && !editingEvent) {
@@ -343,6 +343,7 @@ export function Calendar({
             const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
             setSelectedDay(dateStr);
             setViewMode("list");
+            setListNavMode("day");
           }}
           className={`h-24 sm:h-32 border-t border-l border-gray-100 p-1 sm:p-2 relative flex cursor-pointer flex-col hover:bg-gray-50/80 transition-colors ${isToday ? "bg-blue-50/30" : "bg-white"}`}
         >
@@ -718,9 +719,28 @@ export function Calendar({
           </div>
         ) : (
           <div className="max-w-4xl mx-auto p-3 sm:p-6 lg:p-8 pt-8">
-            <div className="mb-10 pl-2">
-              <h1 className="text-xl font-black text-gray-900 leading-tight">Olá, {auth.currentUser?.displayName?.split(" ")[0] || "Doutor(a)"}! 👋</h1>
-              <p className="text-gray-500 font-medium mt-2 text-lg">Hoje é um lindo dia para salvar vidas ❤️</p>
+            <div className="mb-10 pl-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-xl font-black text-gray-900 leading-tight">Olá, {auth.currentUser?.displayName?.split(" ")[0] || "Doutor(a)"}! 👋</h1>
+                <p className="text-gray-500 font-medium mt-2 text-lg">Hoje é um lindo dia para salvar vidas ❤️</p>
+              </div>
+              
+              <div className="flex bg-gray-100 p-1 rounded-2xl self-start sm:self-center shrink-0 border border-gray-100">
+                <button 
+                  onClick={() => setListNavMode("day")}
+                  type="button"
+                  className={`px-4 py-2 rounded-xl text-xs font-black tracking-wider transition-all ${listNavMode === "day" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400 hover:text-gray-600"}`}
+                >
+                  DIA SELECIONADO
+                </button>
+                <button 
+                  onClick={() => setListNavMode("month")}
+                  type="button"
+                  className={`px-4 py-2 rounded-xl text-xs font-black tracking-wider transition-all ${listNavMode === "month" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400 hover:text-gray-600"}`}
+                >
+                  MÊS INTEIRO
+                </button>
+              </div>
             </div>
             {(() => {
               let filteredListEvents: CalendarEvent[] = [];
@@ -733,16 +753,14 @@ export function Calendar({
                   return eventDate >= monthStart && eventDate <= monthEnd;
                 });
               } else {
-                const sDay = new Date(selectedDay + "T00:00:00");
-                const nextDay = new Date(sDay);
-                nextDay.setDate(nextDay.getDate() + 1);
+                const sDayStr = selectedDay;
+                const sDayObj = new Date(selectedDay + "T12:00:00");
+                const nextDayObj = new Date(sDayObj);
+                nextDayObj.setDate(nextDayObj.getDate() + 1);
+                const nextDayStr = nextDayObj.toISOString().split("T")[0];
                 
                 filteredListEvents = filteredEvents.filter(event => {
-                  const start = new Date(event.data + "T12:00:00");
-                  return (
-                    (start.getDate() === sDay.getDate() && start.getMonth() === sDay.getMonth() && start.getFullYear() === sDay.getFullYear()) ||
-                    (start.getDate() === nextDay.getDate() && start.getMonth() === nextDay.getMonth() && start.getFullYear() === nextDay.getFullYear())
-                  );
+                  return event.data === sDayStr || event.data === nextDayStr;
                 });
               }
 
