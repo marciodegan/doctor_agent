@@ -225,7 +225,7 @@ export const PersonalDocuments: React.FC = () => {
   return (
     <div className="flex flex-col bg-white">
       {/* Header */}
-      <div className="p-6 border-b border-gray-50 bg-white sticky top-0 z-10">
+      <div className="p-4 sm:p-6 border-b border-gray-50 bg-white sticky top-0 z-10">
         <div className="max-w-6xl mx-auto space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -289,7 +289,7 @@ export const PersonalDocuments: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="p-6 bg-gray-50/30">
+      <div className="p-3 sm:p-6 bg-gray-50/30">
         <div className="max-w-6xl mx-auto">
           {filteredFiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">

@@ -416,6 +416,77 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // 6. Direct Group Collection Query and membership verification (Carefully query the groups collections)
+    const queryGroupsDirect = async () => {
+      try {
+        const groupsSnap = await getDocs(collection(db, "groups"));
+        if (!isMounted) return;
+
+        // For each group, check if the current user is a member
+        const memberCheckPromises = groupsSnap.docs.map(async (groupDoc) => {
+          const groupId = groupDoc.id;
+          const groupData = groupDoc.data();
+
+          if (groupData.createdBy === user.uid) {
+            // User is the creator, definitely a member
+            return { groupDoc, isMember: true, role: "owner", status: "active" };
+          }
+
+          // Fetch the member document to confirm membership
+          const memberDocRef = doc(db, `groups/${groupId}/members`, user.uid);
+          try {
+            const memberDocSnap = await getDoc(memberDocRef);
+            if (memberDocSnap.exists()) {
+              const memberData = memberDocSnap.data();
+              const status = memberData.status || "active";
+              const isMemberActive = status === "active" || status === "conectado";
+              return { 
+                groupDoc, 
+                isMember: isMemberActive, 
+                role: memberData.role || "member", 
+                status 
+              };
+            }
+          } catch (e) {
+            console.warn(`[GroupContext] Error querying membership for group ${groupId}:`, e);
+          }
+
+          return { groupDoc, isMember: false, role: "", status: "" };
+        });
+
+        const checkedResults = await Promise.all(memberCheckPromises);
+        if (!isMounted) return;
+
+        for (const result of checkedResults) {
+          if (result.isMember) {
+            const groupData = result.groupDoc.data();
+            const status = result.status === "conectado" ? "active" : result.status;
+
+            // Self-heal: Ensure this is saved to `users/${user.uid}/memberships`
+            try {
+              const membershipRef = doc(db, `users/${user.uid}/memberships`, result.groupDoc.id);
+              const mSnap = await getDoc(membershipRef);
+              if (!mSnap.exists()) {
+                await setDoc(membershipRef, {
+                  groupId: result.groupDoc.id,
+                  groupName: groupData.name || "Grupo",
+                  groupType: groupData.groupType || "professional",
+                  role: result.role,
+                  status: status,
+                }, { merge: true });
+              }
+            } catch (err) {
+              console.warn(`[GroupContext] Healing failed for group ${result.groupDoc.id}:`, err);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[GroupContext] Failed querying groups collection directly:", err);
+      }
+    };
+
+    queryGroupsDirect();
+
     return () => {
       isMounted = false;
       unsubscribeMemberships();
