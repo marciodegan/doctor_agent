@@ -42,7 +42,7 @@ interface DriveConfig {
 
 export const PersonalDocuments: React.FC = () => {
   const { activeGroup, apiFetch, activeGroupMembers } = useGroup();
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const isAdmin = activeGroup?.createdBy === user?.uid;
   const [config, setConfig] = useState<DriveConfig | null>(null);
   const [files, setFiles] = useState<DriveFile[]>([]);
@@ -52,6 +52,7 @@ export const PersonalDocuments: React.FC = () => {
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isSettingUp, setIsSettingUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
   
   // Navigation states
   const [currentFolder, setCurrentFolder] = useState<{ id: string; name: string } | null>(null);
@@ -84,6 +85,7 @@ export const PersonalDocuments: React.FC = () => {
   const fetchConfig = async () => {
     setIsLoading(true);
     setError(null);
+    setNeedsLogin(false);
     try {
       const configRes = await apiFetch("/api/drive/config");
       if (configRes.ok) {
@@ -103,6 +105,14 @@ export const PersonalDocuments: React.FC = () => {
           if (filesRes.ok) {
             const filesData = await filesRes.json();
             setFiles(Array.isArray(filesData) ? filesData : []);
+          } else {
+            if (filesRes.status === 401 || filesRes.status === 403) {
+              setNeedsLogin(true);
+              setError("Sua sessão do Google expirou ou não está autorizada. Por favor, conecte para visualizar estes arquivos.");
+            } else {
+              const filesErr = await filesRes.json().catch(() => ({}));
+              setError(filesErr.error || "Erro ao carregar arquivos da lista.");
+            }
           }
         } else {
           setConfig(null);
@@ -111,6 +121,13 @@ export const PersonalDocuments: React.FC = () => {
           setFiles([]);
         }
       } else {
+        if (configRes.status === 401 || configRes.status === 403) {
+          setNeedsLogin(true);
+          setError("Sua sessão do Google Drive não está conectada. Por favor, faça login com o Google para ver os arquivos.");
+        } else {
+          const configErr = await configRes.json().catch(() => ({}));
+          setError(configErr.error || "Erro ao carregar a configuração do Drive.");
+        }
         setConfig(null);
         setCurrentFolder(null);
         setFolderHistory([]);
@@ -118,7 +135,7 @@ export const PersonalDocuments: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Drive config error:", err);
-      setError("Não foi possível carregar a integração com Google Drive. Certifique-se de estar logado e com permissões.");
+      setError("Não foi possível carregar a integração com Google Drive. Certifique-se de estar conectado com sua conta Google.");
     } finally {
       setIsLoading(false);
       setIsLoadingFiles(false);
@@ -138,6 +155,14 @@ export const PersonalDocuments: React.FC = () => {
       if (filesRes.ok) {
         const filesData = await filesRes.json();
         setFiles(Array.isArray(filesData) ? filesData : []);
+      } else {
+        if (filesRes.status === 401 || filesRes.status === 403) {
+          setNeedsLogin(true);
+          setError("Sua sessão do Google Drive expirou. Por favor, conecte sua conta Google.");
+        } else {
+          const filesErr = await filesRes.json().catch(() => ({}));
+          setError(filesErr.error || "Não foi possível resgatar arquivos desta pasta.");
+        }
       }
     } catch (err) {
       console.error("Error loading files:", err);
@@ -347,6 +372,30 @@ export const PersonalDocuments: React.FC = () => {
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-gray-400">
         <Loader2 className="animate-spin text-indigo-600" size={36} />
         <p className="text-sm font-semibold text-gray-500">Sincronizando com Google Drive...</p>
+      </div>
+    );
+  }
+
+  if (needsLogin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[450px] bg-slate-50/50 p-10 text-center">
+        <div className="w-24 h-24 rounded-[2.5rem] bg-indigo-50 flex items-center justify-center text-indigo-600 mb-8 shadow-xl shadow-indigo-900/5 border border-indigo-100">
+          <ShieldAlert size={48} strokeWidth={1.5} />
+        </div>
+        <h3 className="text-2xl font-black text-gray-900 tracking-tighter mb-4">Conexão Necessária</h3>
+        <p className="text-base text-gray-500 max-w-sm mb-8 leading-relaxed font-medium">
+          Acesse a pasta de arquivos autorizando a sua conta do Google. Todos os exames do grupo são armazenados no Drive.
+        </p>
+
+        <button
+          onClick={login}
+          className="flex items-center gap-3 bg-indigo-600 text-white px-10 py-5 rounded-3xl font-black shadow-2xl shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all cursor-pointer"
+        >
+          <ExternalLink size={20} />
+          <span className="uppercase tracking-widest text-sm">Conectar ao Google</span>
+        </button>
+        
+        <p className="mt-8 text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Integração via Google Workspace</p>
       </div>
     );
   }

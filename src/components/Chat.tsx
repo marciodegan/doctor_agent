@@ -2675,31 +2675,34 @@ export const Chat: React.FC<{
                   )}
                   {msg.isProfile && msg.profileData && (
                     <>
-                      <div className="bg-blue-50/80 -mx-4 -mt-2 mb-0 pt-6 pb-5 px-4 flex flex-row items-center justify-between border-b border-blue-100 shadow-sm relative overflow-hidden">
+                      <div className="bg-blue-50/80 -mx-4 -mt-2 mb-0 pt-6 pb-5 px-4 flex flex-row items-start justify-between gap-4 border-b border-blue-100 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                         
-                        <div className="flex flex-col items-start gap-1 relative z-10 min-w-0 flex-1 px-1">
-                          <h3 className="text-[18px] font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full mb-1">
+                        {/* Coluna da Esquerda: Nome, Idade e Botão Editar */}
+                        <div className="flex flex-col items-start relative z-10 min-w-0 flex-1 px-1">
+                          <h3 className="text-lg sm:text-xl font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full mb-1">
                             {msg.profileData.nome}
                           </h3>
-                          <div className="text-[13px] font-bold text-blue-800/80 mb-2 flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <Building2 size={14} className="text-blue-400" />
-                              <span className="truncate">{msg.profileData?.hospitalNome || "Sem Hospital"}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <User size={14} className="text-blue-400" />
-                              <span>Quarto: {msg.profileData?.roomNumber || "Não inf."}</span>
-                            </div>
-                          </div>
-                          <div className="flex flex-row items-center gap-3">
-                            <span className="text-[11px] font-black text-blue-700 bg-blue-100/50 px-2.5 py-1 rounded-lg shrink-0 uppercase tracking-wider">{msg.profileData.idade} ANOS</span>
+                          <div className="flex flex-row items-center gap-2.5 mt-0.5">
+                            <span className="text-[11px] font-black text-blue-700 bg-blue-100/50 px-2.5 py-1 rounded-lg shrink-0 uppercase tracking-wider">
+                              {msg.profileData.idade} {Number(msg.profileData.idade) === 1 ? "ANO" : "ANOS"}
+                            </span>
                             <button 
                               onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
-                              className="text-[9px] font-black uppercase tracking-wider text-white bg-blue-600/90 px-3 py-1 rounded-lg hover:bg-blue-700 transition-all shadow-sm active:scale-95 shrink-0"
+                              className="text-[9px] font-black uppercase tracking-wider text-white bg-blue-600/90 [word-spacing:normal] px-3 py-1 rounded-lg hover:bg-blue-700 transition-all shadow-sm active:scale-95 shrink-0"
                             >
                               Editar
                             </button>
+                          </div>
+                        </div>
+
+                        {/* Coluna da Direita: Hospital e Quarto */}
+                        <div className="flex flex-col items-end gap-1 relative z-10 shrink-0 text-right px-1 min-w-[100px] max-w-[150px] sm:max-w-[220px]">
+                          <div className="text-[13px] font-extrabold text-blue-950 tracking-tight truncate w-full uppercase" title={msg.profileData?.hospitalNome || "Sem Hospital"}>
+                            {msg.profileData?.hospitalNome || "Sem Hospital"}
+                          </div>
+                          <div className="text-[11px] font-bold text-blue-800/80 truncate w-full">
+                            Quarto: {msg.profileData?.roomNumber || "Não inf."}
                           </div>
                         </div>
                       </div>
