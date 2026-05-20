@@ -105,6 +105,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [isManagementOpen, setIsManagementOpen] = useState(false);
   const [managementMode, setManagementMode] = useState<"dashboard" | "members" | "configs" | "shopping_config">("dashboard");
   const [configsActiveTab, setConfigsActiveTab] = useState<string | null>(null);
+  const [firestoreLastGroupId, setFirestoreLastGroupId] = useState<string | null>(null);
 
   const safeLocalStorage = {
     getItem: (key: string) => {
@@ -221,6 +222,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [rawMemberships, setRawMemberships] = useState<any[]>([]);
   const [ownedGroups, setOwnedGroups] = useState<Group[]>([]);
   const [emailInvites, setEmailInvites] = useState<Group[]>([]);
+  const [membershipsLoaded, setMembershipsLoaded] = useState(false);
+  const [ownedGroupsLoaded, setOwnedGroupsLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -231,6 +234,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       setRawMemberships([]);
       setOwnedGroups([]);
       setEmailInvites([]);
+      setMembershipsLoaded(false);
+      setOwnedGroupsLoaded(false);
       return;
     }
 
@@ -248,6 +253,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           ...doc.data(),
         }));
         setRawMemberships(memberships);
+        setMembershipsLoaded(true);
       },
       (error) => {
         if (!isMounted) return;
@@ -284,6 +290,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           } as Group;
         });
         setOwnedGroups(owned);
+        setOwnedGroupsLoaded(true);
       },
       (error) => {
         console.error("Owned groups listener error", error);
@@ -507,10 +514,11 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user?.uid, user?.email]);
 
-  // Listen to user profile for userWhatsapp
+  // Listen to user profile for userWhatsapp and lastActiveGroupId
   useEffect(() => {
     if (!user) {
       setUserWhatsapp("");
+      setFirestoreLastGroupId(null);
       return;
     }
 
@@ -518,6 +526,11 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setUserWhatsapp(data.whatsapp || "");
+        if (data.lastActiveGroupId) {
+          setFirestoreLastGroupId(data.lastActiveGroupId);
+        } else {
+          setFirestoreLastGroupId(null);
+        }
       }
     });
 
@@ -631,35 +644,88 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
     setInvites(Array.from(invitesMap.values()));
 
+    if (!membershipsLoaded || !ownedGroupsLoaded) {
+      // Do not run active group resolution until both Firestore snapshots are ready
+      return;
+    }
+
     // 5. Restore active group or handle removal
     const savedGroupId = safeLocalStorage.getItem("activeGroupId");
-    const foundSaved = activeList.find((g) => g.id === savedGroupId);
-    const foundCurrent = activeList.find((g) => g.id === activeGroup?.id);
+    const lastSavedId = firestoreLastGroupId || savedGroupId;
 
-    if (foundSaved) {
-      // Restore from storage if valid and active
-      setActiveGroup((prev) => (prev?.id === foundSaved.id ? prev : foundSaved));
-    } else if (foundCurrent) {
-      // Maintain current if current is valid and active
-      setActiveGroup(foundCurrent);
-    } else if (activeList.length > 0) {
-      // Default to first active group if none saved/found
-      const firstActive = activeList[0];
-      setActiveGroup(firstActive);
-      safeLocalStorage.setItem("activeGroupId", firstActive.id);
+    if (lastSavedId) {
+      const foundSaved = activeList.find((g) => g.id === lastSavedId);
+      if (foundSaved) {
+        // Restore if found and active
+        setActiveGroup((prev) => (prev?.id === foundSaved.id ? prev : foundSaved));
+        safeLocalStorage.setItem("activeGroupId", foundSaved.id);
+      } else {
+        // Rule 4 & 5: The last active group is either removed, terminated, or not permitted.
+        // We do not load any group automatically, and redirect to the selection list of groups.
+        setActiveGroup(null);
+        safeLocalStorage.setItem("activeGroupId", "");
+
+        // Opcionalmente limpar esse último grupo salvo se o usuário estiver logado
+        if (user) {
+          setDoc(doc(db, "users", user.uid), {
+            lastActiveGroupId: "",
+            lastActiveGroupType: ""
+          }, { merge: true }).catch(err => {
+            console.error("Failed to clear lastActiveGroupId:", err);
+          });
+        }
+      }
     } else {
-      setActiveGroup(null);
-      safeLocalStorage.setItem("activeGroupId", "");
+      const foundCurrent = activeList.find((g) => g.id === activeGroup?.id);
+      if (foundCurrent) {
+        setActiveGroup(foundCurrent);
+      } else if (activeList.length > 0) {
+        // Default to first active group if none saved/found
+        const firstActive = activeList[0];
+        setActiveGroup(firstActive);
+        safeLocalStorage.setItem("activeGroupId", firstActive.id);
+        // Also save to Firestore for initial setup consistency
+        if (user) {
+          setDoc(doc(db, "users", user.uid), {
+            lastActiveGroupId: firstActive.id,
+            lastActiveGroupType: firstActive.groupType,
+            updatedAt: serverTimestamp(),
+          }, { merge: true }).catch(err => {
+            console.error("Failed to save default active group:", err);
+          });
+        }
+      } else {
+        setActiveGroup(null);
+        safeLocalStorage.setItem("activeGroupId", "");
+      }
     }
     
     setLoading(false);
-  }, [rawMemberships, ownedGroups, emailInvites, user?.uid]); // Consolidate into a stable dependency list
+  }, [rawMemberships, ownedGroups, emailInvites, user?.uid, firestoreLastGroupId, membershipsLoaded, ownedGroupsLoaded]); // Consolidate into a stable dependency list
+
+  const saveLastActiveGroupToFirestore = async (groupId: string, groupType: string) => {
+    if (!user) return;
+    try {
+      await setDoc(
+        doc(db, "users", user.uid),
+        {
+          lastActiveGroupId: groupId,
+          lastActiveGroupType: groupType,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } catch (err) {
+      console.error("Error updating last active group in Firestore:", err);
+    }
+  };
 
   const setActiveGroupId = (id: string) => {
     safeLocalStorage.setItem("activeGroupId", id);
     const group = groups.find((g) => g.id === id);
     if (group) {
       setActiveGroup(group);
+      saveLastActiveGroupToFirestore(group.id, group.groupType);
     }
   };
 
