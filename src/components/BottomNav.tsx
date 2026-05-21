@@ -88,12 +88,23 @@ export function BottomNav({
     <div 
       style={{
         bottom: isIosStandalone 
-          ? 'max(6px, env(safe-area-inset-bottom, 0px))' 
+          ? '0px' 
           : 'calc(0.75rem + env(safe-area-inset-bottom, 0px))'
       }}
-      className="fixed left-1/2 lg:left-[calc(16rem+((100vw-16rem)/2))] -translate-x-1/2 z-[60] w-[calc(100%-32px)] max-w-md"
+      className={`fixed left-1/2 lg:left-[calc(16rem+((100vw-16rem)/2))] -translate-x-1/2 z-[60] max-w-md ${
+        isIosStandalone ? "w-full" : "w-[calc(100%-32px)]"
+      }`}
     >
-      <div className="h-14 sm:h-16 flex items-center justify-around px-3 bg-white border border-gray-100 rounded-[28px] shadow-[0_12px_35px_rgba(15,23,42,0.12)]">
+      <div 
+        style={isIosStandalone ? {
+          paddingBottom: 'calc(max(8px, env(safe-area-inset-bottom, 0px)) + 4px)',
+          paddingTop: '10px'
+        } : undefined}
+        className={isIosStandalone 
+          ? "flex items-center justify-around px-3 bg-white border-t border-gray-100 rounded-t-[24px] shadow-[0_-8px_30px_rgba(15,23,42,0.08)]"
+          : "h-14 sm:h-16 flex items-center justify-around px-3 bg-white border border-gray-100 rounded-[28px] shadow-[0_12px_35px_rgba(15,23,42,0.12)]"
+        }
+      >
         {tabs.map((tab, idx) => {
           const isActive = currentView === tab.id;
           const isEquipe = tab.id === "management";
