@@ -754,7 +754,7 @@ export function GroupConfigs() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all font-black text-[10px] uppercase">
+                  <div className="flex items-center gap-1 transition-all font-black text-[10px] uppercase">
                     {(item.active === false || (item as any).status === 'removed') ? (
                       <button 
                         onClick={() => handleToggleActive(item)}
