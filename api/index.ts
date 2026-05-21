@@ -264,36 +264,172 @@ const getUserId = async (req: express.Request) => {
 
 const verifyMembership = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   try {
-    const groupId = getGroupId(req);
+    const groupId = getRequestGroupId(req);
     if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
     
-    const userId = await getUserId(req);
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-    // 1. Check member document
-    const memberDoc = await db.collection("groups").doc(groupId).collection("members").doc(userId).get();
-    
-    if (memberDoc.exists) {
-      const status = memberDoc.data()?.status;
-      if (status === "active" || status === "conectado") {
-        return next();
-      }
-      console.warn(`[API] Access denied for user ${userId} in group ${groupId}: status is ${status}`);
-      return res.status(403).json({ error: "Access denied: membership is not active" });
-    }
-
-    // 2. Fallback: check if user is creator
-    const groupDoc = await db.collection("groups").doc(groupId).get();
-    if (groupDoc.exists && groupDoc.data()?.createdBy === userId) {
-      return next();
-    }
-
-    console.warn(`[API] Access denied for user ${userId} in group ${groupId}: not a member`);
-    res.status(403).json({ error: "Access denied: you are not a member of this group" });
+    const { user, group, member } = await requireGroupMember(req, groupId);
+    (req as any).user = user;
+    (req as any).group = group;
+    (req as any).member = member;
+    next();
   } catch (err: any) {
-    console.error("[API] Membership verification error:", err);
-    res.status(500).json({ error: "Failed to verify membership" });
+    console.error("[verifyMembership] Failed:", err.message);
+    const code = err.statusCode || 401;
+    res.status(code).json({ error: err.message || "Unauthorized" });
   }
+};
+
+const getAuthenticatedUser = async (req: express.Request) => {
+  // 1. Try Firebase Bearer Token
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const idToken = authHeader.split("Bearer ")[1];
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      if (decodedToken && decodedToken.uid) {
+        return { uid: decodedToken.uid, email: decodedToken.email || "", source: "firebase" };
+      }
+    } catch (err) {
+      console.warn("[Auth] Firebase Bearer token verification failed:", err);
+    }
+  }
+
+  // 2. Fallback to Google OAuth Cookie
+  try {
+    const oauthUser = await getUserId(req);
+    if (oauthUser) {
+      const authClient = getAuthClient(req);
+      let email = "";
+      if (authClient) {
+        try {
+          const oauth2 = google.oauth2({ version: "v2", auth: authClient });
+          const userRes = await oauth2.userinfo.get();
+          email = userRes.data.email || "";
+        } catch (err) {
+          console.warn("[Auth] Failed to fetch email from userinfo:", err);
+        }
+      }
+      return { uid: oauthUser, email: email, source: "cookie" };
+    }
+  } catch (err) {
+    console.error("[Auth] Google cookie verification failed:", err);
+  }
+
+  return null;
+};
+
+const requireAuth = async (req: express.Request) => {
+  const user = await getAuthenticatedUser(req);
+  if (!user) {
+    const err = new Error("Unauthorized");
+    (err as any).statusCode = 401;
+    throw err;
+  }
+  return user;
+};
+
+const getRequestGroupId = (req: express.Request) => {
+  return (
+    req.headers["x-group-id"]?.toString() ||
+    req.query.groupId?.toString() ||
+    req.body.groupId?.toString() ||
+    null
+  );
+};
+
+const requireGroupMember = async (req: express.Request, groupId: string | null) => {
+  const user = await requireAuth(req);
+  if (!groupId) {
+    const err = new Error("Active Group ID is required");
+    (err as any).statusCode = 400;
+    throw err;
+  }
+
+  const groupDoc = await db.collection("groups").doc(groupId).get();
+  if (!groupDoc.exists) {
+    const err = new Error("Group not found");
+    (err as any).statusCode = 404;
+    throw err;
+  }
+  const groupData = groupDoc.data();
+  if (groupData?.status === "terminated") {
+    const err = new Error("Group is terminated");
+    (err as any).statusCode = 403;
+    throw err;
+  }
+
+  // 1. Check member document
+  const memberDoc = await db.collection("groups").doc(groupId).collection("members").doc(user.uid).get();
+  if (memberDoc.exists) {
+    const mData = memberDoc.data();
+    if (mData?.status === "active" || mData?.status === "conectado") {
+      return { user, group: groupData, member: mData };
+    }
+  }
+
+  // 2. Creator check
+  if (groupData?.createdBy === user.uid) {
+    return { user, group: groupData, member: null };
+  }
+
+  // 3. Email fallback
+  if (user.email) {
+    const membersByEmailSnap = await db.collection("groups").doc(groupId).collection("members")
+      .where("userEmail", "==", user.email.trim().toLowerCase())
+      .get();
+    for (const d of membersByEmailSnap.docs) {
+      const mData = d.data();
+      if (mData?.status === "active" || mData?.status === "conectado") {
+        return { user, group: groupData, member: mData };
+      }
+    }
+  }
+
+  const err = new Error("Access denied: you are not an active member of this group");
+  (err as any).statusCode = 403;
+  throw err;
+};
+
+const requireGroupOwner = async (req: express.Request, groupId: string | null) => {
+  const { user, group, member } = await requireGroupMember(req, groupId);
+  
+  if (group.createdBy === user.uid) {
+    return { user, group, member };
+  }
+
+  if (member && (member.role === "owner" || member.role === "admin")) {
+    return { user, group, member };
+  }
+
+  const err = new Error("Access denied: group owner or admin privilege required");
+  (err as any).statusCode = 403;
+  throw err;
+};
+
+const requirePatientAccess = async (req: express.Request, patientId: string) => {
+  if (!patientId) {
+    const err = new Error("Patient ID is required");
+    (err as any).statusCode = 400;
+    throw err;
+  }
+
+  const patientDoc = await db.collection("patients").doc(patientId).get();
+  if (!patientDoc.exists) {
+    const err = new Error("Patient not found");
+    (err as any).statusCode = 404;
+    throw err;
+  }
+
+  const patientData = patientDoc.data();
+  const groupId = patientData?.groupId;
+  if (!groupId) {
+    const err = new Error("Patient is not associated with any group");
+    (err as any).statusCode = 400;
+    throw err;
+  }
+
+  const { user, group, member } = await requireGroupMember(req, groupId);
+  return { user, group, member, patient: patientData, groupId };
 };
 
 // --- Auth Routes ---
@@ -589,6 +725,22 @@ app.post("/api/auth/logout", (req, res) => {
 });
 
 app.use("/api/app", verifyMembership);
+app.use("/api/drive", verifyMembership);
+
+const verifyGeneralAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    const user = await requireAuth(req);
+    (req as any).user = user;
+    next();
+  } catch (err: any) {
+    res.status(401).json({ error: err.message || "Unauthorized" });
+  }
+};
+
+app.use("/api/calendar", verifyGeneralAuth);
+app.use("/api/debug", verifyGeneralAuth);
+app.use("/api/storage", verifyGeneralAuth);
+app.use("/api/ai", verifyGeneralAuth);
 
 // --- Direct App Shortcuts (To save tokens/LLM calls) ---
 
@@ -618,15 +770,8 @@ const handleApiError = (res: express.Response, error: any, context: string) => {
 // Get all patient contacts directly from Firestore
 app.get("/api/app/patient-contacts/:patientId", async (req, res) => {
   const { patientId } = req.params;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-
   try {
-    // Verify patient belongs to group
-    const patientDoc = await db.collection("patients").doc(patientId).get();
-    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access to this patient" });
-    }
+    const { groupId } = await requirePatientAccess(req, patientId);
 
     const snap = await db.collection("patients_contacts")
       .where("patientId", "==", patientId)
@@ -641,18 +786,11 @@ app.get("/api/app/patient-contacts/:patientId", async (req, res) => {
 
 app.post("/api/app/patient-logs", async (req, res) => {
   const { patientId, text } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-
   if (!patientId || !text) {
     return res.status(400).json({ error: "patientId and text are required" });
   }
   try {
-    // Verify patient belongs to group
-    const patientDoc = await db.collection("patients").doc(patientId).get();
-    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access to this patient" });
-    }
+    const { groupId } = await requirePatientAccess(req, patientId);
 
     const docRef = db.collection("patient_logs").doc();
     const newLog = {
@@ -672,18 +810,11 @@ app.post("/api/app/patient-logs", async (req, res) => {
 
 app.post("/api/app/patient-contacts", async (req, res) => {
   const { patientId, name, relationship, phone } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-
   if (!patientId || !name) {
     return res.status(400).json({ error: "patientId and name are required" });
   }
   try {
-    // Verify patient belongs to group
-    const patientDoc = await db.collection("patients").doc(patientId).get();
-    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access to this patient" });
-    }
+    const { groupId } = await requirePatientAccess(req, patientId);
 
     const docRef = db.collection("patients_contacts").doc();
     const newContact = {
@@ -770,8 +901,15 @@ app.get("/api/app/patients", async (req, res) => {
     if (req.query.full === "true") {
       const sortedStatuses = statusesSnap.docs.map(d => {
         const sData = d.data();
-        return { id: d.id, ...sData, nome: sData.name };
-      }).sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+        return { id: d.id, ...sData, nome: sData.name } as any;
+      }).sort((a: any, b: any) => {
+        const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
+        const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
+        if (orderA !== orderB) return orderA - orderB;
+        const nameA = (a.nome || a.name || "").toLowerCase();
+        const nameB = (b.nome || b.name || "").toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
 
       res.json({
         patients,
@@ -819,6 +957,7 @@ app.post("/api/app/settings", async (req, res) => {
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
+    await requireGroupOwner(req, groupId);
     const batch = db.batch();
     
     // Update settings collection
@@ -875,6 +1014,7 @@ app.post("/api/app/hospitals", express.json(), async (req, res) => {
   if (!nome) return res.status(400).json({ error: "Nome do Hospital é obrigatório." });
 
   try {
+    await requireGroupOwner(req, groupId);
     const hospitalRef = db.collection("hospitals").doc();
     await hospitalRef.set({
       id: hospitalRef.id,
@@ -906,21 +1046,10 @@ app.get("/api/app/image-options", async (req, res) => {
 
 // Get consolidated report for a specific patient without LLM
 app.get("/api/app/patient-report/:id", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-
   const { id } = req.params;
 
   try {
-    // 1. Verify patient belongs to the active group
-    const patientDoc = await db.collection("patients").doc(id).get();
-    if (!patientDoc.exists) {
-      return res.status(404).json({ error: `Paciente '${id}' não encontrado.` });
-    }
-    
-    if (patientDoc.data()?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access to this patient" });
-    }
+    const { groupId, patient } = await requirePatientAccess(req, id);
 
     const report: any = {
       cadastro: null,
@@ -950,7 +1079,7 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       hospitalsMap.set(doc.id, data.name || data.nome);
     });
 
-    const pData = patientDoc.data()!;
+    const pData = patient;
     report.cadastro = {
       ID: id,
       Nome: pData.name,
@@ -1013,9 +1142,6 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
 
 // Register a new patient directly (Zero LLM)
 app.post("/api/app/patients", express.json(), async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
@@ -1024,6 +1150,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   if (!nome) return res.status(400).json({ error: "Nome é obrigatório." });
 
   try {
+    await requireGroupMember(req, groupId);
     const patientRef = db.collection("patients").doc();
     await patientRef.set({
       name: nome,
@@ -1060,31 +1187,19 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
   const authClient = getAuthClient(req);
   if (!authClient) return res.status(401).json({ error: "Unauthorized" });
 
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-
   const { patientId, status, statusName } = req.body;
 
   if (!patientId || !status) return res.status(400).json({ error: "PatientID e Status são obrigatórios." });
 
   try {
+    const { groupId, patient } = await requirePatientAccess(req, patientId);
+
     const oauth2 = google.oauth2({ version: "v2", auth: authClient });
     const userInfo = await oauth2.userinfo.get();
     const userName = userInfo.data.name || userInfo.data.email || "Unknown User";
 
     const patientRef = db.collection("patients").doc(patientId);
-    const patientDoc = await patientRef.get();
-
-    if (!patientDoc.exists) {
-      return res.status(404).json({ error: `Paciente com ID ${patientId} não encontrado.` });
-    }
-
-    if (patientDoc.data()?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access to this patient" });
-    }
-
-    const patientData = patientDoc.data()!;
-    const patientName = patientData.name;
+    const patientName = patient.name;
     const finalStatusName = statusName || status;
 
     await db.runTransaction(async (t) => {
@@ -1120,27 +1235,13 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
 
 // Update patient information (Generic)
 app.post("/api/app/patients/update", express.json(), async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-
   const { id, nome, fone, idade, hospitalName, roomNumber, status, surgery_type } = req.body;
 
   if (!id) return res.status(400).json({ error: "ID do paciente é obrigatório." });
 
   try {
+    const { groupId, patient } = await requirePatientAccess(req, id);
     const patientRef = db.collection("patients").doc(id);
-    const patientDoc = await patientRef.get();
-
-    if (!patientDoc.exists) {
-      return res.status(404).json({ error: "Paciente não encontrado." });
-    }
-
-    if (patientDoc.data()?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access to this patient" });
-    }
 
     const updateData: any = {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1159,7 +1260,7 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
     // Record log of update
     await db.collection("logs").add({
       patientId: id,
-      patientName: patientDoc.data()?.name,
+      patientName: patient.name,
       description: "Informações do perfil atualizadas.",
       groupId,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
@@ -1174,10 +1275,9 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
 // Get logs for a specific patient
 app.get("/api/app/patients/:id/logs", async (req, res) => {
   const { id } = req.params;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
+    const { groupId } = await requirePatientAccess(req, id);
     const logsSnap = await db.collection("logs")
       .where("patientId", "==", id)
       .where("groupId", "==", groupId)
@@ -1202,21 +1302,16 @@ app.get("/api/app/patients/:id/logs", async (req, res) => {
 app.post("/api/app/patients/:id/logs", express.json(), async (req, res) => {
   const { id } = req.params;
   const { description } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   if (!description) return res.status(400).json({ error: "Descrição do log é obrigatória." });
 
   try {
-    const patientDoc = await db.collection("patients").doc(id).get();
-    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
-      return res.status(404).json({ error: "Paciente não encontrado" });
-    }
+    const { groupId, patient } = await requirePatientAccess(req, id);
 
     const logRef = db.collection("logs").doc();
     await logRef.set({
       patientId: id,
-      patientName: patientDoc.data()?.name,
+      patientName: patient.name,
       description,
       groupId,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
@@ -1231,15 +1326,10 @@ app.post("/api/app/patients/:id/logs", express.json(), async (req, res) => {
 // Get basic patient info
 app.get("/api/app/patients/info/:id", async (req, res) => {
   const { id } = req.params;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
-    const doc = await db.collection("patients").doc(id).get();
-    if (!doc.exists || doc.data()?.groupId !== groupId) {
-      return res.status(404).json({ error: "Paciente não encontrado" });
-    }
-    res.json({ id: doc.id, ...doc.data() });
+    const { patient } = await requirePatientAccess(req, id);
+    res.json({ id, ...patient });
   } catch (error) {
     handleApiError(res, error, "Fetching patient info");
   }
@@ -1275,13 +1365,10 @@ app.get("/api/app/family-members/:patientId", async (req, res) => {
   try {
     let query: admin.firestore.Query = db.collection("family_members");
     if (patientId !== "all") {
-      // Verify patient belongs to group
-      const patientDoc = await db.collection("patients").doc(patientId).get();
-      if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
-        return res.status(403).json({ error: "Unauthorized group access to this patient" });
-      }
+      await requirePatientAccess(req, patientId);
       query = query.where("patientId", "==", patientId);
     } else {
+      await requireGroupMember(req, groupId);
       query = query.where("groupId", "==", groupId);
     }
 
@@ -1297,19 +1384,14 @@ app.get("/api/app/family-members/:patientId", async (req, res) => {
 // Add log from LLM tool
 app.post("/api/app/logs", express.json(), async (req, res) => {
   const { patientId, text } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
-    const patientDoc = await db.collection("patients").doc(patientId).get();
-    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
-      return res.status(404).json({ error: "Paciente não encontrado" });
-    }
+    const { groupId, patient } = await requirePatientAccess(req, patientId);
 
     const logRef = db.collection("logs").doc();
     await logRef.set({
       patientId,
-      patientName: patientDoc.data()?.name,
+      patientName: patient.name,
       description: text,
       groupId,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
@@ -1323,18 +1405,12 @@ app.post("/api/app/logs", express.json(), async (req, res) => {
 
 app.post("/api/app/family-members", express.json(), async (req, res) => {
   const { nome, relacao, fone, patientId, paciente_nome } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-
   if (!nome || !patientId) return res.status(400).json({ error: "Nome e ID do Paciente são obrigatórios." });
 
   try {
-    const patientDoc = await db.collection("patients").doc(patientId).get();
-    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access to this patient" });
-    }
+    const { groupId, patient } = await requirePatientAccess(req, patientId);
 
-    let finalPatientNome = paciente_nome || patientDoc.data()?.name || "Unknown";
+    let finalPatientNome = paciente_nome || patient.name || "Unknown";
 
     const memberRef = db.collection("family_members").doc();
     await memberRef.set({
@@ -1351,22 +1427,15 @@ app.post("/api/app/family-members", express.json(), async (req, res) => {
     handleApiError(res, error, "Adding family member");
   }
 });
-// Add a log entry for a patient
-app.post("/api/app/logs", express.json(), async (req, res) => {
-  const { patientId, text, paciente_nome } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
+// Add a log entry for a patient
+app.post("/api/app/logs_secondary", express.json(), async (req, res) => {
+  const { patientId, text, paciente_nome } = req.body;
   if (!patientId || !text) return res.status(400).json({ error: "PatientID e Texto são obrigatórios." });
 
   try {
-    let finalPatientNome = paciente_nome;
-    if (!finalPatientNome) {
-      const patientDoc = await db.collection("patients").doc(patientId).get();
-      const pData = patientDoc.data();
-      if (pData?.groupId !== groupId) throw new Error("Unauthorized group access");
-      finalPatientNome = pData?.name || "Paciente Desconhecido";
-    }
+    const { groupId, patient } = await requirePatientAccess(req, patientId);
+    let finalPatientNome = paciente_nome || patient.name || "Paciente Desconhecido";
 
     const logRef = db.collection("logs").doc();
     await logRef.set({
@@ -1386,17 +1455,11 @@ app.post("/api/app/logs", express.json(), async (req, res) => {
 // Upload image/document directly to Firebase Storage and link to Firestore
 app.post("/api/app/upload-image", express.json({ limit: "25mb" }), async (req, res) => {
   const { patientId, description, fileName, mimeType, base64Data } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   if (!patientId || !base64Data) return res.status(400).json({ error: "PatientID e Imagem são obrigatórios." });
 
   try {
-    // 1. Verify patient belongs to group
-    const patientDoc = await db.collection("patients").doc(patientId).get();
-    if (!patientDoc.exists || patientDoc.data()?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access to this patient" });
-    }
+    const { groupId } = await requirePatientAccess(req, patientId);
 
     // 2. Upload to Firebase Storage
     const buffer = Buffer.from(base64Data, "base64");
@@ -1439,8 +1502,6 @@ app.post("/api/app/upload-image", express.json({ limit: "25mb" }), async (req, r
 // Remove file (soft delete)
 app.post("/api/app/files/remove", express.json(), async (req, res) => {
   const { fileId } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   if (!fileId) return res.status(400).json({ error: "FileID é obrigatório." });
 
@@ -1452,9 +1513,7 @@ app.post("/api/app/files/remove", express.json(), async (req, res) => {
       return res.status(404).json({ error: "Arquivo não encontrado." });
     }
 
-    if (fileDoc.data()?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access" });
-    }
+    const { groupId } = await requirePatientAccess(req, fileDoc.data()?.patientId);
 
     await fileRef.update({
       status: "removed",
@@ -1470,15 +1529,14 @@ app.post("/api/app/files/remove", express.json(), async (req, res) => {
 // Update patient log
 app.post("/api/app/patient-logs/update", express.json(), async (req, res) => {
   const { logId, text } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
   if (!logId || !text) return res.status(400).json({ error: "ID e texto são obrigatórios." });
 
   try {
     const logRef = db.collection("patient_logs").doc(logId);
     const logDoc = await logRef.get();
     if (!logDoc.exists) return res.status(404).json({ error: "Informação não encontrada." });
-    if (logDoc.data()?.groupId !== groupId) return res.status(403).json({ error: "Unauthorized group access" });
+
+    const { groupId } = await requirePatientAccess(req, logDoc.data()?.patientId);
 
     await logRef.update({
       text,
@@ -1493,15 +1551,14 @@ app.post("/api/app/patient-logs/update", express.json(), async (req, res) => {
 // Update patient contact
 app.post("/api/app/patient-contacts/update", express.json(), async (req, res) => {
   const { contactId, name, relationship, phone } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
   if (!contactId) return res.status(400).json({ error: "ID é obrigatório." });
 
   try {
     const contactRef = db.collection("patients_contacts").doc(contactId);
     const contactDoc = await contactRef.get();
     if (!contactDoc.exists) return res.status(404).json({ error: "Contato não encontrado." });
-    if (contactDoc.data()?.groupId !== groupId) return res.status(403).json({ error: "Unauthorized group access" });
+
+    const { groupId } = await requirePatientAccess(req, contactDoc.data()?.patientId);
 
     await contactRef.update({
       name: name !== undefined ? name : contactDoc.data()?.name,
@@ -1518,15 +1575,14 @@ app.post("/api/app/patient-contacts/update", express.json(), async (req, res) =>
 // Remove patient contact (soft delete)
 app.post("/api/app/patient-contacts/remove", express.json(), async (req, res) => {
   const { contactId } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
   if (!contactId) return res.status(400).json({ error: "ID é obrigatório." });
 
   try {
     const contactRef = db.collection("patients_contacts").doc(contactId);
     const contactDoc = await contactRef.get();
     if (!contactDoc.exists) return res.status(404).json({ error: "Contato não encontrado." });
-    if (contactDoc.data()?.groupId !== groupId) return res.status(403).json({ error: "Unauthorized group access" });
+
+    const { groupId } = await requirePatientAccess(req, contactDoc.data()?.patientId);
 
     await contactRef.update({
       status: "removed",
@@ -1541,8 +1597,6 @@ app.post("/api/app/patient-contacts/remove", express.json(), async (req, res) =>
 // Remove patient log (soft delete)
 app.post("/api/app/patient-logs/remove", express.json(), async (req, res) => {
   const { logId } = req.body;
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   if (!logId) return res.status(400).json({ error: "LogID é obrigatório." });
 
@@ -1554,9 +1608,7 @@ app.post("/api/app/patient-logs/remove", express.json(), async (req, res) => {
       return res.status(404).json({ error: "Informação não encontrada." });
     }
 
-    if (logDoc.data()?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access" });
-    }
+    const { groupId } = await requirePatientAccess(req, logDoc.data()?.patientId);
 
     await logRef.update({
       status: "removed",
@@ -2531,6 +2583,11 @@ app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res
 
 // --- Stripe Integration ---
 app.post("/api/create-checkout-session", async (req, res) => {
+  try {
+    await requireAuth(req);
+  } catch (err) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
   const stripeInstance = getStripe();
   if (!stripeInstance) {
     return res.status(500).json({ error: "Stripe is not configured." });
@@ -2583,9 +2640,7 @@ app.get("/api/ai/check-quota", async (req, res) => {
 
 app.post("/api/ai/save-analysis", async (req, res) => {
   const { fileId, analysis } = req.body;
-  const groupId = getGroupId(req);
   if (!fileId || !analysis) return res.status(400).json({ error: "Missing fileId or analysis" });
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
     // 1. Verify file ownership via parent patient or directly if stored
@@ -2594,9 +2649,7 @@ app.post("/api/ai/save-analysis", async (req, res) => {
     if (!fileDoc.exists) return res.status(404).json({ error: "File not found" });
     
     const fileData = fileDoc.data();
-    if (fileData?.groupId !== groupId) {
-      return res.status(403).json({ error: "Unauthorized group access to this file" });
-    }
+    const { groupId } = await requirePatientAccess(req, fileData?.patientId);
 
     // 2. Quota increment in Firestore
     const today = new Date().toISOString().split('T')[0];

@@ -1796,7 +1796,14 @@ export const Chat: React.FC<{
             statusGrouped[sId].patients.push(p);
           });
 
-          const sortedStatuses = Object.values(statusGrouped).sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+          const sortedStatuses = Object.values(statusGrouped).sort((a, b) => {
+            const statusA = masterStatuses.find((s: any) => s.id?.toString() === a.id);
+            const statusB = masterStatuses.find((s: any) => s.id?.toString() === b.id);
+            const orderA = statusA && typeof statusA.sortOrder === "number" ? statusA.sortOrder : 999999;
+            const orderB = statusB && typeof statusB.sortOrder === "number" ? statusB.sortOrder : 999999;
+            if (orderA !== orderB) return orderA - orderB;
+            return a.name.localeCompare(b.name);
+          });
           sortedStatuses.forEach(({ name: sName, patients }, statusIdx) => {
             const marginTop = (statusIdx === 0) ? "0px" : "24px";
             listText += `<div style="font-size: 17px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center; border-left: 4px solid #3b82f6;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
@@ -1833,7 +1840,14 @@ export const Chat: React.FC<{
         }
 
         if (statuses.length > 0) {
-          const sortedMasterStatuses = [...masterStatuses].sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+          const sortedMasterStatuses = [...masterStatuses].sort((a, b) => {
+            const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
+            const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
+            if (orderA !== orderB) return orderA - orderB;
+            const nameA = (a.nome || a.name || "").toLowerCase();
+            const nameB = (b.nome || b.name || "").toLowerCase();
+            return nameA.localeCompare(nameB);
+          });
           const statusActions = sortedMasterStatuses.map((s: any) => {
             const sId = typeof s === 'string' ? s : s.id.toString();
             const sLabel = typeof s === 'string' ? s : s.nome;

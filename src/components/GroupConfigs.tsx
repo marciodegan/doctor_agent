@@ -22,6 +22,8 @@ import {
   Power,
   PowerOff,
   AlertCircle,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { 
   collection, 
@@ -235,12 +237,23 @@ export function GroupConfigs() {
         ...doc.data()
       })) as ConfigItem[];
       
-      // Sort alphabetically
-      fetched.sort((a, b) => {
-        const nameA = (a.name || a.nome || "").toLowerCase();
-        const nameB = (b.name || b.nome || "").toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
+      // Sort
+      if (activeTab === "patient_statuses") {
+        fetched.sort((a: any, b: any) => {
+          const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
+          const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
+          if (orderA !== orderB) return orderA - orderB;
+          const nameA = (a.name || a.nome || "").toLowerCase();
+          const nameB = (b.name || b.nome || "").toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+      } else {
+        fetched.sort((a, b) => {
+          const nameA = (a.name || a.nome || "").toLowerCase();
+          const nameB = (b.name || b.nome || "").toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+      }
 
       setItems(fetched);
       setIsLoading(false);
@@ -422,6 +435,68 @@ export function GroupConfigs() {
       }, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, activeTab);
+    }
+  };
+
+  const handleMoveStatus = async (item: ConfigItem, direction: "up" | "down") => {
+    if (!activeGroup || activeTab !== "patient_statuses") return;
+    
+    setIsLoading(true);
+    try {
+      const statusesRef = collection(db, "patient_statuses");
+      const qStatus = query(statusesRef, where("groupId", "==", activeGroup.id));
+      const snap = await getDocs(qStatus);
+
+      const statuses = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          nome: data.name || data.nome || "",
+          active: data.active,
+          status: data.status,
+          sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : 999999
+        };
+      })
+      .filter(s => s.active !== false && s.status !== "removed")
+      .sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return a.nome.localeCompare(b.nome);
+      });
+
+      const currentIndex = statuses.findIndex(s => s.id === item.id);
+      if (currentIndex === -1) return;
+
+      const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (targetIndex < 0 || targetIndex >= statuses.length) return;
+
+      const currentStatus = statuses[currentIndex];
+      const targetStatus = statuses[targetIndex];
+
+      const needsInitialization = statuses.some((s, index) => s.sortOrder === 999999 || s.sortOrder !== index + 1);
+      if (needsInitialization) {
+        for (let i = 0; i < statuses.length; i++) {
+          await setDoc(doc(db, "patient_statuses", statuses[i].id), {
+            sortOrder: i + 1,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        }
+      }
+
+      await setDoc(doc(db, "patient_statuses", currentStatus.id), {
+        sortOrder: targetIndex + 1,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      await setDoc(doc(db, "patient_statuses", targetStatus.id), {
+        sortOrder: currentIndex + 1,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+    } catch (err: any) {
+      console.error("Move error:", err);
+      setError("Não foi possível alterar a ordem.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -762,26 +837,70 @@ export function GroupConfigs() {
                       >
                         Reativar
                       </button>
-                    ) : (
-                      <>
-                        <button 
-                          onClick={() => {
-                            setEditingItem(item);
-                            setNewItemName(item.name || item.nome || "");
-                            setIsAdding(false);
-                          }}
-                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(item)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </>
-                    )}
+                    ) : (() => {
+                      const activeItems = items.filter(i => i.active !== false && (i as any).status !== "removed");
+                      const activeIndex = activeItems.findIndex(i => i.id === item.id);
+                      return (
+                        <>
+                          {activeTab === "patient_statuses" && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={isLoading || activeIndex <= 0}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleMoveStatus(item, "up");
+                                }}
+                                className={`p-2 rounded-lg transition-all ${
+                                  activeIndex <= 0 
+                                    ? "text-gray-200 cursor-not-allowed" 
+                                    : "text-gray-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                }`}
+                                title="Mover para cima"
+                              >
+                                <ArrowUp size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isLoading || activeIndex === -1 || activeIndex === activeItems.length - 1}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleMoveStatus(item, "down");
+                                }}
+                                className={`p-2 rounded-lg transition-all ${
+                                  (activeIndex === -1 || activeIndex === activeItems.length - 1) 
+                                    ? "text-gray-200 cursor-not-allowed" 
+                                    : "text-gray-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                }`}
+                                title="Mover para baixo"
+                              >
+                                <ArrowDown size={14} />
+                              </button>
+                            </>
+                          )}
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setEditingItem(item);
+                              setNewItemName(item.name || item.nome || "");
+                              setIsAdding(false);
+                            }}
+                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer"
+                            title="Editar"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleDelete(item)}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                            title="Remover"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      );
+                    })()}
                   </div>
                 </motion.div>
               ))}
