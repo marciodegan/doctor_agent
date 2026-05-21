@@ -759,6 +759,7 @@ app.use("/api/ai", verifyGeneralAuth);
 const handleApiError = (res: express.Response, error: any, context: string) => {
   console.error(`[API Error] ${context}:`, error);
   const errorMessage = error.message || "Internal Server Error";
+  const statusCode = error.statusCode || error.status || 500;
   
   let details = undefined;
   if (errorMessage.includes("credentials") || 
@@ -768,7 +769,7 @@ const handleApiError = (res: express.Response, error: any, context: string) => {
     details = "Firebase initialization error. This usually means the Service Account is missing or invalid. On Vercel, set the FIREBASE_SERVICE_ACCOUNT environment variable to the JSON content of your service account key.";
   }
 
-  res.status(500).json({ 
+  res.status(statusCode).json({ 
     error: errorMessage,
     context,
     details
@@ -842,13 +843,13 @@ app.post("/api/app/patient-contacts", async (req, res) => {
 });
 
 app.get("/api/app/patients", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   try {
+    // Verify membership using centralised check
+    await requireGroupMember(req, groupId);
+
     let patientsQuery: admin.firestore.Query = db.collection("patients").where("groupId", "==", groupId);
     const hFilter = req.query.hospitalId?.toString();
     const sFilter = req.query.statusId?.toString();
@@ -1192,19 +1193,23 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
 
 // Update patient status (Zero LLM)
 app.post("/api/app/patients/status", express.json(), async (req, res) => {
-  const authClient = getAuthClient(req);
-  if (!authClient) return res.status(401).json({ error: "Unauthorized" });
-
   const { patientId, status, statusName } = req.body;
 
   if (!patientId || !status) return res.status(400).json({ error: "PatientID e Status são obrigatórios." });
 
   try {
+    const authUser = await requireAuth(req);
     const { groupId, patient } = await requirePatientAccess(req, patientId);
 
-    const oauth2 = google.oauth2({ version: "v2", auth: authClient });
-    const userInfo = await oauth2.userinfo.get();
-    const userName = userInfo.data.name || userInfo.data.email || "Unknown User";
+    let userName = authUser.email || "Unknown User";
+    try {
+      const fbUser = await admin.auth().getUser(authUser.uid);
+      if (fbUser.displayName) {
+        userName = fbUser.displayName;
+      }
+    } catch (e) {
+      console.warn("Could not load display name from firebase:", e);
+    }
 
     const patientRef = db.collection("patients").doc(patientId);
     const patientName = patient.name;
@@ -1866,6 +1871,62 @@ const shareItemWithMembers = async (drive: any, fileId: string, emails: string[]
   }
 };
 
+const resolveGroupRootFolder = async (groupId: string): Promise<string> => {
+  if (!groupId) {
+    throw new Error("Active Group ID is required");
+  }
+  const groupDoc = await db.collection("groups").doc(groupId).get();
+  if (!groupDoc.exists) {
+    throw new Error("Group not found");
+  }
+  const groupData = groupDoc.data()!;
+  let rootFolderId = "";
+  if (groupData.groupType === "personal") {
+    rootFolderId = groupData.driveRootFolderId;
+  } else {
+    const configSnap = await db.collection("groups").doc(groupId).collection("settings").doc("drive").get();
+    if (configSnap.exists) {
+      rootFolderId = configSnap.data()!.mainFolderId;
+    }
+  }
+  if (!rootFolderId) {
+    throw new Error("A pasta principal do Google Drive não está configurada para este grupo.");
+  }
+  return rootFolderId;
+};
+
+const assertFolderInsideRoot = async (drive: any, folderId: string, rootFolderId: string): Promise<boolean> => {
+  if (!folderId || !rootFolderId) return false;
+  if (folderId === rootFolderId) return true;
+  
+  let currentId = folderId;
+  const visited = new Set<string>();
+  
+  for (let i = 0; i < 8; i++) {
+    if (currentId === rootFolderId) return true;
+    if (visited.has(currentId)) {
+      break;
+    }
+    visited.add(currentId);
+    
+    try {
+      const fileRes = await drive.files.get({
+        fileId: currentId,
+        fields: "parents, name",
+      });
+      const parents = fileRes.data.parents;
+      if (!parents || parents.length === 0) {
+        break;
+      }
+      currentId = parents[0];
+    } catch (e) {
+      console.error(`[assertFolderInsideRoot] Error fetching parents for ${currentId}:`, e);
+      break;
+    }
+  }
+  return false;
+};
+
 // Generic Storage Upload
 app.get("/api/drive/config", async (req, res) => {
   const userId = await getUserId(req);
@@ -2208,51 +2269,24 @@ app.post("/api/drive/upload", async (req, res) => {
   if (!auth) return res.status(401).json({ error: "Acesso ao Google Drive não autorizado. Certifique-se de realizar o login." });
 
   const userId = await getUserId(req);
-  const { name, mimeType, base64Data, parentFolderId, folderName, mainFolderId } = req.body;
+  const { name, mimeType, base64Data, parentFolderId, folderName } = req.body;
 
   if (!base64Data) {
     return res.status(400).json({ error: "Missing base64Data" });
   }
 
   const groupId = getGroupId(req);
-  let finalMainFolderId = mainFolderId;
-  let isPersonalGroup = false;
-  let isGroupAdmin = false;
-
-  // 1. Resolve correct mainFolderId if using personal group (Rule 4)
-  if (groupId) {
-    try {
-      const groupDoc = await db.collection("groups").doc(groupId).get();
-      if (groupDoc.exists) {
-        const groupData = groupDoc.data()!;
-        isPersonalGroup = groupData.groupType === "personal";
-        if (isPersonalGroup) {
-          finalMainFolderId = groupData.driveRootFolderId || finalMainFolderId;
-          isGroupAdmin = groupData.createdBy === userId || groupData.driveOwnerUserId === userId;
-        }
-      }
-    } catch (e) {
-      console.warn("[Drive] Failed to fetch personal group doc inside upload:", e);
-    }
-  }
-
-  // 2. Error case: Upload attempt without mainFolderId configured (Rule 9)
-  if (!finalMainFolderId) {
-    if (isPersonalGroup && !isGroupAdmin) {
-      return res.status(400).json({ error: "A pasta principal deste grupo ainda não foi criada pelo administrador." });
-    }
-    return res.status(400).json({ error: "Tentativa de upload de arquivo sem uma pasta principal do Google Drive configurada." });
-  }
+  if (!groupId) return res.status(400).json({ error: "ID do grupo é obrigatório." });
 
   const drive = google.drive({ version: "v3", auth });
 
   try {
+    const rootFolderId = await resolveGroupRootFolder(groupId);
     let finalParentId = parentFolderId;
 
-    // 3. Resolve parentFolderId when custom folderName is provided (Rule 5)
-    if (!finalParentId && folderName && finalMainFolderId) {
+    if (!finalParentId && folderName) {
       const folderRes = await drive.files.list({
-        q: `name = '${folderName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and '${finalMainFolderId}' in parents and trashed = false`,
+        q: `name = '${folderName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and '${rootFolderId}' in parents and trashed = false`,
         fields: "files(id)",
       });
       
@@ -2263,7 +2297,7 @@ app.post("/api/drive/upload", async (req, res) => {
           requestBody: {
             name: folderName,
             mimeType: "application/vnd.google-apps.folder",
-            parents: [finalMainFolderId],
+            parents: [rootFolderId],
           },
           fields: "id",
         }).catch(err => {
@@ -2271,20 +2305,25 @@ app.post("/api/drive/upload", async (req, res) => {
         });
         finalParentId = createFolderRes.data.id!;
 
-        // 4. Ensure newly created subfolder has the correct permissions shared (Rule 6)
-        if (groupId) {
-          try {
-            const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
-            const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
-            await shareItemWithMembers(drive, finalParentId, emails);
-          } catch (e: any) {
-            console.warn("[Drive] Failed to auto-share newly created subfolder:", e.message);
-          }
+        try {
+          const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
+          const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
+          await shareItemWithMembers(drive, finalParentId, emails);
+        } catch (e: any) {
+          console.warn("[Drive] Failed to auto-share newly created subfolder:", e.message);
         }
       }
+    } else if (!finalParentId) {
+      finalParentId = rootFolderId;
     }
 
-    // 5. Upload File
+    // Security Check: parent folder must be inside rootFolderId
+    const isInside = await assertFolderInsideRoot(drive, finalParentId, rootFolderId);
+    if (!isInside) {
+      return res.status(403).json({ error: "Acesso negado: pasta destino fora do diretório do grupo." });
+    }
+
+    // Upload File
     const buffer = Buffer.from(base64Data, "base64");
     const stream = new Readable();
     stream.push(buffer);
@@ -2292,7 +2331,7 @@ app.post("/api/drive/upload", async (req, res) => {
 
     const fileMetadata = {
       name: name || `Upload_${Date.now()}`,
-      parents: finalParentId ? [finalParentId] : (finalMainFolderId ? [finalMainFolderId] : []),
+      parents: [finalParentId],
     };
     const media = {
       mimeType: mimeType || "image/jpeg",
@@ -2309,15 +2348,13 @@ app.post("/api/drive/upload", async (req, res) => {
 
     const fileId = response.data.id!;
 
-    // 6. Ensure newly uploaded file is visible/shared with all group members if needed (Rule 6)
-    if (groupId) {
-      try {
-        const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
-        const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
-        await shareItemWithMembers(drive, fileId, emails);
-      } catch (e: any) {
-        console.warn("[Drive] Failed to auto-share uploaded file:", e.message);
-      }
+    // Ensure newly uploaded file is visible/shared with all group members if needed
+    try {
+      const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
+      const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
+      await shareItemWithMembers(drive, fileId, emails);
+    } catch (e: any) {
+      console.warn("[Drive] Failed to auto-share uploaded file:", e.message);
     }
 
     res.json(response.data);
@@ -2374,6 +2411,14 @@ app.post("/api/drive/rename", async (req, res) => {
       return res.status(400).json({ error: "Nenhuma pasta configurada encontrada para renomear." });
     }
 
+    if (groupId) {
+      const rootFolderId = await resolveGroupRootFolder(groupId);
+      const isInside = await assertFolderInsideRoot(drive, folderId, rootFolderId);
+      if (!isInside) {
+        return res.status(403).json({ error: "Acesso negado: pasta fora do diretório do grupo." });
+      }
+    }
+
     await drive.files.update({
       fileId: folderId,
       requestBody: {
@@ -2418,9 +2463,17 @@ app.post("/api/drive/create-folder", async (req, res) => {
   if (!parentFolderId) return res.status(400).json({ error: "ID da pasta pai é obrigatório." });
 
   const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "ID do grupo é obrigatório." });
+
   const drive = google.drive({ version: "v3", auth });
 
   try {
+    const rootFolderId = await resolveGroupRootFolder(groupId);
+    const isInside = await assertFolderInsideRoot(drive, parentFolderId, rootFolderId);
+    if (!isInside) {
+      return res.status(403).json({ error: "Acesso negado: pasta pai fora do diretório do grupo." });
+    }
+
     const response = await drive.files.create({
       requestBody: {
         name: name,
@@ -2455,9 +2508,18 @@ app.get("/api/drive/file/:fileId", async (req, res) => {
   if (!auth) return res.status(401).send("Acesso não autorizado.");
 
   const fileId = req.params.fileId;
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).send("ID do grupo é obrigatório.");
+
   const drive = google.drive({ version: "v3", auth });
 
   try {
+    const rootFolderId = await resolveGroupRootFolder(groupId);
+    const isInside = await assertFolderInsideRoot(drive, fileId, rootFolderId);
+    if (!isInside) {
+      return res.status(403).send("Acesso negado: o arquivo está fora do diretório do grupo.");
+    }
+
     const fileMeta = await drive.files.get({
       fileId,
       fields: "mimeType, name, size"
@@ -2500,79 +2562,58 @@ app.get("/api/drive/list", async (req, res) => {
     return res.status(403).json({ error: "Autorização do Google Drive necessária ou expirada. Reconecte sua conta do Google." });
   }
 
-  const { folderName, mainFolderId, parentFolderId } = req.query;
+  const { folderName, parentFolderId } = req.query;
   const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "ID do grupo é obrigatório." });
+
   const drive = google.drive({ version: "v3", auth });
 
   try {
-    let finalMainFolderId = mainFolderId as string;
-    let isPersonal = false;
-
-    // 1. Resolve correct mainFolderId if personal group (Rule 7)
-    if (groupId) {
-      const groupDoc = await db.collection("groups").doc(groupId).get();
-      if (groupDoc.exists) {
-        const groupData = groupDoc.data()!;
-        if (groupData.groupType === "personal") {
-          isPersonal = true;
-          finalMainFolderId = groupData.driveRootFolderId;
-          
-          // Rule 9: driveRootFolderId checking
-          if (!finalMainFolderId) {
-            return res.status(400).json({ error: "A pasta principal do Google Drive não está configurada para este grupo." });
-          }
-        }
-      }
-    }
-
-    // If still missing, check if required but missing
-    if (!finalMainFolderId) {
-      return res.status(400).json({ error: "A pasta principal do Google Drive não está configurada para este grupo." });
-    }
-
-    let q = "trashed = false";
+    const rootFolderId = await resolveGroupRootFolder(groupId);
     let targetParentId = parentFolderId as string;
 
-    if (!targetParentId && folderName && finalMainFolderId) {
-      // Find the subfolder ID inside finalMainFolderId
+    if (!targetParentId && folderName) {
+      // Find the subfolder ID inside the secure rootFolderId
       const folderRes = await drive.files.list({
-        q: `name = '${(folderName as string).replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and '${finalMainFolderId}' in parents and trashed = false`,
+        q: `name = '${(folderName as string).replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and '${rootFolderId}' in parents and trashed = false`,
         fields: "files(id)",
       });
       
       if (folderRes.data.files && folderRes.data.files.length > 0) {
         targetParentId = folderRes.data.files[0].id!;
       } else {
-        // Create the subfolder if it doesn't exist (Lazy creation per requirements)
+        // Create the subfolder under secure rootFolderId if it doesn't exist (Lazy creation)
         try {
           const createFolderRes = await drive.files.create({
             requestBody: {
               name: folderName as string,
               mimeType: "application/vnd.google-apps.folder",
-              parents: [finalMainFolderId],
+              parents: [rootFolderId],
             },
             fields: "id",
           });
           targetParentId = createFolderRes.data.id!;
           
-          // Share newly created lazy subfolder with all group members! (Rule 6)
-          if (groupId) {
-            const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
-            const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
-            await shareItemWithMembers(drive, targetParentId, emails);
-          }
+          // Share newly created lazy subfolder with all group members
+          const membersSnap = await db.collection("groups").doc(groupId).collection("members").get();
+          const emails = membersSnap.docs.map(d => d.data().userEmail).filter(e => !!e);
+          await shareItemWithMembers(drive, targetParentId, emails);
         } catch (createErr: any) {
           console.error("[Drive] Error creating subfolder during list:", createErr);
           return res.json([]); // Fallback to empty list if creation fails
         }
       }
-    } else if (!targetParentId && finalMainFolderId) {
-       targetParentId = finalMainFolderId;
+    } else if (!targetParentId) {
+       targetParentId = rootFolderId;
     }
 
-    if (targetParentId) {
-      q += ` and '${targetParentId}' in parents`;
+    // Security Check: Target folder must reside securely inside rootFolderId
+    const isInside = await assertFolderInsideRoot(drive, targetParentId, rootFolderId);
+    if (!isInside) {
+      return res.status(403).json({ error: "Acesso negado: pasta fora do diretório do grupo." });
     }
+
+    let q = `trashed = false and '${targetParentId}' in parents`;
 
     const response = await drive.files.list({
       q: q,
@@ -2823,12 +2864,9 @@ app.post("/api/create-portal-session", async (req, res) => {
     return res.status(500).json({ error: "Stripe is not configured." });
   }
 
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
   try {
-    const userInfo = await google.oauth2("v2").userinfo.get({ auth });
-    const email = userInfo.data.email;
+    const user = await getAuthenticatedUser(req);
+    const email = user?.email;
 
     if (!email) return res.status(400).json({ error: "Email for user not found" });
 
@@ -2844,7 +2882,7 @@ app.post("/api/create-portal-session", async (req, res) => {
 
     const host = req.get("host");
     const protocol = req.get("x-forwarded-proto") || "https";
-    const origin = `${protocol}://${host}`;
+         const origin = `${protocol}://${host}`;
 
     const session = await stripeInstance.billingPortal.sessions.create({
       customer: customers.data[0].id,
@@ -2862,12 +2900,10 @@ app.get("/api/stripe/status", async (req, res) => {
   const stripeInstance = getStripe();
   if (!stripeInstance) return res.json({ subscribed: false, configured: false });
 
-  const auth = getAuthClient(req);
-  if (!auth) return res.json({ subscribed: false, authenticated: false });
-
   try {
-    const userInfo = await google.oauth2("v2").userinfo.get({ auth });
-    const email = userInfo.data.email;
+    const user = await getAuthenticatedUser(req).catch(() => null);
+    if (!user) return res.json({ subscribed: false, authenticated: false });
+    const email = user.email;
 
     if (!email) return res.json({ subscribed: false });
 

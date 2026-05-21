@@ -51,9 +51,10 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || resource.data.email == request.auth.token.email);
-      allow list: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list: if false;
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if false;
       
       match /memberships/{groupId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
@@ -93,8 +94,16 @@ service cloud.firestore {
           isOwner(groupId) ||
           (request.auth.uid == memberId && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(memberId)))
         );
-        allow update: if (isSignedIn() && request.auth.uid == memberId && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(memberId)) && (incoming().status == "active" || incoming().status == "conectado" || incoming().status == "cancelled")) || 
-                        isOwner(groupId);
+        allow update: if isOwner(groupId) || (
+          isSignedIn() && 
+          request.auth.uid == memberId && 
+          existing().status == "pending" &&
+          incoming().role == existing().role &&
+          incoming().userEmail == existing().userEmail &&
+          incoming().userId == existing().userId &&
+          incoming().groupId == existing().groupId &&
+          (incoming().status == "active" || incoming().status == "conectado" || incoming().status == "declined" || incoming().status == "cancelled")
+        );
         allow delete: if isOwner(groupId);
       }
       

@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
-import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
 import { auth, db } from "../lib/firebase";
 import { 
@@ -2900,7 +2899,7 @@ ${aiPart}
                     <>
                       <div className="markdown-body prose prose-sm max-w-none [&_p]:mb-5 last:[&_p]:mb-0">
                         <ReactMarkdown
-                          rehypePlugins={[rehypeRaw]}
+                          rehypePlugins={[rehypeSanitize]}
                           components={{
                             a({ children, ...props }) {
                               const href = props.href;
