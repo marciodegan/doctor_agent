@@ -67,7 +67,8 @@ export function GroupConfigs() {
     terminateGroup,
     handleBackup,
     configsActiveTab: activeTab,
-    setConfigsActiveTab: setActiveTab 
+    setConfigsActiveTab: setActiveTab,
+    apiFetch
   } = useGroup();
   const { user } = useAuth();
   
@@ -400,6 +401,18 @@ export function GroupConfigs() {
     
     setIsLoading(true);
     try {
+      if (activeTab === "patient_statuses") {
+        const res = await apiFetch("/api/app/statuses/remove", {
+          method: "POST",
+          body: JSON.stringify({ statusId: item.id })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error ${res.status}`);
+        }
+        return;
+      }
+
       const isUsed = await checkUsage(item);
       // For surgery_types, always soft delete to avoid breaking historical data
       if (isUsed || activeTab === "surgery_types") {
@@ -418,8 +431,9 @@ export function GroupConfigs() {
         // Hard delete
         await deleteDoc(doc(db, activeTab, item.id));
       }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, activeTab);
+    } catch (error: any) {
+      console.error("Delete error:", error);
+      setError(error.message || "Não foi possível remover o item.");
     } finally {
       setIsLoading(false);
     }
@@ -443,58 +457,17 @@ export function GroupConfigs() {
     
     setIsLoading(true);
     try {
-      const statusesRef = collection(db, "patient_statuses");
-      const qStatus = query(statusesRef, where("groupId", "==", activeGroup.id));
-      const snap = await getDocs(qStatus);
-
-      const statuses = snap.docs.map(d => {
-        const data = d.data();
-        return {
-          id: d.id,
-          nome: data.name || data.nome || "",
-          active: data.active,
-          status: data.status,
-          sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : 999999
-        };
-      })
-      .filter(s => s.active !== false && s.status !== "removed")
-      .sort((a, b) => {
-        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-        return a.nome.localeCompare(b.nome);
+      const res = await apiFetch("/api/app/statuses/reorder", {
+        method: "POST",
+        body: JSON.stringify({ statusId: item.id, direction })
       });
-
-      const currentIndex = statuses.findIndex(s => s.id === item.id);
-      if (currentIndex === -1) return;
-
-      const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-      if (targetIndex < 0 || targetIndex >= statuses.length) return;
-
-      const currentStatus = statuses[currentIndex];
-      const targetStatus = statuses[targetIndex];
-
-      const needsInitialization = statuses.some((s, index) => s.sortOrder === 999999 || s.sortOrder !== index + 1);
-      if (needsInitialization) {
-        for (let i = 0; i < statuses.length; i++) {
-          await setDoc(doc(db, "patient_statuses", statuses[i].id), {
-            sortOrder: i + 1,
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-        }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP error ${res.status}`);
       }
-
-      await setDoc(doc(db, "patient_statuses", currentStatus.id), {
-        sortOrder: targetIndex + 1,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      await setDoc(doc(db, "patient_statuses", targetStatus.id), {
-        sortOrder: currentIndex + 1,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
     } catch (err: any) {
       console.error("Move error:", err);
-      setError("Não foi possível alterar a ordem.");
+      setError(err.message || "Não foi possível alterar a ordem.");
     } finally {
       setIsLoading(false);
     }

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
 import { auth, db } from "../lib/firebase";
@@ -621,78 +622,65 @@ export const Chat: React.FC<{
   const generatePatientReport = (data: any) => {
     const cad = data.cadastro;
     const audios = data.audios.map((a: any) => `
-<div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef;">
-  <div style="margin-bottom: 2px;">${a.conteudo}</div>
-  <div style="font-size: 10px; font-weight: bold; color: #4b5563; margin-bottom: 8px;">${a.data}</div>
-
-\`/editar_log id: ${a.id}, pId: ${cad.ID} label:✏️\` \`/remover_informacao id: ${a.id}, pId: ${cad.ID} label:🗑️\`
-
-</div>`).join("");
+* **${a.conteudo}**  
+  _${a.data}_  
+  \`/editar_log id: ${a.id}, pId: ${cad.ID} label:✏️\` \`/remover_informacao id: ${a.id}, pId: ${cad.ID} label:🗑️\` (ID: ${a.id})
+`).join("\n");
     
-      const docs = data.imagens.map((i: any) => {
-        let aiPart = "";
-        const analysis = i.aiAnalysis || i.aiResposta;
-        if (analysis) {
-          aiPart = `<div className="mt-2 p-3 bg-blue-50 rounded-xl border border-blue-100 text-[11px] text-blue-800 leading-relaxed"><div className="flex items-center gap-1.5 mb-1 font-black uppercase tracking-tighter text-blue-600"><span className="p-1 bg-blue-600 text-white rounded-md"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg></span> Análise Inteligente</div>${analysis}</div>`;
-        }
+    const docs = data.imagens.map((i: any) => {
+      let aiPart = "";
+      const analysis = i.aiAnalysis || i.aiResposta;
+      if (analysis) {
+        aiPart = `\n\n> 🤖 **Análise Inteligente:**\n> ${analysis.split('\n').join('\n> ')}\n`;
+      }
 
-        const imgTag = i.link 
-          ? `<div className="my-2"><img src="${i.link}" alt="${i.descricao}" className="max-w-full rounded-xl border border-gray-100 shadow-sm block" referrerPolicy="no-referrer" /></div>`
-          : "";
-        
-        return `
-<div className="ml-0 mb-6 pb-6 border-b border-gray-100">
-  ${imgTag}
-  <div className="mb-2 font-bold text-[10px] text-gray-800">${i.descricao}</div>
-  ${aiPart}
-  <div className="text-[10px] font-medium text-gray-500 mt-3 mb-3">${i.data}</div>
-  
+      const imgTag = i.link 
+        ? `![${i.descricao || 'Imagem'}](${i.link})\n`
+        : "";
+      
+      return `
+${imgTag}
+**${i.descricao || 'Sem descrição'}**  
+_${i.data}_  
 \`/remover_imagem id: ${i.id}, pId: ${cad.ID} label:🗑️\`
-
-</div>`;
-      }).join("");
+${aiPart}
+`;
+    }).join("\n---\n");
 
     const fams = data.familiares.map((f: any) => {
       const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
       const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
       const foneLink = waNumber 
-        ? `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: none;">📞 <b>${f.fone}</b></a>` 
-        : "📞 Sem fone";
+        ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` 
+        : "📞 Sem telefone";
       return `
-<div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef; margin-left: 0px;">
-  <div style="margin-bottom: 2px; margin-left: 0px; padding-left: 1px;">${f.nome}${f.relacao ? ` (${f.relacao})` : ""}</div>
-  <div style="margin-left: 0px; padding-left: 1px; font-size: 12px; font-weight: bold; color: #4b5563;">${foneLink}</div>
-  <div style="margin-top: 8px;">
-
-\`/editar_familiar id: ${f.id}, pId: ${cad.ID} label:✏️\` \`/remover_familiar id: ${f.id}, pId: ${cad.ID} label:🗑️\`
-
-  </div>
-</div>`;
-    }).join("");
+* **${f.nome}** ${f.relacao ? `(${f.relacao})` : ""}
+  ${foneLink}  
+  \`/editar_familiar id: ${f.id}, pId: ${cad.ID} label:✏️\` \`/remover_familiar id: ${f.id}, pId: ${cad.ID} label:🗑️\`
+`;
+    }).join("\n");
 
     const cadFone = cad.Telefone;
     const cleanCadFone = cadFone ? cadFone.replace(/\D/g, "") : "";
     const waCadNumber = cleanCadFone ? (cleanCadFone.startsWith("55") ? cleanCadFone : "55" + cleanCadFone) : "";
     const cadFoneLink = waCadNumber 
-      ? `<a href="https://wa.me/${waCadNumber}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: none;">📞 <b>${cadFone}</b></a>` 
+      ? `[📞 **${cadFone}**](https://wa.me/${waCadNumber})` 
       : "";
     const patientContact = cadFoneLink ? `
-<div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef; margin-left: 0px;">
-  <div style="margin-bottom: 2px; margin-left: 0px; padding-left: 1px;">Paciente (Próprio)</div>
-  <div style="margin-left: 0px; padding-left: 1px; font-size: 12px; font-weight: bold; color: #4b5563;">${cadFoneLink}</div>
-</div>` : "";
+* **Paciente (Próprio)**
+  ${cadFoneLink}
+` : "";
 
     const surgeryTypeHeader = cad.surgery_type ? `
-<div style="margin-top: 5px; margin-bottom: 15px; padding: 6px 12px; background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6; border-radius: 4px; font-size: 13px; font-weight: 600; color: #1e40af;">
-  Prioridade/Tipo: ${cad.surgery_type}
-</div>` : "";
+> ⚠️ **Prioridade/Tipo:** ${cad.surgery_type}
+` : "";
 
     const calendarLine = "";
 
     return surgeryTypeHeader + calendarLine +
-      `\`/novofamiliar id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Contatos:**\n\n<div style="margin-left: 40px; margin-top: 0px; padding-top: 0px; margin-right: 0px;">${patientContact}${fams || (patientContact ? "" : "Nenhum registro")}</div>\n\n\n\n\n\n\n\n\n\n` +
-      `\`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Informações:**\n\n<div style="margin-left: 40px; margin-bottom: 0px;">${audios || "Nenhum registro"}</div>\n\n\n\n\n\n\n\n\n\n` +
-      `\`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Imagens:**\n\n<div style="margin-left: 40px;">${docs || "Nenhum registro"}</div>`;
+      `\`/novofamiliar id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Contatos:**\n\n${patientContact || ""}\n${fams || (patientContact ? "" : "Nenhum registro")}\n\n` +
+      `\`/logpac id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Informações:**\n\n${audios || "Nenhum registro"}\n\n` +
+      `\`/prep_img id: ${cad.ID}, nome: ${cad.Nome} label:+\` **Imagens:**\n\n${docs || "Nenhum registro"}`;
   };
 
   const handleDirectCommand = async (command: string) => {
@@ -1252,73 +1240,15 @@ export const Chat: React.FC<{
       setIsLoading(true);
 
       try {
-        const statusesRef = collection(db, "patient_statuses");
-        const qStatus = query(statusesRef, where("groupId", "==", activeGroup.id));
-        const snap = await getDocs(qStatus).catch(err => {
-          handleFirestoreError(err, OperationType.LIST, "patient_statuses");
-          throw err;
+        const res = await apiFetch("/api/app/statuses/reorder", {
+          method: "POST",
+          body: JSON.stringify({ statusId, direction })
         });
-
-        const statuses = snap.docs.map(d => {
-          const data = d.data();
-          return {
-            id: d.id,
-            nome: data.name || data.nome || "",
-            active: data.active,
-            status: data.status,
-            sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : 999999
-          };
-        })
-        .filter(s => s.active !== false && s.status !== "removed")
-        .sort((a, b) => {
-          if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-          return a.nome.localeCompare(b.nome);
-        });
-
-        const currentIndex = statuses.findIndex(s => s.id === statusId);
-
-        if (currentIndex === -1) {
-          throw new Error("Status não encontrado.");
+        
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error ${res.status}`);
         }
-
-        const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-
-        if (targetIndex < 0 || targetIndex >= statuses.length) {
-          await handleDirectCommand("/list_statuses");
-          return true;
-        }
-
-        const currentStatus = statuses[currentIndex];
-        const targetStatus = statuses[targetIndex];
-
-        // Ensure all active statuses have sorted sequential orders
-        const needsInitialization = statuses.some((s, index) => s.sortOrder === 999999 || s.sortOrder !== index + 1);
-
-        if (needsInitialization) {
-          for (let i = 0; i < statuses.length; i++) {
-            statuses[i].sortOrder = i + 1;
-            await updateDoc(doc(db, "patient_statuses", statuses[i].id), {
-              sortOrder: i + 1,
-              updatedAt: serverTimestamp()
-            }).catch(err => {
-              handleFirestoreError(err, OperationType.UPDATE, `patient_statuses/${statuses[i].id}`);
-            });
-          }
-        }
-
-        await updateDoc(doc(db, "patient_statuses", currentStatus.id), {
-          sortOrder: targetIndex + 1,
-          updatedAt: serverTimestamp()
-        }).catch(err => {
-          handleFirestoreError(err, OperationType.UPDATE, `patient_statuses/${currentStatus.id}`);
-        });
-
-        await updateDoc(doc(db, "patient_statuses", targetStatus.id), {
-          sortOrder: currentIndex + 1,
-          updatedAt: serverTimestamp()
-        }).catch(err => {
-          handleFirestoreError(err, OperationType.UPDATE, `patient_statuses/${targetStatus.id}`);
-        });
 
         await handleDirectCommand("/list_statuses");
       } catch (err: any) {
@@ -1346,13 +1276,15 @@ export const Chat: React.FC<{
       setIsLoading(true);
 
       try {
-        await updateDoc(doc(db, "patient_statuses", statusId), {
-          active: false,
-          status: "removed",
-          updatedAt: serverTimestamp()
-        }).catch(err => {
-          handleFirestoreError(err, OperationType.UPDATE, `patient_statuses/${statusId}`);
+        const res = await apiFetch("/api/app/statuses/remove", {
+          method: "POST",
+          body: JSON.stringify({ statusId })
         });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error ${res.status}`);
+        }
 
         await handleDirectCommand("/list_statuses");
       } catch (err: any) {
@@ -1742,7 +1674,7 @@ export const Chat: React.FC<{
           }
         }
 
-        let listText = `<div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">\n\n[➕ Novo Paciente](/iniciarcadastro)\n\n</div>\n\n`;
+        let listText = `### [➕ Novo Paciente](/iniciarcadastro)\n\n---\n\n`;
 
         const isHospFiltered = hospitalFilter && hospitalFilter !== "1";
         const isStatusFiltered = statusFilter && statusFilter !== "1";
@@ -1750,13 +1682,13 @@ export const Chat: React.FC<{
         if (isHospFiltered) {
           const selectedHospital = masterHospitalsData.find((h: any) => h.id.toString() === hospitalFilter);
           if (selectedHospital) {
-            listText += `<div style="font-size: 20px; font-weight: 800; color: #111827; margin-top: 10px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center;"><span style="color: #3b82f6; margin-right: 10px;">🏥</span> ${selectedHospital.nome}</div>\n\n`;
+            listText += `## 🏥 **${selectedHospital.nome}**\n\n`;
           }
         }
         if (isStatusFiltered) {
           const selectedStatusObj = masterStatuses.find((s: any) => s.id.toString() === statusFilter);
           if (selectedStatusObj) {
-            listText += `<div style="font-size: 20px; font-weight: 800; color: #111827; margin-top: ${isHospFiltered ? "0" : "10"}px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center;"><span style="color: #3b82f6; margin-right: 10px;">📋</span> ${selectedStatusObj.nome}</div>\n\n`;
+            listText += `## 📋 **${selectedStatusObj.nome}**\n\n`;
           }
         }
 
@@ -1777,7 +1709,7 @@ export const Chat: React.FC<{
             const marginTop = (hIdx === 0) ? "0px" : "24px";
             listText += `<div style="font-size: 17px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center; border-left: 4px solid #3b82f6;"><span style="margin-right: 6px;">🏥</span> ${hName}</div>`;
             patients.forEach(p => {
-              const roomDisplay = p.roomNumber ? ` - ${p.roomNumber}` : "";
+              const roomDisplay = p.roomNumber ? ` - Leito ${p.roomNumber}` : "";
               listText += `<div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 15px;">
                 • <a href="/p ${p.id}"><strong>${p.nome}</strong></a><br/>
                 <span style="font-size: 12px; color: #6b7280; margin-left: 14px;">${hName}${roomDisplay}</span>
@@ -1808,11 +1740,12 @@ export const Chat: React.FC<{
             const marginTop = (statusIdx === 0) ? "0px" : "24px";
             listText += `<div style="font-size: 17px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center; border-left: 4px solid #3b82f6;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
             patients.forEach(p => {
-              const roomDisplay = p.roomNumber ? ` - ${p.roomNumber}` : "";
+              const roomDisplay = p.roomNumber ? ` - Leito ${p.roomNumber}` : "";
               const hDisplay = p.hospitalName && !isHospFiltered ? p.hospitalName : "";
+              const details = hDisplay || roomDisplay ? `${hDisplay}${roomDisplay}` : "";
               listText += `<div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 15px;">
                 • <a href="/p ${p.id}"><strong>${p.nome}</strong></a><br/>
-                <span style="font-size: 12px; color: #6b7280; margin-left: 14px;">${hDisplay}${roomDisplay}</span>
+                <span style="font-size: 12px; color: #6b7280; margin-left: 14px;">${details}</span>
               </div>`;
             });
           });

@@ -28,12 +28,16 @@ service cloud.firestore {
         (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid)
       );
     }
+    
     function isOwner(groupId) {
       let memberDoc = /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
-      return isSignedIn() && 
-        exists(memberDoc) &&
-        get(memberDoc).data.role == "owner" &&
-        (get(memberDoc).data.status == "active" || get(memberDoc).data.status == "conectado");
+      let groupDoc = /databases/$(database)/documents/groups/$(groupId);
+      return isSignedIn() && (
+        (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid) ||
+        (exists(memberDoc) && 
+         (get(memberDoc).data.role == "owner" || get(memberDoc).data.role == "admin") &&
+         (get(memberDoc).data.status == "active" || get(memberDoc).data.status == "conectado"))
+      );
     }
 
     // Entity Validations
@@ -53,9 +57,10 @@ service cloud.firestore {
       
       match /memberships/{groupId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
+        // Require target member checks (must be an administrator or user themselves is invited/present in members)
         allow write: if isSignedIn() && (
-          request.auth.uid == userId || 
-          isMember(groupId) // Allow existing members to add group to someone else
+          isOwner(groupId) ||
+          (request.auth.uid == userId && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(userId)))
         );
       }
     }
@@ -76,18 +81,19 @@ service cloud.firestore {
     // Groups
     match /groups/{groupId} {
       allow get: if isMember(groupId);
-      allow list: if isSignedIn(); 
+      allow list: if isSignedIn() && resource.data.createdBy == request.auth.uid; 
       allow create: if isSignedIn() && incoming().createdBy == request.auth.uid;
-      allow update: if isMember(groupId); 
+      allow update: if isOwner(groupId); 
       
       match /members/{memberId} {
         allow read: if isMember(groupId) || 
                       (isSignedIn() && request.auth.uid == memberId);
+        // Restrict creation and activation updates strictly to pre-existing invitations or group owners
         allow create: if isSignedIn() && (
-          request.auth.uid == memberId || 
-          isOwner(groupId)
+          isOwner(groupId) ||
+          (request.auth.uid == memberId && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(memberId)))
         );
-        allow update: if (isSignedIn() && request.auth.uid == memberId && (incoming().status == "active" || incoming().status == "conectado" || incoming().status == "cancelled")) || 
+        allow update: if (isSignedIn() && request.auth.uid == memberId && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(memberId)) && (incoming().status == "active" || incoming().status == "conectado" || incoming().status == "cancelled")) || 
                         isOwner(groupId);
         allow delete: if isOwner(groupId);
       }
@@ -116,45 +122,45 @@ service cloud.firestore {
     // Procedure Options (scoped by group)
     match /procedureOptions/{optionId} {
       allow read: if isMember(resource.data.groupId);
-      allow create: if isMember(request.resource.data.groupId);
-      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
-      allow delete: if isMember(resource.data.groupId);
+      allow create: if isOwner(request.resource.data.groupId);
+      allow update: if isOwner(resource.data.groupId) && isOwner(request.resource.data.groupId);
+      allow delete: if isOwner(resource.data.groupId);
     }
 
     // Config entities linked by groupId
     match /patient_statuses/{statusId} {
       allow read: if isMember(resource.data.groupId);
-      allow create: if isMember(request.resource.data.groupId);
-      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
-      allow delete: if isMember(resource.data.groupId);
+      allow create: if isOwner(request.resource.data.groupId);
+      allow update: if isOwner(resource.data.groupId) && isOwner(request.resource.data.groupId);
+      allow delete: if isOwner(resource.data.groupId);
     }
 
     match /affinity/{affinityId} {
       allow read: if isMember(resource.data.groupId);
-      allow create: if isMember(request.resource.data.groupId);
-      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
-      allow delete: if isMember(resource.data.groupId);
+      allow create: if isOwner(request.resource.data.groupId);
+      allow update: if isOwner(resource.data.groupId) && isOwner(request.resource.data.groupId);
+      allow delete: if isOwner(resource.data.groupId);
     }
 
     match /surgery_types/{typeId} {
       allow read: if isMember(resource.data.groupId);
-      allow create: if isMember(request.resource.data.groupId);
-      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
-      allow delete: if isMember(resource.data.groupId);
+      allow create: if isOwner(request.resource.data.groupId);
+      allow update: if isOwner(resource.data.groupId) && isOwner(request.resource.data.groupId);
+      allow delete: if isOwner(resource.data.groupId);
     }
 
     match /document_categories/{catId} {
       allow read: if isMember(resource.data.groupId);
-      allow create: if isMember(request.resource.data.groupId);
-      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
-      allow delete: if isMember(resource.data.groupId);
+      allow create: if isOwner(request.resource.data.groupId);
+      allow update: if isOwner(resource.data.groupId) && isOwner(request.resource.data.groupId);
+      allow delete: if isOwner(resource.data.groupId);
     }
 
     match /image_types/{typeId} {
       allow read: if isMember(resource.data.groupId);
-      allow create: if isMember(request.resource.data.groupId);
-      allow update: if isMember(resource.data.groupId) && isMember(request.resource.data.groupId);
-      allow delete: if isMember(resource.data.groupId);
+      allow create: if isOwner(request.resource.data.groupId);
+      allow update: if isOwner(resource.data.groupId) && isOwner(request.resource.data.groupId);
+      allow delete: if isOwner(resource.data.groupId);
     }
 
     // Entities linked by groupId
@@ -167,15 +173,15 @@ service cloud.firestore {
 
     match /hospitals/{hospitalId} {
       allow read: if isMember(existing().groupId);
-      allow create: if isMember(incoming().groupId);
-      allow update: if isMember(existing().groupId) && isMember(incoming().groupId);
-      allow delete: if isMember(existing().groupId);
+      allow create: if isOwner(incoming().groupId);
+      allow update: if isOwner(existing().groupId) && isOwner(incoming().groupId);
+      allow delete: if isOwner(existing().groupId);
     }
 
     match /settings/{settingId} {
       allow read: if isMember(existing().groupId);
-      allow create: if isMember(incoming().groupId);
-      allow update: if isMember(existing().groupId) && isMember(incoming().groupId);
+      allow create: if isOwner(incoming().groupId);
+      allow update: if isOwner(existing().groupId) && isOwner(incoming().groupId);
     }
 
     // Sub-entities related to patients (relational sync)

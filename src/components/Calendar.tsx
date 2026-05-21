@@ -412,8 +412,9 @@ export function Calendar({
   const [showPatientSuggestions, setShowPatientSuggestions] = useState(false);
 
   useEffect(() => {
+    if (!activeGroup?.id) return;
     let isMounted = true;
-    const q = query(collection(db, "patients"), where("groupId", "==", GROUP_ID));
+    const q = query(collection(db, "patients"), where("groupId", "==", activeGroup.id));
     const unsub = onSnapshot(q, (snap) => {
       if (!isMounted) return;
       setAllPatients(snap.docs.map(d => ({ 
@@ -426,7 +427,7 @@ export function Calendar({
       isMounted = false;
       unsub();
     };
-  }, [GROUP_ID]);
+  }, [activeGroup?.id]);
 
   const filteredPatients = allPatients.filter(p => 
     p.nome.toLowerCase().includes(formData.nomePaciente.toLowerCase())

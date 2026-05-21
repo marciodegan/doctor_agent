@@ -443,20 +443,28 @@ app.get("/api/ping", (req, res) => {
   });
 });
 
-app.get("/api/diagnostics", (req, res) => {
-  res.json({
-    env: {
-      hasClientId: !!process.env.GOOGLE_CLIENT_ID,
-      hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
-      hasGeminiKey: !!process.env.GEMINI_API_KEY,
-      nodeEnv: process.env.NODE_ENV,
-      vercel: process.env.VERCEL
-    },
-    headers: req.headers,
-    url: req.url,
-    method: req.method,
-    calculatedRedirectUri: getRedirectUri(req)
-  });
+app.get("/api/diagnostics", async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Not found" });
+  }
+  try {
+    await requireAuth(req);
+    res.json({
+      env: {
+        hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+        hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+        hasGeminiKey: !!process.env.GEMINI_API_KEY,
+        nodeEnv: process.env.NODE_ENV,
+        vercel: process.env.VERCEL
+      },
+      headers: req.headers,
+      url: req.url,
+      method: req.method,
+      calculatedRedirectUri: getRedirectUri(req)
+    });
+  } catch (err) {
+    res.status(401).json({ error: "Unauthorized" });
+  }
 });
 
 app.get("/api/auth/url", (req, res) => {
@@ -1353,6 +1361,134 @@ app.get("/api/app/statuses", async (req, res) => {
     res.json(statuses);
   } catch (error) {
     handleApiError(res, error, "Fetching statuses");
+  }
+});
+
+app.post("/api/app/statuses/reorder", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  const { statusId, direction } = req.body;
+  if (!statusId || !direction) {
+    return res.status(400).json({ error: "statusId and direction are required" });
+  }
+
+  try {
+    // 1. Verify owner/admin privilege
+    await requireGroupOwner(req, groupId);
+
+    // 2. Fetch the target status and verify ownership
+    const targetStatusRef = db.collection("patient_statuses").doc(statusId);
+    const targetStatusSnap = await targetStatusRef.get();
+    if (!targetStatusSnap.exists) {
+      return res.status(404).json({ error: "Status not found" });
+    }
+
+    const targetStatusData = targetStatusSnap.data();
+    if (targetStatusData?.groupId !== groupId) {
+      return res.status(403).json({ error: "Access denied to this status" });
+    }
+
+    // 3. Fetch all active statuses in this group
+    const statusesSnap = await db.collection("patient_statuses")
+      .where("groupId", "==", groupId)
+      .get();
+
+    const statuses = statusesSnap.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        nome: data.name || data.nome || "",
+        active: data.active,
+        status: data.status,
+        sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : 999999
+      };
+    })
+    .filter(s => s.active !== false && s.status !== "removed")
+    .sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return a.nome.localeCompare(b.nome);
+    });
+
+    const currentIndex = statuses.findIndex(s => s.id === statusId);
+    if (currentIndex === -1) {
+      return res.status(404).json({ error: "Status is either deleted or not in this group" });
+    }
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= statuses.length) {
+      return res.json({ success: true, noop: true });
+    }
+
+    const currentStatus = statuses[currentIndex];
+    const otherStatus = statuses[targetIndex];
+
+    const batch = db.batch();
+
+    // Reinitialize sorting sequences of any outdated elements to ensure sequential indexes
+    const needsInitialization = statuses.some((s, index) => s.sortOrder === 999999 || s.sortOrder !== index + 1);
+    if (needsInitialization) {
+      for (let i = 0; i < statuses.length; i++) {
+        batch.set(db.collection("patient_statuses").doc(statuses[i].id), {
+          sortOrder: i + 1,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+    }
+
+    // Swap sortOrder
+    batch.set(db.collection("patient_statuses").doc(currentStatus.id), {
+      sortOrder: targetIndex + 1,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    batch.set(db.collection("patient_statuses").doc(otherStatus.id), {
+      sortOrder: currentIndex + 1,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    await batch.commit();
+    res.json({ success: true });
+  } catch (error) {
+    handleApiError(res, error, "Reordering status");
+  }
+});
+
+app.post("/api/app/statuses/remove", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  const { statusId } = req.body;
+  if (!statusId) {
+    return res.status(400).json({ error: "statusId is required" });
+  }
+
+  try {
+    // 1. Verify owner/admin privilege
+    await requireGroupOwner(req, groupId);
+
+    // 2. Fetch status and verify ownership
+    const statusRef = db.collection("patient_statuses").doc(statusId);
+    const statusSnap = await statusRef.get();
+    if (!statusSnap.exists) {
+      return res.status(404).json({ error: "Status not found" });
+    }
+
+    const statusData = statusSnap.data();
+    if (statusData?.groupId !== groupId) {
+      return res.status(403).json({ error: "Access denied to this status" });
+    }
+
+    // 3. Mark status as deleted
+    await statusRef.update({
+      active: false,
+      status: "removed",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    handleApiError(res, error, "Removing status");
   }
 });
 

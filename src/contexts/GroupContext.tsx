@@ -123,15 +123,21 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     },
   };
 
-  const apiFetch = (url: string, init?: RequestInit) => {
+  const apiFetch = async (url: string, init?: RequestInit) => {
     const groupId =
       activeGroup?.id || safeLocalStorage.getItem("activeGroupId") || "";
+
+    const token = await auth.currentUser?.getIdToken();
+    const isFormData = init?.body instanceof FormData;
+
     return fetch(url, {
       ...init,
-      credentials: 'include',
+      credentials: "include",
       headers: {
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...init?.headers,
         "x-group-id": groupId,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
   };
@@ -329,189 +335,11 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       );
     }
 
-    // 4. Self-healing membership finder (userId check)
-    let unsubscribeGroupByUid = () => {};
-    try {
-      unsubscribeGroupByUid = onSnapshot(
-        query(collectionGroup(db, "members"), where("userId", "==", user.uid)),
-        async (snapshot) => {
-          if (!isMounted) return;
-          for (const memberDoc of snapshot.docs) {
-            const memberData = memberDoc.data();
-            const parentGroupRef = memberDoc.ref.parent?.parent;
-            if (parentGroupRef) {
-              const groupId = parentGroupRef.id;
-              try {
-                const membershipRef = doc(db, `users/${user.uid}/memberships`, groupId);
-                const mSnap = await getDoc(membershipRef);
-                if (!mSnap.exists()) {
-                  const groupSnap = await getDoc(parentGroupRef);
-                  if (groupSnap.exists()) {
-                    const groupData = groupSnap.data();
-                    const status = memberData.status === "conectado" ? "active" : (memberData.status || "active");
-                    await setDoc(membershipRef, {
-                      groupId,
-                      groupName: groupData.name || "Grupo",
-                      groupType: groupData.groupType || "professional",
-                      role: memberData.role || "member",
-                      status: status,
-                    }, { merge: true });
-                  }
-                }
-              } catch (err) {
-                console.warn("Failed self-healing sync by UID for group", groupId, err);
-              }
-            }
-          }
-        },
-        (error) => {
-          console.warn("Collection group members UID listener error:", error);
-        }
-      );
-    } catch (e) {
-      console.warn("Member UID group query failed to initialize", e);
-    }
-
-    // 5. Self-healing membership finder (userEmail check)
-    let unsubscribeGroupByEmail = () => {};
-    if (user.email) {
-      const cleanEmail = user.email.trim().toLowerCase();
-      try {
-        unsubscribeGroupByEmail = onSnapshot(
-          query(collectionGroup(db, "members"), where("userEmail", "==", cleanEmail)),
-          async (snapshot) => {
-            if (!isMounted) return;
-            for (const memberDoc of snapshot.docs) {
-              const memberData = memberDoc.data();
-              const parentGroupRef = memberDoc.ref.parent?.parent;
-              if (parentGroupRef) {
-                const groupId = parentGroupRef.id;
-                
-                // If the group member document has no userId associated, heal it in the background
-                if (!memberData.userId) {
-                  try {
-                    await setDoc(memberDoc.ref, { userId: user.uid }, { merge: true });
-                  } catch (err) {
-                    console.warn("Failed self-healing userId sync for member document:", err);
-                  }
-                }
-
-                try {
-                  const membershipRef = doc(db, `users/${user.uid}/memberships`, groupId);
-                  const mSnap = await getDoc(membershipRef);
-                  if (!mSnap.exists()) {
-                    const groupSnap = await getDoc(parentGroupRef);
-                    if (groupSnap.exists()) {
-                      const groupData = groupSnap.data();
-                      const status = memberData.status === "conectado" ? "active" : (memberData.status || "active");
-                      await setDoc(membershipRef, {
-                        groupId,
-                        groupName: groupData.name || "Grupo",
-                        groupType: groupData.groupType || "professional",
-                        role: memberData.role || "member",
-                        status: status,
-                      }, { merge: true });
-                    }
-                  }
-                } catch (err) {
-                  console.warn("Failed self-healing sync by Email for group", groupId, err);
-                }
-              }
-            }
-          },
-          (error) => {
-            console.warn("Collection group members Email listener error:", error);
-          }
-        );
-      } catch (e) {
-        console.warn("Member Email group query failed to initialize", e);
-      }
-    }
-
-    // 6. Direct Group Collection Query and membership verification (Carefully query the groups collections)
-    const queryGroupsDirect = async () => {
-      try {
-        const groupsSnap = await getDocs(collection(db, "groups"));
-        if (!isMounted) return;
-
-        // For each group, check if the current user is a member
-        const memberCheckPromises = groupsSnap.docs.map(async (groupDoc) => {
-          const groupId = groupDoc.id;
-          const groupData = groupDoc.data();
-          const groupStatus = groupData.status || "active";
-
-          if (!groupData.status) {
-            setDoc(groupDoc.ref, { status: "active" }, { merge: true })
-              .catch(err => console.warn("Self heal status in queryGroupsDirect failed:", err));
-          }
-
-          if (groupData.createdBy === user.uid) {
-            // User is the creator, definitely a member
-            return { groupDoc, isMember: true, role: "owner", status: groupStatus };
-          }
-
-          // Fetch the member document to confirm membership
-          const memberDocRef = doc(db, `groups/${groupId}/members`, user.uid);
-          try {
-            const memberDocSnap = await getDoc(memberDocRef);
-            if (memberDocSnap.exists()) {
-              const memberData = memberDocSnap.data();
-              const status = memberData.status || "active";
-              const isMemberActive = status === "active" || status === "conectado";
-              return { 
-                groupDoc, 
-                isMember: isMemberActive, 
-                role: memberData.role || "member", 
-                status 
-              };
-            }
-          } catch (e) {
-            console.warn(`[GroupContext] Error querying membership for group ${groupId}:`, e);
-          }
-
-          return { groupDoc, isMember: false, role: "", status: "" };
-        });
-
-        const checkedResults = await Promise.all(memberCheckPromises);
-        if (!isMounted) return;
-
-        for (const result of checkedResults) {
-          if (result.isMember) {
-            const groupData = result.groupDoc.data();
-            const status = result.status === "conectado" ? "active" : result.status;
-
-            // Self-heal: Ensure this is saved to `users/${user.uid}/memberships`
-            try {
-              const membershipRef = doc(db, `users/${user.uid}/memberships`, result.groupDoc.id);
-              const mSnap = await getDoc(membershipRef);
-              if (!mSnap.exists()) {
-                await setDoc(membershipRef, {
-                  groupId: result.groupDoc.id,
-                  groupName: groupData.name || "Grupo",
-                  groupType: groupData.groupType || "professional",
-                  role: result.role,
-                  status: status,
-                }, { merge: true });
-              }
-            } catch (err) {
-              console.warn(`[GroupContext] Healing failed for group ${result.groupDoc.id}:`, err);
-            }
-          }
-        }
-      } catch (err) {
-        console.error("[GroupContext] Failed querying groups collection directly:", err);
-      }
-    };
-
-    queryGroupsDirect();
-
     return () => {
       isMounted = false;
       unsubscribeMemberships();
       unsubscribeOwnedGroups();
       unsubscribeInvitations();
-      unsubscribeGroupByUid();
-      unsubscribeGroupByEmail();
     };
   }, [user?.uid, user?.email]);
 
@@ -790,9 +618,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setActiveGroupId = (id: string) => {
-    safeLocalStorage.setItem("activeGroupId", id);
     const group = groups.find((g) => g.id === id);
     if (group) {
+      safeLocalStorage.setItem("activeGroupId", id);
       setActiveGroup(group);
       saveLastActiveGroupToFirestore(group.id, group.groupType);
     }
