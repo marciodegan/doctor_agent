@@ -51,7 +51,9 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "groupId": { "type": "string" },
-        "active": { "type": "boolean" }
+        "active": { "type": "boolean" },
+        "sortOrder": { "type": "integer" },
+        "status": { "type": "string" }
       },
       "required": ["id", "name", "groupId"]
     },

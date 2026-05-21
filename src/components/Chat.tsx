@@ -352,7 +352,7 @@ export const Chat: React.FC<{
 
   // Group Configurations
   const [groupHospitals, setGroupHospitals] = useState<{id: string, nome: string, active?: boolean}[]>([]);
-  const [groupStatuses, setGroupStatuses] = useState<{id: string, nome: string, active?: boolean}[]>([]);
+  const [groupStatuses, setGroupStatuses] = useState<{id: string, nome: string, active?: boolean, status?: string, sortOrder?: number}[]>([]);
   const [groupProcedures, setGroupProcedures] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupSurgeryTypes, setGroupSurgeryTypes] = useState<{id: string, nome: string, active?: boolean}[]>([]);
   const [groupAffinities, setGroupAffinities] = useState<{id: string, name: string}[]>([]);
@@ -380,7 +380,16 @@ export const Chat: React.FC<{
     const qStatus = query(statusRef, where("groupId", "==", gId), orderBy("name"));
     const unsubStatus = onSnapshot(qStatus, (snap) => {
       if (!isMounted) return;
-      setGroupStatuses(snap.docs.map(d => ({ id: d.id, nome: d.data().name, active: d.data().active })));
+      setGroupStatuses(snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          nome: data.name || data.nome || "",
+          active: data.active,
+          status: data.status,
+          sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : undefined
+        };
+      }));
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "patient_statuses");
@@ -443,7 +452,14 @@ export const Chat: React.FC<{
 
   // Compatibility aliases - only for FORMS, filter active
   const hospitalOptions = groupHospitals.filter(h => h.active !== false && (h as any).status !== "removed");
-  const statusOptions = groupStatuses.filter(s => s.active !== false && (s as any).status !== "removed");
+  const statusOptions = groupStatuses
+    .filter(s => s.active !== false && (s as any).status !== "removed")
+    .sort((a, b) => {
+      const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
+      const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.nome.localeCompare(b.nome);
+    });
   const procedureOptions = groupProcedures.filter(p => p.active !== false && (p as any).status !== "removed").map(p => p.nome);
   const surgeryTypeOptions = groupSurgeryTypes.filter(s => s.active !== false && (s as any).status !== "removed").map(s => s.nome);
   const affinityOptions = groupAffinities.map(a => a.name);
@@ -1191,19 +1207,159 @@ export const Chat: React.FC<{
     }
 
     if (cmd === "/list_statuses") {
-      setIsLoading(true);
-      try {
-        const res = await apiFetch("/api/app/statuses");
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        
-        const list = data.map((s: any) => `• ${typeof s === 'string' ? s : s.nome || s.name}`).join("\n");
-        setMessages(prev => [...prev, { 
-          role: "model", 
-          text: `🏷️ **Status Disponíveis:**\n\n${list || "Nenhum status encontrado."}` 
+      const orderedStatuses = [...groupStatuses]
+        .filter(s => s.active !== false && (s as any).status !== "removed")
+        .sort((a: any, b: any) => {
+          const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
+          const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.nome.localeCompare(b.nome);
+        });
+
+      const list = orderedStatuses.map((s: any, index: number) => {
+        const upCommand = index > 0
+          ? `/move_status id: ${s.id}, direction: up label:↑`
+          : "/disabled label:↑";
+
+        const downCommand = index < orderedStatuses.length - 1
+          ? `/move_status id: ${s.id}, direction: down label:↓`
+          : "/disabled label:↓";
+
+        return `${index + 1}. **${s.nome}**  \`${upCommand}\` \`${downCommand}\` \`/remove_status id: ${s.id} label:🗑️\``;
+      }).join("\n\n");
+
+      setMessages([{
+        role: "model",
+        text: `🏷️ **Status Disponíveis**\n\n${list || "Nenhum status encontrado."}`,
+        isListing: true
+      }]);
+
+      return true;
+    }
+
+    if (cmd.startsWith("/move_status")) {
+      const statusId = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
+      const direction = cmdInput.match(/direction:\s*([^,]+)/i)?.[1]?.trim();
+
+      if (!statusId || !direction || !activeGroup?.id) {
+        setMessages(prev => [...prev, {
+          role: "model",
+          text: "❌ Não foi possível alterar a ordem do status."
         }]);
+        return true;
+      }
+
+      setIsLoading(true);
+
+      try {
+        const statusesRef = collection(db, "patient_statuses");
+        const qStatus = query(statusesRef, where("groupId", "==", activeGroup.id));
+        const snap = await getDocs(qStatus).catch(err => {
+          handleFirestoreError(err, OperationType.LIST, "patient_statuses");
+          throw err;
+        });
+
+        const statuses = snap.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            nome: data.name || data.nome || "",
+            active: data.active,
+            status: data.status,
+            sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : 999999
+          };
+        })
+        .filter(s => s.active !== false && s.status !== "removed")
+        .sort((a, b) => {
+          if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+          return a.nome.localeCompare(b.nome);
+        });
+
+        const currentIndex = statuses.findIndex(s => s.id === statusId);
+
+        if (currentIndex === -1) {
+          throw new Error("Status não encontrado.");
+        }
+
+        const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+        if (targetIndex < 0 || targetIndex >= statuses.length) {
+          await handleDirectCommand("/list_statuses");
+          return true;
+        }
+
+        const currentStatus = statuses[currentIndex];
+        const targetStatus = statuses[targetIndex];
+
+        // Ensure all active statuses have sorted sequential orders
+        const needsInitialization = statuses.some((s, index) => s.sortOrder === 999999 || s.sortOrder !== index + 1);
+
+        if (needsInitialization) {
+          for (let i = 0; i < statuses.length; i++) {
+            statuses[i].sortOrder = i + 1;
+            await updateDoc(doc(db, "patient_statuses", statuses[i].id), {
+              sortOrder: i + 1,
+              updatedAt: serverTimestamp()
+            }).catch(err => {
+              handleFirestoreError(err, OperationType.UPDATE, `patient_statuses/${statuses[i].id}`);
+            });
+          }
+        }
+
+        await updateDoc(doc(db, "patient_statuses", currentStatus.id), {
+          sortOrder: targetIndex + 1,
+          updatedAt: serverTimestamp()
+        }).catch(err => {
+          handleFirestoreError(err, OperationType.UPDATE, `patient_statuses/${currentStatus.id}`);
+        });
+
+        await updateDoc(doc(db, "patient_statuses", targetStatus.id), {
+          sortOrder: currentIndex + 1,
+          updatedAt: serverTimestamp()
+        }).catch(err => {
+          handleFirestoreError(err, OperationType.UPDATE, `patient_statuses/${targetStatus.id}`);
+        });
+
+        await handleDirectCommand("/list_statuses");
       } catch (err: any) {
-        setMessages(prev => [...prev, { role: "model", text: `❌ Erro ao buscar status: ${err.message}` }]);
+        setMessages(prev => [...prev, {
+          role: "model",
+          text: `❌ Erro ao alterar ordem do status: ${err.message}`
+        }]);
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    }
+
+    if (cmd.startsWith("/remove_status")) {
+      const statusId = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
+
+      if (!statusId || !activeGroup?.id) {
+        setMessages(prev => [...prev, {
+          role: "model",
+          text: "❌ Não foi possível remover o status."
+        }]);
+        return true;
+      }
+
+      setIsLoading(true);
+
+      try {
+        await updateDoc(doc(db, "patient_statuses", statusId), {
+          active: false,
+          status: "removed",
+          updatedAt: serverTimestamp()
+        }).catch(err => {
+          handleFirestoreError(err, OperationType.UPDATE, `patient_statuses/${statusId}`);
+        });
+
+        await handleDirectCommand("/list_statuses");
+      } catch (err: any) {
+        setMessages(prev => [...prev, {
+          role: "model",
+          text: `❌ Erro ao remover status: ${err.message}`
+        }]);
       } finally {
         setIsLoading(false);
         return true;
@@ -2888,23 +3044,29 @@ export const Chat: React.FC<{
                                 }
 
                                 const isPlusLabel = label === "+";
-                                const isRemover = content.startsWith("/remover");
+                                const isRemover = content.startsWith("/remover") || content.startsWith("/remove_status");
                                 const isReport = content.startsWith("/p ") || content.startsWith("/prep_p");
+                                const isDisabled = content.startsWith("/disabled");
                                 const isIconLabel = label.length <= 4 && !label.includes(" ");
 
                                 return (
                                   <button
+                                    disabled={isDisabled}
                                     onClick={() => {
+                                      if (isDisabled) return;
+
                                       const isRemoverImagem = content.startsWith("/remover_imagem");
                                       const isRemoverEvento = content.startsWith("/remover_evento");
                                       const isRemoverInfo = content.startsWith("/remover_informacao");
                                       const isRemoverFamiliar = content.startsWith("/remover_familiar");
+                                      const isRemoverStatus = content.startsWith("/remove_status");
                                       
-                                      if (isRemoverImagem || isRemoverEvento || isRemoverInfo || isRemoverFamiliar) {
+                                      if (isRemoverImagem || isRemoverEvento || isRemoverInfo || isRemoverFamiliar || isRemoverStatus) {
                                         setConfirmCommand({ 
                                           title: isRemoverImagem ? "Remover esta imagem?" : 
                                                  isRemoverEvento ? "Remover este evento do calendário?" : 
                                                  isRemoverInfo ? "Remover esta informação do histórico?" : 
+                                                 isRemoverStatus ? "Remover este status do grupo?" :
                                                  "Remover este contato do histórico?", 
                                           cmd: content,
                                           shouldClear: false 
@@ -2924,13 +3086,15 @@ export const Chat: React.FC<{
                                     }}
                                     className={isPlusLabel 
                                       ? "not-prose bg-blue-600 text-white w-7 h-7 inline-flex items-center justify-center rounded-full font-bold hover:bg-blue-700 transition-all cursor-pointer shadow-md mx-1 active:scale-90"
-                                      : isIconLabel
-                                        ? `not-prose ${isRemover ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'} w-8 h-8 inline-flex items-center justify-center rounded-lg hover:brightness-95 transition-all cursor-pointer border shadow-sm mx-1 active:scale-90`
-                                        : isRemover
-                                          ? "not-prose bg-gray-100 text-gray-500 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 hover:text-gray-700 transition-all cursor-pointer border border-gray-200 mx-1 shadow-md active:scale-95 flex items-center gap-2 group"
-                                          : isReport
-                                            ? "not-prose bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all cursor-pointer border border-emerald-100 mx-1 shadow-lg shadow-emerald-900/5 active:scale-95 flex items-center gap-2"
-                                            : "not-prose bg-blue-50 text-blue-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all cursor-pointer border border-blue-100 mx-1 shadow-lg shadow-blue-900/5 active:scale-95 flex items-center gap-2"
+                                      : isDisabled
+                                        ? "not-prose bg-gray-100 text-gray-300 border-gray-200 w-8 h-8 inline-flex items-center justify-center rounded-lg border shadow-sm mx-1 cursor-not-allowed select-none"
+                                        : isIconLabel
+                                          ? `not-prose ${isRemover ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'} w-8 h-8 inline-flex items-center justify-center rounded-lg hover:brightness-95 transition-all cursor-pointer border shadow-sm mx-1 active:scale-90 font-bold`
+                                          : isRemover
+                                            ? "not-prose bg-gray-100 text-gray-500 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 hover:text-gray-700 transition-all cursor-pointer border border-gray-200 mx-1 shadow-md active:scale-95 flex items-center gap-2 group"
+                                            : isReport
+                                              ? "not-prose bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all cursor-pointer border border-emerald-100 mx-1 shadow-lg shadow-emerald-900/5 active:scale-95 flex items-center gap-2"
+                                              : "not-prose bg-blue-50 text-blue-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all cursor-pointer border border-blue-100 mx-1 shadow-lg shadow-blue-900/5 active:scale-95 flex items-center gap-2"
                                     }
                                   >
                                     {label}
