@@ -106,6 +106,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [managementMode, setManagementMode] = useState<"dashboard" | "members" | "configs" | "shopping_config">("dashboard");
   const [configsActiveTab, setConfigsActiveTab] = useState<string | null>(null);
   const [firestoreLastGroupId, setFirestoreLastGroupId] = useState<string | null>(null);
+  const [groupDocs, setGroupDocs] = useState<Record<string, any>>({});
 
   const safeLocalStorage = {
     getItem: (key: string) => {
@@ -519,6 +520,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     if (!user) {
       setUserWhatsapp("");
       setFirestoreLastGroupId(null);
+      setGroupDocs({});
       return;
     }
 
@@ -536,6 +538,56 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
     return () => unsubscribe();
   }, [user?.uid]);
+
+  // Real-time listener for each of the user's groups to get central/synchronized group data (such as name and photoURL)
+  useEffect(() => {
+    if (!user) {
+      setGroupDocs({});
+      return;
+    }
+
+    const uniqueIds = Array.from(new Set([
+      ...rawMemberships.map((m) => m.id),
+      ...ownedGroups.map((o) => o.id),
+    ])).filter(Boolean);
+
+    const activeListeners = new Map<string, () => void>();
+
+    uniqueIds.forEach((gid) => {
+      const docRef = doc(db, "groups", gid);
+      const unsub = onSnapshot(docRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setGroupDocs((prev) => {
+            const prevGroup = prev[gid];
+            if (
+              prevGroup &&
+              prevGroup.name === data.name &&
+              prevGroup.photoURL === data.photoURL &&
+              prevGroup.groupType === data.groupType &&
+              prevGroup.status === data.status
+            ) {
+              return prev;
+            }
+            return {
+              ...prev,
+              [gid]: {
+                id: snap.id,
+                ...data,
+              },
+            };
+          });
+        }
+      }, (error) => {
+        console.warn(`[GroupContext] Listener error for group ${gid}:`, error);
+      });
+      activeListeners.set(gid, unsub);
+    });
+
+    return () => {
+      activeListeners.forEach((unsub) => unsub());
+    };
+  }, [user?.uid, rawMemberships.map(m => m.id).join(","), ownedGroups.map(o => o.id).join(",")]);
 
   // Restore active group effect
   useEffect(() => {
@@ -556,15 +608,21 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       let status = m.status || "active";
       if (status === "conectado") status = "active" as const;
 
+      // Centralized group document data check
+      const centralDoc = groupDocs[m.id];
+      const name = centralDoc?.name || m.groupName || m.name || "Grupo";
+      const photoURL = centralDoc?.photoURL || m.groupPhotoURL || m.photoURL || "";
+      const groupType = centralDoc?.groupType || m.groupType || "professional";
+
       return {
         id: m.id,
-        name: m.groupName || m.name || "Grupo",
-        groupType: m.groupType || "professional",
+        name,
+        groupType,
         status: status as "active" | "pending" | "removed" | "terminated",
-        photoURL: m.groupPhotoURL || m.photoURL || "",
+        photoURL,
         active: status === "active",
         ativo: status === "active",
-        createdBy: m.createdBy || "",
+        createdBy: centralDoc?.createdBy || m.createdBy || "",
         role: m.role || ""
       } as Group;
     });
@@ -594,10 +652,18 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     ownedGroups.forEach(g => {
       if (g.status === "terminated") return;
       
+      const centralDoc = groupDocs[g.id];
+      const name = centralDoc?.name || g.name;
+      const photoURL = centralDoc?.photoURL || g.photoURL;
+      const groupType = centralDoc?.groupType || g.groupType;
+
       const existing = groupsMap.get(g.id);
       if (existing) {
         groupsMap.set(g.id, {
           ...g,
+          name,
+          photoURL,
+          groupType,
           status: g.status || existing.status || "active",
           active: (g.status || existing.status || "active") === "active",
           ativo: (g.status || existing.status || "active") === "active",
@@ -605,6 +671,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       } else {
         groupsMap.set(g.id, {
           ...g,
+          name,
+          photoURL,
+          groupType,
           active: g.status === "active",
           ativo: g.status === "active",
         });
@@ -701,7 +770,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     }
     
     setLoading(false);
-  }, [rawMemberships, ownedGroups, emailInvites, user?.uid, firestoreLastGroupId, membershipsLoaded, ownedGroupsLoaded]); // Consolidate into a stable dependency list
+  }, [rawMemberships, ownedGroups, emailInvites, user?.uid, firestoreLastGroupId, membershipsLoaded, ownedGroupsLoaded, groupDocs]); // Consolidate into a stable dependency list
 
   const saveLastActiveGroupToFirestore = async (groupId: string, groupType: string) => {
     if (!user) return;

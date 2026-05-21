@@ -102,11 +102,21 @@ export default function App() {
     }
     
     // Force scroll to top regardless of view change
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
     const mainElement = document.querySelector("main");
     if (mainElement) {
-      mainElement.scrollTo({ top: 0, behavior: 'smooth' });
+      mainElement.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
+      mainElement.scrollTop = 0;
     }
+    
+    // Also find and reset other scroll containers
+    const scrollableElements = document.querySelectorAll('.overflow-y-auto, .overflow-y-scroll, .custom-scrollbar, [style*="overflow-y: auto"], [style*="overflow-y: scroll"], [class*="overflow-y"]');
+    scrollableElements.forEach((el) => {
+      el.scrollTop = 0;
+      try {
+        el.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
+      } catch (e) {}
+    });
   };
 
   useEffect(() => {
@@ -138,23 +148,38 @@ export default function App() {
   // Effect to scroll to top when view changes or patient changes
   useEffect(() => {
     const scrollToTop = () => {
-      window.scrollTo({ top: 0, behavior: 'instant' });
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
+      
       const mainElement = document.querySelector("main");
       if (mainElement) {
-        mainElement.scrollTo({ top: 0, behavior: 'instant' });
+        mainElement.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
+        mainElement.scrollTop = 0;
       }
+
+      // Query and force reset any other scrollable containers
+      const scrollableElements = document.querySelectorAll('.overflow-y-auto, .overflow-y-scroll, .custom-scrollbar, [style*="overflow-y: auto"], [style*="overflow-y: scroll"], [class*="overflow-y"]');
+      scrollableElements.forEach((el) => {
+        el.scrollTop = 0;
+        try {
+          el.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
+        } catch (e) {}
+      });
     };
     
     // Immediate scroll
     scrollToTop();
     
-    // Brief delay to handle AnimatePresence transitions and dynamic content loading
-    const timer = setTimeout(scrollToTop, 50);
-    const timer2 = setTimeout(scrollToTop, 150);
+    // Brief delays to handle AnimatePresence transitions and dynamic content loading
+    const timer = setTimeout(scrollToTop, 20);
+    const timer2 = setTimeout(scrollToTop, 80);
+    const timer3 = setTimeout(scrollToTop, 180);
+    const timer4 = setTimeout(scrollToTop, 400);
     
     return () => {
       clearTimeout(timer);
       clearTimeout(timer2);
+      clearTimeout(timer3);
+      clearTimeout(timer4);
     };
   }, [currentView, activePatientId, activePatientName]);
 

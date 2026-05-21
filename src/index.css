@@ -37,7 +37,7 @@
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
   }
 
   .custom-scrollbar::-webkit-scrollbar {

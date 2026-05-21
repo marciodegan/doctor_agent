@@ -116,7 +116,8 @@ export function BottomNav({
               onClick={() => {
                 const mainElement = document.querySelector("main");
                 if (mainElement) {
-                  mainElement.scrollTo({ top: 0, behavior: "smooth" });
+                  mainElement.scrollTo({ top: 0, behavior: "instant" as any });
+                  mainElement.scrollTop = 0;
                 }
                 if (tab.action) {
                   tab.action();
