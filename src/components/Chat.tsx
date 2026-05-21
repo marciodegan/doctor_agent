@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
+import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
 import { auth, db } from "../lib/firebase";
 import { 
@@ -20,6 +21,7 @@ import {
 } from "firebase/firestore";
 import { useGroup } from "../contexts/GroupContext";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
+import { PatientListView } from "./PatientListView";
 
 interface Message {
   role: "user" | "model";
@@ -60,6 +62,22 @@ interface Message {
   isListing?: boolean;
   listingTitle?: string;
   actionGroups?: { title: string; actions: { label: string; cmd: string; active?: boolean }[] }[];
+  isPatientListing?: boolean;
+  patientListData?: {
+    patients: any[];
+    statuses: any[];
+    hospitals: any[];
+    hospitalFilter?: string;
+    statusFilter?: string;
+    sort?: string;
+    pagination?: {
+      page: number;
+      totalPages: number;
+      hospitalFilter?: string;
+      statusFilter?: string;
+      sort: string;
+    };
+  };
 }
 
 const MessageForm: React.FC<{ 
@@ -621,9 +639,9 @@ export const Chat: React.FC<{
   const generatePatientReport = (data: any) => {
     const cad = data.cadastro;
     const audios = data.audios.map((a: any) => `
-* **${a.conteudo}**  
-  _${a.data}_  
-  \`/editar_log id: ${a.id}, pId: ${cad.ID} label:✏️\` \`/remover_informacao id: ${a.id}, pId: ${cad.ID} label:🗑️\` (ID: ${a.id})
+**${a.conteudo}**  
+_${a.data}_  
+\`/editar_log id: ${a.id}, pId: ${cad.ID} label:✏️\` \`/remover_informacao id: ${a.id}, pId: ${cad.ID} label:🗑️\`
 `).join("\n");
     
     const docs = data.imagens.map((i: any) => {
@@ -653,9 +671,8 @@ ${aiPart}
         ? `[📞 **${f.fone}**](https://wa.me/${waNumber})` 
         : "📞 Sem telefone";
       return `
-* **${f.nome}** ${f.relacao ? `(${f.relacao})` : ""}
-  ${foneLink}  
-  \`/editar_familiar id: ${f.id}, pId: ${cad.ID} label:✏️\` \`/remover_familiar id: ${f.id}, pId: ${cad.ID} label:🗑️\`
+**${f.nome}** ${f.relacao ? `(${f.relacao})` : ""} ${foneLink}  
+\`/editar_familiar id: ${f.id}, pId: ${cad.ID} label:✏️\` \`/remover_familiar id: ${f.id}, pId: ${cad.ID} label:🗑️\`
 `;
     }).join("\n");
 
@@ -666,8 +683,7 @@ ${aiPart}
       ? `[📞 **${cadFone}**](https://wa.me/${waCadNumber})` 
       : "";
     const patientContact = cadFoneLink ? `
-* **Paciente (Próprio)**
-  ${cadFoneLink}
+**Paciente (Próprio)** ${cadFoneLink}
 ` : "";
 
     const surgeryTypeHeader = cad.surgery_type ? `
@@ -1655,103 +1671,16 @@ ${aiPart}
         }
 
         let pageData = filteredData;
-        let nav = "";
+        let totalPages = 1;
+        let pageToView = 1;
 
         if (isFilteringAlta) {
           const PAGE_SIZE = 10;
-          const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
-          const pageToView = Math.max(1, Math.min(page, totalPages || 1));
+          totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+          pageToView = Math.max(1, Math.min(page, totalPages || 1));
           const start = (pageToView - 1) * PAGE_SIZE;
           const end = start + PAGE_SIZE;
           pageData = filteredData.slice(start, end);
-
-          if (totalPages > 1) {
-            const currentFilters = ` hospital:${hospitalFilter || ""} status:${statusFilter || ""}`;
-            nav = `\n\n📖 **Página ${pageToView} de ${totalPages}**\n`;
-            if (pageToView > 1) nav += ` [\`⬅️ Ant\`](/pacientes${currentFilters} pag:${pageToView - 1} sort:${sort}) `;
-            if (pageToView < totalPages) nav += ` [\`Próximo ➡️\`](/pacientes${currentFilters} pag:${pageToView + 1} sort:${sort}) `;
-          }
-        }
-
-        let listText = `### [➕ Novo Paciente](/iniciarcadastro)\n\n---\n\n`;
-
-        const isHospFiltered = hospitalFilter && hospitalFilter !== "1";
-        const isStatusFiltered = statusFilter && statusFilter !== "1";
-
-        if (isHospFiltered) {
-          const selectedHospital = masterHospitalsData.find((h: any) => h.id.toString() === hospitalFilter);
-          if (selectedHospital) {
-            listText += `## 🏥 **${selectedHospital.nome}**\n\n`;
-          }
-        }
-        if (isStatusFiltered) {
-          const selectedStatusObj = masterStatuses.find((s: any) => s.id.toString() === statusFilter);
-          if (selectedStatusObj) {
-            listText += `## 📋 **${selectedStatusObj.nome}**\n\n`;
-          }
-        }
-
-        if (isStatusFiltered && !isHospFiltered) {
-          // GROUP BY HOSPITAL
-          const hospitalGrouped: Record<string, { id: string, name: string, patients: any[] }> = {};
-          pageData.forEach((p: any) => {
-            const hName = p.hospitalName || "Sem Hospital";
-            const hId = p.hospitalId?.toString() || "999";
-            if (!hospitalGrouped[hId]) {
-              hospitalGrouped[hId] = { id: hId, name: hName, patients: [] };
-            }
-            hospitalGrouped[hId].patients.push(p);
-          });
-
-          const sortedHospitals = Object.values(hospitalGrouped).sort((a, b) => a.name.localeCompare(b.name));
-          sortedHospitals.forEach(({ name: hName, patients }, hIdx) => {
-            const marginTop = (hIdx === 0) ? "0px" : "24px";
-            listText += `<div style="font-size: 17px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center; border-left: 4px solid #3b82f6;"><span style="margin-right: 6px;">🏥</span> ${hName}</div>`;
-            patients.forEach(p => {
-              const roomDisplay = p.roomNumber ? ` - Leito ${p.roomNumber}` : "";
-              listText += `<div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 15px;">
-                • <a href="/p ${p.id}"><strong>${p.nome}</strong></a><br/>
-                <span style="font-size: 12px; color: #6b7280; margin-left: 14px;">${hName}${roomDisplay}</span>
-              </div>`;
-            });
-          });
-        } else {
-          // GROUP BY STATUS
-          const statusGrouped: Record<string, { id: string, name: string, patients: any[] }> = {};
-          pageData.forEach((p: any) => {
-            const sName = p.status || "Sem Status";
-            const sId = p.statusId?.toString() || "999";
-            if (!statusGrouped[sId]) {
-              statusGrouped[sId] = { id: sId, name: sName, patients: [] };
-            }
-            statusGrouped[sId].patients.push(p);
-          });
-
-          const sortedStatuses = Object.values(statusGrouped).sort((a, b) => {
-            const statusA = masterStatuses.find((s: any) => s.id?.toString() === a.id);
-            const statusB = masterStatuses.find((s: any) => s.id?.toString() === b.id);
-            const orderA = statusA && typeof statusA.sortOrder === "number" ? statusA.sortOrder : 999999;
-            const orderB = statusB && typeof statusB.sortOrder === "number" ? statusB.sortOrder : 999999;
-            if (orderA !== orderB) return orderA - orderB;
-            return a.name.localeCompare(b.name);
-          });
-          sortedStatuses.forEach(({ name: sName, patients }, statusIdx) => {
-            const marginTop = (statusIdx === 0) ? "0px" : "24px";
-            listText += `<div style="font-size: 17px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center; border-left: 4px solid #3b82f6;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
-            patients.forEach(p => {
-              const roomDisplay = p.roomNumber ? ` - Leito ${p.roomNumber}` : "";
-              const hDisplay = p.hospitalName && !isHospFiltered ? p.hospitalName : "";
-              const details = hDisplay || roomDisplay ? `${hDisplay}${roomDisplay}` : "";
-              listText += `<div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 15px;">
-                • <a href="/p ${p.id}"><strong>${p.nome}</strong></a><br/>
-                <span style="font-size: 12px; color: #6b7280; margin-left: 14px;">${details}</span>
-              </div>`;
-            });
-          });
-        }
-
-        if (pageData.length === 0) {
-          listText += "_Nenhum paciente encontrado._\n";
         }
 
         const actionGroups = [];
@@ -1761,7 +1690,8 @@ ${aiPart}
             const hId = h.id.toString();
             return { 
               label: h.nome, 
-              cmd: `/pacientes hospital:${hId} sort:${sort}`
+              cmd: `/pacientes hospital:${hId} sort:${sort}`,
+              active: hospitalFilter === hId
             };
           });
 
@@ -1785,7 +1715,8 @@ ${aiPart}
             const sLabel = typeof s === 'string' ? s : s.nome;
             return { 
               label: sLabel, 
-              cmd: `/pacientes status:${sId} sort:${sort}`
+              cmd: `/pacientes status:${sId} sort:${sort}`,
+              active: statusFilter === sId
             };
           });
 
@@ -1797,9 +1728,25 @@ ${aiPart}
 
         setMessages([{ 
           role: "model", 
-          text: listText + nav,
+          text: "",
           isListing: true,
           listingTitle: "", // User wants to remove the title
+          isPatientListing: true,
+          patientListData: {
+            patients: pageData,
+            statuses: masterStatuses,
+            hospitals: masterHospitalsData,
+            hospitalFilter: hospitalFilter || undefined,
+            statusFilter: statusFilter || undefined,
+            sort,
+            pagination: isFilteringAlta ? {
+              page: pageToView,
+              totalPages: totalPages,
+              hospitalFilter: hospitalFilter || undefined,
+              statusFilter: statusFilter || undefined,
+              sort: sort
+            } : undefined
+          },
           actionGroups
         }]);
         setTimeout(scrollToTop, 0);
@@ -2897,11 +2844,28 @@ ${aiPart}
                     <div className="whitespace-pre-wrap">{msg.text}</div>
                   ) : (
                     <>
-                      <div className="markdown-body prose prose-sm max-w-none [&_p]:mb-5 last:[&_p]:mb-0">
-                        <ReactMarkdown
-                          rehypePlugins={[rehypeSanitize]}
-                          components={{
-                            a({ children, ...props }) {
+                      {msg.isPatientListing && msg.patientListData ? (
+                        <PatientListView
+                          patients={msg.patientListData.patients}
+                          statuses={msg.patientListData.statuses}
+                          hospitals={msg.patientListData.hospitals}
+                          hospitalFilter={msg.patientListData.hospitalFilter}
+                          statusFilter={msg.patientListData.statusFilter}
+                          sort={msg.patientListData.sort}
+                          pagination={msg.patientListData.pagination}
+                          onCommand={(cmd, shouldClear) => handleSend(undefined, cmd, shouldClear)}
+                        />
+                      ) : (
+                        (() => {
+                          const text = msg.text || "";
+                          const idxContatos = text.indexOf("`/novofamiliar");
+                          const idxInformacoes = text.indexOf("`/logpac");
+                          const idxImagens = text.indexOf("`/prep_img");
+
+                          const isSplitNeeded = msg.isProfile && idxContatos !== -1 && idxInformacoes !== -1 && idxImagens !== -1;
+
+                          const mdComponents = {
+                            a({ children, ...props }: any) {
                               const href = props.href;
                               if (href && href.startsWith("/")) {
                                 const isNovoBtn = href === "/iniciarcadastro";
@@ -2928,7 +2892,7 @@ ${aiPart}
                               }
                               return <a {...props} target="_blank" rel="noopener noreferrer">{children}</a>;
                             },
-                            code({ children, ...props }) {
+                            code({ children, ...props }: any) {
                               const content = String(children);
                               const isInline = !props.className;
                               if (isInline && content.startsWith("/")) {
@@ -3049,11 +3013,146 @@ ${aiPart}
                               }
                               return <code {...props}>{children}</code>;
                             }
-                          }}
-                        >
-                          {msg.text}
-                        </ReactMarkdown>
-                      </div>
+                          };
+
+                          if (isSplitNeeded) {
+                            const headerPart = text.substring(0, idxContatos);
+                            const contatosPart = text.substring(idxContatos, idxInformacoes);
+                            const informacoesPart = text.substring(idxInformacoes, idxImagens);
+                            const imagensPart = text.substring(idxImagens);
+
+                            return (
+                              <div className="flex flex-col gap-8">
+                                {headerPart.trim() && (
+                                  <div 
+                                    onClick={(e) => {
+                                      const target = e.target as HTMLElement;
+                                      const anchor = target.closest("a");
+                                      if (anchor) {
+                                        const href = anchor.getAttribute("href");
+                                        if (href && href.startsWith("/")) {
+                                          e.preventDefault();
+                                          const isNovoBtn = href === "/iniciarcadastro";
+                                          const shouldClear = isNovoBtn ||
+                                                              href.startsWith("/p") || 
+                                                              href.startsWith("/edit") || 
+                                                              href.startsWith("/pacientes") ||
+                                                              href.startsWith("/status_alterar");
+                                          handleSend(undefined, href, shouldClear);
+                                        }
+                                      }
+                                    }}
+                                    className="markdown-body prose prose-sm max-w-none [&_p]:mb-1.5 last:[&_p]:mb-0"
+                                  >
+                                    <ReactMarkdown rehypePlugins={[rehypeRaw]} components={mdComponents}>
+                                      {headerPart}
+                                    </ReactMarkdown>
+                                  </div>
+                                )}
+                                <div 
+                                  onClick={(e) => {
+                                    const target = e.target as HTMLElement;
+                                    const anchor = target.closest("a");
+                                    if (anchor) {
+                                      const href = anchor.getAttribute("href");
+                                      if (href && href.startsWith("/")) {
+                                        e.preventDefault();
+                                        const isNovoBtn = href === "/iniciarcadastro";
+                                        const shouldClear = isNovoBtn ||
+                                                            href.startsWith("/p") || 
+                                                            href.startsWith("/edit") || 
+                                                            href.startsWith("/pacientes") ||
+                                                            href.startsWith("/status_alterar");
+                                        handleSend(undefined, href, shouldClear);
+                                      }
+                                    }
+                                  }}
+                                  className="markdown-body prose prose-sm max-w-none [&_p]:mb-1.5 last:[&_p]:mb-0 block"
+                                >
+                                  <ReactMarkdown rehypePlugins={[rehypeRaw]} components={mdComponents}>
+                                    {contatosPart}
+                                  </ReactMarkdown>
+                                </div>
+                                <div 
+                                  onClick={(e) => {
+                                    const target = e.target as HTMLElement;
+                                    const anchor = target.closest("a");
+                                    if (anchor) {
+                                      const href = anchor.getAttribute("href");
+                                      if (href && href.startsWith("/")) {
+                                        e.preventDefault();
+                                        const isNovoBtn = href === "/iniciarcadastro";
+                                        const shouldClear = isNovoBtn ||
+                                                            href.startsWith("/p") || 
+                                                            href.startsWith("/edit") || 
+                                                            href.startsWith("/pacientes") ||
+                                                            href.startsWith("/status_alterar");
+                                        handleSend(undefined, href, shouldClear);
+                                      }
+                                    }
+                                  }}
+                                  className="markdown-body prose prose-sm max-w-none [&_p]:mb-1.5 last:[&_p]:mb-0 block"
+                                >
+                                  <ReactMarkdown rehypePlugins={[rehypeRaw]} components={mdComponents}>
+                                    {informacoesPart}
+                                  </ReactMarkdown>
+                                </div>
+                                <div 
+                                  onClick={(e) => {
+                                    const target = e.target as HTMLElement;
+                                    const anchor = target.closest("a");
+                                    if (anchor) {
+                                      const href = anchor.getAttribute("href");
+                                      if (href && href.startsWith("/")) {
+                                        e.preventDefault();
+                                        const isNovoBtn = href === "/iniciarcadastro";
+                                        const shouldClear = isNovoBtn ||
+                                                            href.startsWith("/p") || 
+                                                            href.startsWith("/edit") || 
+                                                            href.startsWith("/pacientes") ||
+                                                            href.startsWith("/status_alterar");
+                                        handleSend(undefined, href, shouldClear);
+                                      }
+                                    }
+                                  }}
+                                  className="markdown-body prose prose-sm max-w-none [&_p]:mb-1.5 last:[&_p]:mb-0 block"
+                                >
+                                  <ReactMarkdown rehypePlugins={[rehypeRaw]} components={mdComponents}>
+                                    {imagensPart}
+                                  </ReactMarkdown>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div 
+                              onClick={(e) => {
+                                const target = e.target as HTMLElement;
+                                const anchor = target.closest("a");
+                                if (anchor) {
+                                  const href = anchor.getAttribute("href");
+                                  if (href && href.startsWith("/")) {
+                                    e.preventDefault();
+                                    const isNovoBtn = href === "/iniciarcadastro";
+                                    const shouldClear = isNovoBtn ||
+                                                        href.startsWith("/p") || 
+                                                        href.startsWith("/edit") || 
+                                                        href.startsWith("/pacientes") ||
+                                                        href.startsWith("/status_alterar");
+                                    handleSend(undefined, href, shouldClear);
+                                  }
+                                }
+                              }}
+                              className="markdown-body prose prose-sm max-w-none [&_p]:mb-5 last:[&_p]:mb-0"
+                            >
+                              <ReactMarkdown rehypePlugins={[rehypeRaw]} components={mdComponents}>
+                                {msg.text}
+                              </ReactMarkdown>
+                            </div>
+                          );
+                        })()
+                      )}
 
                       {msg.actionGroups && (
                         <div className="mt-6 pt-6 -mx-3 -mb-3 p-4 bg-gray-50/70 border-t border-gray-100 space-y-4">
