@@ -1789,7 +1789,8 @@ ${aiPart}
 
         if (!termo && cmdInput.includes("termo:")) throw new Error("Informe um nome para buscar.");
         
-        const res = await apiFetch("/api/app/patients");
+        const apiUrl = termo ? `/api/app/patients?search=${encodeURIComponent(termo)}` : "/api/app/patients";
+        const res = await apiFetch(apiUrl);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
@@ -1983,7 +1984,7 @@ ${aiPart}
         const cleanFone = f.fone ? f.fone.replace(/\D/g, "") : "";
         const waNumber = cleanFone ? (cleanFone.startsWith("55") ? cleanFone : "55" + cleanFone) : "";
         const foneLink = waNumber 
-          ? `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: none;">📞 <b>${f.fone}</b></a>` 
+          ? `<a href="https://wa.me/${waNumber}" style="color: #2563eb; text-decoration: none;">📞 <b>${f.fone}</b></a>` 
           : "📞 Sem fone";
         return `• **${f.nome}** (${f.relacao})\n  ${foneLink}\n  👤 Paciente: ${f.pacienteNome} (ID: ${f.pacienteId})`;
       }).join("\n\n");
@@ -2770,7 +2771,7 @@ ${aiPart}
               className="flex justify-start"
             >
               <div className="flex gap-3 w-full">
-                <div className={`p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full overflow-y-auto ${msg.isProfile ? 'pt-0 ring-1 ring-blue-100' : ''}`}>
+                <div className={msg.isProfile ? "text-sm w-full overflow-y-auto space-y-6" : `p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full overflow-y-auto`}>
                   {msg.isListing && msg.listingTitle && (
                     <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
                       <h3 className="text-base font-extrabold text-gray-800 tracking-tight">{msg.listingTitle}</h3>
@@ -2785,21 +2786,22 @@ ${aiPart}
                   )}
                   {msg.isProfile && msg.profileData && (
                     <>
-                      <div className="bg-blue-50/80 -mx-4 -mt-2 mb-0 pt-6 pb-5 px-4 flex flex-row items-start justify-between gap-4 border-b border-blue-100 shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-12 -mt-12 blur-2xl"></div>
+                      {/* Patient header card */}
+                      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 flex flex-row items-center justify-between gap-4 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                         
                         {/* Coluna da Esquerda: Nome, Idade e Botão Editar */}
-                        <div className="flex flex-col items-start relative z-10 min-w-0 flex-1 px-1">
-                          <h3 className="text-lg sm:text-xl font-extrabold text-blue-900 tracking-tight leading-tight truncate w-full mb-1">
+                        <div className="flex flex-col items-start relative z-10 min-w-0 flex-1">
+                          <h3 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight leading-tight truncate w-full mb-1.5">
                             {msg.profileData.nome}
                           </h3>
-                          <div className="flex flex-row items-center gap-2.5 mt-0.5">
-                            <span className="text-[11px] font-black text-blue-700 bg-blue-100/50 px-2.5 py-1 rounded-lg shrink-0 uppercase tracking-wider">
+                          <div className="flex flex-row items-center gap-2 mt-0.5">
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg shrink-0 uppercase tracking-wider">
                               {msg.profileData.idade} {Number(msg.profileData.idade) === 1 ? "ANO" : "ANOS"}
                             </span>
                             <button 
                               onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
-                              className="text-[9px] font-black uppercase tracking-wider text-white bg-blue-600/90 [word-spacing:normal] px-3 py-1 rounded-lg hover:bg-blue-700 transition-all shadow-sm active:scale-95 shrink-0"
+                              className="text-[9px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50/50 px-2.5 py-1 rounded-lg hover:bg-blue-100/75 transition-all shrink-0 font-sans"
                             >
                               Editar
                             </button>
@@ -2807,29 +2809,30 @@ ${aiPart}
                         </div>
 
                         {/* Coluna da Direita: Hospital e Quarto */}
-                        <div className="flex flex-col items-end gap-1 relative z-10 shrink-0 text-right px-1 min-w-[100px] max-w-[150px] sm:max-w-[220px]">
-                          <div className="text-[13px] font-extrabold text-blue-950 tracking-tight truncate w-full uppercase" title={msg.profileData?.hospitalNome || "Sem Hospital"}>
+                        <div className="flex flex-col items-end gap-1 relative z-10 shrink-0 text-right min-w-[100px] max-w-[150px] sm:max-w-[220px]">
+                          <div className="text-xs font-bold text-blue-500 tracking-tight truncate w-full uppercase" title={msg.profileData?.hospitalNome || "Sem Hospital"}>
                             {msg.profileData?.hospitalNome || "Sem Hospital"}
                           </div>
-                          <div className="text-[11px] font-bold text-blue-800/80 truncate w-full">
+                          <div className="text-[11px] font-medium text-slate-400 truncate w-full">
                             Quarto: {msg.profileData?.roomNumber || "Não inf."}
                           </div>
                         </div>
                       </div>
 
-                      <div className="px-4 py-3 bg-white border-b border-gray-100 flex flex-row items-center justify-between gap-3 mb-6">
+                      {/* Status and schedule actions */}
+                      <div className="flex flex-row items-center justify-between gap-3">
                         <button 
                           onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
-                          className="w-1/2 bg-blue-50/50 border border-blue-100 h-11 rounded-xl text-blue-700 text-[11px] font-black flex items-center justify-center hover:bg-blue-100/70 transition-all active:scale-95 shadow-sm shadow-blue-500/5"
+                          className="w-1/2 bg-white border border-blue-100 h-11 rounded-2xl text-blue-600 text-xs font-bold uppercase tracking-wider flex items-center justify-center hover:bg-blue-50/40 transition-all active:scale-95 shadow-sm"
                         >
-                          <span className="max-w-[125px] sm:max-w-none truncate px-1 uppercase">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
+                          <span className="max-w-[125px] sm:max-w-none truncate px-1">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
                         </button>
                         <button 
                           onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}, type: ${msg.profileData?.surgery_type}, procedure: ${msg.profileData?.procedure || ""}`)}
-                          className="w-1/2 bg-emerald-600 text-white h-11 rounded-xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                          className="w-1/2 bg-emerald-600 text-white h-11 rounded-2xl shadow-lg shadow-emerald-500/10 hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] text-xs font-bold uppercase tracking-wider"
                         >
                           <CalendarPlus size={16} className="text-emerald-100 shrink-0" />
-                          <span className="text-[10px] font-black uppercase tracking-tight truncate px-1">Agendar Novo</span>
+                          <span className="truncate px-1 font-bold">Agendar Novo</span>
                         </button>
                       </div>
                     </>
@@ -2884,14 +2887,28 @@ ${aiPart}
                                       : href.startsWith("/status_alterar")
                                         ? "text-gray-900 font-bold text-[15px] cursor-pointer hover:text-blue-700"
                                         : "text-blue-600 hover:underline cursor-pointer font-normal"
-                                    }
-                                  >
-                                    {children}
-                                  </span>
-                                );
-                              }
-                              return <a {...props} target="_blank" rel="noopener noreferrer">{children}</a>;
-                            },
+                                      }
+                                    >
+                                      {children}
+                                    </span>
+                                  );
+                                }
+                               if (href && href.includes("wa.me/")) {
+                                 return (
+                                   <a
+                                     {...props}
+                                     onClick={(e) => {
+                                       e.preventDefault();
+                                       window.location.href = href;
+                                     }}
+                                     className="text-blue-600 hover:underline inline-flex items-center gap-1 font-medium"
+                                   >
+                                     {children}
+                                   </a>
+                                 );
+                               }
+                               return <a {...props} target="_blank" rel="noopener noreferrer">{children}</a>;
+                             },
                             code({ children, ...props }: any) {
                               const content = String(children);
                               const isInline = !props.className;
@@ -3021,106 +3038,433 @@ ${aiPart}
                             const informacoesPart = text.substring(idxInformacoes, idxImagens);
                             const imagensPart = text.substring(idxImagens);
 
+                            // Helper parsers:
+                            const parseSectionPart = (partText: string) => {
+                              const firstBacktick = partText.indexOf('`');
+                              if (firstBacktick === -1) return null;
+                              const secondBacktick = partText.indexOf('`', firstBacktick + 1);
+                              if (secondBacktick === -1) return null;
+
+                              const command = partText.substring(firstBacktick + 1, secondBacktick).trim();
+                              
+                              const afterBacktick = partText.substring(secondBacktick + 1);
+                              const titleMatch = afterBacktick.match(/\*\*([^*]+)\*\*/);
+                              const title = titleMatch ? titleMatch[1].replace(":", "").trim() : "Seção";
+
+                              let content = afterBacktick;
+                              if (titleMatch) {
+                                const titleIndex = afterBacktick.indexOf(titleMatch[0]);
+                                content = afterBacktick.substring(titleIndex + titleMatch[0].length);
+                              }
+
+                              return {
+                                command,
+                                title,
+                                content: content.trim()
+                              };
+                            };
+
+                            const parseContatos = (contText: string) => {
+                              const lines = contText.split('\n').map(l => l.trim()).filter(Boolean);
+                              const items: { name: string; phoneLinkText: string; waUrl: string; editCmd?: string; trashCmd?: string }[] = [];
+                              
+                              let currentItem: any = null;
+
+                              for (let i = 0; i < lines.length; i++) {
+                                const line = lines[i];
+                                if (line.toLowerCase().includes("nenhum registro")) {
+                                  continue;
+                                }
+
+                                const waMatchSimple = line.match(/\*\*([^*]+)\*\*(?:\s+\(([^)]+)\))?\s*(?:\[📞\s*\*\*([^*]+)\*\*\]\(([^)]+)\)|📞\s*(Sem\s+telefone))/i);
+
+                                if (waMatchSimple) {
+                                  if (currentItem) {
+                                    items.push(currentItem);
+                                  }
+                                  const rawName = waMatchSimple[1].trim();
+                                  const relation = waMatchSimple[2]?.trim() || "";
+                                  const phoneVal = waMatchSimple[3]?.trim() || waMatchSimple[5]?.trim() || "";
+                                  const urlVal = waMatchSimple[4]?.trim() || "";
+                                  
+                                  const fullName = relation ? `${rawName} (${relation})` : rawName;
+
+                                  currentItem = {
+                                    name: fullName,
+                                    phoneLinkText: phoneVal,
+                                    waUrl: urlVal,
+                                  };
+                                } else if (line.includes("/editar_familiar") || line.includes("/remover_familiar")) {
+                                  if (currentItem) {
+                                    const editMatch = line.match(/`(\/editar_familiar[^`]+)`/);
+                                    const trashMatch = line.match(/`(\/remover_familiar[^`]+)`/);
+                                    if (editMatch) currentItem.editCmd = editMatch[1];
+                                    if (trashMatch) currentItem.trashCmd = trashMatch[1];
+                                  }
+                                }
+                              }
+
+                              if (currentItem) {
+                                items.push(currentItem);
+                              }
+
+                              return items;
+                            };
+
+                            const parseInformacoes = (infText: string) => {
+                              const lines = infText.split('\n').map(l => l.trim()).filter(Boolean);
+                              const items: { content: string; date: string; editCmd?: string; trashCmd?: string }[] = [];
+                              
+                              let currentItem: any = null;
+
+                              for (let i = 0; i < lines.length; i++) {
+                                const line = lines[i];
+                                if (line.toLowerCase().includes("nenhum registro")) {
+                                  continue;
+                                }
+
+                                const contentMatch = line.match(/^\*\*([^*]+)\*\*$/);
+                                const dateMatch = line.match(/^_([^_]+)_$/);
+
+                                if (contentMatch) {
+                                  if (currentItem) {
+                                    items.push(currentItem);
+                                  }
+                                  currentItem = {
+                                    content: contentMatch[1].trim(),
+                                    date: "",
+                                  };
+                                } else if (dateMatch && currentItem) {
+                                  currentItem.date = dateMatch[1].trim();
+                                } else if (line.includes("/editar_log") || line.includes("/remover_informacao")) {
+                                  if (currentItem) {
+                                    const editMatch = line.match(/`(\/editar_log[^`]+)`/);
+                                    const trashMatch = line.match(/`(\/remover_informacao[^`]+)`/);
+                                    if (editMatch) currentItem.editCmd = editMatch[1];
+                                    if (trashMatch) currentItem.trashCmd = trashMatch[1];
+                                  }
+                                }
+                              }
+
+                              if (currentItem) {
+                                items.push(currentItem);
+                              }
+
+                              return items;
+                            };
+
+                            const parseImagens = (imgText: string) => {
+                              const blocks = imgText.split('---').map(b => b.trim()).filter(Boolean);
+                              const items: { src: string; alt: string; date: string; trashCmd?: string; aiAnalysis?: string }[] = [];
+
+                              blocks.forEach(block => {
+                                if (block.toLowerCase().includes("nenhum registro")) {
+                                  return;
+                                }
+                                const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+                                let src = "";
+                                let alt = "";
+                                let date = "";
+                                let trashCmd = "";
+                                let aiAnalysis = "";
+
+                                const imgMatch = block.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+                                if (imgMatch) {
+                                  alt = imgMatch[1];
+                                  src = imgMatch[2];
+                                }
+
+                                const descMatch = block.match(/\*\*([^*]+)\*\*/);
+                                if (descMatch) {
+                                  const parsedDesc = descMatch[1].trim();
+                                  if (!alt && parsedDesc) alt = parsedDesc;
+                                }
+
+                                const dateMatch = block.match(/_([^_~]+)_/);
+                                if (dateMatch) {
+                                  date = dateMatch[1].trim();
+                                }
+
+                                const trashMatch = block.match(/`(\/remover_imagem[^`]+)`/);
+                                if (trashMatch) {
+                                  trashCmd = trashMatch[1];
+                                }
+
+                                const aiLines = lines.filter(l => l.startsWith(">"));
+                                if (aiLines.length > 0) {
+                                  aiAnalysis = aiLines
+                                    .map(l => l.replace(/^>\s*/, "").replace(/🤖\s*\*\*Análise Inteligente:\*\*/, "").trim())
+                                    .filter(Boolean)
+                                    .join("\n");
+                                }
+
+                                if (src || alt) {
+                                  items.push({ src, alt, date, trashCmd, aiAnalysis });
+                                }
+                              });
+
+                              return items;
+                            };
+
+                            const contatosData = parseSectionPart(contatosPart);
+                            const informacoesData = parseSectionPart(informacoesPart);
+                            const imagensData = parseSectionPart(imagensPart);
+
+                            const contatosItems = contatosData ? parseContatos(contatosData.content) : [];
+                            const informacoesItems = informacoesData ? parseInformacoes(informacoesData.content) : [];
+                            const imagensItems = imagensData ? parseImagens(imagensData.content) : [];
+
                             return (
-                              <div className="flex flex-col gap-8">
+                              <div className="flex flex-col gap-6">
                                 {headerPart.trim() && (
                                   <div 
-                                    onClick={(e) => {
-                                      const target = e.target as HTMLElement;
-                                      const anchor = target.closest("a");
-                                      if (anchor) {
-                                        const href = anchor.getAttribute("href");
-                                        if (href && href.startsWith("/")) {
-                                          e.preventDefault();
-                                          const isNovoBtn = href === "/iniciarcadastro";
-                                          const shouldClear = isNovoBtn ||
-                                                              href.startsWith("/p") || 
-                                                              href.startsWith("/edit") || 
-                                                              href.startsWith("/pacientes") ||
-                                                              href.startsWith("/status_alterar");
-                                          handleSend(undefined, href, shouldClear);
-                                        }
-                                      }
-                                    }}
-                                    className="markdown-body prose prose-sm max-w-none [&_p]:mb-1.5 last:[&_p]:mb-0"
+                                    className="markdown-body prose prose-sm max-w-none [&_p]:mb-1.5 last:[&_p]:mb-0 bg-white rounded-3xl border border-gray-100 shadow-sm p-4"
                                   >
                                     <ReactMarkdown rehypePlugins={[rehypeRaw]} components={mdComponents}>
                                       {headerPart}
                                     </ReactMarkdown>
                                   </div>
                                 )}
-                                <div 
-                                  onClick={(e) => {
-                                    const target = e.target as HTMLElement;
-                                    const anchor = target.closest("a");
-                                    if (anchor) {
-                                      const href = anchor.getAttribute("href");
-                                      if (href && href.startsWith("/")) {
-                                        e.preventDefault();
-                                        const isNovoBtn = href === "/iniciarcadastro";
-                                        const shouldClear = isNovoBtn ||
-                                                            href.startsWith("/p") || 
-                                                            href.startsWith("/edit") || 
-                                                            href.startsWith("/pacientes") ||
-                                                            href.startsWith("/status_alterar");
-                                        handleSend(undefined, href, shouldClear);
-                                      }
-                                    }
-                                  }}
-                                  className="markdown-body prose prose-sm max-w-none [&_p]:mb-1.5 last:[&_p]:mb-0 block"
-                                >
-                                  <ReactMarkdown rehypePlugins={[rehypeRaw]} components={mdComponents}>
-                                    {contatosPart}
-                                  </ReactMarkdown>
-                                </div>
-                                <div 
-                                  onClick={(e) => {
-                                    const target = e.target as HTMLElement;
-                                    const anchor = target.closest("a");
-                                    if (anchor) {
-                                      const href = anchor.getAttribute("href");
-                                      if (href && href.startsWith("/")) {
-                                        e.preventDefault();
-                                        const isNovoBtn = href === "/iniciarcadastro";
-                                        const shouldClear = isNovoBtn ||
-                                                            href.startsWith("/p") || 
-                                                            href.startsWith("/edit") || 
-                                                            href.startsWith("/pacientes") ||
-                                                            href.startsWith("/status_alterar");
-                                        handleSend(undefined, href, shouldClear);
-                                      }
-                                    }
-                                  }}
-                                  className="markdown-body prose prose-sm max-w-none [&_p]:mb-1.5 last:[&_p]:mb-0 block"
-                                >
-                                  <ReactMarkdown rehypePlugins={[rehypeRaw]} components={mdComponents}>
-                                    {informacoesPart}
-                                  </ReactMarkdown>
-                                </div>
-                                <div 
-                                  onClick={(e) => {
-                                    const target = e.target as HTMLElement;
-                                    const anchor = target.closest("a");
-                                    if (anchor) {
-                                      const href = anchor.getAttribute("href");
-                                      if (href && href.startsWith("/")) {
-                                        e.preventDefault();
-                                        const isNovoBtn = href === "/iniciarcadastro";
-                                        const shouldClear = isNovoBtn ||
-                                                            href.startsWith("/p") || 
-                                                            href.startsWith("/edit") || 
-                                                            href.startsWith("/pacientes") ||
-                                                            href.startsWith("/status_alterar");
-                                        handleSend(undefined, href, shouldClear);
-                                      }
-                                    }
-                                  }}
-                                  className="markdown-body prose prose-sm max-w-none [&_p]:mb-1.5 last:[&_p]:mb-0 block"
-                                >
-                                  <ReactMarkdown rehypePlugins={[rehypeRaw]} components={mdComponents}>
-                                    {imagensPart}
-                                  </ReactMarkdown>
-                                </div>
+
+                                {/* --- SECTION CARD: CONTATOS --- */}
+                                {contatosData && (
+                                  <div className="bg-white rounded-[1.25rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                                    {/* Section Header */}
+                                    <div className="bg-blue-50/50 px-5 py-3.5 border-b border-blue-100/50 flex items-center gap-3">
+                                      <button
+                                        onClick={() => {
+                                          handleSend(undefined, contatosData.command, false);
+                                        }}
+                                        className="bg-blue-600 text-white w-7 h-7 flex items-center justify-center rounded-full hover:bg-blue-700 transition-all font-bold shadow-md shadow-blue-500/20 shrink-0"
+                                      >
+                                        <Plus size={14} strokeWidth={3} />
+                                      </button>
+                                      <span className="text-sm font-bold text-blue-900 uppercase tracking-wider font-sans">
+                                        {contatosData.title}
+                                      </span>
+                                    </div>
+
+                                    {/* Section Content */}
+                                    <div className="p-5 flex flex-col gap-4">
+                                      {contatosItems.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic font-medium">Nenhum registro</p>
+                                      ) : (
+                                        contatosItems.map((c, idx) => (
+                                          <div key={idx} className="flex flex-col gap-2 pb-4 last:pb-0 border-b border-gray-50 last:border-0">
+                                            <div className="flex flex-row items-center justify-between gap-4">
+                                              <div className="flex flex-col min-w-0 flex-1">
+                                                <span className="font-semibold text-slate-800 text-sm leading-snug">
+                                                  {c.name}
+                                                </span>
+                                                {c.phoneLinkText && (
+                                                  c.waUrl ? (
+                                                    <a 
+                                                      href={c.waUrl}
+                                                      onClick={(e) => {
+                                                        e.preventDefault();
+                                                        window.location.href = c.waUrl;
+                                                      }}
+                                                      className="text-xs font-medium text-blue-600 hover:underline inline-flex items-center gap-1 mt-0.5"
+                                                    >
+                                                      📞 {c.phoneLinkText}
+                                                    </a>
+                                                  ) : (
+                                                    <span className="text-xs text-slate-400 mt-0.5">
+                                                      {c.phoneLinkText}
+                                                    </span>
+                                                  )
+                                                )}
+                                              </div>
+
+                                              {/* Action Buttons */}
+                                              <div className="flex items-center gap-1.5 shrink-0">
+                                                {c.editCmd && (
+                                                  <button
+                                                    onClick={() => handleDirectCommand(c.editCmd!)}
+                                                    className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100/70 transition-all font-sans text-xs active:scale-90"
+                                                    title="Editar Familiar"
+                                                  >
+                                                    ✏️
+                                                  </button>
+                                                )}
+                                                {c.trashCmd && (
+                                                  <button
+                                                    onClick={() => {
+                                                      setConfirmCommand({
+                                                        title: "Remover este contato do histórico?",
+                                                        cmd: c.trashCmd!,
+                                                        shouldClear: false
+                                                      });
+                                                    }}
+                                                    className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100/70 transition-all font-sans text-xs active:scale-90"
+                                                    title="Remover Familiar"
+                                                  >
+                                                    🗑️
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* --- SECTION CARD: INFORMAÇÕES --- */}
+                                {informacoesData && (
+                                  <div className="bg-white rounded-[1.25rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                                    {/* Section Header */}
+                                    <div className="bg-blue-50/50 px-5 py-3.5 border-b border-blue-100/50 flex items-center gap-3">
+                                      <button
+                                        onClick={() => {
+                                          handleSend(undefined, informacoesData.command, false);
+                                        }}
+                                        className="bg-blue-600 text-white w-7 h-7 flex items-center justify-center rounded-full hover:bg-blue-700 transition-all font-bold shadow-md shadow-blue-500/20 shrink-0"
+                                      >
+                                        <Plus size={14} strokeWidth={3} />
+                                      </button>
+                                      <span className="text-sm font-bold text-blue-900 uppercase tracking-wider font-sans">
+                                        {informacoesData.title}
+                                      </span>
+                                    </div>
+
+                                    {/* Section Content */}
+                                    <div className="p-5 flex flex-col gap-4">
+                                      {informacoesItems.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic font-medium">Nenhum registro</p>
+                                      ) : (
+                                        informacoesItems.map((inf, idx) => (
+                                          <div key={idx} className="flex flex-col gap-2 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
+                                            <div className="flex flex-row items-start justify-between gap-4">
+                                              <div className="flex flex-col min-w-0 flex-1">
+                                                <p className="text-sm text-slate-700 font-medium leading-relaxed break-words whitespace-pre-wrap">
+                                                  {inf.content}
+                                                </p>
+                                                {inf.date && (
+                                                  <span className="text-[11px] font-medium text-slate-400 mt-1">
+                                                    {inf.date}
+                                                  </span>
+                                                )}
+                                              </div>
+
+                                              {/* Action Buttons */}
+                                              <div className="flex items-center gap-1.5 shrink-0">
+                                                {inf.editCmd && (
+                                                  <button
+                                                    onClick={() => handleDirectCommand(inf.editCmd!)}
+                                                    className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100/70 transition-all font-sans text-xs active:scale-90"
+                                                    title="Editar Informação"
+                                                  >
+                                                    ✏️
+                                                  </button>
+                                                )}
+                                                {inf.trashCmd && (
+                                                  <button
+                                                    onClick={() => {
+                                                      setConfirmCommand({
+                                                        title: "Remover esta informação do histórico?",
+                                                        cmd: inf.trashCmd!,
+                                                        shouldClear: false
+                                                      });
+                                                    }}
+                                                    className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100/70 transition-all font-sans text-xs active:scale-90"
+                                                    title="Remover Informação"
+                                                  >
+                                                    🗑️
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* --- SECTION CARD: IMAGENS --- */}
+                                {imagensData && (
+                                  <div className="bg-white rounded-[1.25rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                                    {/* Section Header */}
+                                    <div className="bg-blue-50/50 px-5 py-3.5 border-b border-blue-100/50 flex items-center gap-3">
+                                      <button
+                                        onClick={() => {
+                                          handleSend(undefined, imagensData.command, false);
+                                        }}
+                                        className="bg-blue-600 text-white w-7 h-7 flex items-center justify-center rounded-full hover:bg-blue-700 transition-all font-bold shadow-md shadow-blue-500/20 shrink-0"
+                                      >
+                                        <Plus size={14} strokeWidth={3} />
+                                      </button>
+                                      <span className="text-sm font-bold text-blue-900 uppercase tracking-wider font-sans">
+                                        {imagensData.title}
+                                      </span>
+                                    </div>
+
+                                    {/* Section Content */}
+                                    <div className="p-5 flex flex-col gap-5">
+                                      {imagensItems.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic font-medium">Nenhum registro</p>
+                                      ) : (
+                                        imagensItems.map((img, idx) => (
+                                          <div key={idx} className="flex flex-col gap-3 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
+                                            {img.src && (
+                                              <img 
+                                                src={img.src} 
+                                                alt={img.alt || "Imagem de exame"} 
+                                                referrerPolicy="no-referrer"
+                                                className="rounded-xl w-full max-h-[300px] object-cover shadow-sm border border-gray-100" 
+                                              />
+                                            )}
+                                            
+                                            <div className="flex flex-row items-center justify-between gap-4">
+                                              <div className="flex flex-col min-w-0 flex-1">
+                                                <span className="font-semibold text-slate-800 text-sm leading-snug">
+                                                  {img.alt || "Sem descrição"}
+                                                </span>
+                                                {img.date && (
+                                                  <span className="text-[11px] font-medium text-slate-400 mt-1">
+                                                    {img.date}
+                                                  </span>
+                                                )}
+                                              </div>
+
+                                              {/* Action Buttons */}
+                                              <div className="flex items-center gap-1.5 shrink-0">
+                                                {img.trashCmd && (
+                                                  <button
+                                                    onClick={() => {
+                                                      setConfirmCommand({
+                                                        title: "Remover esta imagem?",
+                                                        cmd: img.trashCmd!,
+                                                        shouldClear: false
+                                                      });
+                                                    }}
+                                                    className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100/70 transition-all font-sans text-xs active:scale-90"
+                                                    title="Remover Imagem"
+                                                  >
+                                                    🗑️
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            {img.aiAnalysis && (
+                                              <div className="bg-blue-50/10 border border-blue-50/50 rounded-2xl p-3.5 text-xs text-slate-600 mt-1 flex flex-col gap-1.5">
+                                                <span className="font-bold text-blue-800 flex items-center gap-1">
+                                                  🤖 Análise Inteligente:
+                                                </span>
+                                                <p className="whitespace-pre-wrap leading-relaxed">
+                                                  {img.aiAnalysis}
+                                                </p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           }

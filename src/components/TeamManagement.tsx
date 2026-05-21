@@ -106,7 +106,7 @@ export function TeamManagement() {
              onClick={() => {
                const text = `Olá! Convidei você para participar do grupo "${activeGroup.name}" no sistema ${companyName}. 🩺\n\nAcesse para aceitar o convite: ${window.location.origin}`;
                const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-               window.open(url, '_blank');
+               window.location.href = url;
              }}
              className="w-8 h-8 flex items-center justify-center bg-emerald-100 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl transition-all shrink-0"
              title="Enviar convite por WhatsApp"
@@ -418,7 +418,7 @@ export function TeamManagement() {
                           onClick={() => {
                             const text = `Olá! Convidei você para participar do grupo "${activeGroup.name}" no sistema ${companyName}. 🩺\n\nAcesse para aceitar o convite: ${window.location.origin}`;
                             const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-                            window.open(url, '_blank');
+                            window.location.href = url;
                           }}
                           className="w-full bg-emerald-600 text-white px-4 py-3 rounded-xl font-black text-xs hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg shadow-emerald-100"
                         >

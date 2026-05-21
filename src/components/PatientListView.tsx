@@ -1,5 +1,6 @@
-import React from "react";
-import { Building2, Bed, Activity, ArrowLeft, ArrowRight, Plus, MapPin, User, FileText, ChevronRight } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Building2, Bed, Activity, ArrowLeft, ArrowRight, Plus, MapPin, User, FileText, ChevronRight, Search } from "lucide-react";
+import { useGroup } from "../contexts/GroupContext";
 
 interface Patient {
   id: string;
@@ -51,8 +52,65 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
   pagination,
   onCommand
 }) => {
+  const { activeGroup, apiFetch } = useGroup();
+  const [localPatients, setLocalPatients] = useState<Patient[]>(patients);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLocalPatients(patients);
+    setSearchTerm("");
+  }, [patients]);
+
+  const fetchPatients = async (searchVal: string) => {
+    setLoading(true);
+    try {
+      let apiUrl = "/api/app/patients?full=true";
+
+      if (searchVal.trim()) {
+        apiUrl += `&search=${encodeURIComponent(searchVal.trim())}`;
+      }
+
+      if (hospitalFilter) {
+        apiUrl += `&hospitalId=${encodeURIComponent(hospitalFilter)}`;
+      }
+
+      if (statusFilter) {
+        apiUrl += `&statusId=${encodeURIComponent(statusFilter)}`;
+      }
+
+      const res = await apiFetch(apiUrl);
+      const data = await res.json();
+      
+      if (data && data.patients) {
+        setLocalPatients(data.patients);
+      } else if (Array.isArray(data)) {
+        setLocalPatients(data);
+      }
+    } catch (err) {
+      console.error("Error fetching patients with search:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchPatients(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, activeGroup?.id, hospitalFilter, statusFilter]);
+
   const isHospFiltered = hospitalFilter && hospitalFilter !== "1";
   const isStatusFiltered = statusFilter && statusFilter !== "1";
+
+  const searchedPatients = localPatients;
 
   const getStatusStyles = (statusName: string) => {
     const s = (statusName || "").toLowerCase();
@@ -166,11 +224,35 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
         )}
       </div>
 
-      {patients.length === 0 ? (
+      {/* Buscar field */}
+      <div className="relative">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Buscar paciente..."
+          className="w-full rounded-2xl border border-gray-100 bg-white pl-11 pr-4 py-3 text-sm font-semibold text-gray-800 shadow-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all font-sans"
+        />
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+          <Search size={18} />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
+          <Activity size={32} className="mx-auto text-blue-500 mb-2 animate-spin text-blue-500" />
+          <p className="text-gray-500 text-sm font-medium">Buscando pacientes...</p>
+        </div>
+      ) : patients.length === 0 ? (
         <div className="text-center py-12 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
           <Activity size={32} className="mx-auto text-gray-400 mb-2 animate-pulse" />
           <p className="text-gray-500 text-sm font-medium">Nenhum paciente encontrado.</p>
           <p className="text-gray-400 text-xs mt-1">Tente ajustar seus filtros de pesquisa acima.</p>
+        </div>
+      ) : searchedPatients.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
+          <Activity size={32} className="mx-auto text-gray-400 mb-2 animate-pulse" />
+          <p className="text-gray-500 text-sm font-medium">Nenhum paciente encontrado para esta busca.</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -178,7 +260,7 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
             // Group by Hospital
             (() => {
               const hospitalGrouped: Record<string, { id: string, name: string, list: Patient[] }> = {};
-              patients.forEach((p) => {
+              searchedPatients.forEach((p) => {
                 const hName = p.hospitalName || "Sem Hospital";
                 const hId = p.hospitalId?.toString() || "999";
                 if (!hospitalGrouped[hId]) {
@@ -234,7 +316,7 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
             // Group by Status (Default view)
             (() => {
               const statusGrouped: Record<string, { id: string, name: string, list: Patient[] }> = {};
-              patients.forEach((p) => {
+              searchedPatients.forEach((p) => {
                 const sName = p.status || "Sem Status";
                 const sId = p.statusId?.toString() || "999";
                 if (!statusGrouped[sId]) {

@@ -175,7 +175,7 @@ export function GoogleAgenda() {
 
     const encodedMessage = encodeURIComponent(message);
     const waUrl = `https://wa.me/?text=${encodedMessage}`;
-    window.open(waUrl, "_blank");
+    window.location.href = waUrl;
   };
 
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();

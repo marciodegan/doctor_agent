@@ -320,7 +320,7 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ onBack }) => {
     const fullMessage = encodeURIComponent(textHeader + textBody);
     
     const url = `https://wa.me/${phoneToSend}?text=${fullMessage}`;
-    window.open(url, "_blank");
+    window.location.href = url;
   };
 
   // Save number config and trigger wa.me

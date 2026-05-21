@@ -842,6 +842,14 @@ app.post("/api/app/patient-contacts", async (req, res) => {
   }
 });
 
+const normalizeText = (value = "") =>
+  value
+    .toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
 app.get("/api/app/patients", async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
@@ -896,7 +904,7 @@ app.get("/api/app/patients", async (req, res) => {
     const hMap = Object.fromEntries(hospitalsSnap.docs.map(doc => [doc.id, doc.data().name]));
     const sMap = Object.fromEntries(statusesSnap.docs.map(doc => [doc.id, doc.data().name]));
 
-    const patients = patientsSnap.docs.map(doc => {
+    let patients = patientsSnap.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -906,6 +914,16 @@ app.get("/api/app/patients", async (req, res) => {
         status: sMap[data.statusId] || data.statusId || "Não informado"
       };
     });
+
+    const normalizedSearch = normalizeText((req.query.search || req.query.q || "") as string);
+    if (normalizedSearch) {
+      patients = patients.filter(patient => {
+        const patientName = normalizeText((patient as any).nome || (patient as any).name || "");
+        return patientName.includes(normalizedSearch);
+      });
+    }
+
+    // Optimization for the future: create nameNormalized and searchTokens fields when creating/updating patient, then use indexed Firestore queries.
 
     if (req.query.full === "true") {
       const sortedStatuses = statusesSnap.docs.map(d => {

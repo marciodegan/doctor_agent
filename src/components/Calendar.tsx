@@ -271,19 +271,7 @@ export function Calendar({
     const encodedMessage = encodeURIComponent(message);
     const waUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
     
-    // Try window.open first
-    const waWindow = window.open(waUrl, "_blank");
-    
-    // Fallback if blocked
-    if (!waWindow || waWindow.closed || typeof waWindow.closed === "undefined") {
-      const link = document.createElement("a");
-      link.href = waUrl;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    window.location.href = waUrl;
   };
 
   const handlePrevMonth = () => {
