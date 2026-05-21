@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -345,6 +345,8 @@ export const Chat: React.FC<{
   const [lastProcessedFile, setLastProcessedFile] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const shouldScrollTopRef = useRef(false);
 
   const [confirmCommand, setConfirmCommand] = useState<{ title: string, cmd: string, shouldClear?: boolean } | null>(null);
 
@@ -502,32 +504,87 @@ export const Chat: React.FC<{
     window.location.reload();
   };
 
-  useEffect(() => {
-    const mainElement = document.querySelector("main");
-    if (mainElement) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage?.isListing) {
-        // If it's a listing (like patient table), scroll to top of main to see the title/actions
-        mainElement.scrollTo({
-          top: 0,
-          behavior: "smooth"
-        });
-      } else {
-        // Normal chat messages scroll to bottom
-        mainElement.scrollTo({
-          top: mainElement.scrollHeight,
-          behavior: "smooth"
-        });
-      }
-    }
-  }, [messages, isLoading]);
+  const getScrollTargets = () => {
+    const targets = [
+      chatContainerRef.current,
+      document.querySelector("main"),
+      document.scrollingElement,
+      document.documentElement,
+      document.body
+    ];
+
+    return targets.filter(Boolean) as HTMLElement[];
+  };
+
+  const runAfterPaint = (fn: () => void) => {
+    fn();
+
+    requestAnimationFrame(() => {
+      fn();
+
+      requestAnimationFrame(() => {
+        fn();
+      });
+    });
+
+    setTimeout(fn, 80);
+    setTimeout(fn, 250);
+  };
 
   const scrollToTop = () => {
-    const mainElement = document.querySelector("main");
-    if (mainElement) {
-      mainElement.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    runAfterPaint(() => {
+      getScrollTargets().forEach((el) => {
+        try {
+          el.scrollTo({
+            top: 0,
+            left: 0,
+            behavior: "auto"
+          });
+          el.scrollTop = 0;
+        } catch {
+          el.scrollTop = 0;
+        }
+      });
+    });
   };
+
+  const scrollToBottom = () => {
+    runAfterPaint(() => {
+      const target = chatContainerRef.current || document.querySelector("main") || document.scrollingElement;
+      if (!target) return;
+
+      target.scrollTo({
+        top: target.scrollHeight,
+        behavior: "smooth"
+      });
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (messages.length === 0) return;
+
+    const lastMessage = messages[messages.length - 1];
+
+    const shouldScrollToTop =
+      shouldScrollTopRef.current ||
+      lastMessage?.isListing ||
+      lastMessage?.isProfile ||
+      lastMessage?.form !== undefined ||
+      lastMessage?.actionGroups !== undefined ||
+      (lastMessage?.text && (
+        lastMessage.text.includes("Alterar Status") ||
+        lastMessage.text.includes("Adicionar Info") ||
+        lastMessage.text.includes("Novo Contato") ||
+        lastMessage.text.includes("Anexar Imagem")
+      ));
+
+    if (shouldScrollToTop) {
+      scrollToTop();
+      shouldScrollTopRef.current = false;
+    } else {
+      scrollToBottom();
+    }
+  }, [messages]);
 
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve) => {
@@ -2542,6 +2599,9 @@ export const Chat: React.FC<{
   const handleSend = async (e?: React.FormEvent, customPrompt?: string, forceClear?: boolean) => {
     e?.preventDefault();
     const promptToSend = customPrompt || input;
+    if (customPrompt && (forceClear || customPrompt.startsWith("/"))) {
+      shouldScrollTopRef.current = true;
+    }
     if (!promptToSend.trim() && !selectedImage || isLoading) return;
 
     if (customPrompt) {
@@ -2643,7 +2703,8 @@ export const Chat: React.FC<{
 
   return (
     <div 
-      id="nexus-chat" 
+      id="nexus-chat"
+      ref={chatContainerRef}
       className="flex flex-col min-h-screen bg-white rounded-2xl shadow-xl border border-gray-100 relative overflow-y-auto"
       style={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))" }}
     >
