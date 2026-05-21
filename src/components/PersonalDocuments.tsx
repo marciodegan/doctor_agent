@@ -107,6 +107,24 @@ export const PersonalDocuments: React.FC = () => {
             setFiles(Array.isArray(filesData) ? filesData : []);
           } else {
             if (filesRes.status === 401 || filesRes.status === 403) {
+              // Try auto-heal self-share
+              if (user?.email) {
+                console.log("[Drive] Auto-healing: self-share on load for", user.email);
+                const shareRes = await apiFetch("/api/drive/share", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email: user.email })
+                });
+                if (shareRes.ok) {
+                  const retryRes = await apiFetch(`/api/drive/list?mainFolderId=${configData.mainFolderId}&parentFolderId=${configData.mainFolderId}`);
+                  if (retryRes.ok) {
+                    const retryData = await retryRes.json();
+                    setFiles(Array.isArray(retryData) ? retryData : []);
+                    setIsLoadingFiles(false);
+                    return;
+                  }
+                }
+              }
               setNeedsLogin(true);
               setError("Sua sessão do Google expirou ou não está autorizada. Por favor, conecte para visualizar estes arquivos.");
             } else {
@@ -157,6 +175,23 @@ export const PersonalDocuments: React.FC = () => {
         setFiles(Array.isArray(filesData) ? filesData : []);
       } else {
         if (filesRes.status === 401 || filesRes.status === 403) {
+          if (user?.email) {
+            console.log("[Drive] Auto-healing: self-share during navigation for", user.email);
+            const shareRes = await apiFetch("/api/drive/share", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: user.email })
+            });
+            if (shareRes.ok) {
+              const retryRes = await apiFetch(`/api/drive/list?mainFolderId=${config.mainFolderId}&parentFolderId=${folderId}`);
+              if (retryRes.ok) {
+                const retryData = await retryRes.json();
+                setFiles(Array.isArray(retryData) ? retryData : []);
+                setIsLoadingFiles(false);
+                return;
+              }
+            }
+          }
           setNeedsLogin(true);
           setError("Sua sessão do Google Drive expirou. Por favor, conecte sua conta Google.");
         } else {

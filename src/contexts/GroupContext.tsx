@@ -808,7 +808,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       const userSnap = await getDoc(doc(db, "users", user.uid));
       const profile = userSnap.exists() ? userSnap.data() : {};
 
-      const groupRef = await addDoc(collection(db, "groups"), {
+      const isPersonal = type === "personal";
+      const initialGroupData: any = {
         name,
         groupType: type,
         createdBy: user.uid,
@@ -816,7 +817,17 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         status: "active",
         active: true,
         ativo: true,
-      });
+      };
+
+      if (isPersonal) {
+        initialGroupData.driveRootFolderId = null;
+        initialGroupData.driveRootFolderName = null;
+        initialGroupData.driveOwnerUserId = null;
+        initialGroupData.driveOwnerEmail = null;
+        initialGroupData.driveInitialized = false;
+      }
+
+      const groupRef = await addDoc(collection(db, "groups"), initialGroupData);
 
       const groupId = groupRef.id;
       // Update the doc with its own ID for easier querying later
@@ -845,33 +856,6 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
 
       // Set as active
       setActiveGroupId(groupId);
-
-      // --- Drive Automation ---
-      if (type === "personal") {
-        try {
-          console.log("[Drive] Triggering automatic setup for personal group:", name);
-          const driveRes = await apiFetch("/api/drive/setup", {
-            method: "POST",
-            headers: { 
-              "Content-Type": "application/json",
-              "x-group-id": groupId
-            },
-            body: JSON.stringify({ 
-              rootFolderName: name,
-              adminEmail: user.email 
-            }),
-          });
-          
-          if (!driveRes.ok) {
-            console.warn("[Drive] Automatic setup returned non-OK status:", driveRes.status);
-          } else {
-            console.log("[Drive] Automatic setup completed successfully");
-          }
-        } catch (driveErr) {
-          console.error("[Drive] Automatic setup failed:", driveErr);
-          // Do not fail group creation because Drive failed
-        }
-      }
 
       return groupId;
     } catch (err) {

@@ -51,9 +51,13 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "groupId": { "type": "string" },
-        "active": { "type": "boolean" }
+        "active": { "type": "boolean" },
+        "color": { "type": "string" },
+        "sortOrder": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "groupId"]
+      "required": ["id", "name", "groupId", "sortOrder"]
     },
     "Patient": {
       "title": "Patient",
