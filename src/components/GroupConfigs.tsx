@@ -22,8 +22,6 @@ import {
   Power,
   PowerOff,
   AlertCircle,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
 import { 
   collection, 
@@ -232,52 +230,13 @@ export function GroupConfigs() {
     const q = query(colRef, where("groupId", "==", activeGroup.id));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      let hasMissingSortOrder = false;
-      const fetched = snapshot.docs.map(doc => {
-        const data = doc.data();
-        if (activeTab === "patient_statuses" && typeof data.sortOrder !== "number") {
-          hasMissingSortOrder = true;
-        }
-        return {
-          id: doc.id,
-          ...data
-        };
-      }) as ConfigItem[];
+      const fetched = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ConfigItem[];
       
-      // Auto-healing logic for status documents missing sortOrder
-      if (activeTab === "patient_statuses" && hasMissingSortOrder) {
-        (async () => {
-          try {
-            const sortedToFix = [...fetched].sort((a: any, b: any) => {
-              const sortA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
-              const sortB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
-              if (sortA !== sortB) {
-                return sortA - sortB;
-              }
-              const nameA = (a.name || a.nome || "").toLowerCase();
-              const nameB = (b.name || b.nome || "").toLowerCase();
-              return nameA.localeCompare(nameB);
-            });
-
-            for (let i = 0; i < sortedToFix.length; i++) {
-              const item = sortedToFix[i];
-              const docRef = doc(db, "patient_statuses", item.id);
-              await setDoc(docRef, { sortOrder: i + 1, updatedAt: serverTimestamp() }, { merge: true });
-            }
-          } catch (e) {
-            console.error("Error auto-assigning sortOrder to statuses:", e);
-          }
-        })();
-        return;
-      }
-
-      // Sort alphabetically for standard tabs, but by sortOrder asc for patient_statuses
+      // Sort alphabetically
       fetched.sort((a, b) => {
-        if (activeTab === "patient_statuses") {
-          const orderA = typeof (a as any).sortOrder === "number" ? (a as any).sortOrder : 999999;
-          const orderB = typeof (b as any).sortOrder === "number" ? (b as any).sortOrder : 999999;
-          if (orderA !== orderB) return orderA - orderB;
-        }
         const nameA = (a.name || a.nome || "").toLowerCase();
         const nameB = (b.name || b.nome || "").toLowerCase();
         return nameA.localeCompare(nameB);
@@ -289,6 +248,7 @@ export function GroupConfigs() {
       console.error("onSnapshot error:", err);
       setIsLoading(false);
       setError("Permissão negada ou falha na conexão.");
+      // handleFirestoreError(err, OperationType.LIST, activeTab); // Don't throw here to avoid infinite spinner
     });
 
     return () => unsubscribe();
@@ -326,7 +286,6 @@ export function GroupConfigs() {
         
         // If not force type "all", or if empty, we create
         if (existingSnap.empty) {
-          let orderIdx = 1;
           for (const itemName of itemsToCreate) {
             const data: any = {
                groupId: activeGroup.id,
@@ -335,10 +294,6 @@ export function GroupConfigs() {
             };
             if (cat === "procedureOptions") data.nome = itemName;
             else data.name = itemName;
-
-            if (cat === "patient_statuses") {
-              data.sortOrder = orderIdx++;
-            }
             
             await addDoc(collection(db, cat), data);
           }
@@ -378,12 +333,6 @@ export function GroupConfigs() {
         await setDoc(doc(db, activeTab, editingItem.id), data, { merge: true });
       } else {
         data.createdAt = serverTimestamp();
-        if (activeTab === "patient_statuses") {
-          const maxSortOrder = items.reduce((max, item: any) => {
-            return typeof item.sortOrder === "number" && item.sortOrder > max ? item.sortOrder : max;
-          }, 0);
-          data.sortOrder = maxSortOrder + 1;
-        }
         await addDoc(collection(db, activeTab), data);
       }
 
@@ -473,36 +422,6 @@ export function GroupConfigs() {
       }, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, activeTab);
-    }
-  };
-
-  const handleSort = async (index: number, direction: 'up' | 'down') => {
-    if (!activeTab || activeTab !== "patient_statuses") return;
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= items.length) return;
-
-    const currentItem = items[index];
-    const siblingItem = items[targetIndex];
-
-    const currentOrder = (currentItem as any).sortOrder ?? (index + 1);
-    const siblingOrder = (siblingItem as any).sortOrder ?? (targetIndex + 1);
-
-    setIsLoading(true);
-    try {
-      await setDoc(doc(db, activeTab, currentItem.id), {
-        sortOrder: siblingOrder,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      await setDoc(doc(db, activeTab, siblingItem.id), {
-        sortOrder: currentOrder,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-    } catch (err) {
-      console.error("Failed to swap sort order:", err);
-      alert("Erro ao alterar a ordem.");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -821,7 +740,7 @@ export function GroupConfigs() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto px-1 py-1 custom-scrollbar">
-              {items.map((item, index) => (
+              {items.map((item) => (
                 <motion.div 
                   key={item.id}
                   layout
@@ -831,7 +750,7 @@ export function GroupConfigs() {
                     <span className="font-bold text-sm text-gray-700 uppercase tracking-tight">{item.name || item.nome}</span>
                     {(item.active === false || (item as any).status === 'removed') && (
                       <span className="text-[8px] font-black text-red-500 uppercase tracking-wider">
-                         {(item as any).status === 'removed' ? 'Removido' : 'Inativo'}
+                        {(item as any).status === 'removed' ? 'Removido' : 'Inativo'}
                       </span>
                     )}
                   </div>
@@ -845,28 +764,6 @@ export function GroupConfigs() {
                       </button>
                     ) : (
                       <>
-                        {activeTab === "patient_statuses" && (
-                          <>
-                            <button 
-                              type="button"
-                              onClick={() => handleSort(index, 'up')}
-                              disabled={index === 0 || isLoading}
-                              className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent"
-                              title="Subir"
-                            >
-                              <ArrowUp size={14} />
-                            </button>
-                            <button 
-                              type="button"
-                              onClick={() => handleSort(index, 'down')}
-                              disabled={index === items.length - 1 || isLoading}
-                              className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent"
-                              title="Descer"
-                            >
-                              <ArrowDown size={14} />
-                            </button>
-                          </>
-                        )}
                         <button 
                           onClick={() => {
                             setEditingItem(item);

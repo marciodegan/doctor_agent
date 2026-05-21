@@ -16,7 +16,6 @@ import {
   updateDoc,
   deleteDoc,
   doc,
-  setDoc,
   serverTimestamp 
 } from "firebase/firestore";
 import { useGroup } from "../contexts/GroupContext";
@@ -376,53 +375,10 @@ export const Chat: React.FC<{
     
     // Statuses
     const statusRef = collection(db, "patient_statuses");
-    const qStatus = query(statusRef, where("groupId", "==", gId));
+    const qStatus = query(statusRef, where("groupId", "==", gId), orderBy("name"));
     const unsubStatus = onSnapshot(qStatus, (snap) => {
       if (!isMounted) return;
-      const fetched = snap.docs.map(d => {
-        const data = d.data();
-        return {
-          id: d.id,
-          nome: data.name || data.nome || "",
-          active: data.active,
-          sortOrder: data.sortOrder,
-          createdAt: data.createdAt
-        };
-      });
-
-      // Auto-healing logic in Chat
-      const hasMissingSortOrder = fetched.some(item => typeof item.sortOrder !== "number");
-      if (hasMissingSortOrder) {
-        (async () => {
-          try {
-            const sortedToFix = [...fetched].sort((a, b) => {
-              const sortA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
-              const sortB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
-              if (sortA !== sortB) return sortA - sortB;
-              return (a.nome || "").localeCompare(b.nome || "");
-            });
-
-            for (let i = 0; i < sortedToFix.length; i++) {
-              const item = sortedToFix[i];
-              const docRef = doc(db, "patient_statuses", item.id);
-              await setDoc(docRef, { sortOrder: i + 1, updatedAt: serverTimestamp() }, { merge: true });
-            }
-          } catch (e) {
-            console.error("Error auto-assigning sortOrder in Chat:", e);
-          }
-        })();
-        return;
-      }
-
-      // Sort client-side: sortOrder asc, followed by name alphabetically as fallback
-      fetched.sort((a, b) => {
-        const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
-        const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
-        if (orderA !== orderB) return orderA - orderB;
-        return (a.nome || "").localeCompare(b.nome || "");
-      });
-
-      setGroupStatuses(fetched);
+      setGroupStatuses(snap.docs.map(d => ({ id: d.id, nome: d.data().name, active: d.data().active })));
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "patient_statuses");
@@ -550,25 +506,12 @@ export const Chat: React.FC<{
     const mainElement = document.querySelector("main");
     if (mainElement) {
       const lastMessage = messages[messages.length - 1];
-      const isScrollToTopPage = 
-        lastMessage?.isListing || 
-        lastMessage?.isProfile || 
-        lastMessage?.form !== undefined ||
-        (lastMessage?.text && (
-          lastMessage.text.includes("Alterar Status") ||
-          lastMessage.text.includes("Adicionar Info") ||
-          lastMessage.text.includes("Novo Contato") ||
-          lastMessage.text.includes("Anexar Imagem")
-        ));
-
-      if (isScrollToTopPage) {
-        // If it's a listing, patient detail/profile, a form, or a specific action page, scroll to top instantly
+      if (lastMessage?.isListing) {
+        // If it's a listing (like patient table), scroll to top of main to see the title/actions
         mainElement.scrollTo({
           top: 0,
-          left: 0,
-          behavior: "instant" as any
+          behavior: "smooth"
         });
-        mainElement.scrollTop = 0;
       } else {
         // Normal chat messages scroll to bottom
         mainElement.scrollTo({
@@ -582,8 +525,7 @@ export const Chat: React.FC<{
   const scrollToTop = () => {
     const mainElement = document.querySelector("main");
     if (mainElement) {
-      mainElement.scrollTo({ top: 0, left: 0, behavior: "instant" as any });
-      mainElement.scrollTop = 0;
+      mainElement.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -1641,14 +1583,7 @@ export const Chat: React.FC<{
             statusGrouped[sId].patients.push(p);
           });
 
-          const sortedStatuses = Object.values(statusGrouped).sort((a, b) => {
-            const sA = groupStatuses.find(s => s.id === a.id);
-            const sB = groupStatuses.find(s => s.id === b.id);
-            const orderA = sA ? ((sA as any).sortOrder ?? 999999) : 999999;
-            const orderB = sB ? ((sB as any).sortOrder ?? 999999) : 999999;
-            if (orderA !== orderB) return orderA - orderB;
-            return a.name.localeCompare(b.name);
-          });
+          const sortedStatuses = Object.values(statusGrouped).sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
           sortedStatuses.forEach(({ name: sName, patients }, statusIdx) => {
             const marginTop = (statusIdx === 0) ? "0px" : "24px";
             listText += `<div style="font-size: 17px; font-weight: bold; color: #1e40af; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; margin-top: ${marginTop}; margin-bottom: 8px; display: flex; align-items: center; border-left: 4px solid #3b82f6;"><span style="margin-right: 6px;">📋</span> ${sName}</div>`;
@@ -1685,12 +1620,7 @@ export const Chat: React.FC<{
         }
 
         if (statuses.length > 0) {
-          const sortedMasterStatuses = [...masterStatuses].sort((a: any, b: any) => {
-            const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
-            const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
-            if (orderA !== orderB) return orderA - orderB;
-            return (a.nome || "").localeCompare(b.nome || "");
-          });
+          const sortedMasterStatuses = [...masterStatuses].sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
           const statusActions = sortedMasterStatuses.map((s: any) => {
             const sId = typeof s === 'string' ? s : s.id.toString();
             const sLabel = typeof s === 'string' ? s : s.nome;
@@ -2499,7 +2429,6 @@ export const Chat: React.FC<{
           }
         ]
       }]);
-      setTimeout(scrollToTop, 0);
       return true;
     }
 
