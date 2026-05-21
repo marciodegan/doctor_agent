@@ -65,6 +65,9 @@ export default function App() {
   const currentUserMember = activeGroupMembers.find(m => m.userId === user?.uid);
   const isOwner = activeGroup?.createdBy === user?.uid;
   const isAdmin = isOwner || currentUserMember?.role === "owner";
+  const headerName = (activeGroup?.groupType === "personal") 
+    ? "Personal Agent" 
+    : "Dr. Agent";
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -285,7 +288,7 @@ export default function App() {
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
               <Stethoscope size={14} />
             </div>
-            <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">Dr. Agent</span>
+            <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">{headerName}</span>
           </div>
 
           <div className="absolute right-4 flex items-center gap-2">
@@ -324,7 +327,7 @@ export default function App() {
                   <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
                     <Stethoscope size={18} />
                   </div>
-                  <h1 className="font-bold text-xl tracking-tight text-blue-600">Dr. Agent</h1>
+                  <h1 className="font-bold text-xl tracking-tight text-blue-600">{headerName}</h1>
                 </div>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-gray-400">
                   <X size={20} />
@@ -452,7 +455,7 @@ export default function App() {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
               <Stethoscope size={18} />
             </div>
-            <h1 className="font-bold text-xl tracking-tight text-blue-600 truncate max-w-[140px]">Dr. Agent</h1>
+            <h1 className="font-bold text-xl tracking-tight text-blue-600 truncate max-w-[140px]">{headerName}</h1>
           </div>
         </div>
 
