@@ -325,7 +325,7 @@ export function GoogleAgenda() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white rounded-3xl border border-gray-100 shadow-sm">
+    <div className="flex flex-col bg-white rounded-3xl border border-gray-100 shadow-sm">
       {/* Header */}
       <div className="p-4 sm:p-6 border-b border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">

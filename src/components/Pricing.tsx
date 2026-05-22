@@ -78,7 +78,7 @@ export function Pricing({ onBack }: PricingProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="bg-[#FDFDFD] flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <motion.button 
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}

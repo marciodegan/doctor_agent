@@ -264,7 +264,7 @@ export default function AppWorkspace() {
 
   if (isAuthenticated === null) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-dvh bg-gray-50 flex items-center justify-center">
         <div className="animate-pulse flex flex-col items-center gap-4">
           <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
             <Layout size={32} />
@@ -286,7 +286,7 @@ export default function AppWorkspace() {
 
   if (isAuthenticated && !activeGroup) {
     return (
-      <div className="min-h-screen bg-[#FDFDFD] flex items-center justify-center p-6">
+      <div className="min-h-dvh bg-[#FDFDFD] flex items-center justify-center p-6">
         <GroupSelector onSelect={handleGroupSelection} />
       </div>
     );
@@ -569,7 +569,7 @@ export default function AppWorkspace() {
           paddingTop: 'calc(3.25rem + env(safe-area-inset-top))',
           paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))'
         }}
-        className={`lg:pl-64 flex flex-col overflow-y-auto custom-scrollbar ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : "min-h-screen"}`}
+        className={`lg:pl-64 flex flex-col overflow-y-auto custom-scrollbar ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : "min-h-dvh"}`}
       >
 
         {/* Global Modals (Settings, Security, Profile) */}

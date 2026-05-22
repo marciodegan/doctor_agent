@@ -357,10 +357,7 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ onBack }) => {
   if (screen === "config") {
     return (
       <div 
-        className="flex flex-col min-h-screen bg-slate-50 overflow-y-auto"
-        style={{
-          paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))"
-        }}
+        className="flex flex-col bg-slate-50 pb-4"
       >
         {/* Header */}
         <div className="bg-white border-b border-slate-100 p-4 shadow-sm">
@@ -505,10 +502,7 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ onBack }) => {
 
     return (
       <div 
-        className="flex flex-col min-h-screen bg-slate-50 overflow-y-auto"
-        style={{
-          paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))"
-        }}
+        className="flex flex-col bg-slate-50 pb-4"
       >
         {/* Header */}
         <div className="bg-white border-b border-slate-100 p-4 shadow-sm">
@@ -646,10 +640,7 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ onBack }) => {
   // SCREEN 3: MAIN LISTING (SELECTION IN CHIPS GRID)
   return (
     <div 
-      className="flex flex-col min-h-screen bg-slate-50 overflow-y-auto"
-      style={{
-        paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))"
-      }}
+      className="flex flex-col bg-slate-50 pb-4"
     >
       {/* Top Section containing Header, Categories, and Search/Input */}
       <div className="bg-white border-b border-slate-100 shadow-sm">

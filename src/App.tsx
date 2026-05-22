@@ -35,7 +35,7 @@ export default function App() {
     return (
       <Suspense
         fallback={
-          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="min-h-dvh bg-gray-50 flex items-center justify-center">
             <div className="animate-pulse flex flex-col items-center gap-4">
               <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 animate-spin">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

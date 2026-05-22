@@ -120,10 +120,7 @@ export const PersonalNotes: React.FC<PersonalNotesProps> = ({ onNavigateToShoppi
 
   return (
     <div 
-      className="flex flex-col min-h-screen bg-slate-50 overflow-y-auto"
-      style={{
-        paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))"
-      }}
+      className="flex flex-col bg-slate-50 pb-4"
     >
       {/* Top Section containing both Header and Input Form */}
       <div className="bg-white border-b border-slate-100 shadow-sm">

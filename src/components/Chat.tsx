@@ -3001,8 +3001,7 @@ ${aiPart}
     <div 
       id="nexus-chat"
       ref={chatContainerRef}
-      className="flex flex-col min-h-screen bg-white rounded-2xl shadow-xl border border-gray-100 relative overflow-y-auto"
-      style={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))" }}
+      className="flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 relative pb-4"
     >
       {/* Messages */}
       <div ref={scrollRef} className="px-2 sm:px-6 py-4 space-y-6 flex-1">
