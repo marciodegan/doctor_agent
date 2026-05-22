@@ -482,7 +482,7 @@ const MessageForm: React.FC<{
             field.type === "select" ? (
               <div className="relative">
                 <select
-                  value={values[field.name]}
+                  value={values[field.name] || ""}
                   onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer pr-10"
                   required={!field.optional}
@@ -724,7 +724,11 @@ export const Chat: React.FC<{
       return a.nome.localeCompare(b.nome);
     });
   const procedureOptions = groupProcedures.filter(p => p.active !== false && (p as any).status !== "removed").map(p => p.nome);
-  const surgeryTypeOptions = groupSurgeryTypes.filter(s => s.active !== false && (s as any).status !== "removed").map(s => s.nome);
+  const defaultSurgeryTypes = ["Eletiva", "Urgência", "Emergência", "Retorno", "Avaliação"];
+  const loadedSurgeryTypes = groupSurgeryTypes.filter(s => s.active !== false && (s as any).status !== "removed").map(s => s.nome);
+  const surgeryTypeOptions = loadedSurgeryTypes.length > 0
+    ? Array.from(new Set([...loadedSurgeryTypes, ...defaultSurgeryTypes]))
+    : defaultSurgeryTypes;
   const affinityOptions = groupAffinities.map(a => a.name);
   const imageTypeOptions = imageTypes.filter(t => t.active !== false && (t as any).status !== "removed").map(t => t.name);
   
@@ -1137,13 +1141,12 @@ ${aiPart}
               readOnly: true,
               suggestions: hospitalOptions.map(h => ({ label: h.nome, value: h.id }))
             },
-            { 
+             { 
               label: "Prioridade/Tipo", 
               name: "surgery_type", 
-              type: "text", 
-              placeholder: "Eletiva, Urgência...",
-              // @ts-ignore
-              readOnly: true,
+              type: "select", 
+              placeholder: "Escolha uma prioridade/tipo",
+              options: surgeryTypeOptions,
               suggestions: surgeryTypeOptions.map(s => ({ label: s, value: s }))
             },
             { 
@@ -2146,11 +2149,9 @@ ${aiPart}
               { 
                 label: "Prioridade/Tipo", 
                 name: "surgery_type", 
-                type: "text", 
+                type: "select", 
                 defaultValue: p.surgery_type,
-                // @ts-ignore
-                readOnly: true,
-                hideInput: true,
+                options: surgeryTypeOptions,
                 suggestions: surgeryTypeOptions.map(s => ({ label: s, value: s }))
               },
               { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.roomNumber || p.room_number || "" },
