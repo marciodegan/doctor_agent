@@ -88,12 +88,12 @@ export function BottomNav({
     <div 
       style={{
         bottom: 0,
+        paddingBottom: "max(env(safe-area-inset-bottom), 12px)",
       }}
       className="fixed left-0 right-0 lg:left-64 z-[60] w-full lg:w-[calc(100%-16rem)] bg-white border-t border-gray-100 shadow-[0_-4px_25px_rgba(15,23,42,0.08)]"
     >
       <div 
         style={{
-          paddingBottom: "calc(max(8px, env(safe-area-inset-bottom, 0px)) + 12px)",
           paddingTop: "12px"
         }}
         className="flex items-center justify-around px-4 bg-white"

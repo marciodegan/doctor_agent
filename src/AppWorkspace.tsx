@@ -569,7 +569,7 @@ export default function AppWorkspace() {
           paddingTop: 'calc(3.25rem + env(safe-area-inset-top))',
           paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))'
         }}
-        className={`lg:pl-64 flex flex-col overflow-y-auto custom-scrollbar ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : "min-h-dvh"}`}
+        className={`lg:pl-64 flex flex-col overflow-y-auto custom-scrollbar ${isFullscreen ? "fixed inset-0 z-[100] bg-white lg:pl-0 pt-0 pb-0" : "flex-1"}`}
       >
 
         {/* Global Modals (Settings, Security, Profile) */}
