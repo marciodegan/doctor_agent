@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check } from "lucide-react";
+import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, ChevronDown } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeRaw from "rehype-raw";
@@ -127,6 +127,251 @@ const MessageForm: React.FC<{
   const isImageForm = form.commandPrefix?.startsWith("/img");
 
   const isObjectSuggestion = (s: any): s is { label: string, value: string } => typeof s === 'object' && s !== null && 'label' in s;
+
+  const isCalendarForm = form.commandPrefix?.includes("/calendario_add");
+
+  const getField = (name: string) => form.fields.find((f: any) => f.name === name);
+
+  const renderFieldCustom = (fieldName: string) => {
+    const field = getField(fieldName);
+    if (!field) return null;
+
+    return (
+      <div className="space-y-1.5 flex flex-col text-left">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 ml-1">
+          {field.label} {field.optional && <span className="text-slate-400 font-normal lowercase">(opcional)</span>}
+        </label>
+        
+        {!field.hideInput && (
+          field.type === "select" ? (
+            <div className="relative">
+              <select
+                value={values[field.name] || ""}
+                onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
+                className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none appearance-none cursor-pointer pr-10 shadow-sm transition-all"
+                required={!field.optional}
+              >
+                <option value="" disabled={!field.optional}>{field.optional ? "Opcional (Deixar em branco)" : "Selecione uma opção"}</option>
+                {field.options?.map((opt: string) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <ChevronDown size={16} />
+              </div>
+            </div>
+          ) : field.readOnly ? (
+            <div className="w-full h-12 px-4 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-950 font-semibold flex items-center shadow-inner">
+              {(() => {
+                const val = values[field.name];
+                if (!val) return <span className="text-gray-300 italic">{field.placeholder}</span>;
+                if (field.suggestions) {
+                  const suggestion = field.suggestions.find((s: any) => (typeof s === 'object' ? s.value : s) === val);
+                  return typeof suggestion === 'object' ? suggestion.label : val;
+                }
+                return val;
+              })()}
+            </div>
+          ) : field.type === "textarea" ? (
+            <textarea
+              value={values[field.name] || ""}
+              onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
+              placeholder={field.placeholder}
+              rows={3}
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm resize-none"
+              required={!field.optional}
+            />
+          ) : (
+            <input 
+              type={field.type}
+              value={values[field.name] || ""}
+              onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
+              placeholder={field.placeholder}
+              className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm"
+              required={!field.optional}
+              {...(field.type === "number" ? { inputMode: "numeric" } : {})}
+            />
+          )
+        )}
+
+        {field.suggestions && field.suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-1.5 ml-1">
+            {field.suggestions.map((opt: any) => {
+              const label = isObjectSuggestion(opt) ? opt.label : opt;
+              const value = isObjectSuggestion(opt) ? opt.value : opt;
+              const isSelected = values[field.name] === value;
+              
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setValues(prev => ({ ...prev, [field.name]: value }))}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all border shadow-sm cursor-pointer ${
+                    isSelected 
+                      ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200" 
+                      : "bg-gray-100/50 border-gray-200 text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  if (isCalendarForm) {
+    return (
+      <form onSubmit={handleSubmit} className="mt-4 p-6 sm:p-8 bg-white rounded-[2rem] border border-gray-100 space-y-6 shadow-2xl shadow-blue-900/5 transition-all w-full max-w-2xl mx-auto">
+        <AnimatePresence>
+          {showRemoveConfirm && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl text-center"
+              >
+                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                  <X size={32} strokeWidth={3} />
+                </div>
+                <h3 className="text-xl font-black text-gray-900 mb-2 uppercase tracking-tight">Confirmar Remoção</h3>
+                <p className="text-gray-500 text-sm mb-8 leading-relaxed">Você tem certeza que deseja remover esta foto selecionada?</p>
+                <div className="flex gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setShowRemoveConfirm(false)}
+                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all"
+                  >
+                    Não, Manter
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      onSelectImage?.(null);
+                      setShowRemoveConfirm(false);
+                    }}
+                    className="flex-1 px-6 py-3 bg-red-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200"
+                  >
+                    Sim, Remover
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Form header */}
+        <div className="flex flex-col gap-1 mb-2 border-b border-gray-50 pb-4 text-left">
+          <h3 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight leading-tight">
+            Novo Evento no Calendário
+          </h3>
+          <p className="text-xs text-slate-400 font-medium">
+            Preencha os detalhes do evento para realizar o agendamento do procedimento.
+          </p>
+          <div className="flex mt-2.5">
+            <span className="flex items-center gap-1.5 bg-blue-50/50 border border-blue-100/30 px-3 py-1 text-[10px] font-bold text-blue-700 tracking-wider uppercase rounded-lg">
+              NOVO EVENTO / COMPLETE AS INFORMAÇÕES
+            </span>
+          </div>
+        </div>
+
+        {/* Group 1: Paciente e Procedimento */}
+        <div className="space-y-4 p-5 bg-slate-50/40 rounded-2xl border border-slate-100/50">
+          <div className="flex items-center gap-1.5 mb-1 text-left">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Paciente & Procedimento</span>
+          </div>
+          <div className="space-y-4">
+            {renderFieldCustom("nomePaciente")}
+            {renderFieldCustom("evento")}
+          </div>
+        </div>
+
+        {/* Group 2: Horário / Tipo */}
+        <div className="space-y-4 p-5 bg-slate-50/40 rounded-2xl border border-slate-100/50">
+          <div className="flex items-center gap-1.5 mb-1 text-left">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Horário & Tipo</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {renderFieldCustom("data")}
+            {renderFieldCustom("hora")}
+            {renderFieldCustom("tipo")}
+          </div>
+        </div>
+
+        {/* Group 3: Hospital / Sala */}
+        <div className="space-y-4 p-5 bg-slate-50/40 rounded-2xl border border-slate-100/50">
+          <div className="flex items-center gap-1.5 mb-1 text-left">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Hospital & Sala</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {renderFieldCustom("hospitalId")}
+            {renderFieldCustom("sala")}
+          </div>
+        </div>
+
+        {/* Group 4: Notas */}
+        <div className="space-y-4 p-5 bg-slate-50/40 rounded-2xl border border-slate-100/50 text-left">
+          <div className="flex items-center gap-1.5 mb-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Observações Adicionais</span>
+          </div>
+          {renderFieldCustom("descricao")}
+        </div>
+
+        {/* Footer info card */}
+        {(form.hospitalName || form.roomNumber) && (
+          <div className="bg-blue-50/30 border border-blue-100/40 rounded-2xl p-4 flex flex-col gap-1 text-left">
+            {form.hospitalName && (
+              <div className="flex items-center gap-2 text-blue-700 font-bold text-sm">
+                <Building2 size={16} />
+                <span className="uppercase tracking-wide">{form.hospitalName}</span>
+              </div>
+            )}
+            {form.roomNumber && (
+              <span className="text-xs text-slate-500 ml-6 font-medium">
+                Sala/Quarto de Internação: {form.roomNumber}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-end gap-3 w-full sm:w-auto">
+            {form.backCommand && (
+              <button
+                type="button"
+                onClick={() => onSubmit(form.backCommand)}
+                className="px-5 py-3 h-12 text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50/50 rounded-2xl transition-all flex items-center gap-2 group cursor-pointer"
+              >
+                <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+                Cancelar
+              </button>
+            )}
+
+            <button 
+              type="submit"
+              className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-8 h-12 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10 active:scale-[0.98] cursor-pointer"
+            >
+              <Plus size={16} strokeWidth={2.5} />
+              {form.submitLabel}
+            </button>
+          </div>
+        </div>
+      </form>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="mt-4 p-5 bg-white rounded-[2rem] border border-blue-50 space-y-5 shadow-2xl shadow-blue-900/10 transition-all">
