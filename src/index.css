@@ -16,7 +16,6 @@
     height: 100dvh;
     display: flex;
     flex-direction: column;
-    padding-bottom: env(safe-area-inset-bottom);
   }
 
   /* This targets the main div inside App.tsx */

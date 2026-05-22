@@ -35,7 +35,7 @@ export default defineConfig(({mode}) => {
           background_color: '#ffffff',
           display: 'standalone',
           orientation: 'portrait',
-          start_url: '/',
+          start_url: '/app',
           icons: [
             {
               src: 'https://cdn-icons-png.flaticon.com/512/3774/3774299.png',

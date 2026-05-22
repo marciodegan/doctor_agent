@@ -87,23 +87,16 @@ export function BottomNav({
   return (
     <div 
       style={{
-        bottom: isIosStandalone 
-          ? '0px' 
-          : 'calc(0.75rem + env(safe-area-inset-bottom, 0px))'
+        bottom: 0,
       }}
-      className={`fixed left-1/2 lg:left-[calc(16rem+((100vw-16rem)/2))] -translate-x-1/2 z-[60] max-w-md ${
-        isIosStandalone ? "w-full" : "w-[calc(100%-32px)]"
-      }`}
+      className="fixed left-0 right-0 lg:left-64 z-[60] w-full lg:w-[calc(100%-16rem)] bg-white border-t border-gray-100 shadow-[0_-4px_25px_rgba(15,23,42,0.08)]"
     >
       <div 
-        style={isIosStandalone ? {
-          paddingBottom: 'calc(max(8px, env(safe-area-inset-bottom, 0px)) + 4px)',
-          paddingTop: '10px'
-        } : undefined}
-        className={isIosStandalone 
-          ? "flex items-center justify-around px-3 bg-white border-t border-gray-100 rounded-t-[24px] shadow-[0_-8px_30px_rgba(15,23,42,0.08)]"
-          : "h-14 sm:h-16 flex items-center justify-around px-3 bg-white border border-gray-100 rounded-[28px] shadow-[0_12px_35px_rgba(15,23,42,0.12)]"
-        }
+        style={{
+          paddingBottom: "calc(max(8px, env(safe-area-inset-bottom, 0px)) + 12px)",
+          paddingTop: "12px"
+        }}
+        className="flex items-center justify-around px-4 bg-white"
       >
         {tabs.map((tab, idx) => {
           const isActive = currentView === tab.id;
