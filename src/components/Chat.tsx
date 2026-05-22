@@ -1936,10 +1936,13 @@ ${aiPart}
           const sortedMasterHospitals = [...masterHospitalsData].sort((a, b) => a.nome.localeCompare(b.nome));
           const hospitalActions = sortedMasterHospitals.map((h: any) => {
             const hId = h.id.toString();
+            const isActive = hospitalFilter === hId;
             return { 
               label: h.nome, 
-              cmd: `/pacientes hospital:${hId} sort:${sort}`,
-              active: hospitalFilter === hId
+              cmd: isActive
+                ? `/pacientes${statusFilter ? ` status:${statusFilter}` : ""} sort:${sort}`
+                : `/pacientes hospital:${hId}${statusFilter ? ` status:${statusFilter}` : ""} sort:${sort}`,
+              active: isActive
             };
           });
 
@@ -1961,10 +1964,13 @@ ${aiPart}
           const statusActions = sortedMasterStatuses.map((s: any) => {
             const sId = typeof s === 'string' ? s : s.id.toString();
             const sLabel = typeof s === 'string' ? s : s.nome;
+            const isActive = statusFilter === sId;
             return { 
               label: sLabel, 
-              cmd: `/pacientes status:${sId} sort:${sort}`,
-              active: statusFilter === sId
+              cmd: isActive
+                ? `/pacientes${hospitalFilter ? ` hospital:${hospitalFilter}` : ""} sort:${sort}`
+                : `/pacientes status:${sId}${hospitalFilter ? ` hospital:${hospitalFilter}` : ""} sort:${sort}`,
+              active: isActive
             };
           });
 

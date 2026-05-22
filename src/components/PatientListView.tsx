@@ -107,10 +107,46 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
     return () => clearTimeout(timer);
   }, [searchTerm, activeGroup?.id, hospitalFilter, statusFilter]);
 
-  const isHospFiltered = hospitalFilter && hospitalFilter !== "1";
-  const isStatusFiltered = statusFilter && statusFilter !== "1";
+  const isHospFiltered = hospitalFilter && hospitalFilter !== "1" && hospitalFilter !== "all" && hospitalFilter !== "";
+  const isStatusFiltered = statusFilter && statusFilter !== "1" && statusFilter !== "all" && statusFilter !== "";
 
-  const searchedPatients = localPatients;
+  // Compute final filtered patients set safely starting from localPatients
+  const selectedStatus = statuses.find((s: any) => s.id.toString() === statusFilter);
+  const isFilteringAlta = selectedStatus && (selectedStatus.nome || "").toLowerCase() === "alta";
+
+  let processedPatients = [...localPatients];
+  
+  // 1. Filter out 'Alta' unless explicitly filtering by 'Alta'
+  if (!isFilteringAlta) {
+    processedPatients = processedPatients.filter(p => {
+      const sName = (p.status || "").toLowerCase();
+      return sName !== "alta";
+    });
+  }
+
+  // 2. Filter by hospital (safety check)
+  if (isHospFiltered) {
+    processedPatients = processedPatients.filter(p => 
+      p.hospitalId?.toString() === hospitalFilter
+    );
+  }
+
+  // 3. Filter by status (safety check)
+  if (isStatusFiltered) {
+    processedPatients = processedPatients.filter(p => 
+      p.statusId?.toString() === statusFilter || p.status === selectedStatusObj?.nome
+    );
+  }
+
+  // 4. Client-side search matching
+  if (searchTerm.trim()) {
+    const searchNorm = searchTerm.toLowerCase().trim();
+    processedPatients = processedPatients.filter(p => 
+      (p.nome || "").toLowerCase().includes(searchNorm)
+    );
+  }
+
+  const searchedPatients = processedPatients;
 
   const getStatusStyles = (statusName: string) => {
     const s = (statusName || "").toLowerCase();
@@ -196,32 +232,6 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
           <Plus size={16} />
           Novo Paciente
         </button>
-
-        {/* Selected Filters Summary Badge */}
-        {(selectedHospitalObj || selectedStatusObj) && (
-          <div className="flex flex-wrap gap-2 items-center">
-            {selectedHospitalObj && (
-              <div className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 shadow-sm">
-                <span className="text-[13px] font-black text-blue-700 uppercase tracking-tight">
-                  🏢 {selectedHospitalObj.nome}
-                </span>
-              </div>
-            )}
-            {selectedStatusObj && (
-              <div className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 shadow-sm">
-                <span className="text-[13px] font-black text-blue-700 uppercase tracking-tight">
-                  📋 {selectedStatusObj.nome}
-                </span>
-              </div>
-            )}
-            <button 
-              onClick={() => onCommand("/pacientes", true)}
-              className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
-            >
-              Limpar Filtros
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Buscar field */}
@@ -237,6 +247,32 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
           <Search size={18} />
         </div>
       </div>
+
+      {/* Selected Filters Summary Badge directly under search input */}
+      {(selectedHospitalObj || selectedStatusObj) && (
+        <div className="flex flex-wrap gap-2 items-center">
+          {selectedHospitalObj && (
+            <div className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 shadow-sm">
+              <span className="text-[13px] font-black text-blue-700 uppercase tracking-tight">
+                🏢 {selectedHospitalObj.nome}
+              </span>
+            </div>
+          )}
+          {selectedStatusObj && (
+            <div className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 shadow-sm">
+              <span className="text-[13px] font-black text-blue-700 uppercase tracking-tight">
+                📋 {selectedStatusObj.nome}
+              </span>
+            </div>
+          )}
+          <button 
+            onClick={() => onCommand("/pacientes", true)}
+            className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
+          >
+            Limpar Filtros
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-12 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
