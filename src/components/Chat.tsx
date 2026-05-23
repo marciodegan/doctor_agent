@@ -28,6 +28,7 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
   if (!url) return false;
   if (url.startsWith("data:video/")) return true;
   const cleanUrl = url.split("?")[0].toLowerCase();
+  const decodedUrl = decodeURIComponent(cleanUrl);
   return (
     cleanUrl.endsWith(".mp4") ||
     cleanUrl.endsWith(".mov") ||
@@ -35,7 +36,14 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     cleanUrl.endsWith(".m4v") ||
     cleanUrl.endsWith(".avi") ||
     cleanUrl.endsWith(".3gp") ||
-    cleanUrl.endsWith(".mkv")
+    cleanUrl.endsWith(".mkv") ||
+    decodedUrl.endsWith(".mp4") ||
+    decodedUrl.endsWith(".mov") ||
+    decodedUrl.endsWith(".webm") ||
+    decodedUrl.endsWith(".m4v") ||
+    decodedUrl.endsWith(".avi") ||
+    decodedUrl.endsWith(".3gp") ||
+    decodedUrl.endsWith(".mkv")
   );
 };
 
@@ -3850,12 +3858,23 @@ ${aiPart}
                                         imagensItems.map((img, idx) => (
                                           <div key={idx} className="flex flex-col gap-3 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
                                             {img.src && (
-                                              <img 
-                                                src={img.src} 
-                                                alt={img.alt || "Imagem de exame"} 
-                                                referrerPolicy="no-referrer"
-                                                className="rounded-xl w-full max-h-[300px] object-cover shadow-sm border border-gray-100" 
-                                              />
+                                              <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-slate-100">
+                                                {isVideoUrl(img.src) ? (
+                                                  <video 
+                                                    src={img.src} 
+                                                    controls 
+                                                    playsInline muted preload="metadata"
+                                                    className="w-full h-full object-cover" 
+                                                  />
+                                                ) : (
+                                                  <img 
+                                                    src={img.src} 
+                                                    alt={img.alt || "Imagem de exame"} 
+                                                    referrerPolicy="no-referrer"
+                                                    className="w-full h-full object-cover" 
+                                                  />
+                                                )}
+                                              </div>
                                             )}
                                             
                                             <div className="flex flex-row items-center justify-between gap-4">

@@ -28,6 +28,7 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
   if (!url) return false;
   if (url.startsWith("data:video/")) return true;
   const cleanUrl = url.split("?")[0].toLowerCase();
+  const decodedUrl = decodeURIComponent(cleanUrl);
   return (
     cleanUrl.endsWith(".mp4") ||
     cleanUrl.endsWith(".mov") ||
@@ -35,7 +36,14 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     cleanUrl.endsWith(".m4v") ||
     cleanUrl.endsWith(".avi") ||
     cleanUrl.endsWith(".3gp") ||
-    cleanUrl.endsWith(".mkv")
+    cleanUrl.endsWith(".mkv") ||
+    decodedUrl.endsWith(".mp4") ||
+    decodedUrl.endsWith(".mov") ||
+    decodedUrl.endsWith(".webm") ||
+    decodedUrl.endsWith(".m4v") ||
+    decodedUrl.endsWith(".avi") ||
+    decodedUrl.endsWith(".3gp") ||
+    decodedUrl.endsWith(".mkv")
   );
 };
 
@@ -404,7 +412,7 @@ export const PersonalDocuments: React.FC = () => {
                     <video 
                       src={img.link} 
                       controls
-                      preload="metadata"
+                      playsInline muted preload="metadata"
                       className="w-full h-full object-contain"
                     />
                   ) : (
