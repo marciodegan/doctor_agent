@@ -913,7 +913,7 @@ app.get("/api/app/patients", async (req, res) => {
         ...data,
         nome: data.name, // Map name to nome for frontend
         hospitalName: hMap[data.hospitalId] || data.hospitalId || "Sem Hospital",
-        status: sMap[data.statusId] || data.statusId || "Não informado"
+        status: (data.statusId && sMap[data.statusId]) ? sMap[data.statusId] : "Sem Status"
       };
     });
 
@@ -1114,7 +1114,7 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       Nome: pData.name,
       Telefone: pData.phone,
       Idade: pData.age,
-      Status: statusesMap.get(pData.statusId) || pData.statusId || pData.status,
+      Status: (pData.statusId && statusesMap.get(pData.statusId)) ? statusesMap.get(pData.statusId) : "Sem Status",
       statusId: pData.statusId || "",
       hospitalName: hospitalsMap.get(pData.hospitalId) || pData.hospitalId,
       hospitalId: pData.hospitalId || "",
@@ -1174,7 +1174,24 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
-  const { nome, fone, idade, status, cpf, hospitalName, roomNumber, procedimento, surgery_type } = req.body;
+  let { nome, fone, idade, status, cpf, hospitalName, roomNumber, procedimento, surgery_type } = req.body;
+
+  const sanitizeStr = (v: any) => {
+    if (v === undefined || v === null) return "";
+    const str = v.toString().trim();
+    if (str === "null" || str === "undefined") return "";
+    return str;
+  };
+
+  nome = sanitizeStr(nome);
+  fone = sanitizeStr(fone);
+  idade = sanitizeStr(idade);
+  const statusIdVal = sanitizeStr(status);
+  cpf = sanitizeStr(cpf);
+  const resolvedHospitalId = sanitizeStr(hospitalName);
+  roomNumber = sanitizeStr(roomNumber);
+  procedimento = sanitizeStr(procedimento);
+  surgery_type = sanitizeStr(surgery_type);
 
   if (!nome) return res.status(400).json({ error: "Nome é obrigatório." });
 
@@ -1183,14 +1200,14 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
     const patientRef = db.collection("patients").doc();
     await patientRef.set({
       name: nome,
-      phone: fone || "",
-      age: idade || "",
-      statusId: status?.toString() || "5",
-      cpf: cpf || "",
-      hospitalId: hospitalName?.toString() || "",
-      roomNumber: roomNumber || "",
-      procedure: procedimento || "",
-      surgery_type: surgery_type || "",
+      phone: fone,
+      age: idade,
+      statusId: statusIdVal,
+      cpf: cpf,
+      hospitalId: resolvedHospitalId,
+      roomNumber: roomNumber,
+      procedure: procedimento,
+      surgery_type: surgery_type,
       groupId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()

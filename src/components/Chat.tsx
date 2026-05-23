@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, ChevronDown } from "lucide-react";
+import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, Camera, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, ChevronDown } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeRaw from "rehype-raw";
@@ -113,6 +113,82 @@ const MessageForm: React.FC<{
     if (file && onSelectImage) {
       const dataUrl = await resizeImage(file);
       onSelectImage(dataUrl);
+    }
+  };
+
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [cameraStream]);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    setIsCameraActive(true);
+    
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError("Acesso à câmera não suportado neste dispositivo ou navegador.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment"
+        },
+        audio: false
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err: any) {
+      console.error("Camera permissions / initialization error:", err);
+      setCameraError(
+        "Não foi possível acessar a câmera. Verifique se deu permissões de uso."
+      );
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraActive(false);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    
+    try {
+      const canvas = document.createElement("canvas");
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 480;
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        if (onSelectImage) {
+          onSelectImage(dataUrl);
+        }
+      }
+      stopCamera();
+    } catch (err) {
+      console.error("Failed to capture image:", err);
+      stopCamera();
     }
   };
 
@@ -440,7 +516,35 @@ const MessageForm: React.FC<{
             accept="image/*" 
           />
           
-          {selectedImage ? (
+          {isCameraActive ? (
+            <div className="relative w-full aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-800 shadow-inner flex items-center justify-center">
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted
+                className="w-full h-full object-cover" 
+              />
+              
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2.5 w-[90%] justify-center z-10">
+                <button 
+                  type="button"
+                  onClick={stopCamera}
+                  className="flex-1 h-10 bg-black/70 hover:bg-black/90 text-white rounded-xl text-[10px] font-black uppercase tracking-wider backdrop-blur-sm cursor-pointer border border-white/10 active:scale-95 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="button"
+                  onClick={capturePhoto}
+                  className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer shadow-lg shadow-blue-500/20 flex items-center justify-center gap-1.5 active:scale-95 transition-all font-black"
+                >
+                  <Camera size={12} strokeWidth={2.5} />
+                  Capturar
+                </button>
+              </div>
+            </div>
+          ) : selectedImage ? (
             <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-200 group">
               <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
               <button 
@@ -466,14 +570,47 @@ const MessageForm: React.FC<{
               </button>
             </div>
           ) : (
-            <button 
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full aspect-video bg-white border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all gap-2"
-            >
-              <ImageIcon size={32} />
-              <span className="text-xs font-medium">Toque para selecionar imagem</span>
-            </button>
+            <div className="space-y-2">
+              <div className="w-full aspect-video bg-white border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center p-4 gap-4 transition-all">
+                <div className="flex flex-col items-center text-center text-gray-400">
+                  <ImageIcon size={32} className="mb-1 text-slate-300" />
+                  <span className="text-xs font-semibold text-slate-700">Anexar imagem de exame</span>
+                  <span className="text-[10px] text-slate-400 font-medium">Selecione uma opção para carregar</span>
+                </div>
+                
+                <div className="flex gap-2.5 w-full max-w-xs justify-center">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 h-10 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-600 transition-all rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
+                  >
+                    <ImageIcon size={14} />
+                    Biblioteca
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shadow-md shadow-blue-500/10 font-bold"
+                  >
+                    <Camera size={14} />
+                    Tirar Foto
+                  </button>
+                </div>
+              </div>
+              
+              {cameraError && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-medium flex items-center justify-between gap-2 shadow-sm animate-pulse animate-duration-1000">
+                  <span>⚠️ {cameraError}</span>
+                  <button 
+                    type="button" 
+                    onClick={() => setCameraError(null)} 
+                    className="text-[10px] font-black uppercase text-red-500 hover:text-red-700"
+                  >
+                    OK
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -536,7 +673,7 @@ const MessageForm: React.FC<{
                   <button
                     key={label}
                     type="button"
-                    onClick={() => setValues(prev => ({ ...prev, [field.name]: value }))}
+                    onClick={() => setValues(prev => ({ ...prev, [field.name]: (isSelected && field.optional) ? "" : value }))}
                     className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all uppercase border shadow-sm ${
                       isSelected 
                         ? "bg-blue-600 border-blue-600 text-white shadow-blue-100" 
@@ -1133,7 +1270,7 @@ ${aiPart}
           title: "",
           fields: [
             { label: "Nome", name: "nome", type: "text", placeholder: "Ex: João Silva" },
-            { label: "Idade", name: "idade", type: "number", placeholder: "Ex: 30" },
+            { label: "Idade", name: "idade", type: "number", placeholder: "Ex: 30", optional: true },
             { 
               label: "Hospital", 
               name: "hospitalName", 
@@ -1143,13 +1280,15 @@ ${aiPart}
               readOnly: true,
               suggestions: hospitalOptions.map(h => ({ label: h.nome, value: h.id }))
             },
-             { 
+            { 
               label: "Prioridade/Tipo", 
               name: "surgery_type", 
-              type: "select", 
-              placeholder: "Escolha uma prioridade/tipo",
-              options: surgeryTypeOptions,
-              suggestions: surgeryTypeOptions.map(s => ({ label: s, value: s }))
+              type: "text", 
+              placeholder: "Eletiva, Urgência...",
+              // @ts-ignore
+              readOnly: true,
+              suggestions: surgeryTypeOptions.map(s => ({ label: s, value: s })),
+              optional: true
             },
             { 
               label: "Status Inicial", 
@@ -1159,16 +1298,17 @@ ${aiPart}
               // @ts-ignore
               readOnly: true,
               suggestions: statusOptions.map(s => ({ label: s.nome, value: s.id })),
-              defaultValue: statusOptions.find(s => s.nome.toLowerCase().includes("pré"))?.id || statusOptions[0]?.id || ""
+              optional: true
             },
             { 
               label: "Procedimento", 
               name: "procedimento", 
               type: "text", 
               placeholder: "Escolha um procedimento",
-              suggestions: procedureOptions.map(p => ({ label: p, value: p }))
+              suggestions: procedureOptions.map(p => ({ label: p, value: p })),
+              optional: true
             },
-            { label: "Quarto/Leito", name: "roomNumber", type: "text", placeholder: "Ex: 402B" },
+            { label: "Quarto/Leito", name: "roomNumber", type: "text", placeholder: "Ex: 402B", optional: true },
           ],
           submitLabel: "Registrar Paciente",
           commandPrefix: "/registrar"
@@ -1829,7 +1969,8 @@ ${aiPart}
             hospitalId: cad.hospitalId,
             hospitalNome: allHospitals.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome)?.nome || cad.hospital_nome || "Não informado",
             roomNumber: cad.roomNumber || cad.room_number || "Sala ?",
-            surgery_type: cad.surgery_type || ""
+            surgery_type: cad.surgery_type || "",
+            procedure: cad.procedure || ""
           }
         }]);
         setTimeout(scrollToTop, 0);
@@ -2443,7 +2584,10 @@ ${aiPart}
         const parts = cmdInput.replace("/registrar", "").split(",");
         const getVal = (label: string) => {
           const part = parts.find(p => p.toLowerCase().includes(label.toLowerCase()));
-          return part ? part.split(":")[1]?.trim() : "";
+          if (!part) return "";
+          const val = part.split(":")[1]?.trim();
+          if (!val || val === "undefined" || val === "null") return "";
+          return val;
         };
 
         const nome = getVal("nome");
@@ -2460,10 +2604,10 @@ ${aiPart}
 
         // Resolve Names to IDs
         const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName);
-        const resolvedHospitalId = selectedHospital ? selectedHospital.id : hospitalName;
+        const resolvedHospitalId = selectedHospital ? selectedHospital.id : (hospitalName || "");
 
-        const selectedStatus = statusOptions.find(s => s.nome === status);
-        const resolvedStatusId = selectedStatus ? selectedStatus.id : status;
+        const selectedStatus = statusOptions.find(s => s.nome === status || s.id === status);
+        const resolvedStatusId = selectedStatus ? selectedStatus.id : (status || "");
 
         const res = await apiFetch("/api/app/patients", {
           method: "POST",
@@ -3050,7 +3194,9 @@ ${aiPart}
                           </h3>
                           <div className="flex flex-row items-center gap-2 mt-0.5">
                             <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg shrink-0 uppercase tracking-wider">
-                              {msg.profileData.idade} {Number(msg.profileData.idade) === 1 ? "ANO" : "ANOS"}
+                              {(msg.profileData.idade && msg.profileData.idade !== "N/A" && msg.profileData.idade !== "") 
+                                ? `${msg.profileData.idade} ${Number(msg.profileData.idade) === 1 ? "ANO" : "ANOS"}`
+                                : "Idade N/A"}
                             </span>
                             <button 
                               onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
@@ -3078,7 +3224,9 @@ ${aiPart}
                           onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
                           className="w-1/2 bg-white border border-blue-100 h-11 rounded-2xl text-blue-600 text-xs font-bold uppercase tracking-wider flex items-center justify-center hover:bg-blue-50/40 transition-all active:scale-95 shadow-sm"
                         >
-                          <span className="max-w-[125px] sm:max-w-none truncate px-1">{allStatuses.find(s => s.id === msg.profileData?.status)?.nome || msg.profileData?.status || "PENDENTE"}</span>
+                          <span className="max-w-[125px] sm:max-w-none truncate px-1">
+                            {allStatuses.find(s => s.id === msg.profileData?.status)?.nome || (msg.profileData?.status && msg.profileData?.status !== "Não informado" ? msg.profileData?.status : "Sem Status")}
+                          </span>
                         </button>
                         <button 
                           onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}, type: ${msg.profileData?.surgery_type}, procedure: ${msg.profileData?.procedure || ""}`)}
