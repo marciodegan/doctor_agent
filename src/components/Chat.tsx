@@ -116,81 +116,8 @@ const MessageForm: React.FC<{
     }
   };
 
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    return () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [cameraStream]);
-
-  const startCamera = async () => {
-    setCameraError(null);
-    setIsCameraActive(true);
-    
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraError("Acesso à câmera não suportado neste dispositivo ou navegador.");
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment"
-        },
-        audio: false
-      });
-      setCameraStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err: any) {
-      console.error("Camera permissions / initialization error:", err);
-      setCameraError(
-        "Não foi possível acessar a câmera. Verifique se deu permissões de uso."
-      );
-    }
-  };
-
-  const stopCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
-    setIsCameraActive(false);
-  };
-
-  const capturePhoto = () => {
-    if (!videoRef.current) return;
-    const video = videoRef.current;
-    
-    try {
-      const canvas = document.createElement("canvas");
-      const width = video.videoWidth || 640;
-      const height = video.videoHeight || 480;
-      
-      canvas.width = width;
-      canvas.height = height;
-      
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-        if (onSelectImage) {
-          onSelectImage(dataUrl);
-        }
-      }
-      stopCamera();
-    } catch (err) {
-      console.error("Failed to capture image:", err);
-      stopCamera();
-    }
-  };
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [showSrcSelector, setShowSrcSelector] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -515,36 +442,16 @@ const MessageForm: React.FC<{
             className="hidden" 
             accept="image/*" 
           />
+          <input 
+            type="file" 
+            ref={cameraInputRef} 
+            onChange={handleFileChange} 
+            className="hidden" 
+            accept="image/*" 
+            capture="environment"
+          />
           
-          {isCameraActive ? (
-            <div className="relative w-full aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-800 shadow-inner flex items-center justify-center">
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                muted
-                className="w-full h-full object-cover" 
-              />
-              
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2.5 w-[90%] justify-center z-10">
-                <button 
-                  type="button"
-                  onClick={stopCamera}
-                  className="flex-1 h-10 bg-black/70 hover:bg-black/90 text-white rounded-xl text-[10px] font-black uppercase tracking-wider backdrop-blur-sm cursor-pointer border border-white/10 active:scale-95 transition-all"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="button"
-                  onClick={capturePhoto}
-                  className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer shadow-lg shadow-blue-500/20 flex items-center justify-center gap-1.5 active:scale-95 transition-all font-black"
-                >
-                  <Camera size={12} strokeWidth={2.5} />
-                  Capturar
-                </button>
-              </div>
-            </div>
-          ) : selectedImage ? (
+          {selectedImage ? (
             <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-200 group">
               <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
               <button 
@@ -555,63 +462,76 @@ const MessageForm: React.FC<{
                 <X size={12} strokeWidth={3} />
                 Remover Imagem
               </button>
-
-              <button
-                type="button"
-                onClick={() => setAnalyzeWithAI(!analyzeWithAI)}
-                className={`absolute bottom-2 right-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-lg ${
-                  analyzeWithAI 
-                    ? "bg-blue-600 text-white shadow-blue-200 ring-2 ring-white" 
-                    : "bg-white/90 text-gray-600 hover:bg-white"
-                }`}
-              >
-                <Sparkles size={12} className={analyzeWithAI ? "animate-pulse" : ""} />
-                {analyzeWithAI ? "Análise IA Ativada" : "Análise IA"}
-              </button>
             </div>
           ) : (
-            <div className="space-y-2">
-              <div className="w-full aspect-video bg-white border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center p-4 gap-4 transition-all">
-                <div className="flex flex-col items-center text-center text-gray-400">
-                  <ImageIcon size={32} className="mb-1 text-slate-300" />
-                  <span className="text-xs font-semibold text-slate-700">Anexar imagem de exame</span>
-                  <span className="text-[10px] text-slate-400 font-medium">Selecione uma opção para carregar</span>
-                </div>
-                
-                <div className="flex gap-2.5 w-full max-w-xs justify-center">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 h-10 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-600 transition-all rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
-                  >
-                    <ImageIcon size={14} />
-                    Biblioteca
-                  </button>
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shadow-md shadow-blue-500/10 font-bold"
-                  >
-                    <Camera size={14} />
-                    Tirar Foto
-                  </button>
-                </div>
-              </div>
-              
-              {cameraError && (
-                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-medium flex items-center justify-between gap-2 shadow-sm animate-pulse animate-duration-1000">
-                  <span>⚠️ {cameraError}</span>
-                  <button 
-                    type="button" 
-                    onClick={() => setCameraError(null)} 
-                    className="text-[10px] font-black uppercase text-red-500 hover:text-red-700"
-                  >
-                    OK
-                  </button>
-                </div>
-              )}
-            </div>
+            <button 
+              type="button"
+              onClick={() => setShowSrcSelector(true)}
+              className="w-full aspect-video bg-white border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all gap-2 cursor-pointer"
+            >
+              <ImageIcon size={32} />
+              <span className="text-xs font-medium">Toque para selecionar imagem</span>
+            </button>
           )}
+
+          <AnimatePresence>
+            {showSrcSelector && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowSrcSelector(false)}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center p-4"
+              >
+                <motion.div 
+                  initial={{ y: 100, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 100, opacity: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white rounded-[2rem] p-6 max-w-sm w-full shadow-2xl space-y-4"
+                >
+                  <div className="text-center">
+                    <h3 className="text-base font-black text-slate-800 uppercase tracking-wider mb-1">Selecione uma opção</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Como deseja carregar o arquivo?</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSrcSelector(false);
+                        cameraInputRef.current?.click();
+                      }}
+                      className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-blue-500/10 cursor-pointer"
+                    >
+                      <Camera size={16} />
+                      Tirar Foto (Câmera Nativa)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSrcSelector(false);
+                        fileInputRef.current?.click();
+                      }}
+                      className="w-full h-12 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm cursor-pointer"
+                    >
+                      <ImageIcon size={16} />
+                      Biblioteca / Arquivos
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowSrcSelector(false)}
+                      className="w-full h-12 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
