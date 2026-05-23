@@ -393,12 +393,12 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
               )}
               {activeGroups.map((group) => (
                 <div key={group.id} className="relative group/item">
-                  <button
+                  <div
                     onClick={() => {
                       setActiveGroupId(group.id);
                       if (onSelect) onSelect();
                     }}
-                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl transition-all border-2 ${
+                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl transition-all border-2 cursor-pointer ${
                       activeGroup?.id === group.id
                         ? "bg-blue-50 border-blue-600 shadow-sm"
                         : "bg-white border-transparent hover:border-gray-100 hover:bg-gray-50"
@@ -459,7 +459,7 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
                         <Check size={12} className="text-blue-600" />
                       </div>
                     )}
-                  </button>
+                  </div>
                 </div>
               ))}
 

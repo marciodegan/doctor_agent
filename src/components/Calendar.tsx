@@ -39,6 +39,7 @@ import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
   interface CalendarEvent {
   id: string;
   nomePaciente?: string;
+  patientId?: string;
   evento: string;
   data: string; // YYYY-MM-DD
   hora: string; // HH:mm
@@ -99,7 +100,8 @@ export function Calendar({
     descricao: "",
     tipo: "ELETIVA",
     sala: "SALA 1",
-    hospitalId: ""
+    hospitalId: "",
+    patientId: ""
   });
 
   const today = new Date();
@@ -431,7 +433,8 @@ export function Calendar({
       descricao: "",
       tipo: prefilledType || "ELETIVA",
       sala: prefilledSala || "SALA 1",
-      hospitalId: prefilledHospitalId || (selectedHospitalFilter !== "all" ? selectedHospitalFilter : "")
+      hospitalId: prefilledHospitalId || (selectedHospitalFilter !== "all" ? selectedHospitalFilter : ""),
+      patientId: ""
     });
     setIsModalOpen(true);
   };
@@ -446,7 +449,8 @@ export function Calendar({
       descricao: event.descricao || "",
       tipo: event.tipo || "ELETIVA",
       sala: event.sala || "SALA 1",
-      hospitalId: event.hospitalId || ""
+      hospitalId: event.hospitalId || "",
+      patientId: event.patientId || ""
     });
     setIsModalOpen(true);
   };
@@ -926,7 +930,7 @@ export function Calendar({
                             type="text"
                             value={formData.nomePaciente}
                             onChange={e => {
-                              setFormData({ ...formData, nomePaciente: e.target.value });
+                              setFormData({ ...formData, nomePaciente: e.target.value, patientId: "" });
                               setShowPatientSuggestions(true);
                             }}
                             onFocus={() => setShowPatientSuggestions(true)}
@@ -949,7 +953,7 @@ export function Calendar({
                                   key={p.id}
                                   type="button"
                                   onClick={() => {
-                                    setFormData({ ...formData, nomePaciente: p.nome });
+                                    setFormData({ ...formData, nomePaciente: p.nome, patientId: p.id });
                                     setShowPatientSuggestions(false);
                                   }}
                                   className="w-full text-left px-5 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"

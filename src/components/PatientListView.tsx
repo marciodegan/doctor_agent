@@ -108,23 +108,43 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
     return new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1]);
   };
 
+  const normalizeString = (str: string) => {
+    return str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+  };
+
   const getPatientEvents = (p: Patient) => {
     const now = new Date();
     const patientEvents = events
       .filter((e) => {
-        // match client-side
-        const isMatch = (e.patientId && e.patientId === p.id) ||
-          (!e.patientId && e.nomePaciente && p.nome && e.nomePaciente.trim().toLowerCase() === p.nome.trim().toLowerCase());
-          
+        // match client-side using normalized strings or patientIds
+        const patientIdInEvent = e.patientId || "";
+        const patientNameInEvent = normalizeString(e.nomePaciente || "");
+        const patientNameInList = normalizeString(p.nome || "");
+
+        const isIdMatch = patientIdInEvent && patientIdInEvent === p.id;
+        const isNameMatch = patientNameInEvent && patientNameInList && (
+          patientNameInEvent === patientNameInList ||
+          patientNameInList.includes(patientNameInEvent) ||
+          patientNameInEvent.includes(patientNameInList)
+        );
+
+        const isMatch = isIdMatch || isNameMatch;
         if (!isMatch) return false;
 
         // status: active
-        const isActive = e.status === undefined || e.status === "active";
+        const isActive = !e.status || e.status === "active";
         if (!isActive) return false;
 
-        // startDateTime >= now
+        // startDateTime >= now (with a friendly 3-hour buffer for events ongoing today)
         const start = getEventStartDateTime(e);
-        if (!start || start < now) return false;
+        if (!start) return false;
+        
+        const isUpcoming = start.getTime() >= (now.getTime() - 3 * 60 * 60 * 1000);
+        if (!isUpcoming) return false;
 
         return true;
       })
@@ -459,7 +479,7 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                                   {timeFormatted} · {nextEvent.evento}
                                 </span>
                                 {additionalCount > 0 && (
-                                  <span className="shrink-0 text-[9px] bg-blue-100 text-blue-805 px-1.5 py-0.5 rounded-full font-black uppercase tracking-tight ml-0.5">
+                                  <span className="shrink-0 text-[9px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-black uppercase tracking-tight ml-0.5">
                                     +{additionalCount} {additionalCount === 1 ? "evento" : "eventos"}
                                   </span>
                                 )}
@@ -550,7 +570,7 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                                     {timeFormatted} · {nextEvent.evento}
                                   </span>
                                   {additionalCount > 0 && (
-                                    <span className="shrink-0 text-[9px] bg-blue-100 text-blue-805 px-1.5 py-0.5 rounded-full font-black uppercase tracking-tight ml-0.5">
+                                    <span className="shrink-0 text-[9px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-black uppercase tracking-tight ml-0.5">
                                       +{additionalCount} {additionalCount === 1 ? "evento" : "eventos"}
                                     </span>
                                   )}

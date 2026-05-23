@@ -96,7 +96,7 @@ export function Pricing({ onBack }: PricingProps) {
           className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-xs font-bold tracking-tight uppercase border border-blue-100 mb-4"
         >
           <Sparkles size={12} />
-          {companyName}
+          DR. AGENT
         </motion.div>
         <motion.h2 
           initial={{ opacity: 0, y: 20 }}
@@ -104,8 +104,8 @@ export function Pricing({ onBack }: PricingProps) {
           transition={{ delay: 0.1 }}
           className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tighter"
         >
-          Poder de verdade para o seu <br />
-          <span className="text-blue-600 underline decoration-blue-200 decoration-8 underline-offset-4">Negócio Inteligente.</span>
+          Organize seus pacientes, agenda e <br />
+          <span className="text-blue-600 underline decoration-blue-200 decoration-8 underline-offset-4">rotina médica em um só lugar.</span>
         </motion.h2>
         <motion.p 
           initial={{ opacity: 0, y: 20 }}
@@ -113,8 +113,7 @@ export function Pricing({ onBack }: PricingProps) {
           transition={{ delay: 0.2 }}
           className="text-gray-500 text-lg max-w-2xl mx-auto"
         >
-          Elimine tarefas manuais e escale sua operação com o {companyName}. 
-          Gerenciamento ilimitado e insights automáticos.
+          Um espaço simples para acompanhar pacientes, registrar notas, anexar imagens e manter sua equipe alinhada.
         </motion.p>
       </div>
 
@@ -130,22 +129,23 @@ export function Pricing({ onBack }: PricingProps) {
           </div>
 
           <div className="mb-10 text-center">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">{companyName}</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Dr. Agent</h3>
             <div className="flex items-baseline justify-center gap-1">
               <span className="text-gray-400 text-lg font-medium">R$</span>
-              <span className="text-6xl font-black text-gray-900 tracking-tighter">149</span>
+              <span className="text-6xl font-black text-gray-900 tracking-tighter">29,90</span>
               <span className="text-gray-500 font-medium">/mês</span>
             </div>
           </div>
 
           <div className="space-y-4 mb-10 flex-1">
-            <Feature item="Pacientes Ilimitados" />
-            <Feature item="Integração Total com Google Workspace" />
-            <Feature item="IA Sem Limites de Mensagens" />
-            <Feature item="Dashboard de Status em Tempo Real" />
-            <Feature item="Gerenciamento de Contatos e Informações" />
-            <Feature item="Backup Automático Diário" />
-            <Feature item="Suporte Prioritário 24/7" />
+            <Feature item="Pacientes ilimitados" />
+            <Feature item="Calendário interno" />
+            <Feature item="Notas e registros por paciente" />
+            <Feature item="Anexos de imagens e documentos" />
+            <Feature item="Grupos pessoais e profissionais" />
+            <Feature item="Organização por status" />
+            <Feature item="Acesso para membros da equipe" />
+            <Feature item="Histórico e informações centralizadas" />
           </div>
 
           {!stripeStatus?.subscribed ? (
@@ -159,7 +159,7 @@ export function Pricing({ onBack }: PricingProps) {
               ) : (
                 <>
                   <Zap size={20} className="fill-white" />
-                  {isAuthenticated ? `Começar agora com ${companyName}` : "Conectar Google e Assinar"}
+                  Começar com Dr. Agent
                 </>
               )}
             </button>
@@ -194,7 +194,7 @@ export function Pricing({ onBack }: PricingProps) {
           
           <p className="text-center text-xs text-gray-400 mt-6 flex items-center justify-center gap-2">
             <Shield size={12} />
-            Pagamento Seguro via Stripe. Cancele quando quiser.
+            Pagamento seguro. Cancele quando quiser.
           </p>
         </motion.div>
       </div>
@@ -202,18 +202,18 @@ export function Pricing({ onBack }: PricingProps) {
       <div className="mt-20 grid grid-cols-1 sm:grid-cols-3 gap-12 max-w-4xl w-full text-center">
         <TrustBadge 
           icon={<Zap className="text-yellow-500" />} 
-          title="Velocidade" 
-          desc="Interface otimizada para produtividade máxima." 
+          title="Organização" 
+          desc="Mantenha pacientes, notas e agenda em um fluxo simples e fácil de acessar." 
         />
         <TrustBadge 
           icon={<Shield className="text-green-500" />} 
           title="Privacidade" 
-          desc="Seus dados continuam no seu Google Drive." 
+          desc="As informações ficam organizadas por grupo e acessíveis apenas aos membros autorizados." 
         />
         <TrustBadge 
           icon={<Sparkles className="text-blue-500" />} 
-          title="Inteligência" 
-          desc="Modelos Gemini 1.5 Pro de última geração." 
+          title="Praticidade" 
+          desc="Registre informações importantes, acompanhe status e encontre tudo com poucos toques." 
         />
       </div>
     </div>
