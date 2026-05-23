@@ -165,7 +165,8 @@ const getOAuth2Client = (req?: express.Request) => {
 const SCOPES = [
   "openid",
   "email",
-  "profile"
+  "profile",
+  "https://www.googleapis.com/auth/calendar.events.owned"
 ];
 
 // Resource caching to reduce consumption
@@ -505,31 +506,13 @@ app.get("/api/auth/url", (req, res) => {
       });
     }
 
-    const isCalendar = req.query.type === "calendar";
-    const returnTo = req.query.returnTo?.toString() || "";
-
-    const randomState = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    const state = randomState + (returnTo ? "___returnTo___" + encodeURIComponent(returnTo) : "");
-
-    const scopeList = isCalendar ? [
-      "openid",
-      "email",
-      "profile",
-      "https://www.googleapis.com/auth/calendar.events"
-    ] : SCOPES;
-
-    const authOptions: any = {
+    const state = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const url = client.generateAuthUrl({
       access_type: "offline",
-      scope: scopeList,
+      scope: SCOPES,
       prompt: "consent",
       state: state
-    };
-
-    if (isCalendar) {
-      authOptions.include_granted_scopes = true;
-    }
-
-    const url = client.generateAuthUrl(authOptions);
+    });
     res.json({ url, state });
   } catch (err: any) {
     console.error("Error generating auth URL:", err);
@@ -559,10 +542,6 @@ app.get("/api/auth/google/callback", async (req, res) => {
       token_type: tokens.token_type
     };
 
-    const stateStr = (state as string) || "";
-    const returnToMatch = stateStr.match(/___returnTo___(.*)$/);
-    const returnTo = returnToMatch ? decodeURIComponent(returnToMatch[1]) : "";
-
     // Store for polling
     if (state) {
       console.log(`[Auth] Storing pending session for state: ${state}`);
@@ -571,30 +550,6 @@ app.get("/api/auth/google/callback", async (req, res) => {
     }
 
     setAuthCookies(res, essentialTokens);
-
-    // If scopes include calendar.events, update profile in Firestore
-    const hasCalendarScope = tokens.scope && tokens.scope.includes("https://www.googleapis.com/auth/calendar.events");
-    if (hasCalendarScope) {
-      try {
-        const authClient = getOAuth2Client(req);
-        if (authClient) {
-          authClient.setCredentials(essentialTokens);
-          const oauth2 = google.oauth2({ version: "v2", auth: authClient });
-          const userRes = await oauth2.userinfo.get();
-          const id = userRes.data.id;
-          if (id) {
-            await db.collection("users").doc(id).set({
-              googleCalendarConnected: true,
-              googleCalendarScopes: ["https://www.googleapis.com/auth/calendar.events"],
-              googleCalendarConnectedAt: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-            console.log(`[OAuth] Successfully updated googleCalendarConnected for user ID: ${id}`);
-          }
-        }
-      } catch (err) {
-        console.error("Error updating user profile with calendar scope status:", err);
-      }
-    }
 
     res.send(`
       <html>
@@ -625,15 +580,15 @@ app.get("/api/auth/google/callback", async (req, res) => {
             <button onclick="copyTokens()" class="btn" id="finish-btn">CONCLUIR LOGIN</button>
             
             <div id="debug-status" class="status">Tentando comunicação direta...</div>
- 
+
             <script>
               const tokens = ${JSON.stringify(essentialTokens)};
               const payload = { type: 'OAUTH_AUTH_SUCCESS', tokens, timestamp: Date.now() };
- 
+
               function notify() {
                 try {
-                   const channel = new BroadcastChannel('doctor_pro_auth_channel');
-                   channel.postMessage(payload);
+                  const channel = new BroadcastChannel('doctor_pro_auth_channel');
+                  channel.postMessage(payload);
                 } catch (e) {}
                 try {
                   if (window.opener) window.opener.postMessage(payload, '*');
@@ -642,7 +597,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
                   localStorage.setItem('doctor_pro_auth_success', JSON.stringify(payload));
                 } catch (e) {}
               }
- 
+
               notify();
               let count = 0;
               const interval = setInterval(() => {
@@ -656,19 +611,18 @@ app.get("/api/auth/google/callback", async (req, res) => {
                   document.getElementById('debug-status').innerText = "Processo finalizado.";
                 }
               }, 1000);
- 
+
               window.copyTokens = function() {
                 notify();
                 setTimeout(() => {
                   if (window.opener) window.close();
-                  else window.location.href = '${returnTo || "/"}';
+                  else window.location.href = '/';
                 }, 500);
               };
- 
+
               // Auto-close if successful
               setTimeout(() => {
                  if (window.opener) window.close();
-                 else window.location.href = '${returnTo || "/"}';
               }, 20000);
             </script>
           </div>
@@ -1900,36 +1854,6 @@ app.post("/api/app/patient-logs/remove", express.json(), async (req, res) => {
   }
 });
 
-const handleCalendarAuthError = async (req: express.Request, err: any) => {
-  console.error("[Calendar API Auth Error]:", err?.message || err);
-  const isAuthError = 
-    err?.code === 401 || 
-    err?.code === 403 || 
-    err?.status === 401 || 
-    err?.status === 403 ||
-    err?.message?.includes("invalid_grant") || 
-    err?.message?.includes("credentials") ||
-    err?.message?.includes("invalid_client") ||
-    err?.message?.includes("AccessTokenActiveCheckFailed") ||
-    err?.message?.includes("Token") ||
-    err?.message?.includes("auth") ||
-    err?.message?.includes("Auth");
-    
-  if (isAuthError) {
-    try {
-      const userId = await getUserId(req);
-      if (userId) {
-        await db.collection("users").doc(userId).set({
-          googleCalendarConnected: false
-        }, { merge: true });
-        console.log(`[OAuth] Reset googleCalendarConnected to false due to API auth error for user: ${userId}`);
-      }
-    } catch (e) {
-      console.error("[OAuth] Failed to reset googleCalendarConnected in handler:", e);
-    }
-  }
-};
-
 // Shortcut Routes for Google APIs ---
 
 // Calendar: List Events
@@ -1952,7 +1876,6 @@ app.get("/api/calendar/events", async (req, res) => {
     });
     res.json(response.data.items);
   } catch (error) {
-    await handleCalendarAuthError(req, error);
     res.status(500).json({ error: (error as Error).message });
   }
 });
@@ -1974,7 +1897,6 @@ app.post("/api/calendar/events", async (req, res) => {
     res.json(response.data);
   } catch (error) {
     console.error("[Calendar] Error creating event:", (error as any).message);
-    await handleCalendarAuthError(req, error);
     res.status(500).json({ error: (error as Error).message });
   }
 });
@@ -1993,7 +1915,6 @@ app.delete("/api/calendar/events/:eventId", async (req, res) => {
     });
     res.json({ success: true });
   } catch (error) {
-    await handleCalendarAuthError(req, error);
     res.status(500).json({ error: (error as Error).message });
   }
 });
@@ -2015,7 +1936,6 @@ app.put("/api/calendar/events/:eventId", async (req, res) => {
     res.json(response.data);
   } catch (error) {
     console.error("[Calendar] Error updating event:", (error as any).message);
-    await handleCalendarAuthError(req, error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

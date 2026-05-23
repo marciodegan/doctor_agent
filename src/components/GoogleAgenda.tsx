@@ -16,9 +16,6 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGroup } from "../contexts/GroupContext";
-import { useAuth } from "../hooks/useAuth";
-import { db } from "../lib/firebase";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
 
 import { auth } from "../lib/firebase";
 
@@ -44,9 +41,6 @@ const MONTHS = [
 
 export function GoogleAgenda() {
   const { companyName, apiFetch } = useGroup();
-  const { user } = useAuth();
-  const [calendarConnected, setCalendarConnected] = useState<boolean | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<GoogleEvent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,47 +67,6 @@ export function GoogleAgenda() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
 
-  useEffect(() => {
-    if (!user) {
-      setCalendarConnected(false);
-      return;
-    }
-
-    const userDocRef = doc(db, "users", user.uid);
-    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setCalendarConnected(!!data.googleCalendarConnected);
-      } else {
-        setCalendarConnected(false);
-      }
-    }, (err) => {
-      console.error("Error subscribing to user doc:", err);
-      setCalendarConnected(false);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  const handleConnectCalendar = async () => {
-    setIsConnecting(true);
-    try {
-      const res = await fetch("/api/auth/url?type=calendar&returnTo=/agenda", { credentials: "include" });
-      if (!res.ok) throw new Error("Erro ao gerar link de conexão.");
-      const data = await res.json();
-      
-      const popup = window.open(data.url, "google_oauth_calendar", "width=600,height=700");
-      if (!popup) {
-        window.location.href = data.url;
-        return;
-      }
-    } catch (err: any) {
-      alert("Falha ao iniciar conexão: " + err.message);
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
   const fetchEvents = async () => {
     setIsLoading(true);
     setWaError(null);
@@ -124,17 +77,8 @@ export function GoogleAgenda() {
       
       const res = await apiFetch(`/api/calendar/events?timeMin=${startRange.toISOString()}&timeMax=${endRange.toISOString()}`);
       
-      if (res.status === 401 || res.status === 403) {
-        if (user) {
-          try {
-            await setDoc(doc(db, "users", user.uid), {
-              googleCalendarConnected: false
-            }, { merge: true });
-          } catch (e) {
-            console.error("Failed to update status on client:", e);
-          }
-        }
-        setWaError("Sua sessão do Google expirou ou as permissões foram revogadas. Por favor, conecte o Google Agenda novamente.");
+      if (res.status === 401) {
+        setWaError("Sua sessão do Google expirou. Por favor, faça login novamente.");
         return;
       }
 
@@ -154,10 +98,8 @@ export function GoogleAgenda() {
   };
 
   useEffect(() => {
-    if (calendarConnected === true) {
-      fetchEvents();
-    }
-  }, [currentDate, calendarConnected]);
+    fetchEvents();
+  }, [currentDate]);
 
   const handlePrevMonth = () => {
     const d = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
@@ -381,41 +323,6 @@ export function GoogleAgenda() {
       console.error("Error deleting Google event:", err);
     }
   };
-
-  if (calendarConnected === null) {
-    return (
-      <div className="flex flex-col items-center justify-center p-20 min-h-[400px]">
-        <Loader2 className="animate-spin text-emerald-600 w-10 h-10 mb-4" />
-         <p className="text-sm text-slate-500 font-bold uppercase tracking-wider">Verificando conexão...</p>
-      </div>
-    );
-  }
-
-  if (calendarConnected === false) {
-    return (
-      <div className="max-w-xl mx-auto my-12 p-8 bg-white border border-gray-100 rounded-3xl shadow-[0_4px_24px_rgba(0,0,0,0.02)] text-center">
-        <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center border border-emerald-100 text-emerald-500 mx-auto mb-6 shadow-sm">
-          <CalendarIcon size={32} />
-        </div>
-        <h3 className="text-xl font-black text-gray-900 tracking-tight mb-2">Google Agenda</h3>
-        <p className="text-sm text-gray-500 leading-relaxed mb-6">
-          Sincronize seus compromissos e agendamentos integrado com o Google Calendar. Conecte sua conta para começar.
-        </p>
-        <button
-          onClick={handleConnectCalendar}
-          disabled={isConnecting}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-600/10 cursor-pointer"
-        >
-          {isConnecting ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <CalendarDays size={16} />
-          )}
-          <span>Conectar Google Agenda</span>
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col bg-white rounded-3xl border border-gray-100 shadow-sm">
