@@ -91,8 +91,8 @@ const MessageForm: React.FC<{
   const [isRemovingPatient, setIsRemovingPatient] = useState(false);
   const [removalError, setRemovalError] = useState<string | null>(null);
 
-  const isEditPatientForm = form.commandPrefix?.startsWith("/update_patient id:");
-  const patientIdMatch = form.commandPrefix?.match(/id:\s*([^,]+)/);
+  const isEditPatientForm = !!(form.commandPrefix && form.commandPrefix.includes("/update_patient"));
+  const patientIdMatch = form.commandPrefix?.match(/id:\s*([^, ]+)/);
   const patientId = patientIdMatch ? patientIdMatch[1].trim() : null;
 
   const handleConfirmRemoval = async () => {
