@@ -13,6 +13,7 @@ import {
   onSnapshot, 
   orderBy, 
   getDocs, 
+  getDoc,
   addDoc, 
   updateDoc,
   deleteDoc,
@@ -1317,7 +1318,8 @@ ${aiPart}
     const selectedHospital = hospitalOptions.find(h => h.nome === hospName || h.id === hospName);
     const hostIdResolved = selectedHospital ? selectedHospital.id : "";
 
-    const pid = parts.pid || "";
+    let pid = parts.pid || "";
+    let nomePaciente = parts.nomepaciente || "";
 
     if (!evento || !dataStr || !hora) {
       setMessages(prev => [...prev, { role: "model", text: "❌ Dados incompletos para o calendário." }]);
@@ -1331,6 +1333,28 @@ ${aiPart}
       const GROUP_ID = activeGroup?.id || "main-group";
       const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
       
+      // Auto link to a patient if name is provided but ID is not, or vice versa
+      if (!pid && nomePaciente) {
+        const patientsQuery = query(
+          collection(db, "patients"),
+          where("groupId", "==", GROUP_ID)
+        );
+        const snapshot = await getDocs(patientsQuery);
+        const matchName = nomePaciente.trim().toLowerCase();
+        const matchedDoc = snapshot.docs.find(d => {
+          const name = (d.data().name || d.data().nome || "").trim().toLowerCase();
+          return name === matchName;
+        });
+        if (matchedDoc) {
+          pid = matchedDoc.id;
+        }
+      } else if (pid && !nomePaciente) {
+        const patientDoc = await getDoc(doc(db, "patients", pid));
+        if (patientDoc.exists()) {
+          nomePaciente = patientDoc.data().name || patientDoc.data().nome || "";
+        }
+      }
+
       await addDoc(eventsRef, {
         evento,
         data: dataStr,
@@ -1340,6 +1364,7 @@ ${aiPart}
         descricao,
         groupId: GROUP_ID,
         patientId: pid,
+        nomePaciente,
         hospitalId: hostIdResolved,
         createdBy: auth.currentUser.uid,
         createdAt: serverTimestamp(),

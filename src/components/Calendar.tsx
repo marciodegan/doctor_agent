@@ -460,11 +460,34 @@ export function Calendar({
     if (!auth.currentUser) return;
 
     try {
+      // Automatically resolve patientId and nomePaciente if possible
+      let finalPatientId = formData.patientId || "";
+      let finalNomePaciente = formData.nomePaciente || "";
+
+      if (!finalPatientId && finalNomePaciente) {
+        const queryName = finalNomePaciente.trim().toLowerCase();
+        const matched = allPatients.find(p => p.nome.trim().toLowerCase() === queryName);
+        if (matched) {
+          finalPatientId = matched.id;
+          finalNomePaciente = matched.nome; // Use dynamic exact name
+        }
+      } else if (finalPatientId && !finalNomePaciente) {
+        const matched = allPatients.find(p => p.id === finalPatientId);
+        if (matched) {
+          finalNomePaciente = matched.nome;
+        }
+      }
+
+      const dataToSave = {
+        ...formData,
+        patientId: finalPatientId,
+        nomePaciente: finalNomePaciente
+      };
+
       // 1. Save to Firestore
       let savedEventId = "";
       if (editingEvent) {
         const eventRef = doc(db, "groups", GROUP_ID, "calendario", editingEvent.id);
-        const dataToSave = formData;
         await updateDoc(eventRef, {
           ...dataToSave,
           updatedAt: serverTimestamp()
@@ -472,7 +495,6 @@ export function Calendar({
         savedEventId = editingEvent.id;
       } else {
         const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
-        const dataToSave = formData;
         const docRef = await addDoc(eventsRef, {
           ...dataToSave,
           groupId: GROUP_ID,
