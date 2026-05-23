@@ -84,8 +84,6 @@ export function Calendar({
   const [waError, setWaError] = useState<string | null>(null);
   
   const procedureOptions = allProcedures.filter(p => p.active !== false && (p as any).status !== "removed").map(p => p.nome);
-  const standardProcedures = ["Apendicectomia", "Artroscopia", "Colecistectomia", "Hernioplastia", "Histerectomia"];
-  const displayProcedureOptions = Array.from(new Set([...standardProcedures, ...procedureOptions]));
   const surgeryTypeOptions = allSurgeryTypes.filter(s => s.active !== false && (s as any).status !== "removed").map(s => s.name);
   const hospitalOptions = allHospitals.filter(h => h.active !== false && (h as any).status !== "removed");
 
@@ -927,160 +925,155 @@ export function Calendar({
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden z-10"
+              className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden z-10 border border-gray-100"
             >
-              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
-                <div className="flex flex-col gap-0.5 text-left">
-                  <h3 className="text-xl font-black text-slate-800 tracking-tight leading-tight flex items-center gap-2">
-                    <span>📅</span> {editingEvent ? "Editar Evento" : "Novo Evento"}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    {editingEvent ? "Atualize os dados do compromisso." : "Preencha os dados abaixo para criar o compromisso."}
-                  </p>
-                </div>
+              {/* Modern Header with Subtitle */}
+              <div className="px-6 pt-6 pb-4 flex flex-col gap-0.5 text-left relative border-b border-slate-50">
                 <button 
                   onClick={() => setIsModalOpen(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-xl transition-all shrink-0"
+                  className="absolute right-6 top-6 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all"
                 >
                   <X size={20} />
                 </button>
+                <h3 className="text-xl font-black text-slate-800 tracking-tight leading-tight flex items-center gap-2">
+                  <span>📅</span> {editingEvent ? "Editar Evento" : "Novo Evento"}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium pr-10">
+                  {editingEvent ? "Atualize os dados do compromisso." : "Preencha os dados abaixo para criar o compromisso."}
+                </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="px-6 py-6 pb-10 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+              <form onSubmit={handleSubmit} className="px-6 py-5 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                
                 {/* Section 1: Paciente e procedimento */}
-                <div className="space-y-4 text-left">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 pb-1 border-b border-slate-100">
+                <div className="space-y-4">
+                  <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
                     Paciente e procedimento
                   </h4>
-                  
-                  {/* Nome do Paciente */}
-                  <div className="relative space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
-                      Nome do paciente
-                    </label>
-                    <div className="relative group">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors pointer-events-none">
-                        <User size={18} />
-                      </div>
-                      <input 
-                        required
-                        type="text"
-                        value={formData.nomePaciente}
-                        onChange={e => {
-                          setFormData({ ...formData, nomePaciente: e.target.value });
-                          setShowPatientSuggestions(true);
-                        }}
-                        onFocus={() => setShowPatientSuggestions(true)}
-                        onBlur={() => setTimeout(() => setShowPatientSuggestions(false), 205)}
-                        placeholder="Nome completo do paciente"
-                        className="w-full bg-white border border-gray-200 rounded-xl h-12 pl-12 pr-4 text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm placeholder:font-medium placeholder:text-gray-400 font-medium"
-                      />
-                    </div>
-
-                    <AnimatePresence>
-                      {showPatientSuggestions && formData.nomePaciente && filteredPatients.length > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="absolute z-50 left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-blue-50 shadow-xl shadow-blue-900/10 max-h-48 overflow-y-auto custom-scrollbar"
-                        >
-                          {filteredPatients.map(p => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => {
-                                setFormData({ ...formData, nomePaciente: p.nome });
-                                setShowPatientSuggestions(false);
-                              }}
-                              className="w-full text-left px-5 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
-                            >
-                              <div className="flex items-center gap-3">
-                                <User size={14} className="text-gray-400" />
-                                {p.nome}
-                              </div>
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  {/* Procedimento */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
-                      Procedimento
-                    </label>
-                    <div className="relative group">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors pointer-events-none">
-                        <CalendarIcon size={18} />
-                      </div>
-                      <input 
-                        required
-                        type="text"
-                        value={formData.evento}
-                        onChange={e => setFormData({ ...formData, evento: e.target.value })}
-                        placeholder="Ex: Cirurgia Geral, Estética..."
-                        className="w-full bg-white border border-gray-200 rounded-xl h-12 pl-12 pr-4 text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm placeholder:font-medium placeholder:text-gray-400 font-medium"
-                      />
-                    </div>
-                    {displayProcedureOptions.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2 ml-0.5">
-                        {displayProcedureOptions.map(opt => {
-                          const isSelected = formData.evento === opt;
-                          return (
-                            <button
-                              key={opt}
-                              type="button"
-                              onClick={() => setFormData({ ...formData, evento: opt })}
-                              className={`px-3 py-1.5 rounded-xl text-[11px] tracking-wide transition-all border cursor-pointer ${
-                                isSelected 
-                                  ? "bg-blue-600 border-blue-600 text-white shadow-sm font-semibold" 
-                                  : "bg-slate-50 hover:bg-slate-100/80 border-slate-100/50 text-slate-500 hover:text-slate-700 font-medium"
-                              }`}
-                            >
-                              {opt}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Section 2: Data e horário */}
-                <div className="space-y-4 text-left">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 pb-1 border-b border-slate-100">
-                    Data e horário
-                  </h4>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {/* Data */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
-                        Data
-                      </label>
+                  <div className="space-y-4">
+                    
+                    {/* Nome do Paciente Group */}
+                    <div className="space-y-1.5 flex flex-col text-left relative">
+                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Nome do paciente</label>
                       <div className="relative group">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors pointer-events-none">
+                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                          <User size={18} />
+                        </div>
+                        <input 
+                          required
+                          type="text"
+                          value={formData.nomePaciente}
+                          onChange={e => {
+                            setFormData({ ...formData, nomePaciente: e.target.value });
+                            setShowPatientSuggestions(true);
+                          }}
+                          onFocus={() => setShowPatientSuggestions(true)}
+                          onBlur={() => setTimeout(() => setShowPatientSuggestions(false), 200)}
+                          placeholder="Nome completo do paciente"
+                          className="w-full h-12 pl-11 pr-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm"
+                        />
+                      </div>
+
+                      <AnimatePresence>
+                        {showPatientSuggestions && formData.nomePaciente && filteredPatients.length > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="absolute z-50 left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-blue-50 shadow-xl shadow-blue-900/10 max-h-48 overflow-y-auto custom-scrollbar"
+                          >
+                            {filteredPatients.map(p => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  setFormData({ ...formData, nomePaciente: p.nome });
+                                  setShowPatientSuggestions(false);
+                                }}
+                                className="w-full text-left px-5 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <User size={14} className="text-gray-400" />
+                                  {p.nome}
+                                </div>
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Procedimento Group */}
+                    <div className="space-y-1.5 flex flex-col text-left">
+                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Procedimento</label>
+                      <div className="relative group">
+                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
                           <CalendarIcon size={18} />
                         </div>
                         <input 
                           required
-                          type="date"
-                          value={formData.data}
-                          onChange={e => setFormData({ ...formData, data: e.target.value })}
-                          className="w-full bg-white border border-gray-200 rounded-xl h-12 pl-12 pr-4 text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm font-sans font-medium"
+                          type="text"
+                          value={formData.evento}
+                          onChange={e => setFormData({ ...formData, evento: e.target.value })}
+                          placeholder="Ex: Cirurgia Geral, Estética..."
+                          className="w-full h-12 pl-11 pr-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm"
                         />
                       </div>
+                      
+                      {/* Chips */}
+                      {procedureOptions.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5 ml-0.5">
+                          {procedureOptions.map(opt => {
+                            const isSelected = formData.evento === opt;
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => setFormData({ ...formData, evento: opt })}
+                                className={`px-3 py-1.5 rounded-xl text-[11px] tracking-wide transition-all border cursor-pointer ${
+                                  isSelected 
+                                    ? "bg-blue-600 border-blue-600 text-white shadow-sm font-semibold" 
+                                    : "bg-slate-50 hover:bg-slate-100/80 border-slate-100/50 text-slate-500 hover:text-slate-700 font-medium"
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Horário */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
-                        Horário
-                      </label>
+                  </div>
+                </div>
+
+                {/* Section 2: Data da cirurgia */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
+                    Data da cirurgia
+                  </h4>
+                  <div className="space-y-1.5 flex flex-col text-left">
+                    <label className="text-xs font-semibold text-slate-700 ml-0.5">Data</label>
+                    <input 
+                      required
+                      type="date"
+                      value={formData.data}
+                      onChange={e => setFormData({ ...formData, data: e.target.value })}
+                      className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Section 3: Horário e tipo */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
+                    Horário e tipo
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 flex flex-col text-left">
+                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Horário</label>
                       <div className="relative group">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors pointer-events-none">
+                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
                           <Clock size={18} />
                         </div>
                         <input 
@@ -1088,21 +1081,18 @@ export function Calendar({
                           type="time"
                           value={formData.hora}
                           onChange={e => setFormData({ ...formData, hora: e.target.value })}
-                          className="w-full bg-white border border-gray-200 rounded-xl h-12 pl-12 pr-4 text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm font-sans font-medium"
+                          className="w-full h-12 pl-11 pr-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm font-mono"
                         />
                       </div>
                     </div>
-
-                    {/* Tipo */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
-                        Tipo
-                      </label>
+                    
+                    <div className="space-y-1.5 flex flex-col text-left">
+                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Tipo</label>
                       <div className="relative">
                         <select 
                           value={formData.tipo}
                           onChange={e => setFormData({ ...formData, tipo: e.target.value })}
-                          className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none appearance-none cursor-pointer pr-10 shadow-sm transition-all font-medium"
+                          className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none appearance-none cursor-pointer pr-10 shadow-sm transition-all"
                         >
                           {surgeryTypeOptions.length > 0 ? (
                             surgeryTypeOptions.map(opt => (
@@ -1123,115 +1113,121 @@ export function Calendar({
                   </div>
                 </div>
 
-                {/* Section 3: Detalhes */}
-                <div className="space-y-4 text-left">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 pb-1 border-b border-slate-100">
-                    Detalhes
+                {/* Section 4: Hospital / Clínica */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
+                    Hospital / Clínica
                   </h4>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Hospital */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
-                        Hospital / Clínica
-                      </label>
-                      <div className="relative group">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors pointer-events-none">
-                          <Building2 size={18} />
-                        </div>
-                        <select 
-                          value={formData.hospitalId}
-                          onChange={e => setFormData({ ...formData, hospitalId: e.target.value })}
-                          className="w-full h-12 pl-12 pr-10 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none appearance-none cursor-pointer shadow-sm transition-all font-medium"
-                        >
-                          <option value="">Selecione o Hospital...</option>
-                          {hospitalOptions.map(h => (
-                            <option key={h.id} value={h.id}>{h.nome}</option>
-                          ))}
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                          <ChevronDown size={16} />
-                        </div>
+                  <div className="space-y-1.5 flex flex-col text-left">
+                    <label className="text-xs font-semibold text-slate-700 ml-0.5">Hospital / Clínica</label>
+                    <div className="relative">
+                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                        <Building2 size={18} />
+                      </div>
+                      <select 
+                        value={formData.hospitalId}
+                        onChange={e => setFormData({ ...formData, hospitalId: e.target.value })}
+                        className="w-full h-12 pl-11 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none appearance-none cursor-pointer pr-10 shadow-sm transition-all overflow-hidden whitespace-nowrap text-ellipsis"
+                      >
+                        <option value="">Selecione o Hospital...</option>
+                        {hospitalOptions.map(h => (
+                          <option key={h.id} value={h.id}>{h.nome}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ChevronDown size={16} />
                       </div>
                     </div>
+                  </div>
+                </div>
 
-                    {/* Sala */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
-                        Sala / Unidade
-                      </label>
+                {/* Section 5: Detalhes */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
+                    Detalhes
+                  </h4>
+                  <div className="space-y-4">
+                    <div className="space-y-1.5 flex flex-col text-left">
+                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Sala / Unidade</label>
                       <input 
                         type="text"
                         value={formData.sala}
                         onChange={e => setFormData({ ...formData, sala: e.target.value })}
                         placeholder="Ex: Sala 01"
-                        className="w-full bg-white border border-gray-200 rounded-xl h-12 px-4 text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm placeholder:font-medium placeholder:text-gray-400 font-medium"
+                        className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm"
                       />
                     </div>
-                  </div>
-
-                  {/* Observações */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
-                      Observações
-                    </label>
-                    <div className="relative group">
-                      <div className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-blue-600 transition-colors pointer-events-none">
-                        <FileText size={18} />
+                    
+                    <div className="space-y-1.5 flex flex-col text-left">
+                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Observações (opcional)</label>
+                      <div className="relative group">
+                        <div className="absolute left-3.5 top-4 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                          <FileText size={18} />
+                        </div>
+                        <textarea 
+                          value={formData.descricao}
+                          onChange={e => setFormData({ ...formData, descricao: e.target.value })}
+                          placeholder="Alguma recomendação ou detalhe importante?"
+                          rows={3}
+                          className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm resize-none min-h-[100px]"
+                        />
                       </div>
-                      <textarea 
-                        value={formData.descricao}
-                        onChange={e => setFormData({ ...formData, descricao: e.target.value })}
-                        placeholder="Alguma recomendação ou detalhe importante?"
-                        rows={3}
-                        className="w-full bg-white border border-gray-200 rounded-xl pt-3 pb-3 pl-12 pr-4 text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm resize-none min-h-[100px] font-medium"
-                      />
                     </div>
                   </div>
                 </div>
 
-                {/* Google Calendar Toggle */}
+                {/* Google Calendar Box */}
                 <div 
-                  className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between group cursor-pointer hover:bg-emerald-50 transition-all text-left" 
+                  className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between group cursor-pointer hover:bg-emerald-50 transition-all" 
                   onClick={() => setFormData({ ...formData, syncToGoogle: !formData.syncToGoogle })}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${formData.syncToGoogle ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" : "bg-white text-emerald-500 border border-emerald-100"}`}>
                       <CalendarIcon size={20} />
                     </div>
-                    <div>
+                    <div className="text-left">
                       <h4 className="text-xs font-black text-gray-900 leading-tight">Adicionar à minha Agenda Google</h4>
                       <p className="text-[10px] font-bold text-gray-400">Sincroniza automaticamente este evento</p>
                     </div>
                   </div>
-                  <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${formData.syncToGoogle ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-emerald-100 text-transparent"}`}>
+                  <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${formData.syncToGoogle ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-emerald-100 text-transparent"}`}>
                     <Check size={14} strokeWidth={4} />
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="pt-4 flex flex-col sm:flex-row items-center gap-3 border-t border-gray-100">
-                  <div className="flex items-center gap-3 w-full sm:w-auto order-2 sm:order-1">
-                    {editingEvent && (
+                {/* Submit / Action buttons */}
+                <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-100 pb-2">
+                  <div className="flex items-center justify-start gap-3 w-full sm:w-auto">
+                    {editingEvent ? (
                       <button 
                         type="button"
                         onClick={handleDelete}
-                        className="flex-1 sm:flex-none p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100 active:scale-95 flex items-center justify-center cursor-pointer"
+                        className="px-5 py-3 h-12 text-xs font-bold text-red-500 hover:bg-red-50/50 border border-transparent hover:border-red-100 rounded-2xl transition-all flex items-center gap-2 group cursor-pointer"
                         title="Excluir Procedimento"
                       >
-                        <Trash2 size={20} />
-                        <span className="sm:hidden font-black uppercase text-[10px] tracking-widest ml-2">Excluir</span>
+                        <Trash2 size={16} />
+                        Excluir
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsModalOpen(false)}
+                        className="px-5 py-3 h-12 text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50/50 rounded-2xl transition-all flex items-center gap-2 group cursor-pointer"
+                      >
+                        Cancelar
                       </button>
                     )}
                   </div>
+
                   <button 
                     type="submit"
-                    className="w-full sm:w-auto sm:flex-1 bg-blue-600 hover:bg-blue-700 text-white px-8 h-12 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10 active:scale-[0.98] cursor-pointer order-1 sm:order-2"
+                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 h-12 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10 active:scale-[0.98] cursor-pointer"
                   >
                     {editingEvent ? <Check size={16} strokeWidth={2.5} /> : <Plus size={16} strokeWidth={2.5} />}
                     {editingEvent ? "Salvar Alterações" : "Criar evento"}
                   </button>
                 </div>
+
               </form>
             </motion.div>
           </div>
