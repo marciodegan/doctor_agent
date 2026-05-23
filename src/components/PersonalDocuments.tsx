@@ -24,6 +24,21 @@ interface PersonalImage {
   aiResposta: string;
 }
 
+const isVideoUrl = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  if (url.startsWith("data:video/")) return true;
+  const cleanUrl = url.split("?")[0].toLowerCase();
+  return (
+    cleanUrl.endsWith(".mp4") ||
+    cleanUrl.endsWith(".mov") ||
+    cleanUrl.endsWith(".webm") ||
+    cleanUrl.endsWith(".m4v") ||
+    cleanUrl.endsWith(".avi") ||
+    cleanUrl.endsWith(".3gp") ||
+    cleanUrl.endsWith(".mkv")
+  );
+};
+
 export const PersonalDocuments: React.FC = () => {
   const { activeGroup, apiFetch, imageAnalysisPrompt } = useGroup();
   
@@ -117,6 +132,9 @@ export const PersonalDocuments: React.FC = () => {
       const base64Data = selectedImage.split(",")[1];
       const patientId = `personal_${activeGroup.id}`;
 
+      const ext = mimeType.split("/")[1] || "jpg";
+      const extResolved = ext === "quicktime" ? "mov" : ext;
+
       const res = await apiFetch("/api/app/upload-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,7 +143,7 @@ export const PersonalDocuments: React.FC = () => {
           description: description || "Documento Pessoal",
           mimeType: mimeType,
           base64Data: base64Data,
-          fileName: `Doc_Personal_${activeGroup.id}_${Date.now()}.jpg`
+          fileName: `Doc_Personal_${activeGroup.id}_${Date.now()}.${extResolved}`
         })
       });
 
@@ -289,25 +307,28 @@ export const PersonalDocuments: React.FC = () => {
                             : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-500"
                         }`}
                       >
-                        {cat}
-                      </button>
+                              </button>
                     ))}
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 ml-1 tracking-wider">Selecione o arquivo de imagem</label>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 ml-1 tracking-wider">Selecione o arquivo de imagem ou vídeo</label>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     onChange={handleFileChange}
                     className="hidden"
                   />
 
                   {selectedImage ? (
                     <div className="relative w-full aspect-video md:aspect-[3/1] rounded-xl overflow-hidden border border-slate-200 group bg-slate-900 flex items-center justify-center">
-                      <img src={selectedImage} alt="Preview" className="h-full w-full object-contain" />
+                      {isVideoUrl(selectedImage) ? (
+                        <video src={selectedImage} controls className="h-full w-full object-contain" />
+                      ) : (
+                        <img src={selectedImage} alt="Preview" className="h-full w-full object-contain" />
+                      )}
                       <button
                         type="button"
                         onClick={() => setSelectedImage(null)}
@@ -324,7 +345,7 @@ export const PersonalDocuments: React.FC = () => {
                       className="w-full aspect-video md:aspect-[3/1] bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50/50 transition-all gap-2 cursor-pointer"
                     >
                       <ImageIcon size={32} />
-                      <span className="text-xs font-semibold">Toque para selecionar imagem</span>
+                      <span className="text-xs font-semibold">Toque para selecionar imagem ou vídeo</span>
                     </button>
                   )}
                 </div>
@@ -379,12 +400,21 @@ export const PersonalDocuments: React.FC = () => {
               >
                 {/* Image panel */}
                 <div className="relative aspect-video w-full bg-slate-900 border-b border-slate-100 group">
-                  <img 
-                    src={img.link} 
-                    alt={img.descricao} 
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover transition-all duration-300 group-hover:scale-102"
-                  />
+                  {isVideoUrl(img.link) ? (
+                    <video 
+                      src={img.link} 
+                      controls
+                      preload="metadata"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <img 
+                      src={img.link} 
+                      alt={img.descricao} 
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover transition-all duration-300 group-hover:scale-102"
+                    />
+                  )}
                   
                   {/* Delete button bar */}
                   <div className="absolute top-3 right-3 flex items-center gap-1.5">

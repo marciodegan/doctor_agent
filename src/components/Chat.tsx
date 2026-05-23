@@ -24,6 +24,21 @@ import { useGroup } from "../contexts/GroupContext";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 import { PatientListView } from "./PatientListView";
 
+const isVideoUrl = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  if (url.startsWith("data:video/")) return true;
+  const cleanUrl = url.split("?")[0].toLowerCase();
+  return (
+    cleanUrl.endsWith(".mp4") ||
+    cleanUrl.endsWith(".mov") ||
+    cleanUrl.endsWith(".webm") ||
+    cleanUrl.endsWith(".m4v") ||
+    cleanUrl.endsWith(".avi") ||
+    cleanUrl.endsWith(".3gp") ||
+    cleanUrl.endsWith(".mkv")
+  );
+};
+
 interface Message {
   role: "user" | "model";
   text: string;
@@ -511,12 +526,12 @@ const MessageForm: React.FC<{
       
       {isImageForm && (
         <div className="space-y-2">
-          <label className="text-[10px] uppercase tracking-wider font-bold text-gray-500 ml-1">Anexar Documento / Foto</label>
+          <label className="text-[10px] uppercase tracking-wider font-bold text-gray-500 ml-1">Anexar Documento / Foto ou Vídeo</label>
           <input
             id="native-image-upload"
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             onChange={handleFileChange}
             style={{
               position: "absolute",
@@ -529,14 +544,18 @@ const MessageForm: React.FC<{
           
           {selectedImage ? (
             <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-200 group">
-              <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
+              {isVideoUrl(selectedImage) ? (
+                <video src={selectedImage} controls className="w-full h-full object-contain bg-slate-900" />
+              ) : (
+                <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
+              )}
               <button 
                 type="button"
                 onClick={() => setShowRemoveConfirm(true)}
                 className="absolute top-3 right-3 px-3 py-1.5 bg-red-600/90 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-black uppercase tracking-widest backdrop-blur-sm cursor-pointer"
               >
                 <X size={12} strokeWidth={3} />
-                Remover Imagem
+                Remover {isVideoUrl(selectedImage) ? "Vídeo" : "Imagem"}
               </button>
             </div>
           ) : (
@@ -546,7 +565,7 @@ const MessageForm: React.FC<{
               className="w-full aspect-video bg-white border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all gap-2 cursor-pointer"
             >
               <ImageIcon size={32} />
-              <span className="text-xs font-medium">Toque para selecionar imagem</span>
+              <span className="text-xs font-medium">Toque para selecionar imagem ou vídeo</span>
             </button>
           )}
         </div>
@@ -2534,7 +2553,7 @@ ${aiPart}
     if (cmd.startsWith("/img")) {
       setIsLoading(true);
       try {
-        if (!selectedImage) throw new Error("Selecione uma imagem acima antes de enviar.");
+        if (!selectedImage) throw new Error("Selecione uma imagem ou vídeo acima antes de enviar.");
         
         const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
         const descMatch = cmdInput.match(/(?:desc|descrição):\s*([^,]+)/i);
@@ -2546,6 +2565,9 @@ ${aiPart}
         const mimeType = selectedImage.split(";")[0].split(":")[1];
         const base64Data = selectedImage.split(",")[1];
 
+        const ext = mimeType.split("/")[1] || "jpg";
+        const extResolved = ext === "quicktime" ? "mov" : ext;
+
         const res = await apiFetch("/api/app/upload-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2554,7 +2576,7 @@ ${aiPart}
             description: desc || "Documento via Chat",
             mimeType: mimeType,
             base64Data: base64Data,
-            fileName: `Chat_P${id}_${new Date().getTime()}.jpg`
+            fileName: `Chat_P${id}_${new Date().getTime()}.${extResolved}`
           })
         });
         
@@ -3433,6 +3455,21 @@ ${aiPart}
                                 );
                               }
                               return <code {...props}>{children}</code>;
+                            },
+                            img({ src, alt, ...props }: any) {
+                              if (src && isVideoUrl(src)) {
+                                return (
+                                  <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center border border-gray-150 my-2">
+                                    <video 
+                                      src={src} 
+                                      controls 
+                                      preload="metadata"
+                                      className="w-full h-full object-contain"
+                                    />
+                                  </div>
+                                );
+                              }
+                              return <img src={src} alt={alt} {...props} referrerPolicy="no-referrer" />;
                             }
                           };
 
