@@ -1123,9 +1123,13 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       const groupData = groupSnap.data();
       const isCreator = groupData?.createdBy === user.uid;
 
-      if (!isCreator) {
+      const myMembershipSnap = await getDoc(doc(db, `users/${user.uid}/memberships`, groupId));
+      const myMembershipData = myMembershipSnap.exists() ? myMembershipSnap.data() : null;
+      const isOwner = myMembershipData?.role === "owner";
+
+      if (!isOwner && !isCreator) {
         throw new Error(
-          "Apenas o criador do grupo pode terminá-lo definitivamente.",
+          "Apenas o administrador do grupo pode terminá-lo.",
         );
       }
 
@@ -1138,6 +1142,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           ativo: false,
           terminatedAt: serverTimestamp(),
           terminatedBy: user.uid,
+          updatedAt: serverTimestamp(),
         },
         { merge: true },
       );

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, Camera, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, ChevronDown, Trash2 } from "lucide-react";
+import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, Camera, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, ChevronDown, Trash2, Activity } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeRaw from "rehype-raw";
@@ -3931,7 +3931,7 @@ ${aiPart}
                   <Bot size={16} />
                 </div>
                 <div className="bg-gray-100 p-3 rounded-2xl rounded-tl-none flex items-center gap-2">
-                  <Loader2 size={16} className="animate-spin text-blue-600" />
+                  <Activity size={16} className="animate-spin text-blue-600" />
                   <span className="text-sm text-gray-500 italic">Thinking...</span>
                 </div>
               </div>

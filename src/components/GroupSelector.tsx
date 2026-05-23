@@ -38,11 +38,14 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
     setIsManagementOpen,
     loading,
     companyName,
-    toggleGroupStatus
+    toggleGroupStatus,
+    terminateGroup
   } = useGroup();
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [groupToTerminate, setGroupToTerminate] = useState<any | null>(null);
+  const [isTerminating, setIsTerminating] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupType, setNewGroupType] = useState<"professional" | "personal">(
     "professional",
@@ -502,29 +505,108 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
                           </div>
                         </div>
 
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (confirm(`Deseja reativar o grupo "${group.name}"?`)) {
-                              try {
-                                await toggleGroupStatus(group.id, true);
-                                setActiveGroupId(group.id);
-                                if (onSelect) onSelect();
-                              } catch (err: any) {
-                                alert("Erro: " + err.message);
+                        <div className="flex gap-1.5 items-center shrink-0">
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`Deseja reativar o grupo "${group.name}"?`)) {
+                                try {
+                                  await toggleGroupStatus(group.id, true);
+                                  setActiveGroupId(group.id);
+                                  if (onSelect) onSelect();
+                                } catch (err: any) {
+                                  alert("Erro: " + err.message);
+                                }
                               }
-                            }
-                          }}
-                          className="px-2.5 py-1 bg-white hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-100 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95"
-                        >
-                          Reativar
-                        </button>
+                            }}
+                            className="px-2.5 py-1 bg-white hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-100 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 shrink-0"
+                          >
+                            Reativar
+                          </button>
+
+                          {(() => {
+                            const isAuthorized = group.createdBy === user?.uid || group.role === "owner" || group.role === "admin";
+                            if (!isAuthorized) return null;
+                            return (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setGroupToTerminate(group);
+                                }}
+                                className="px-2.5 py-1 bg-white hover:bg-red-600 text-red-600 hover:text-white border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 shrink-0"
+                              >
+                                Terminar
+                              </button>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {groupToTerminate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[220] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-center"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-white rounded-[32px] shadow-2xl p-8 max-w-sm w-full text-center space-y-6"
+            >
+              <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto">
+                <Shield size={32} />
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-gray-900 tracking-tight uppercase">Terminar Grupo</h3>
+                <p className="text-sm text-gray-500 font-medium leading-relaxed">
+                  Tem certeza que deseja terminar este grupo? Depois disso, ele não aparecerá mais na lista.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={isTerminating}
+                  onClick={() => setGroupToTerminate(null)}
+                  className="flex-1 px-6 py-4 rounded-2xl font-black text-xs text-gray-500 hover:bg-gray-100 transition-all uppercase tracking-widest disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={isTerminating}
+                  onClick={async () => {
+                    try {
+                      setIsTerminating(true);
+                      await terminateGroup(groupToTerminate.id);
+                      setGroupToTerminate(null);
+                    } catch (err: any) {
+                      alert("Erro ao terminar grupo: " + err.message);
+                    } finally {
+                      setIsTerminating(false);
+                    }
+                  }}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white px-6 py-4 rounded-2xl font-black text-xs transition-all shadow-xl shadow-red-100 uppercase tracking-widest flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {isTerminating ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : null}
+                  Confirmar término
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

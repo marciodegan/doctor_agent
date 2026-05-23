@@ -1,6 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Building2, Bed, Activity, ArrowLeft, ArrowRight, Plus, MapPin, User, FileText, ChevronRight, Search } from "lucide-react";
+import { Building2, Bed, Activity, ArrowLeft, ArrowRight, Plus, MapPin, User, FileText, ChevronRight, Search, Calendar as CalendarIcon } from "lucide-react";
 import { useGroup } from "../contexts/GroupContext";
+import { collection, query, onSnapshot } from "firebase/firestore";
+import { db } from "../lib/firebase";
+
+interface CalendarEvent {
+  id: string;
+  evento: string;
+  data: string;
+  hora: string;
+  tipo?: string;
+  descricao?: string;
+  patientId?: string;
+  nomePaciente?: string;
+  status?: string;
+}
 
 interface Patient {
   id: string;
@@ -56,6 +70,91 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
   const [localPatients, setLocalPatients] = useState<Patient[]>(patients);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+
+  useEffect(() => {
+    if (!activeGroup?.id) {
+      setEvents([]);
+      return;
+    }
+
+    const eventsRef = collection(db, "groups", activeGroup.id, "calendario");
+    const q = query(eventsRef);
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const items = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        })) as CalendarEvent[];
+        setEvents(items);
+      },
+      (error) => {
+        console.error("Error listening to group calendar events in PatientListView:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [activeGroup?.id]);
+
+  const getEventStartDateTime = (e: CalendarEvent): Date | null => {
+    if (!e.data || !e.hora) return null;
+    const dateParts = e.data.split("-").map(Number); // YYYY-MM-DD
+    const timeParts = e.hora.split(":").map(Number); // HH:mm
+    if (dateParts.length < 3 || timeParts.length < 2 || dateParts.some(isNaN) || timeParts.some(isNaN)) {
+      return null;
+    }
+    return new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1]);
+  };
+
+  const getPatientEvents = (p: Patient) => {
+    const now = new Date();
+    const patientEvents = events
+      .filter((e) => {
+        // match client-side
+        const isMatch = (e.patientId && e.patientId === p.id) ||
+          (!e.patientId && e.nomePaciente && p.nome && e.nomePaciente.trim().toLowerCase() === p.nome.trim().toLowerCase());
+          
+        if (!isMatch) return false;
+
+        // status: active
+        const isActive = e.status === undefined || e.status === "active";
+        if (!isActive) return false;
+
+        // startDateTime >= now
+        const start = getEventStartDateTime(e);
+        if (!start || start < now) return false;
+
+        return true;
+      })
+      .map((e) => ({
+        ...e,
+        startDateTime: getEventStartDateTime(e)!
+      }))
+      .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+
+    return patientEvents;
+  };
+
+  const formatEventTime = (date: Date) => {
+    const now = new Date();
+    
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const timeStr = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+
+    if (targetDate.getTime() === today.getTime()) {
+      return `Hoje ${timeStr}`;
+    } else if (targetDate.getTime() === tomorrow.getTime()) {
+      return `Amanhã ${timeStr}`;
+    } else {
+      return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${timeStr}`;
+    }
+  };
 
   useEffect(() => {
     setLocalPatients(patients);
@@ -341,6 +440,32 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                               {p.roomNumber ? `Leito ${p.roomNumber}` : "Sem leito"}
                             </span>
                           </div>
+                          {(() => {
+                            const pEvents = getPatientEvents(p);
+                            if (pEvents.length === 0) return null;
+                            const nextEvent = pEvents[0];
+                            const timeFormatted = formatEventTime(nextEvent.startDateTime);
+                            const additionalCount = pEvents.length - 1;
+                            return (
+                              <div 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onCommand("/open_calendar", true);
+                                }}
+                                className="mt-2 inline-flex items-center gap-1.5 bg-blue-50/70 hover:bg-blue-100/70 px-2.5 py-1 rounded-full text-[11px] font-bold text-blue-700 transition-all select-none border border-blue-100 max-w-full"
+                              >
+                                <CalendarIcon size={12} className="shrink-0 text-blue-500" />
+                                <span className="truncate">
+                                  {timeFormatted} · {nextEvent.evento}
+                                </span>
+                                {additionalCount > 0 && (
+                                  <span className="shrink-0 text-[9px] bg-blue-100 text-blue-805 px-1.5 py-0.5 rounded-full font-black uppercase tracking-tight ml-0.5">
+                                    +{additionalCount} {additionalCount === 1 ? "evento" : "eventos"}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}
@@ -406,6 +531,32 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                                 {p.roomNumber ? `Leito ${p.roomNumber}` : "Sem leito"}
                               </span>
                             </div>
+                            {(() => {
+                              const pEvents = getPatientEvents(p);
+                              if (pEvents.length === 0) return null;
+                              const nextEvent = pEvents[0];
+                              const timeFormatted = formatEventTime(nextEvent.startDateTime);
+                              const additionalCount = pEvents.length - 1;
+                              return (
+                                <div 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCommand("/open_calendar", true);
+                                  }}
+                                  className="mt-2 inline-flex items-center gap-1.5 bg-blue-50/70 hover:bg-blue-100/70 px-2.5 py-1 rounded-full text-[11px] font-bold text-blue-700 transition-all select-none border border-blue-100 max-w-full"
+                                >
+                                  <CalendarIcon size={12} className="shrink-0 text-blue-500" />
+                                  <span className="truncate">
+                                    {timeFormatted} · {nextEvent.evento}
+                                  </span>
+                                  {additionalCount > 0 && (
+                                    <span className="shrink-0 text-[9px] bg-blue-100 text-blue-805 px-1.5 py-0.5 rounded-full font-black uppercase tracking-tight ml-0.5">
+                                      +{additionalCount} {additionalCount === 1 ? "evento" : "eventos"}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })}
