@@ -166,9 +166,7 @@ const SCOPES = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/calendar.events",
-  "https://www.googleapis.com/auth/drive.file",
-  "https://www.googleapis.com/auth/drive"
+  "https://www.googleapis.com/auth/calendar.events"
 ];
 
 // Resource caching to reduce consumption
@@ -733,7 +731,11 @@ app.post("/api/auth/logout", (req, res) => {
 });
 
 app.use("/api/app", verifyMembership);
-app.use("/api/drive", verifyMembership);
+app.use("/api/drive", (req, res) => {
+  res.status(410).json({ 
+    error: "Google Drive integration is disabled. File storage is being migrated to Firebase Storage." 
+  });
+});
 
 const verifyGeneralAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   try {

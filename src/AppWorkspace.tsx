@@ -381,7 +381,6 @@ export default function AppWorkspace() {
                   active={currentView === "agenda"}
                   onClick={() => navigateAndAction("agenda")}
                 />
-                <NavItem icon={<FileText size={18} />} label="Drive & Files" />
 
                 <div className="pt-8 space-y-1">
                   <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Account</div>
@@ -511,7 +510,6 @@ export default function AppWorkspace() {
             active={currentView === "agenda"}
             onClick={() => navigateAndAction("agenda")}
           />
-          <NavItem icon={<FileText size={18} />} label="Drive & Files" />
 
           <div className="pt-8 space-y-1">
             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Account</div>
