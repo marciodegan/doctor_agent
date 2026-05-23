@@ -38,6 +38,9 @@ export function BottomNav({
     }
   }, []);
 
+  const bottomPadding = isIosStandalone ? "4px" : "8px";
+  const topPadding = isIosStandalone ? "8px" : "10px";
+
   const tabs: any[] = [
     {
       id: "workspace",
@@ -86,18 +89,18 @@ export function BottomNav({
 
   return (
     <div 
-      style={{
-        bottom: 0,
-        paddingBottom: "max(env(safe-area-inset-bottom), 12px)",
-      }}
-      className="fixed left-0 right-0 lg:left-64 z-[60] w-full lg:w-[calc(100%-16rem)] bg-white border-t border-gray-100 shadow-[0_-4px_25px_rgba(15,23,42,0.08)]"
-    >
-      <div 
-        style={{
-          paddingTop: "12px"
-        }}
-        className="flex items-center justify-around px-4 bg-white"
-      >
+  style={{
+    bottom: 0,
+    paddingBottom: bottomPadding,
+  }}
+  className="fixed left-0 right-0 lg:left-64 z-[60] w-full lg:w-[calc(100%-16rem)] bg-white border-t border-gray-100 shadow-[0_-4px_25px_rgba(15,23,42,0.08)]"
+>
+  <div 
+    style={{
+      paddingTop: topPadding,
+    }}
+    className="flex items-center justify-around px-4 bg-white"
+  >
         {tabs.map((tab, idx) => {
           const isActive = currentView === tab.id;
           const isEquipe = tab.id === "management";

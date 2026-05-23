@@ -419,6 +419,12 @@ const requirePatientAccess = async (req: express.Request, patientId: string) => 
   }
 
   const patientData = patientDoc.data();
+  if (patientData?.recordStatus === "removed") {
+    const err = new Error("Este paciente foi removido.");
+    (err as any).statusCode = 404;
+    throw err;
+  }
+
   const groupId = patientData?.groupId;
   if (!groupId) {
     const err = new Error("Patient is not associated with any group");
@@ -915,7 +921,7 @@ app.get("/api/app/patients", async (req, res) => {
         hospitalName: hMap[data.hospitalId] || data.hospitalId || "Sem Hospital",
         status: (data.statusId && sMap[data.statusId]) ? sMap[data.statusId] : "Sem Status"
       };
-    });
+    }).filter(patient => (patient as any).recordStatus !== "removed");
 
     const normalizedSearch = normalizeText((req.query.search || req.query.q || "") as string);
     if (normalizedSearch) {
@@ -1209,6 +1215,7 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
       procedure: procedimento,
       surgery_type: surgery_type,
       groupId,
+      recordStatus: "active",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
@@ -1319,6 +1326,38 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     handleApiError(res, error, "Updating patient info");
+  }
+});
+
+// Remove patient (soft delete)
+app.post("/api/app/patients/:patientId/remove", express.json(), async (req, res) => {
+  const { patientId } = req.params;
+  if (!patientId) return res.status(400).json({ error: "ID do paciente é obrigatório." });
+
+  try {
+    const { user, groupId, patient } = await requirePatientAccess(req, patientId);
+
+    const patientRef = db.collection("patients").doc(patientId);
+    await patientRef.update({
+      recordStatus: "removed",
+      removedAt: admin.firestore.FieldValue.serverTimestamp(),
+      removedBy: user.uid,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Record log of removal
+    const logRef = db.collection("logs").doc();
+    await logRef.set({
+      patientId,
+      patientName: patient.name || "Paciente",
+      description: `Paciente removido por ${user.email || 'usuário'}.`,
+      groupId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    handleApiError(res, error, "Removing patient");
   }
 });
 

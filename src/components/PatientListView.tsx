@@ -114,7 +114,7 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
   const selectedStatus = statuses.find((s: any) => s.id.toString() === statusFilter);
   const isFilteringAlta = selectedStatus && (selectedStatus.nome || "").toLowerCase() === "alta";
 
-  let processedPatients = [...localPatients];
+  let processedPatients = [...localPatients].filter(p => (p as any).recordStatus !== "removed");
   
   // 1. Filter out 'Alta' unless explicitly filtering by 'Alta'
   if (!isFilteringAlta) {

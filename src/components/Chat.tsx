@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, Camera, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, ChevronDown } from "lucide-react";
+import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, Camera, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, ChevronDown, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeRaw from "rehype-raw";
@@ -86,6 +86,38 @@ const MessageForm: React.FC<{
   selectedImage?: string | null;
   onSelectImage?: (img: string | null) => void;
 }> = ({ form, onSubmit, selectedImage, onSelectImage }) => {
+  const { apiFetch } = useGroup();
+  const [showRemovePatientConfirm, setShowRemovePatientConfirm] = useState(false);
+  const [isRemovingPatient, setIsRemovingPatient] = useState(false);
+  const [removalError, setRemovalError] = useState<string | null>(null);
+
+  const isEditPatientForm = form.commandPrefix?.startsWith("/update_patient id:");
+  const patientIdMatch = form.commandPrefix?.match(/id:\s*([^,]+)/);
+  const patientId = patientIdMatch ? patientIdMatch[1].trim() : null;
+
+  const handleConfirmRemoval = async () => {
+    if (!patientId) return;
+    setIsRemovingPatient(true);
+    setRemovalError(null);
+    try {
+      const response = await apiFetch(`/api/app/patients/${patientId}/remove`, {
+        method: "POST"
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Erro ao remover paciente.");
+      }
+      
+      setShowRemovePatientConfirm(false);
+      onSubmit("/pacientes");
+    } catch (err: any) {
+      console.error(err);
+      setRemovalError(err.message || "Não foi possível remover o paciente.");
+    } finally {
+      setIsRemovingPatient(false);
+    }
+  };
+
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     form.fields.forEach((f: any) => {
@@ -93,8 +125,6 @@ const MessageForm: React.FC<{
     });
     return initial;
   });
-
-  const [analyzeWithAI, setAnalyzeWithAI] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -116,13 +146,9 @@ const MessageForm: React.FC<{
     }
   };
 
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const [showSrcSelector, setShowSrcSelector] = useState(false);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parts = Object.entries(values).map(([k, v]) => `${k}: ${v}`);
-    if (isImageForm && analyzeWithAI) parts.push("useAI: true");
     let fullCmd = `${form.commandPrefix} ${parts.join(", ")}`;
     onSubmit(fullCmd);
   };
@@ -423,6 +449,56 @@ const MessageForm: React.FC<{
             </motion.div>
           </motion.div>
         )}
+
+        {showRemovePatientConfirm && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                <Trash2 size={32} strokeWidth={2} />
+              </div>
+              <h3 className="text-xl font-black text-gray-950 mb-2 uppercase tracking-tight">Remover paciente?</h3>
+              <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+                Este paciente será removido da lista, mas o histórico será mantido para segurança e auditoria.
+              </p>
+              {removalError && (
+                <p className="text-red-600 text-xs mb-4 bg-red-50 p-2 rounded-xl border border-red-100 font-medium font-mono">
+                  {removalError}
+                </p>
+              )}
+              <div className="flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setShowRemovePatientConfirm(false)}
+                  disabled={isRemovingPatient}
+                  className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleConfirmRemoval}
+                  disabled={isRemovingPatient}
+                  className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-red-200 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isRemovingPatient ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : null}
+                  Confirmar Remoção
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       <div className="flex items-center gap-3 mb-1 border-b border-gray-50 pb-3">
@@ -435,20 +511,19 @@ const MessageForm: React.FC<{
       {isImageForm && (
         <div className="space-y-2">
           <label className="text-[10px] uppercase tracking-wider font-bold text-gray-500 ml-1">Anexar Documento / Foto</label>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            className="hidden" 
-            accept="image/*" 
-          />
-          <input 
-            type="file" 
-            ref={cameraInputRef} 
-            onChange={handleFileChange} 
-            className="hidden" 
-            accept="image/*" 
-            capture="environment"
+          <input
+            id="native-image-upload"
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            style={{
+              position: "absolute",
+              opacity: 0,
+              width: 1,
+              height: 1,
+              overflow: "hidden"
+            }}
           />
           
           {selectedImage ? (
@@ -457,7 +532,7 @@ const MessageForm: React.FC<{
               <button 
                 type="button"
                 onClick={() => setShowRemoveConfirm(true)}
-                className="absolute top-3 right-3 px-3 py-1.5 bg-red-600/90 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-black uppercase tracking-widest backdrop-blur-sm"
+                className="absolute top-3 right-3 px-3 py-1.5 bg-red-600/90 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-black uppercase tracking-widest backdrop-blur-sm cursor-pointer"
               >
                 <X size={12} strokeWidth={3} />
                 Remover Imagem
@@ -466,72 +541,13 @@ const MessageForm: React.FC<{
           ) : (
             <button 
               type="button"
-              onClick={() => setShowSrcSelector(true)}
+              onClick={() => fileInputRef.current?.click()}
               className="w-full aspect-video bg-white border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all gap-2 cursor-pointer"
             >
               <ImageIcon size={32} />
               <span className="text-xs font-medium">Toque para selecionar imagem</span>
             </button>
           )}
-
-          <AnimatePresence>
-            {showSrcSelector && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setShowSrcSelector(false)}
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center p-4"
-              >
-                <motion.div 
-                  initial={{ y: 100, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: 100, opacity: 0 }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="bg-white rounded-[2rem] p-6 max-w-sm w-full shadow-2xl space-y-4"
-                >
-                  <div className="text-center">
-                    <h3 className="text-base font-black text-slate-800 uppercase tracking-wider mb-1">Selecione uma opção</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Como deseja carregar o arquivo?</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-2.5 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowSrcSelector(false);
-                        cameraInputRef.current?.click();
-                      }}
-                      className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-blue-500/10 cursor-pointer"
-                    >
-                      <Camera size={16} />
-                      Tirar Foto (Câmera Nativa)
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowSrcSelector(false);
-                        fileInputRef.current?.click();
-                      }}
-                      className="w-full h-12 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm cursor-pointer"
-                    >
-                      <ImageIcon size={16} />
-                      Biblioteca / Arquivos
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowSrcSelector(false)}
-                      className="w-full h-12 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center active:scale-95 transition-all cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       )}
 
@@ -627,6 +643,17 @@ const MessageForm: React.FC<{
         </div>
 
         <div className="flex items-center gap-3 w-full sm:w-auto">
+          {isEditPatientForm && (
+            <button
+              type="button"
+              onClick={() => setShowRemovePatientConfirm(true)}
+              className="px-4 py-3 text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 hover:bg-red-100 border border-red-200 rounded-2xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-red-50"
+            >
+              <Trash2 size={14} />
+              Remover Paciente
+            </button>
+          )}
+
           {form.backCommand && (
             <button
               type="button"
@@ -2189,7 +2216,7 @@ ${aiPart}
         
         setMessages([{ 
           role: "model", 
-          text: `✏️ **Editar Cadastro: ${p.Nome} (ID: ${p.ID})**`,
+          text: `✏️ **Editar Paciente**\n\nAtualize os dados do paciente.`,
           form: {
             title: "Atualizar Dados",
             fields: [

@@ -26,16 +26,24 @@ export function PatientLogs({ patientId, onBack, onSchedule }: { patientId: stri
         
         // Fetch logs
         const logsRes = await apiFetch(`/api/app/patients/${patientId}/logs`);
+        if (!logsRes.ok) {
+          const errData = await logsRes.json().catch(() => ({}));
+          throw new Error(errData.error || "Não foi possível carregar o histórico.");
+        }
         const logsData = await logsRes.json();
         setLogs(logsData);
         
         // Fetch patient details
         const patientRes = await apiFetch(`/api/app/patients/info/${patientId}`);
+        if (!patientRes.ok) {
+          const errData = await patientRes.json().catch(() => ({}));
+          throw new Error(errData.error || "Não foi possível carregar os dados.");
+        }
         const patient = await patientRes.json();
         if (patient) setPatientData(patient);
       } catch (err: any) {
         console.error("Error fetching patient details:", err);
-        setError("Não foi possível carregar os dados do paciente.");
+        setError(err.message || "Não foi possível carregar os dados do paciente.");
       } finally {
         setIsLoading(false);
       }
