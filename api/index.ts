@@ -165,8 +165,7 @@ const getOAuth2Client = (req?: express.Request) => {
 const SCOPES = [
   "openid",
   "email",
-  "profile",
-  "https://www.googleapis.com/auth/calendar.events.owned"
+  "profile"
 ];
 
 // Resource caching to reduce consumption
@@ -506,13 +505,19 @@ app.get("/api/auth/url", (req, res) => {
       });
     }
 
-    const state = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    const url = client.generateAuthUrl({
+    const returnTo = req.query.returnTo?.toString() || "";
+
+    const randomState = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const state = randomState + (returnTo ? "___returnTo___" + encodeURIComponent(returnTo) : "");
+
+    const authOptions: any = {
       access_type: "offline",
       scope: SCOPES,
       prompt: "consent",
       state: state
-    });
+    };
+
+    const url = client.generateAuthUrl(authOptions);
     res.json({ url, state });
   } catch (err: any) {
     console.error("Error generating auth URL:", err);
@@ -541,6 +546,10 @@ app.get("/api/auth/google/callback", async (req, res) => {
       scope: tokens.scope,
       token_type: tokens.token_type
     };
+
+    const stateStr = (state as string) || "";
+    const returnToMatch = stateStr.match(/___returnTo___(.*)$/);
+    const returnTo = returnToMatch ? decodeURIComponent(returnToMatch[1]) : "";
 
     // Store for polling
     if (state) {
@@ -580,15 +589,15 @@ app.get("/api/auth/google/callback", async (req, res) => {
             <button onclick="copyTokens()" class="btn" id="finish-btn">CONCLUIR LOGIN</button>
             
             <div id="debug-status" class="status">Tentando comunicação direta...</div>
-
+ 
             <script>
               const tokens = ${JSON.stringify(essentialTokens)};
               const payload = { type: 'OAUTH_AUTH_SUCCESS', tokens, timestamp: Date.now() };
-
+ 
               function notify() {
                 try {
-                  const channel = new BroadcastChannel('doctor_pro_auth_channel');
-                  channel.postMessage(payload);
+                   const channel = new BroadcastChannel('doctor_pro_auth_channel');
+                   channel.postMessage(payload);
                 } catch (e) {}
                 try {
                   if (window.opener) window.opener.postMessage(payload, '*');
@@ -597,7 +606,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
                   localStorage.setItem('doctor_pro_auth_success', JSON.stringify(payload));
                 } catch (e) {}
               }
-
+ 
               notify();
               let count = 0;
               const interval = setInterval(() => {
@@ -611,18 +620,19 @@ app.get("/api/auth/google/callback", async (req, res) => {
                   document.getElementById('debug-status').innerText = "Processo finalizado.";
                 }
               }, 1000);
-
+ 
               window.copyTokens = function() {
                 notify();
                 setTimeout(() => {
                   if (window.opener) window.close();
-                  else window.location.href = '/';
+                  else window.location.href = '${returnTo || "/"}';
                 }, 500);
               };
-
+ 
               // Auto-close if successful
               setTimeout(() => {
                  if (window.opener) window.close();
+                 else window.location.href = '${returnTo || "/"}';
               }, 20000);
             </script>
           </div>
@@ -769,7 +779,6 @@ const verifyGeneralAuth = async (req: express.Request, res: express.Response, ne
   }
 };
 
-app.use("/api/calendar", verifyGeneralAuth);
 app.use("/api/debug", verifyGeneralAuth);
 app.use("/api/storage", verifyGeneralAuth);
 app.use("/api/ai", verifyGeneralAuth);
@@ -1851,92 +1860,6 @@ app.post("/api/app/patient-logs/remove", express.json(), async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     handleApiError(res, error, "Removing patient log");
-  }
-});
-
-// Shortcut Routes for Google APIs ---
-
-// Calendar: List Events
-app.get("/api/calendar/events", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const calendar = google.calendar({ version: "v3", auth });
-  const { timeMin, timeMax } = req.query;
-  
-  try {
-    const response = await calendar.events.list({
-      calendarId: "primary",
-      timeMin: (timeMin as string) || new Date().toISOString(),
-      timeMax: (timeMax as string) || undefined,
-      maxResults: 250,
-      singleEvents: true,
-      orderBy: "startTime",
-      timeZone: "America/Sao_Paulo"
-    });
-    res.json(response.data.items);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Calendar: Create Event
-app.post("/api/calendar/events", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  console.log("[Calendar] Creating event with body:", JSON.stringify(req.body, null, 2));
-
-  const calendar = google.calendar({ version: "v3", auth });
-  try {
-    const response = await calendar.events.insert({
-      calendarId: "primary",
-      requestBody: req.body,
-    });
-    console.log("[Calendar] Event created successfully:", response.data.id);
-    res.json(response.data);
-  } catch (error) {
-    console.error("[Calendar] Error creating event:", (error as any).message);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Calendar: Delete Event
-app.delete("/api/calendar/events/:eventId", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const calendar = google.calendar({ version: "v3", auth });
-  const { eventId } = req.params;
-  try {
-    await calendar.events.delete({
-      calendarId: "primary",
-      eventId: eventId,
-    });
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// Calendar: Update Event
-app.put("/api/calendar/events/:eventId", async (req, res) => {
-  const auth = getAuthClient(req);
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const calendar = google.calendar({ version: "v3", auth });
-  const { eventId } = req.params;
-  try {
-    const response = await calendar.events.patch({
-      calendarId: "primary",
-      eventId: eventId,
-      requestBody: req.body,
-    });
-    console.log("[Calendar] Event updated successfully:", response.data.id);
-    res.json(response.data);
-  } catch (error) {
-    console.error("[Calendar] Error updating event:", (error as any).message);
-    res.status(500).json({ error: (error as Error).message });
   }
 });
 

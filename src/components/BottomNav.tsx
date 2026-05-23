@@ -55,12 +55,6 @@ export function BottomNav({
       prompt: "/open_calendar",
     },
     {
-      id: "agenda",
-      label: "Agenda",
-      icon: <CalendarDays size={20} />,
-      prompt: "/agenda",
-    },
-    {
       id: "notes",
       label: "Notas",
       icon: <StickyNote size={20} />,

@@ -4,7 +4,6 @@ import { auth } from "./lib/firebase";
 import { useGroup } from "./contexts/GroupContext";
 import { Chat } from "./components/Chat";
 import { Calendar as FirestoreCalendar } from "./components/Calendar";
-import { GoogleAgenda } from "./components/GoogleAgenda";
 import { Debug } from "./components/Debug";
 import { Pricing } from "./components/Pricing";
 import { GroupSelector } from "./components/GroupSelector";
@@ -50,7 +49,7 @@ import { PatientLogs } from "./components/PatientLogs";
 import { ShoppingList } from "./components/ShoppingList";
 import { PersonalNotes } from "./components/PersonalNotes";
 
-type NavView = "workspace" | "pricing" | "calendar" | "agenda" | "logs" | "shopping_list" | "notes";
+type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes";
 
 export default function AppWorkspace() {
   const { isAuthenticated, user, login, logout } = useAuth();
@@ -73,7 +72,7 @@ export default function AppWorkspace() {
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [currentView, setCurrentView] = useState<NavView | null>("agenda");
+  const [currentView, setCurrentView] = useState<NavView | null>("calendar");
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
   const [activePatientName, setActivePatientName] = useState<string | null>(null);
   const [activePatientProcedure, setActivePatientProcedure] = useState<string | null>(null);
@@ -276,7 +275,7 @@ export default function AppWorkspace() {
   }
 
   const handleGroupSelection = () => {
-    setCurrentView("agenda");
+    setCurrentView("calendar");
     setIsMobileGroupsOpen(false);
     setIsMobileMenuOpen(false);
     setIsManagementOpen(false);
@@ -374,12 +373,6 @@ export default function AppWorkspace() {
                   label="Calendário"
                   active={currentView === "calendar"}
                   onClick={() => navigateAndAction("calendar")}
-                />
-                <NavItem
-                  icon={<Calendar size={18} className="text-emerald-500" />}
-                  label="Agenda"
-                  active={currentView === "agenda"}
-                  onClick={() => navigateAndAction("agenda")}
                 />
 
                 <div className="pt-8 space-y-1">
@@ -503,12 +496,6 @@ export default function AppWorkspace() {
             label="Calendário"
             active={currentView === "calendar"}
             onClick={() => navigateAndAction("calendar")}
-          />
-          <NavItem
-            icon={<Calendar size={18} className="text-emerald-500" />}
-            label="Agenda"
-            active={currentView === "agenda"}
-            onClick={() => navigateAndAction("agenda")}
           />
 
           <div className="pt-8 space-y-1">
@@ -724,8 +711,6 @@ export default function AppWorkspace() {
                           prefilledType={activePatientType || undefined}
                           prefilledSala={activePatientSala || undefined}
                         />
-                      ) : currentView === "agenda" ? (
-                        <GoogleAgenda />
                       ) : currentView === "shopping_list" ? (
                         <ShoppingList onBack={() => navigateAndAction("notes")} />
                       ) : currentView === "logs" && activePatientId ? (

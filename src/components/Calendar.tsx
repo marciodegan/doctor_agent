@@ -99,8 +99,7 @@ export function Calendar({
     descricao: "",
     tipo: "ELETIVA",
     sala: "SALA 1",
-    hospitalId: "",
-    syncToGoogle: false
+    hospitalId: ""
   });
 
   const today = new Date();
@@ -432,8 +431,7 @@ export function Calendar({
       descricao: "",
       tipo: prefilledType || "ELETIVA",
       sala: prefilledSala || "SALA 1",
-      hospitalId: prefilledHospitalId || (selectedHospitalFilter !== "all" ? selectedHospitalFilter : ""),
-      syncToGoogle: false
+      hospitalId: prefilledHospitalId || (selectedHospitalFilter !== "all" ? selectedHospitalFilter : "")
     });
     setIsModalOpen(true);
   };
@@ -448,8 +446,7 @@ export function Calendar({
       descricao: event.descricao || "",
       tipo: event.tipo || "ELETIVA",
       sala: event.sala || "SALA 1",
-      hospitalId: event.hospitalId || "",
-      syncToGoogle: false
+      hospitalId: event.hospitalId || ""
     });
     setIsModalOpen(true);
   };
@@ -463,7 +460,7 @@ export function Calendar({
       let savedEventId = "";
       if (editingEvent) {
         const eventRef = doc(db, "groups", GROUP_ID, "calendario", editingEvent.id);
-        const { syncToGoogle, ...dataToSave } = formData;
+        const dataToSave = formData;
         await updateDoc(eventRef, {
           ...dataToSave,
           updatedAt: serverTimestamp()
@@ -471,7 +468,7 @@ export function Calendar({
         savedEventId = editingEvent.id;
       } else {
         const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
-        const { syncToGoogle, ...dataToSave } = formData;
+        const dataToSave = formData;
         const docRef = await addDoc(eventsRef, {
           ...dataToSave,
           groupId: GROUP_ID,
@@ -485,43 +482,6 @@ export function Calendar({
       // Close modal immediately after Firestore save for responsiveness
       setIsModalOpen(false);
       setEditingEvent(null);
-
-      // 2. Sync to Google Calendar if requested (non-blocking)
-      if (formData.syncToGoogle) {
-        try {
-          const [y, m, d] = formData.data.split("-");
-          const [hh, mm] = formData.hora.split(":");
-          const start = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), parseInt(hh), parseInt(mm));
-          const end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour duration default
-
-          const hosp = allHospitals.find(h => h.id === formData.hospitalId)?.nome || "";
-          const summary = formData.nomePaciente 
-            ? `${formData.nomePaciente} - ${formData.evento}` 
-            : formData.evento;
-          
-          let description = `Procedimento: ${formData.evento}\n`;
-          if (formData.nomePaciente) description += `Paciente: ${formData.nomePaciente}\n`;
-          if (hosp) description += `Hospital: ${hosp}\n`;
-          if (formData.sala) description += `Sala: ${formData.sala}\n`;
-          if (formData.tipo) description += `Tipo: ${formData.tipo}\n`;
-          if (formData.descricao) description += `\nNotas: ${formData.descricao}`;
-
-          const body = {
-            summary,
-            description,
-            start: { dateTime: start.toISOString(), timeZone: "America/Sao_Paulo" },
-            end: { dateTime: end.toISOString(), timeZone: "America/Sao_Paulo" }
-          };
-
-          apiFetch("/api/calendar/events", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-          }).catch(err => console.error("Non-blocking Google sync failed:", err));
-        } catch (err) {
-          console.error("Failed to prepare Google Calendar sync:", err);
-        }
-      }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `groups/${GROUP_ID}/calendario`);
     }
@@ -1183,24 +1143,7 @@ export function Calendar({
                     </div>
                   </div>
 
-                  {/* Google Calendar Box */}
-                  <div 
-                    className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between group cursor-pointer hover:bg-emerald-50 transition-all" 
-                    onClick={() => setFormData({ ...formData, syncToGoogle: !formData.syncToGoogle })}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${formData.syncToGoogle ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" : "bg-white text-emerald-500 border border-emerald-100"}`}>
-                        <CalendarIcon size={20} />
-                      </div>
-                      <div className="text-left">
-                        <h4 className="text-xs font-black text-gray-900 leading-tight">Adicionar à minha Agenda Google</h4>
-                        <p className="text-[10px] font-bold text-gray-400">Sincroniza automaticamente este evento</p>
-                      </div>
-                    </div>
-                    <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${formData.syncToGoogle ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-emerald-100 text-transparent"}`}>
-                      <Check size={14} strokeWidth={4} />
-                    </div>
-                  </div>
+                  {/* Google Calendar Box disabled */}
 
                 </div>
 
