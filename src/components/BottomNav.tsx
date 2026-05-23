@@ -124,7 +124,7 @@ export function BottomNav({
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
-                    className="absolute inset-0 bg-blue-50/50 rounded-2xl -z-10"
+                    className="absolute inset-0 bg-gray-100/70 rounded-2xl -z-10"
                     transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
                   />
                 )}
@@ -133,7 +133,7 @@ export function BottomNav({
               <motion.div
                 animate={{
                   scale: isActive ? 1.15 : 1,
-                  color: isActive ? "#2563eb" : "#9ca3af",
+                  color: isActive ? "#000000" : "#4b5563",
                 }}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 className="relative"
@@ -149,14 +149,14 @@ export function BottomNav({
                 {isActive && !isEquipe && (
                   <motion.div
                     layoutId="active-dot"
-                    className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full border-2 border-white shadow-sm"
+                    className="absolute -top-1 -right-1 w-2 h-2 bg-black rounded-full border-2 border-white shadow-sm"
                   />
                 )}
               </motion.div>
 
               <span
-                className={`text-[9px] font-black uppercase tracking-tight transition-colors duration-200 truncate max-w-[60px] text-center ${
-                  isActive ? "text-blue-600" : "text-gray-400"
+                className={`text-[9px] font-black uppercase tracking-tight transition-colors duration-200 truncate max-w-[90px] text-center ${
+                  isActive ? "text-black" : "text-gray-700"
                 }`}
               >
                 {(tab.label).split(" ")[0]}

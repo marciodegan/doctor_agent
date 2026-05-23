@@ -563,32 +563,22 @@ app.get("/api/auth/google/callback", async (req, res) => {
     res.send(`
       <html>
         <head>
-          <title>Autenticação</title>
+          <title>Autenticando...</title>
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f3f4f6; color: #111827; }
-            .card { text-align: center; padding: 2.5rem; background: white; border-radius: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); max-width: 90%; width: 420px; }
-            h2 { margin-bottom: 0.5rem; font-weight: 800; letter-spacing: -0.025em; color: #1e40af; }
-            p { color: #4b5563; font-size: 0.9375rem; margin-bottom: 2rem; line-height: 1.5; }
-            .spinner { width: 48px; height: 48px; border: 4px solid #e5e7eb; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #0f172a; }
+            .card { text-align: center; padding: 2rem; background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); max-width: 90%; width: 360px; }
+            .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top: 3px solid #10b981; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1rem; }
             @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            .btn { background: #2563eb; color: white; border: none; padding: 1.25rem 2rem; border-radius: 1rem; font-weight: 800; cursor: pointer; transition: all 0.2s; display: block; text-decoration: none; margin: 1.5rem auto 0; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4); text-transform: uppercase; font-size: 0.875rem; letter-spacing: 0.05em; }
-            .btn:hover { background: #1d4ed8; transform: translateY(-2px); box-shadow: 0 20px 25px -5px rgba(37, 99, 235, 0.5); }
-            .btn:active { transform: translateY(0); }
-            .status { margin-top: 2rem; font-size: 0.75rem; color: #9ca3af; font-family: monospace; }
+            h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: #1e293b; }
+            p { color: #64748b; font-size: 0.875rem; margin: 0; }
           </style>
         </head>
         <body>
           <div class="card">
-            <div id="content">
-              <div class="spinner"></div>
-              <h2>Sincronizando...</h2>
-              <p>Autenticação concluída! Estamos vinculando sua sessão. Você pode fechar esta janela agora.</p>
-            </div>
-            
-            <button onclick="copyTokens()" class="btn" id="finish-btn">CONCLUIR LOGIN</button>
-            
-            <div id="debug-status" class="status">Tentando comunicação direta...</div>
+            <div class="spinner"></div>
+            <h2>Conectando conta...</h2>
+            <p>Por favor, aguarde um instante.</p>
  
             <script>
               const tokens = ${JSON.stringify(essentialTokens)};
@@ -596,8 +586,8 @@ app.get("/api/auth/google/callback", async (req, res) => {
  
               function notify() {
                 try {
-                   const channel = new BroadcastChannel('doctor_pro_auth_channel');
-                   channel.postMessage(payload);
+                  const channel = new BroadcastChannel('doctor_pro_auth_channel');
+                  channel.postMessage(payload);
                 } catch (e) {}
                 try {
                   if (window.opener) window.opener.postMessage(payload, '*');
@@ -607,33 +597,27 @@ app.get("/api/auth/google/callback", async (req, res) => {
                 } catch (e) {}
               }
  
+              // Send notification immediately
               notify();
-              let count = 0;
+              
+              // Do it multiple times quickly to ensure reception
+              let tries = 0;
               const interval = setInterval(() => {
-                count++;
                 notify();
-                document.getElementById('debug-status').innerText = "Comunicando com o app... (" + count + ")";
-                
-                if (count >= 15) {
+                tries++;
+                if (tries >= 10) {
                   clearInterval(interval);
-                  document.getElementById('content').innerHTML = "<h2>Login Pronto</h2><p>Pode fechar esta janela e voltar ao aplicativo.</p>";
-                  document.getElementById('debug-status').innerText = "Processo finalizado.";
                 }
-              }, 1000);
- 
-              window.copyTokens = function() {
-                notify();
-                setTimeout(() => {
-                  if (window.opener) window.close();
-                  else window.location.href = '${returnTo || "/"}';
-                }, 500);
-              };
- 
-              // Auto-close if successful
+              }, 100);
+
+              // Close or redirect automatically after 600ms
               setTimeout(() => {
-                 if (window.opener) window.close();
-                 else window.location.href = '${returnTo || "/"}';
-              }, 20000);
+                if (window.opener) {
+                  window.close();
+                } else {
+                  window.location.href = '${returnTo || "/"}';
+                }
+              }, 600);
             </script>
           </div>
         </body>

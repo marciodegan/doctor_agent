@@ -567,19 +567,7 @@ export function GroupConfigs() {
             />
           </div>
 
-          <div>
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Prompt de Análise de Imagem (AI)</label>
-            <textarea 
-              value={localImageAnalysisPrompt} 
-              onChange={(e) => setLocalImageAnalysisPrompt(e.target.value)}
-              placeholder="Instruções para a IA analisar as fotos..."
-              rows={4}
-              disabled={!isAdmin}
-              className={`w-full bg-gray-50 border border-gray-100 px-5 py-4 rounded-2xl text-sm font-medium outline-none transition-all resize-none ${
-                isAdmin ? "focus:ring-4 focus:ring-indigo-100" : "opacity-70 cursor-not-allowed"
-              }`}
-            />
-          </div>
+
 
           <div className="flex flex-col gap-3 pt-4">
             {!isAdmin && (
