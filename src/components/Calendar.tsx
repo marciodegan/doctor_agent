@@ -912,198 +912,234 @@ export function Calendar({
       {/* Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 xs:p-5 sm:p-10 md:p-12 overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsModalOpen(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-0"
             />
             
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden z-10 border border-gray-100"
+              className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl z-10 border border-gray-100 flex flex-col my-auto overflow-hidden"
             >
-              {/* Modern Header with Subtitle */}
-              <div className="px-6 pt-6 pb-4 flex flex-col gap-0.5 text-left relative border-b border-slate-50">
+              {/* Header */}
+              <div className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4 flex flex-col gap-0.5 text-left relative border-b border-slate-100 shrink-0 bg-white">
                 <button 
+                  type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="absolute right-6 top-6 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all"
+                  className="absolute right-6 sm:right-8 top-6 sm:top-8 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
                 >
                   <X size={20} />
                 </button>
-                <h3 className="text-xl font-black text-slate-800 tracking-tight leading-tight flex items-center gap-2">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight leading-tight flex items-center gap-2">
                   <span>📅</span> {editingEvent ? "Editar Evento" : "Novo Evento"}
                 </h3>
-                <p className="text-xs text-slate-500 font-medium pr-10">
+                <p className="text-xs sm:text-sm text-slate-500 font-medium pr-10">
                   {editingEvent ? "Atualize os dados do compromisso." : "Preencha os dados abaixo para criar o compromisso."}
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="px-6 py-5 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                
-                {/* Section 1: Paciente e procedimento */}
-                <div className="space-y-4">
-                  <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
-                    Paciente e procedimento
-                  </h4>
+              <form onSubmit={handleSubmit} className="flex flex-col min-h-0 overflow-hidden">
+                <div className="px-6 sm:px-8 py-6 space-y-6 overflow-y-auto max-h-[58vh] sm:max-h-[62vh] custom-scrollbar">
+                  
+                  {/* Section 1: Paciente e procedimento */}
                   <div className="space-y-4">
-                    
-                    {/* Nome do Paciente Group */}
-                    <div className="space-y-1.5 flex flex-col text-left relative">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Nome do paciente</label>
-                      <div className="relative group">
-                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
-                          <User size={18} />
+                    <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
+                      Paciente e procedimento
+                    </h4>
+                    <div className="space-y-4">
+                      
+                      {/* Nome do Paciente Group */}
+                      <div className="space-y-1.5 flex flex-col text-left relative">
+                        <label className="text-xs font-semibold text-slate-700 ml-0.5">Nome do paciente</label>
+                        <div className="relative group">
+                          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                            <User size={18} />
+                          </div>
+                          <input 
+                            required
+                            type="text"
+                            value={formData.nomePaciente}
+                            onChange={e => {
+                              setFormData({ ...formData, nomePaciente: e.target.value });
+                              setShowPatientSuggestions(true);
+                            }}
+                            onFocus={() => setShowPatientSuggestions(true)}
+                            onBlur={() => setTimeout(() => setShowPatientSuggestions(false), 200)}
+                            placeholder="Nome completo do paciente"
+                            className="w-full h-12 pl-11 pr-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm placeholder:text-slate-400/70"
+                          />
                         </div>
-                        <input 
-                          required
-                          type="text"
-                          value={formData.nomePaciente}
-                          onChange={e => {
-                            setFormData({ ...formData, nomePaciente: e.target.value });
-                            setShowPatientSuggestions(true);
-                          }}
-                          onFocus={() => setShowPatientSuggestions(true)}
-                          onBlur={() => setTimeout(() => setShowPatientSuggestions(false), 200)}
-                          placeholder="Nome completo do paciente"
-                          className="w-full h-12 pl-11 pr-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm"
-                        />
+
+                        <AnimatePresence>
+                          {showPatientSuggestions && formData.nomePaciente && filteredPatients.length > 0 && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -10 }}
+                              className="absolute z-50 left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-slate-100 shadow-xl shadow-blue-900/10 max-h-48 overflow-y-auto custom-scrollbar"
+                            >
+                              {filteredPatients.map(p => (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData({ ...formData, nomePaciente: p.nome });
+                                    setShowPatientSuggestions(false);
+                                  }}
+                                  className="w-full text-left px-5 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <User size={14} className="text-gray-400" />
+                                    {p.nome}
+                                  </div>
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
 
-                      <AnimatePresence>
-                        {showPatientSuggestions && formData.nomePaciente && filteredPatients.length > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="absolute z-50 left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-blue-50 shadow-xl shadow-blue-900/10 max-h-48 overflow-y-auto custom-scrollbar"
-                          >
-                            {filteredPatients.map(p => (
-                              <button
-                                key={p.id}
-                                type="button"
-                                onClick={() => {
-                                  setFormData({ ...formData, nomePaciente: p.nome });
-                                  setShowPatientSuggestions(false);
-                                }}
-                                className="w-full text-left px-5 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <User size={14} className="text-gray-400" />
-                                  {p.nome}
-                                </div>
-                              </button>
-                            ))}
-                          </motion.div>
+                      {/* Procedimento Group */}
+                      <div className="space-y-1.5 flex flex-col text-left">
+                        <label className="text-xs font-semibold text-slate-700 ml-0.5">Procedimento</label>
+                        <div className="relative group">
+                          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                            <CalendarIcon size={18} />
+                          </div>
+                          <input 
+                            required
+                            type="text"
+                            value={formData.evento}
+                            onChange={e => setFormData({ ...formData, evento: e.target.value })}
+                            placeholder="Ex: Cirurgia Geral, Estética..."
+                            className="w-full h-12 pl-11 pr-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm placeholder:text-slate-400/70"
+                          />
+                        </div>
+                        
+                        {/* Chips */}
+                        {procedureOptions.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2 ml-0.5">
+                            {procedureOptions.map(opt => {
+                              const isSelected = formData.evento === opt;
+                              return (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  onClick={() => setFormData({ ...formData, evento: opt })}
+                                  className={`px-3 py-1.5 rounded-xl text-[11px] tracking-wide transition-all border cursor-pointer ${
+                                    isSelected 
+                                      ? "bg-blue-600 border-blue-600 text-white shadow-sm font-semibold" 
+                                      : "bg-slate-50 hover:bg-slate-100/80 border-slate-100/50 text-slate-500 hover:text-slate-700 font-medium"
+                                  }`}
+                                >
+                                  {opt}
+                                </button>
+                              );
+                            })}
+                          </div>
                         )}
-                      </AnimatePresence>
-                    </div>
+                      </div>
 
-                    {/* Procedimento Group */}
+                    </div>
+                  </div>
+
+                  {/* Section 2: Data da cirurgia */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
+                      Data da cirurgia
+                    </h4>
                     <div className="space-y-1.5 flex flex-col text-left">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Procedimento</label>
+                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Data</label>
                       <div className="relative group">
                         <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
                           <CalendarIcon size={18} />
                         </div>
                         <input 
                           required
-                          type="text"
-                          value={formData.evento}
-                          onChange={e => setFormData({ ...formData, evento: e.target.value })}
-                          placeholder="Ex: Cirurgia Geral, Estética..."
-                          className="w-full h-12 pl-11 pr-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm"
-                        />
-                      </div>
-                      
-                      {/* Chips */}
-                      {procedureOptions.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-1.5 ml-0.5">
-                          {procedureOptions.map(opt => {
-                            const isSelected = formData.evento === opt;
-                            return (
-                              <button
-                                key={opt}
-                                type="button"
-                                onClick={() => setFormData({ ...formData, evento: opt })}
-                                className={`px-3 py-1.5 rounded-xl text-[11px] tracking-wide transition-all border cursor-pointer ${
-                                  isSelected 
-                                    ? "bg-blue-600 border-blue-600 text-white shadow-sm font-semibold" 
-                                    : "bg-slate-50 hover:bg-slate-100/80 border-slate-100/50 text-slate-500 hover:text-slate-700 font-medium"
-                                }`}
-                              >
-                                {opt}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                  </div>
-                </div>
-
-                {/* Section 2: Data da cirurgia */}
-                <div className="space-y-4">
-                  <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
-                    Data da cirurgia
-                  </h4>
-                  <div className="space-y-1.5 flex flex-col text-left">
-                    <label className="text-xs font-semibold text-slate-700 ml-0.5">Data</label>
-                    <input 
-                      required
-                      type="date"
-                      value={formData.data}
-                      onChange={e => setFormData({ ...formData, data: e.target.value })}
-                      className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm font-mono"
-                    />
-                  </div>
-                </div>
-
-                {/* Section 3: Horário e tipo */}
-                <div className="space-y-4">
-                  <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
-                    Horário e tipo
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5 flex flex-col text-left">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Horário</label>
-                      <div className="relative group">
-                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
-                          <Clock size={18} />
-                        </div>
-                        <input 
-                          required
-                          type="time"
-                          value={formData.hora}
-                          onChange={e => setFormData({ ...formData, hora: e.target.value })}
+                          type="date"
+                          value={formData.data}
+                          onChange={e => setFormData({ ...formData, data: e.target.value })}
                           className="w-full h-12 pl-11 pr-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm font-mono"
                         />
                       </div>
                     </div>
-                    
+                  </div>
+
+                  {/* Section 3: Horário e tipo */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
+                      Horário e tipo
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5 flex flex-col text-left">
+                        <label className="text-xs font-semibold text-slate-700 ml-0.5">Horário</label>
+                        <div className="relative group">
+                          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                            <Clock size={18} />
+                          </div>
+                          <input 
+                            required
+                            type="time"
+                            value={formData.hora}
+                            onChange={e => setFormData({ ...formData, hora: e.target.value })}
+                            className="w-full h-12 pl-11 pr-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm font-mono"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-1.5 flex flex-col text-left">
+                        <label className="text-xs font-semibold text-slate-700 ml-0.5">Tipo</label>
+                        <div className="relative">
+                          <select 
+                            value={formData.tipo}
+                            onChange={e => setFormData({ ...formData, tipo: e.target.value })}
+                            className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none appearance-none cursor-pointer pr-10 shadow-sm transition-all"
+                          >
+                            {surgeryTypeOptions.length > 0 ? (
+                              surgeryTypeOptions.map(opt => (
+                                <option key={opt} value={opt}>{opt.toUpperCase()}</option>
+                              ))
+                            ) : (
+                              <>
+                                <option value="ELETIVA">ELETIVA</option>
+                                <option value="URGÊNCIA">URGÊNCIA</option>
+                              </>
+                            )}
+                          </select>
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                            <ChevronDown size={16} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 4: Hospital / Clínica */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
+                      Hospital / Clínica
+                    </h4>
                     <div className="space-y-1.5 flex flex-col text-left">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Tipo</label>
+                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Hospital / Clínica</label>
                       <div className="relative">
+                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                          <Building2 size={18} />
+                        </div>
                         <select 
-                          value={formData.tipo}
-                          onChange={e => setFormData({ ...formData, tipo: e.target.value })}
-                          className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none appearance-none cursor-pointer pr-10 shadow-sm transition-all"
+                          value={formData.hospitalId}
+                          onChange={e => setFormData({ ...formData, hospitalId: e.target.value })}
+                          className="w-full h-12 pl-11 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none appearance-none cursor-pointer pr-10 shadow-sm transition-all overflow-hidden whitespace-nowrap text-ellipsis"
                         >
-                          {surgeryTypeOptions.length > 0 ? (
-                            surgeryTypeOptions.map(opt => (
-                              <option key={opt} value={opt}>{opt.toUpperCase()}</option>
-                            ))
-                          ) : (
-                            <>
-                              <option value="ELETIVA">ELETIVA</option>
-                              <option value="URGÊNCIA">URGÊNCIA</option>
-                            </>
-                          )}
+                          <option value="">Selecione o Hospital...</option>
+                          {hospitalOptions.map(h => (
+                            <option key={h.id} value={h.id}>{h.nome}</option>
+                          ))}
                         </select>
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                           <ChevronDown size={16} />
@@ -1111,92 +1147,65 @@ export function Calendar({
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Section 4: Hospital / Clínica */}
-                <div className="space-y-4">
-                  <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
-                    Hospital / Clínica
-                  </h4>
-                  <div className="space-y-1.5 flex flex-col text-left">
-                    <label className="text-xs font-semibold text-slate-700 ml-0.5">Hospital / Clínica</label>
-                    <div className="relative">
-                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                        <Building2 size={18} />
-                      </div>
-                      <select 
-                        value={formData.hospitalId}
-                        onChange={e => setFormData({ ...formData, hospitalId: e.target.value })}
-                        className="w-full h-12 pl-11 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none appearance-none cursor-pointer pr-10 shadow-sm transition-all overflow-hidden whitespace-nowrap text-ellipsis"
-                      >
-                        <option value="">Selecione o Hospital...</option>
-                        {hospitalOptions.map(h => (
-                          <option key={h.id} value={h.id}>{h.nome}</option>
-                        ))}
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                        <ChevronDown size={16} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 5: Detalhes */}
-                <div className="space-y-4">
-                  <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
-                    Detalhes
-                  </h4>
+                  {/* Section 5: Detalhes */}
                   <div className="space-y-4">
-                    <div className="space-y-1.5 flex flex-col text-left">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Sala / Unidade</label>
-                      <input 
-                        type="text"
-                        value={formData.sala}
-                        onChange={e => setFormData({ ...formData, sala: e.target.value })}
-                        placeholder="Ex: Sala 01"
-                        className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm"
-                      />
-                    </div>
-                    
-                    <div className="space-y-1.5 flex flex-col text-left">
-                      <label className="text-xs font-semibold text-slate-700 ml-0.5">Observações (opcional)</label>
-                      <div className="relative group">
-                        <div className="absolute left-3.5 top-4 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
-                          <FileText size={18} />
-                        </div>
-                        <textarea 
-                          value={formData.descricao}
-                          onChange={e => setFormData({ ...formData, descricao: e.target.value })}
-                          placeholder="Alguma recomendação ou detalhe importante?"
-                          rows={3}
-                          className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm resize-none min-h-[100px]"
+                    <h4 className="text-sm font-black text-slate-800 tracking-tight text-left pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
+                      Detalhes
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="space-y-1.5 flex flex-col text-left">
+                        <label className="text-xs font-semibold text-slate-700 ml-0.5">Sala / Unidade</label>
+                        <input 
+                          type="text"
+                          value={formData.sala}
+                          onChange={e => setFormData({ ...formData, sala: e.target.value })}
+                          placeholder="Ex: Sala 01"
+                          className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm placeholder:text-slate-400/70"
                         />
                       </div>
+                      
+                      <div className="space-y-1.5 flex flex-col text-left">
+                        <label className="text-xs font-semibold text-slate-700 ml-0.5">Observações <span className="text-slate-400 font-normal lowercase">(opcional)</span></label>
+                        <div className="relative group">
+                          <div className="absolute left-3.5 top-4 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                            <FileText size={18} />
+                          </div>
+                          <textarea 
+                            value={formData.descricao}
+                            onChange={e => setFormData({ ...formData, descricao: e.target.value })}
+                            placeholder="Alguma recomendação ou detalhe importante?"
+                            rows={3}
+                            className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm resize-none min-h-[100px] placeholder:text-slate-400/70"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Google Calendar Box */}
+                  <div 
+                    className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between group cursor-pointer hover:bg-emerald-50 transition-all" 
+                    onClick={() => setFormData({ ...formData, syncToGoogle: !formData.syncToGoogle })}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${formData.syncToGoogle ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" : "bg-white text-emerald-500 border border-emerald-100"}`}>
+                        <CalendarIcon size={20} />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="text-xs font-black text-gray-900 leading-tight">Adicionar à minha Agenda Google</h4>
+                        <p className="text-[10px] font-bold text-gray-400">Sincroniza automaticamente este evento</p>
+                      </div>
+                    </div>
+                    <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${formData.syncToGoogle ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-emerald-100 text-transparent"}`}>
+                      <Check size={14} strokeWidth={4} />
+                    </div>
+                  </div>
+
                 </div>
 
-                {/* Google Calendar Box */}
-                <div 
-                  className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between group cursor-pointer hover:bg-emerald-50 transition-all" 
-                  onClick={() => setFormData({ ...formData, syncToGoogle: !formData.syncToGoogle })}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${formData.syncToGoogle ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" : "bg-white text-emerald-500 border border-emerald-100"}`}>
-                      <CalendarIcon size={20} />
-                    </div>
-                    <div className="text-left">
-                      <h4 className="text-xs font-black text-gray-900 leading-tight">Adicionar à minha Agenda Google</h4>
-                      <p className="text-[10px] font-bold text-gray-400">Sincroniza automaticamente este evento</p>
-                    </div>
-                  </div>
-                  <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${formData.syncToGoogle ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-emerald-100 text-transparent"}`}>
-                    <Check size={14} strokeWidth={4} />
-                  </div>
-                </div>
-
-                {/* Submit / Action buttons */}
-                <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-100 pb-2">
+                {/* Footer buttons */}
+                <div className="px-6 sm:px-8 py-5 sm:py-6 bg-white border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
                   <div className="flex items-center justify-start gap-3 w-full sm:w-auto">
                     {editingEvent ? (
                       <button 
