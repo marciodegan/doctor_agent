@@ -409,7 +409,7 @@ export function Calendar({
       if (!isMounted) return;
       setAllPatients(snap.docs.map(d => ({ 
         id: d.id, 
-        nome: d.data().name 
+        nome: d.data().name || d.data().nome || "" 
       })));
     }, (err) => handleFirestoreError(err, OperationType.LIST, "patients"));
 

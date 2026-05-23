@@ -122,10 +122,10 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
       .filter((e) => {
         // match client-side using normalized strings or patientIds
         const patientIdInEvent = e.patientId || "";
-        const patientNameInEvent = normalizeString(e.nomePaciente || "");
-        const patientNameInList = normalizeString(p.nome || "");
+        const patientNameInEvent = e.nomePaciente ? normalizeString(e.nomePaciente) : "";
+        const patientNameInList = p.nome ? normalizeString(p.nome) : "";
 
-        const isIdMatch = patientIdInEvent && patientIdInEvent === p.id;
+        const isIdMatch = patientIdInEvent && p.id && patientIdInEvent === p.id;
         const isNameMatch = patientNameInEvent && patientNameInList && (
           patientNameInEvent === patientNameInList ||
           patientNameInList.includes(patientNameInEvent) ||
@@ -139,20 +139,35 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
         const isActive = !e.status || e.status === "active";
         if (!isActive) return false;
 
-        // startDateTime >= now (with a friendly 3-hour buffer for events ongoing today)
-        const start = getEventStartDateTime(e);
-        if (!start) return false;
-        
-        const isUpcoming = start.getTime() >= (now.getTime() - 3 * 60 * 60 * 1000);
-        if (!isUpcoming) return false;
-
         return true;
       })
-      .map((e) => ({
-        ...e,
-        startDateTime: getEventStartDateTime(e)!
-      }))
-      .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+      .map((e) => {
+        const start = getEventStartDateTime(e);
+        return {
+          ...e,
+          startDateTime: start
+        };
+      })
+      .filter((e): e is CalendarEvent & { startDateTime: Date } => e.startDateTime !== null)
+      .sort((a, b) => {
+        const timeA = a.startDateTime.getTime();
+        const timeB = b.startDateTime.getTime();
+        const referenceTime = now.getTime() - 3 * 60 * 60 * 1000; // 3-hour grace window
+
+        const isAUpcoming = timeA >= referenceTime;
+        const isBUpcoming = timeB >= referenceTime;
+
+        if (isAUpcoming && !isBUpcoming) return -1;
+        if (!isAUpcoming && isBUpcoming) return 1;
+
+        if (isAUpcoming && isBUpcoming) {
+          // both are upcoming/current: show closest first
+          return timeA - timeB;
+        } else {
+          // both are in the past: show most recent first
+          return timeB - timeA;
+        }
+      });
 
     return patientEvents;
   };
