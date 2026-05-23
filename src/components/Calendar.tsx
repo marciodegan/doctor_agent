@@ -1150,7 +1150,7 @@ export function Calendar({
                     className="w-full sm:w-auto sm:flex-1 bg-blue-600 text-white px-8 py-4.5 rounded-2xl font-black text-xs sm:text-sm shadow-2xl shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 active:scale-[0.98] transition-all uppercase tracking-widest order-1 sm:order-2 flex items-center justify-center gap-2"
                   >
                     {editingEvent ? <Check size={20} /> : <Plus size={20} />}
-                    {editingEvent ? "Salvar Alterações" : "Agendar Procedimento"}
+                    {editingEvent ? "Salvar Alterações" : "Criar evento"}
                   </button>
                 </div>
               </form>

@@ -741,7 +741,7 @@ export function GoogleAgenda() {
                     ) : (
                       <>
                         {editingEvent ? <Check size={18} /> : <Plus size={18} />}
-                        {editingEvent ? "Salvar Alterações" : "Agendar no Google"}
+                        {editingEvent ? "Salvar Alterações" : "Criar no Google Agenda"}
                       </>
                     )}
                   </button>
