@@ -3,8 +3,8 @@ import { FileText, ArrowLeft, AppWindow, ShieldAlert } from "lucide-react";
 
 export default function Eula() {
   const dateStr = "22 de maio de 2026";
-  const supportEmail = "contato@dragent.app";
-  const supportDomain = "https://dragent.app";
+  const supportEmail = "contato@doctor-agent.online";
+  const supportDomain = "https://doctor-agent.online";
 
   return (
     <div className="min-h-screen bg-slate-50/50 text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 pb-16">

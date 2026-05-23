@@ -58,11 +58,7 @@ service cloud.firestore {
       
       match /memberships/{groupId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
-        // Require target member checks (must be an administrator or user themselves is invited/present in members)
-        allow write: if isSignedIn() && (
-          isOwner(groupId) ||
-          (request.auth.uid == userId && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(userId)))
-        );
+        allow write: if isSignedIn() && request.auth.uid == userId;
       }
     }
 
@@ -89,20 +85,18 @@ service cloud.firestore {
       match /members/{memberId} {
         allow read: if isMember(groupId) || 
                       (isSignedIn() && request.auth.uid == memberId);
-        // Restrict creation and activation updates strictly to pre-existing invitations or group owners
+        // Allow a user to create or update their own membership document when joining as a member
         allow create: if isSignedIn() && (
           isOwner(groupId) ||
-          (request.auth.uid == memberId && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(memberId)))
+          (request.auth.uid == memberId && 
+           incoming().get('role', 'member') == "member" && 
+           (incoming().status == "conectado" || incoming().status == "pending" || incoming().status == "active"))
         );
         allow update: if isOwner(groupId) || (
           isSignedIn() && 
           request.auth.uid == memberId && 
-          existing().status == "pending" &&
-          incoming().role == existing().role &&
-          incoming().userEmail == existing().userEmail &&
-          incoming().userId == existing().userId &&
-          incoming().groupId == existing().groupId &&
-          (incoming().status == "active" || incoming().status == "conectado" || incoming().status == "declined" || incoming().status == "cancelled")
+          incoming().get('role', 'member') == "member" &&
+          (incoming().status == "active" || incoming().status == "conectado" || incoming().status == "declined" || incoming().status == "cancelled" || incoming().status == "pending")
         );
         allow delete: if isOwner(groupId);
       }

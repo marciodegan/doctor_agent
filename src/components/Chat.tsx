@@ -642,40 +642,71 @@ const MessageForm: React.FC<{
           )}
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          {isEditPatientForm && (
-            <button
-              type="button"
-              onClick={() => setShowRemovePatientConfirm(true)}
-              className="px-4 py-3 text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 hover:bg-red-100 border border-red-200 rounded-2xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-red-50"
-            >
-              <Trash2 size={14} />
-              Remover Paciente
-            </button>
-          )}
+        <div className="w-full sm:w-auto">
+          {isEditPatientForm ? (
+            <div className="flex flex-col gap-3 w-full sm:flex-row-reverse sm:items-center sm:gap-3 animate-fade-in">
+              {/* Primary action takes full width on mobile, and is highlighted as main action */}
+              <button 
+                type="submit"
+                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-95 cursor-pointer"
+              >
+                {form.submitLabel.toLowerCase().includes("salvar") || form.submitLabel.toLowerCase().includes("registrar") ? (
+                  <Check size={16} strokeWidth={3} />
+                ) : (
+                  <Plus size={16} strokeWidth={3} />
+                )}
+                {form.submitLabel}
+              </button>
 
-          {form.backCommand && (
-            <button
-              type="button"
-              onClick={() => onSubmit(form.backCommand)}
-              className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-red-500 transition-all flex items-center gap-2 group"
-            >
-              <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
-              Cancelar
-            </button>
-          )}
+              {/* Secondary actions below it side-by-side on mobile */}
+              <div className="flex gap-2.5 w-full sm:w-auto sm:flex-row">
+                {form.backCommand && (
+                  <button
+                    type="button"
+                    onClick={() => onSubmit(form.backCommand)}
+                    className="flex-1 sm:flex-none justify-center px-4 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest hover:text-red-500 transition-all flex items-center gap-2 group cursor-pointer bg-gray-50 border border-gray-100 rounded-2xl"
+                  >
+                    <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+                    Cancelar
+                  </button>
+                )}
 
-          <button 
-            type="submit"
-            className="flex-1 sm:flex-none bg-blue-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-95"
-          >
-            {form.submitLabel.toLowerCase().includes("salvar") || form.submitLabel.toLowerCase().includes("registrar") ? (
-              <Check size={16} strokeWidth={3} />
-            ) : (
-              <Plus size={16} strokeWidth={3} />
-            )}
-            {form.submitLabel}
-          </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRemovePatientConfirm(true)}
+                  className="flex-1 sm:flex-none justify-center px-4 py-3 text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 hover:bg-red-100 border border-red-200 rounded-2xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-red-50"
+                >
+                  <Trash2 size={14} />
+                  Remover Paciente
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 w-full">
+              {form.backCommand && (
+                <button
+                  type="button"
+                  onClick={() => onSubmit(form.backCommand)}
+                  className="px-6 py-3 text-[10px] font-black text-gray-400 tracking-widest hover:text-red-500 transition-all flex items-center gap-2 group cursor-pointer"
+                >
+                  <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+                  Cancelar
+                </button>
+              )}
+
+              <button 
+                type="submit"
+                className="flex-1 sm:flex-none bg-blue-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-95 cursor-pointer"
+              >
+                {form.submitLabel.toLowerCase().includes("salvar") || form.submitLabel.toLowerCase().includes("registrar") ? (
+                  <Check size={16} strokeWidth={3} />
+                ) : (
+                  <Plus size={16} strokeWidth={3} />
+                )}
+                {form.submitLabel}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </form>

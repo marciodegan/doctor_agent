@@ -411,7 +411,23 @@ const requirePatientAccess = async (req: express.Request, patientId: string) => 
     throw err;
   }
 
-  const patientDoc = await db.collection("patients").doc(patientId).get();
+  let patientDoc = await db.collection("patients").doc(patientId).get();
+
+  if (!patientDoc.exists && patientId.startsWith("personal_")) {
+    const grId = patientId.substring("personal_".length);
+    // Verify the user is indeed a member of this personal group first
+    await requireGroupMember(req, grId);
+
+    // Create the dummy patient document representing personal files
+    await db.collection("patients").doc(patientId).set({
+      name: "Arquivos Pessoais",
+      groupId: grId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      recordStatus: "active"
+    });
+    patientDoc = await db.collection("patients").doc(patientId).get();
+  }
+
   if (!patientDoc.exists) {
     const err = new Error("Patient not found");
     (err as any).statusCode = 404;
