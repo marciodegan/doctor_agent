@@ -939,9 +939,7 @@ ${aiPart}
 **Paciente (Próprio)** ${cadFoneLink}
 ` : "";
 
-    const surgeryTypeHeader = cad.surgery_type ? `
-> ⚠️ **Prioridade/Tipo:** ${cad.surgery_type}
-` : "";
+    const surgeryTypeHeader = "";
 
     const calendarLine = "";
 

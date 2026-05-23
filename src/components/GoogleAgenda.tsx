@@ -667,80 +667,121 @@ export function GoogleAgenda() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden z-10"
             >
-              <div className="p-6 border-b border-gray-50 flex items-center justify-between">
-                <h3 className="font-black text-gray-900">{editingEvent ? "Editar Compromisso" : "Novo Compromisso"}</h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 text-gray-400">
+              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-0.5 text-left">
+                  <h3 className="text-xl font-black text-slate-800 tracking-tight leading-tight flex items-center gap-2">
+                    <span>📅</span> {editingEvent ? "Editar Compromisso" : "Novo Compromisso"}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    {editingEvent ? "Atualize os dados na sua agenda do Google." : "Insira as informações abaixo para agendar no Google."}
+                  </p>
+                </div>
+                <button onClick={() => setIsModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-xl transition-all shrink-0">
                   <X size={20} />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="pl-6 pr-6 pt-0 pb-[65px] space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
-                <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Assunto / Compromisso</label>
-                  <div className="relative group">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-600 transition-colors">
-                      <CalendarIcon size={18} />
-                    </div>
-                    <input 
-                      required
-                      value={formData.summary}
-                      onChange={e => setFormData({ ...formData, summary: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-600/5 focus:border-emerald-600 transition-all placeholder:font-medium"
-                      placeholder="O que vamos agendar no Google?"
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Data</label>
-                    <input 
-                      type="date"
-                      required
-                      value={formData.date}
-                      onChange={e => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-600/5 focus:border-emerald-600 transition-all font-mono"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Horário</label>
+              <form onSubmit={handleSubmit} className="px-6 py-6 pb-10 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                {/* Section 1: Compromisso */}
+                <div className="space-y-4 text-left">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 pb-1 border-b border-slate-100">
+                    Compromisso
+                  </h4>
+                  
+                  {/* Assunto */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
+                      Assunto / Compromisso
+                    </label>
                     <div className="relative group">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-600 transition-colors">
-                        <Clock size={18} />
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600 transition-colors pointer-events-none">
+                        <CalendarIcon size={18} />
                       </div>
                       <input 
-                        type="time"
                         required
-                        value={formData.time}
-                        onChange={e => setFormData({ ...formData, time: e.target.value })}
-                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-600/5 focus:border-emerald-600 transition-all font-mono"
+                        value={formData.summary}
+                        onChange={e => setFormData({ ...formData, summary: e.target.value })}
+                        className="w-full bg-white border border-gray-200 rounded-xl h-12 pl-12 pr-4 text-slate-800 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all shadow-sm placeholder:font-medium placeholder:text-gray-400 font-medium"
+                        placeholder="O que vamos agendar no Google?"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="mb-0">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Descrição / Notas</label>
-                  <textarea 
-                    value={formData.description}
-                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl pt-[12px] pb-[3px] px-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-600/5 focus:border-emerald-600 transition-all resize-none min-h-[100px]"
-                    rows={3}
-                    placeholder="Adicione detalhes extras aqui..."
-                  />
+                {/* Section 2: Data e Horário */}
+                <div className="space-y-4 text-left">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 pb-1 border-b border-slate-100">
+                    Data e horário
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Data */}
+                    <div className="space-y-1.5 font-sans">
+                      <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
+                        Data
+                      </label>
+                      <input 
+                        type="date"
+                        required
+                        value={formData.date}
+                        onChange={e => setFormData({ ...formData, date: e.target.value })}
+                        className="w-full bg-white border border-gray-200 rounded-xl h-12 px-4 text-slate-800 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all shadow-sm font-medium"
+                      />
+                    </div>
+
+                    {/* Horário */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
+                        Horário
+                      </label>
+                      <div className="relative group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600 transition-colors pointer-events-none">
+                          <Clock size={18} />
+                        </div>
+                        <input 
+                          type="time"
+                          required
+                          value={formData.time}
+                          onChange={e => setFormData({ ...formData, time: e.target.value })}
+                          className="w-full bg-white border border-gray-200 rounded-xl h-12 pl-12 pr-4 text-slate-800 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all shadow-sm font-sans font-medium"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="pt-2 flex flex-col sm:flex-row items-center gap-4 border-t border-gray-50">
+                {/* Section 3: Notas */}
+                <div className="space-y-4 text-left">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 pb-1 border-b border-slate-100">
+                    Notas
+                  </h4>
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700 ml-0.5 block text-left">
+                      Descrição / Notas
+                    </label>
+                    <textarea 
+                      value={formData.description}
+                      onChange={e => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full bg-white border border-gray-200 rounded-xl pt-3 pb-3 px-4 text-slate-800 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all shadow-sm resize-none min-h-[100px] font-medium placeholder:text-gray-400 focus:placeholder-transparent"
+                      rows={3}
+                      placeholder="Adicione detalhes extras aqui..."
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="pt-4 flex items-center justify-end border-t border-gray-100">
                   <button 
                     type="submit"
                     disabled={isLoading}
-                    className="w-full bg-emerald-600 text-white py-4.5 rounded-2xl font-black text-xs sm:text-sm shadow-2xl shadow-emerald-500/20 hover:bg-emerald-700 hover:shadow-emerald-500/30 active:scale-[0.98] transition-all uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12 px-8 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isLoading ? (
-                      <Loader2 size={18} className="animate-spin" />
+                      <Loader2 size={16} className="animate-spin" />
                     ) : (
                       <>
-                        {editingEvent ? <Check size={18} /> : <Plus size={18} />}
+                        {editingEvent ? <Check size={16} strokeWidth={2.5} /> : <Plus size={16} strokeWidth={2.5} />}
                         {editingEvent ? "Salvar Alterações" : "Criar no Google Agenda"}
                       </>
                     )}
