@@ -296,7 +296,7 @@ export default function AppWorkspace() {
       {/* Top Header - Both Mobile and Desktop */}
       <header
         style={{ height: 'calc(3.25rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
-        className={`fixed top-0 left-0 lg:left-64 right-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-40 ${isFullscreen ? 'hidden' : ''}`}
+        className={`fixed top-0 left-0 lg:left-64 right-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 ${isFullscreen ? 'hidden' : ''}`}
       >
         <div className="h-full w-full flex items-center justify-center px-4 relative">
           {/* Left Toggle - Mobile Only */}
@@ -564,12 +564,12 @@ export default function AppWorkspace() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+              className="fixed inset-0 z-45 md:z-[100] flex flex-col md:items-center md:justify-center bg-white md:bg-black/50 md:p-4 md:backdrop-blur-sm overflow-y-auto -webkit-overflow-scrolling-touch"
             >
               <motion.div
                 initial={{ scale: 0.9, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
-                className="w-full max-w-sm"
+                className="w-full max-w-full md:max-w-sm h-full md:h-auto flex flex-col"
               >
                 <Profile
                   onHose={() => setShowProfile(false)}

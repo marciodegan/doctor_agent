@@ -171,7 +171,7 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
   }
 
   return (
-    <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xl shadow-blue-500/5 max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="bg-white md:rounded-3xl p-6 md:border md:border-gray-100 md:shadow-xl md:shadow-blue-500/5 flex flex-col min-h-dvh md:min-h-0 md:max-h-[90vh] h-full md:h-auto overflow-y-auto md:overflow-hidden -webkit-overflow-scrolling-touch pt-[calc(3.25rem+1.5rem+env(safe-area-inset-top))] md:pt-6 pb-[calc(5rem+3rem+env(safe-area-inset-bottom))] md:pb-6 relative z-10">
       <div className="flex items-center justify-between mb-6 shrink-0">
         <h3 className="font-black text-gray-900 tracking-tight">Meu Perfil</h3>
         {onHose && (
@@ -181,7 +181,7 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
         )}
       </div>
 
-      <form onSubmit={handleSave} className="space-y-6 overflow-y-auto custom-scrollbar flex-1 pr-2 pb-2">
+      <form onSubmit={handleSave} className="space-y-6 overflow-y-visible md:overflow-y-auto custom-scrollbar flex-1 md:pr-2 md:pb-2">
         <div className="flex flex-col items-center">
           <div className="relative group">
             <div className="w-24 h-24 rounded-full bg-gray-100 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center text-gray-400">
