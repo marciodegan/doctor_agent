@@ -3,7 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useGroup } from "../contexts/GroupContext";
 import { db } from "../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import { Camera, Loader2, Check, User as UserIcon, X } from "lucide-react";
+import { Camera, Loader2, Check, User as UserIcon, X, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => void, installPrompt?: any, onInstall?: () => void }) {
@@ -17,6 +17,74 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState("");
+
+  const checkForAppUpdate = async () => {
+    if (!("serviceWorker" in navigator)) {
+      alert("Atualização não disponível neste navegador.");
+      return;
+    }
+
+    try {
+      setCheckingUpdate(true);
+      setUpdateStatus("Verificando atualizações...");
+
+      const registration = await navigator.serviceWorker.getRegistration();
+
+      if (!registration) {
+        setCheckingUpdate(false);
+        setUpdateStatus("");
+        alert("Nenhum registro de atualização encontrado para este PWA.");
+        return;
+      }
+
+      let updateFound = false;
+      const onUpdateFound = () => {
+        updateFound = true;
+        setUpdateStatus("Atualização encontrada. Atualizando app...");
+      };
+      registration.addEventListener('updatefound', onUpdateFound);
+
+      await registration.update();
+
+      // Wait a short duration to let service worker update state transitions run
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      registration.removeEventListener('updatefound', onUpdateFound);
+
+      if (registration.waiting) {
+        setUpdateStatus("Atualização encontrada. Atualizando app...");
+        registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        window.location.reload();
+        return;
+      } else if (registration.installing) {
+        setUpdateStatus("Sincronizando novas funções...");
+        registration.installing.addEventListener('statechange', (e: any) => {
+          if (e.target.state === 'installed') {
+            registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+            window.location.reload();
+          }
+        });
+        return;
+      }
+
+      if (updateFound) {
+        // Fallback reload if an update was found but bypasses normal state queries
+        window.location.reload();
+        return;
+      }
+
+      setUpdateStatus("Você já está usando a versão mais recente.");
+      setTimeout(() => setUpdateStatus(""), 4000);
+    } catch (error) {
+      console.error("Erro ao verificar atualização:", error);
+      alert("Não foi possível verificar atualizações agora. Tente novamente.");
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -188,6 +256,36 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
             "SALVAR ALTERAÇÕES"
           )}
         </button>
+
+        {/* PWA Update Section */}
+        <div className="border-t border-gray-100 pt-6 mt-6 space-y-4">
+          <div className="flex flex-col gap-1 px-1">
+            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Atualização do Aplicativo</h4>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Verifique se você está usando a versão mais recente do Dr. Agent com todos os novos recursos e otimizações.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={checkForAppUpdate}
+            disabled={checkingUpdate}
+            className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+          >
+            {checkingUpdate ? (
+              <Loader2 className="animate-spin text-blue-600" size={17} />
+            ) : (
+              <RefreshCw size={17} className="text-slate-500" />
+            )}
+            {checkingUpdate ? "Verificando..." : "ATUALIZAR APP"}
+          </button>
+
+          {updateStatus && (
+            <p className="text-xs text-center font-semibold text-blue-600 animate-pulse px-2">
+              {updateStatus}
+            </p>
+          )}
+        </div>
       </form>
     </div>
   );

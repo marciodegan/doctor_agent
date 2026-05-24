@@ -11,6 +11,9 @@ export default defineConfig(({mode}) => {
       react(), 
       tailwindcss(),
       VitePWA({
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.js',
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         devOptions: {
@@ -18,12 +21,8 @@ export default defineConfig(({mode}) => {
           type: 'module'
         },
         includeAssets: ['favicon.ico'],
-        workbox: {
-          navigateFallback: "/index.html",
-          navigateFallbackDenylist: [
-            /^\/api\//,
-            /^\/auth\/callback/,
-          ],
+        injectManifest: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         },
         manifest: {
           id: '/',
