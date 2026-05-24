@@ -104,7 +104,7 @@ export function TeamManagement() {
          {member.status === 'pending' && (
            <button
              onClick={() => {
-               const text = `Olá! Convidei você para participar do grupo "${activeGroup.name}" no sistema ${companyName}. 🩺\n\nAcesse para aceitar o convite: ${window.location.origin}`;
+               const text = `Olá! Convidei você através do e-mail ${member.userEmail} para participar do grupo "${activeGroup.name}" no app Dr. Agent.\n\nPara acessar o grupo, entre no app usando esse mesmo e-mail.\n\nAcesse pelo link:\nhttps://doctor-agent.online/app`;
                const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
                window.location.href = url;
              }}
@@ -416,7 +416,7 @@ export function TeamManagement() {
                         <button
                           type="button"
                           onClick={() => {
-                            const text = `Olá! Convidei você para participar do grupo "${activeGroup.name}" no sistema ${companyName}. 🩺\n\nAcesse para aceitar o convite: ${window.location.origin}`;
+                            const text = `Olá! Convidei você através do e-mail ${lastInvitedEmail} para participar do grupo "${activeGroup.name}" no app Dr. Agent.\n\nPara acessar o grupo, entre no app usando esse mesmo e-mail.\n\nAcesse pelo link:\nhttps://doctor-agent.online/app`;
                             const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
                             window.location.href = url;
                           }}
