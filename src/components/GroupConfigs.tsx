@@ -775,7 +775,7 @@ export function GroupConfigs() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto px-1 py-1 custom-scrollbar">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:max-h-[40vh] md:overflow-y-auto overflow-y-visible px-1 py-1 custom-scrollbar">
               {items.map((item) => (
                 <motion.div 
                   key={item.id}

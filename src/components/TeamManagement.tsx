@@ -215,16 +215,16 @@ export function TeamManagement() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md p-4"
+        className="fixed inset-0 z-[100] flex md:items-center md:justify-center bg-white md:bg-black/40 md:backdrop-blur-md md:p-4 overflow-y-auto -webkit-overflow-scrolling-touch min-h-dvh md:min-h-0"
       >
         <motion.div
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}
-          className="bg-white rounded-[32px] shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-white"
+          className="bg-white md:rounded-[32px] md:shadow-2xl w-full max-w-2xl min-h-dvh md:min-h-0 md:max-h-[90vh] flex flex-col overflow-y-auto md:overflow-hidden md:border border-white -webkit-overflow-scrolling-touch"
         >
           {/* Header */}
-          <div className="p-6 sm:p-8 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
+          <div className="p-6 sm:p-8 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10 pt-[calc(env(safe-area-inset-top)+20px)] md:pt-6">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl overflow-hidden flex items-center justify-center text-white shadow-xl shadow-blue-100 shrink-0">
                 {activeGroup.photoURL ? (
@@ -254,7 +254,7 @@ export function TeamManagement() {
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-10 custom-scrollbar">
+          <div className="flex-1 overflow-y-visible md:overflow-y-auto p-6 sm:p-8 space-y-10 custom-scrollbar pb-[calc(120px+env(safe-area-inset-bottom))] md:pb-8">
             {managementMode === "dashboard" ? (
               <div className="space-y-8">
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
