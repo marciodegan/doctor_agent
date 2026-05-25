@@ -19,6 +19,22 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
   const [success, setSuccess] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateStatus, setUpdateStatus] = useState("");
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
+
+  useEffect(() => {
+    const checkPwaStatus = () => {
+      const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+      setIsStandalone(isStandaloneMode);
+      console.log("[PWA] App is standalone:", isStandaloneMode);
+
+      const isAndroidOS = /Android/i.test(navigator.userAgent);
+      setIsAndroid(isAndroidOS);
+      console.log("[PWA] Running on Android:", isAndroidOS);
+    };
+
+    checkPwaStatus();
+  }, []);
 
   const checkForAppUpdate = async () => {
     if (!("serviceWorker" in navigator)) {
@@ -286,6 +302,42 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
             </p>
           )}
         </div>
+
+        {/* PWA Install Section */}
+        {!isStandalone && (
+          <div className="border-t border-gray-100 pt-6 mt-6 space-y-4">
+            <div className="flex flex-col gap-1 px-1">
+              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Instalação do Aplicativo</h4>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Adicione o Dr. Agent à tela inicial do seu celular para acesso rápido offline, melhor desempenho e visualização em tela cheia.
+              </p>
+            </div>
+
+            {installPrompt ? (
+              <button
+                type="button"
+                onClick={() => {
+                  console.log("[PWA] Install button clicked");
+                  if (onInstall) onInstall();
+                }}
+                className="w-full bg-blue-600 border border-blue-600 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 hover:bg-blue-700 hover:border-blue-700 transition-all active:scale-[0.98] cursor-pointer shadow-lg shadow-blue-100 text-sm tracking-wide"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                INSTALAR APLICATIVO
+              </button>
+            ) : isAndroid ? (
+              <div className="bg-amber-50/50 border border-amber-100/80 rounded-2xl p-4 text-xs text-amber-800 leading-relaxed">
+                <p className="font-bold flex items-center gap-1.5 mb-1 text-amber-900">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  Como instalar no Android:
+                </p>
+                Para instalar, toque no botão <strong className="font-extrabold">⋮ (três pontos)</strong> no topo do navegador Chrome e selecione <strong className="font-semibold">"Instalar aplicativo"</strong> ou <strong className="font-semibold">"Adicionar à tela inicial"</strong>.
+              </div>
+            ) : null}
+          </div>
+        )}
       </form>
     </div>
   );

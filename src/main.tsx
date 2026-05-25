@@ -52,6 +52,8 @@ if (typeof window !== 'undefined') {
       }
     },
   });
+  console.log("[PWA] Service worker registered");
+  console.log("[PWA] Manifest loaded");
 }
 
 createRoot(document.getElementById('root')!).render(

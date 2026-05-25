@@ -187,6 +187,7 @@ export default function AppWorkspace() {
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
       console.log("[PWA] beforeinstallprompt event fired");
+      console.log("[PWA] beforeinstallprompt fired");
       e.preventDefault();
       setInstallPrompt(e);
     };
@@ -195,6 +196,9 @@ export default function AppWorkspace() {
     // Check if running as PWA
     const isPWA = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
     console.log("[PWA] Running as PWA:", isPWA);
+    if (isPWA) {
+      console.log("[PWA] App already installed");
+    }
 
     return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
   }, []);
@@ -252,6 +256,8 @@ export default function AppWorkspace() {
     if (!installPrompt) return;
     installPrompt.prompt();
     const { outcome } = await installPrompt.userChoice;
+    console.log("[PWA] Install choice processed", outcome);
+    console.log("[PWA] Install accepted or dismissed");
     if (outcome === 'accepted') {
       setInstallPrompt(null);
     }
