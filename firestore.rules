@@ -49,6 +49,13 @@ service cloud.firestore {
              (data.get('addedBy', null) == null || data.addedBy is string);
     }
 
+    // Global app configuration
+    match /app_config/{configId} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if false;
+    }
+
     // User profiles
     match /users/{userId} {
       allow get: if isSignedIn() && request.auth.uid == userId;

@@ -259,9 +259,24 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "content"]
+    },
+    "AppConfig": {
+      "title": "Configuração do App",
+      "description": "Configurações globais do sistema",
+      "type": "object",
+      "properties": {
+        "latestVersion": { "type": "string" },
+        "forceUpdate": { "type": "boolean" },
+        "message": { "type": "string" }
+      },
+      "required": ["latestVersion"]
     }
   },
   "firestore": {
+    "/app_config/{configId}": {
+      "schema": "AppConfig",
+      "description": "Global application configuration documents"
+    },
     "/user_notes/{noteId}": {
       "schema": "Note",
       "description": "Personal user notes"
