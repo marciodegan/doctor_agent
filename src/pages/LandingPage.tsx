@@ -151,7 +151,7 @@ function PhoneMockup() {
 
           <div className="space-y-3">
             {[
-              ["Contatos", "Adagir (O MESMO)", "47991084635"],
+              ["Contatos", "Ana Paula (Cônjuge)", "47991084635"],
               ["Informações", "Alergia a AAS", "20/05/2026, 21:15"],
               ["Imagens", "Exame anexado", "Raio-X do tórax"],
             ].map(([title, line1, line2]) => (

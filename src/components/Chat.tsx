@@ -61,6 +61,7 @@ interface Message {
   image?: string;
   audio?: string;
   isProfile?: boolean;
+  patientNameForStatus?: string;
   profileData?: {
     id: string;
     nome: string;
@@ -3053,19 +3054,45 @@ ${aiPart}
       }
 
       setMessages([]); // NEW VIEW
-      setMessages([{
-        role: "model",
-        text: "🏷️ **Alterar Status**\n\nEscolha o novo status para o paciente:",
-        actionGroups: [
-          {
-            title: "Selecione o Status",
-            actions: groupStatuses.map((s: any) => ({
-              label: s.nome,
-              cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome}`
-            }))
-          }
-        ]
-      }]);
+      setIsLoading(true);
+      try {
+        const patientRes = await apiFetch(`/api/app/patients/info/${patId}`);
+        const patientData = await patientRes.json();
+        const patientName = patientData.nome || patientData.name || "Paciente selecionado";
+
+        setMessages([{
+          role: "model",
+          text: `🏷️ **Alterar Status**\n\n**Paciente:** ${patientName}\n\nEscolha o novo status para o paciente:`,
+          patientNameForStatus: patientName,
+          actionGroups: [
+            {
+              title: "Selecione o Status",
+              actions: groupStatuses.map((s: any) => ({
+                label: s.nome,
+                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome}`
+              }))
+            }
+          ]
+        }]);
+      } catch (err) {
+        console.error("Erro ao obter nome do paciente:", err);
+        setMessages([{
+          role: "model",
+          text: `🏷️ **Alterar Status**\n\n**Paciente:** Paciente selecionado\n\nEscolha o novo status para o paciente:`,
+          patientNameForStatus: "Paciente selecionado",
+          actionGroups: [
+            {
+              title: "Selecione o Status",
+              actions: groupStatuses.map((s: any) => ({
+                label: s.nome,
+                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome}`
+              }))
+            }
+          ]
+        }]);
+      } finally {
+        setIsLoading(false);
+      }
       return true;
     }
 
@@ -3301,7 +3328,7 @@ ${aiPart}
               className="flex justify-start"
             >
               <div className="flex gap-3 w-full">
-                <div className={(msg.isProfile || msg.form?.commandPrefix?.includes("/calendario_add")) ? "text-sm w-full overflow-y-auto space-y-6" : `p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full overflow-y-auto`}>
+                <div className={(msg.isProfile || msg.patientNameForStatus || msg.form?.commandPrefix?.includes("/calendario_add")) ? "text-sm w-full overflow-y-auto space-y-6" : `p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full overflow-y-auto`}>
                   {msg.isListing && msg.listingTitle && (
                     <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
                       <h3 className="text-base font-extrabold text-gray-800 tracking-tight">{msg.listingTitle}</h3>
@@ -4047,6 +4074,74 @@ ${aiPart}
                             );
                           }
 
+                          if (msg.patientNameForStatus) {
+                            return (
+                              <div className="bg-white rounded-[1.5rem] border border-gray-150 shadow-sm p-6 sm:p-7 space-y-5 max-w-lg mx-auto my-1">
+                                {/* Título */}
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8.5 h-8.5 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                                    <Activity size={18} className="text-blue-600 animate-pulse" />
+                                  </div>
+                                  <div>
+                                    <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">Alterar Status</h3>
+                                  </div>
+                                </div>
+
+                                {/* Área do Paciente */}
+                                <div className="bg-gradient-to-r from-slate-50 to-blue-50/20 border border-slate-100 p-4 rounded-xl flex items-center gap-3 shadow-xs">
+                                  <div className="w-9 h-9 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center shrink-0">
+                                    <User size={18} strokeWidth={2.5} />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-0.5">Paciente</span>
+                                    <span className="text-sm sm:text-base font-bold text-slate-800 block truncate leading-tight">
+                                      {msg.patientNameForStatus}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Descrição Curta */}
+                                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed font-semibold">
+                                  Escolha o novo status para este paciente.
+                                </p>
+
+                                {/* Lista de Status */}
+                                <div className="space-y-3 pt-1">
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block pb-1">
+                                    Selecione o status
+                                  </label>
+                                  
+                                  {msg.actionGroups?.[0]?.actions && (
+                                    <div className="flex flex-col gap-2 rounded-xl">
+                                      {msg.actionGroups[0].actions.map((action, ai) => {
+                                        const statusColors: Record<string, string> = {
+                                          "internado": "hover:bg-amber-50 hover:border-amber-200 text-amber-700 hover:text-amber-800 hover:shadow-xs",
+                                          "pré-operatório": "hover:bg-blue-50 hover:border-blue-200 text-blue-700 hover:text-blue-800 hover:shadow-xs",
+                                          "em cirurgia": "hover:bg-red-50 hover:border-red-200 text-red-700 hover:text-red-800 hover:shadow-xs",
+                                          "recuperação": "hover:bg-purple-50 hover:border-purple-200 text-purple-700 hover:text-purple-800 hover:shadow-xs",
+                                          "alta": "hover:bg-emerald-50 hover:border-emerald-200 text-emerald-700 hover:text-emerald-800 hover:shadow-xs",
+                                        };
+                                        const labelLower = action.label.toLowerCase();
+                                        const colorStyle = statusColors[labelLower] || "hover:bg-slate-50 hover:border-slate-300 text-slate-700 hover:text-slate-800 hover:shadow-xs";
+
+                                        return (
+                                          <button
+                                            key={ai}
+                                            onClick={() => handleSend(undefined, action.cmd, true)}
+                                            className={`w-full py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all border border-gray-150 bg-white text-slate-700 shadow-xs flex items-center justify-between group active:scale-[0.99] cursor-pointer ${colorStyle}`}
+                                          >
+                                            <span className="truncate">{action.label}</span>
+                                            <span className="text-slate-300 group-hover:text-current transition-colors text-xs shrink-0 font-light">❯</span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+
                           if (msg.form?.commandPrefix?.includes("/calendario_add")) {
                             return null;
                           }
@@ -4080,7 +4175,7 @@ ${aiPart}
                         })()
                       )}
 
-                      {msg.actionGroups && (
+                      {msg.actionGroups && !msg.patientNameForStatus && (
                         <div className="mt-6 pt-6 -mx-3 -mb-3 p-4 bg-gray-50/70 border-t border-gray-100 space-y-4">
                           {msg.actionGroups.map((group, gi) => (
                             <div key={gi} className="space-y-2">
