@@ -1139,16 +1139,33 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
     };
 
     // Process Files/Images
+    const isVideoUrlLocal = (url: string) => {
+      if (!url) return false;
+      const cleanUrl = url.split("?")[0].toLowerCase();
+      return cleanUrl.endsWith(".mp4") || cleanUrl.endsWith(".mov") || cleanUrl.endsWith(".webm") || cleanUrl.endsWith(".quicktime") || cleanUrl.endsWith(".m4v");
+    };
+    const isPdfUrlLocal = (url: string) => {
+      if (!url) return false;
+      const cleanUrl = url.split("?")[0].toLowerCase();
+      return cleanUrl.endsWith(".pdf");
+    };
+
     report.imagens = filesSnap.docs
       .filter(doc => doc.data().status !== "removed")
       .map(doc => {
         const data = doc.data();
+        const fileTypeResolved = data.fileType || (isVideoUrlLocal(data.link || "") ? "video" : (isPdfUrlLocal(data.link || "") ? "pdf" : "image"));
         return {
           id: doc.id,
           data: data.timestamp ? data.timestamp.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "Recent",
           descricao: data.description || "Arquivo",
           link: data.link,
-          aiResposta: data.aiAnalysis || ""
+          aiResposta: data.aiAnalysis || "",
+          fileType: fileTypeResolved,
+          contentType: data.contentType || "",
+          size: data.size || 0,
+          originalName: data.originalName || data.description || "Arquivo",
+          uploadedByEmail: data.uploadedByEmail || ""
         };
       });
 
@@ -1679,27 +1696,62 @@ app.post("/api/app/logs_secondary", express.json(), async (req, res) => {
 });
 
 // Upload image/document directly to Firebase Storage and link to Firestore
-app.post("/api/app/upload-image", express.json({ limit: "25mb" }), async (req, res) => {
-  const { patientId, description, fileName, mimeType, base64Data } = req.body;
+app.post("/api/app/upload-image", express.json({ limit: "100mb" }), async (req, res) => {
+  const { patientId, description, fileName, mimeType, base64Data, originalName, size } = req.body;
 
-  if (!patientId || !base64Data) return res.status(400).json({ error: "PatientID e Imagem são obrigatórios." });
+  if (!patientId || !base64Data) return res.status(400).json({ error: "PatientID e Imagem/Arquivo são obrigatórios." });
 
   try {
+    const authUser = await requireAuth(req);
     const { groupId } = await requirePatientAccess(req, patientId);
 
-    // 2. Upload to Firebase Storage
+    // Determine type, validation and size limits
+    const mime = (mimeType || "").toLowerCase();
+    const name = (fileName || originalName || "file").toLowerCase();
+    
+    let fileTypeResolved: "image" | "video" | "pdf" = "image";
+    if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
+      fileTypeResolved = "image";
+    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime")) {
+      fileTypeResolved = "video";
+    } else if (mime === "application/pdf" || name.endsWith(".pdf")) {
+      fileTypeResolved = "pdf";
+    } else {
+      return res.status(400).json({ error: "Tipo de arquivo não permitido. Envie uma imagem, vídeo ou PDF." });
+    }
+
     const buffer = Buffer.from(base64Data, "base64");
-    const filename = fileName || `Documento_P${patientId}_${Date.now()}.jpg`;
-    const destination = `patients/${patientId}/${filename}`;
+    const fileSize = size || buffer.length;
+
+    // Size limit check
+    if (fileTypeResolved === "image" && fileSize > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: "Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 10MB para imagens)." });
+    }
+    if (fileTypeResolved === "video" && fileSize > 50 * 1024 * 1024) {
+      return res.status(400).json({ error: "Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 50MB para vídeos)." });
+    }
+    if (fileTypeResolved === "pdf" && fileSize > 20 * 1024 * 1024) {
+      return res.status(400).json({ error: "Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 20MB para PDFs)." });
+    }
+
+    // 2. Upload to Firebase Storage with organized path
+    const fileId = db.collection("files").doc().id;
+    const cleanOrigName = originalName || fileName || `file_${Date.now()}`;
+    
+    let destination = `patients/${patientId}/${cleanOrigName}`;
+    if (groupId) {
+      destination = `groups/${groupId}/files/${fileId}/${cleanOrigName}`;
+    }
+
     const file = bucket.file(destination);
 
     await file.save(buffer, {
       metadata: {
-        contentType: mimeType || "image/jpeg",
+        contentType: mimeType || (fileTypeResolved === "pdf" ? "application/pdf" : "image/jpeg"),
         metadata: {
           patientId: patientId,
           description: description || "",
-          groupId
+          groupId: groupId || ""
         }
       }
     });
@@ -1708,20 +1760,35 @@ app.post("/api/app/upload-image", express.json({ limit: "25mb" }), async (req, r
     await file.makePublic();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${encodeURIComponent(destination)}`;
 
-    // 3. Save metadata to Firestore
-    const fileRef = db.collection("files").doc();
-    await fileRef.set({
-      patientId,
+    // 3. Save detailed metadata to Firestore (under files collection)
+    const fileRef = db.collection("files").doc(fileId);
+    const metadata = {
+      id: fileId,
+      groupId: groupId || "",
+      patientId: patientId, // For backwards compatibility
+      uploadedBy: authUser.uid,
+      uploadedByEmail: authUser.email || "",
+      originalName: cleanOrigName,
+      contentType: mimeType || (fileTypeResolved === "pdf" ? "application/pdf" : "image/jpeg"),
+      fileType: fileTypeResolved,
+      size: fileSize,
+      storagePath: destination,
+      downloadURL: publicUrl,
+      
+      // legacy equivalents for maximum compatibility
       description: description || "Upload Direto",
       link: publicUrl,
-      storagePath: destination,
-      groupId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
+      status: "active",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
 
-    res.json({ success: true, fileId: fileRef.id, link: publicUrl });
+    await fileRef.set(metadata);
+
+    res.json({ success: true, fileId: fileId, link: publicUrl });
   } catch (error) {
-    handleApiError(res, error, "Uploading image to Storage");
+    handleApiError(res, error, "Uploading files or images to Storage");
   }
 });
 

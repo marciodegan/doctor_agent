@@ -7,7 +7,11 @@ import {
   Image as ImageIcon, 
   X, 
   Sparkles, 
-  AlertCircle 
+  AlertCircle,
+  FileText,
+  Video,
+  ExternalLink,
+  Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGroup } from "../contexts/GroupContext";
@@ -22,6 +26,11 @@ interface PersonalImage {
   descricao: string;
   link: string;
   aiResposta: string;
+  fileType?: "image" | "video" | "pdf";
+  contentType?: string;
+  size?: number;
+  originalName?: string;
+  uploadedByEmail?: string;
 }
 
 const isVideoUrl = (url: string | null | undefined): boolean => {
@@ -56,6 +65,7 @@ export const PersonalDocuments: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState<Record<string, boolean>>({});
   
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -111,23 +121,70 @@ export const PersonalDocuments: React.FC = () => {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setErrorMsg(null);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setSelectedImage(event.target?.result as string);
-      };
-      reader.onerror = () => {
-        setErrorMsg("Não foi possível ler o arquivo.");
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setErrorMsg(null);
+
+    // Validate type
+    const mime = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    let fileTypeResolved: "image" | "video" | "pdf" | null = null;
+
+    if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
+      fileTypeResolved = "image";
+    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime")) {
+      fileTypeResolved = "video";
+    } else if (mime === "application/pdf" || name.endsWith(".pdf")) {
+      fileTypeResolved = "pdf";
     }
+
+    if (!fileTypeResolved) {
+      setErrorMsg("Tipo de arquivo não permitido. Envie uma imagem, vídeo ou PDF.");
+      setSelectedFile(null);
+      setSelectedImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    // Validate size
+    if (fileTypeResolved === "image" && file.size > 10 * 1024 * 1024) {
+      setErrorMsg("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 10MB para imagens).");
+      setSelectedFile(null);
+      setSelectedImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (fileTypeResolved === "video" && file.size > 50 * 1024 * 1024) {
+      setErrorMsg("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 50MB para vídeos).");
+      setSelectedFile(null);
+      setSelectedImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (fileTypeResolved === "pdf" && file.size > 20 * 1024 * 1024) {
+      setErrorMsg("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 20MB para PDFs).");
+      setSelectedFile(null);
+      setSelectedImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    // Load file to preview
+    setSelectedFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setSelectedImage(event.target?.result as string);
+    };
+    reader.onerror = () => {
+      setErrorMsg("Não foi possível ler o arquivo.");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedImage) {
-      setErrorMsg("Selecione uma imagem antes de enviar.");
+    if (!selectedImage || !selectedFile) {
+      setErrorMsg("Selecione um arquivo antes de enviar.");
       return;
     }
     if (!activeGroup?.id) return;
@@ -136,22 +193,21 @@ export const PersonalDocuments: React.FC = () => {
     setErrorMsg(null);
 
     try {
-      const mimeType = selectedImage.split(";")[0].split(":")[1];
+      const mimeType = selectedFile.type || (selectedFile.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
       const base64Data = selectedImage.split(",")[1];
       const patientId = `personal_${activeGroup.id}`;
-
-      const ext = mimeType.split("/")[1] || "jpg";
-      const extResolved = ext === "quicktime" ? "mov" : ext;
 
       const res = await apiFetch("/api/app/upload-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patientId: patientId,
-          description: description || "Documento Pessoal",
+          description: description || selectedFile.name,
           mimeType: mimeType,
           base64Data: base64Data,
-          fileName: `Doc_Personal_${activeGroup.id}_${Date.now()}.${extResolved}`
+          fileName: selectedFile.name,
+          originalName: selectedFile.name,
+          size: selectedFile.size
         })
       });
 
@@ -160,14 +216,16 @@ export const PersonalDocuments: React.FC = () => {
 
       // Clean form on success
       setSelectedImage(null);
+      setSelectedFile(null);
       setDescription("");
       setShowUploadForm(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       
       // Refresh listing
       await fetchImages();
     } catch (err: any) {
       console.error("Upload error:", err);
-      setErrorMsg(err.message || "Ocorreu um erro ao fazer upload da imagem.");
+      setErrorMsg(err.message || "Ocorreu um erro ao fazer upload do arquivo.");
     } finally {
       setIsUploading(false);
     }
@@ -265,7 +323,7 @@ export const PersonalDocuments: React.FC = () => {
             className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95 shadow-md shadow-blue-600/10 self-start sm:self-auto cursor-pointer"
           >
             {showUploadForm ? <X size={14} /> : <Plus size={14} />}
-            <span>{showUploadForm ? "Cancelar" : "Anexar Imagem"}</span>
+            <span>{showUploadForm ? "Cancelar" : "Anexar Arquivo"}</span>
           </button>
         </div>
       </div>
@@ -315,31 +373,44 @@ export const PersonalDocuments: React.FC = () => {
                             : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-500"
                         }`}
                       >
-                              </button>
+                        {cat}
+                      </button>
                     ))}
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 ml-1 tracking-wider">Selecione o arquivo de imagem ou vídeo</label>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 ml-1 tracking-wider">Selecione o arquivo de imagem, vídeo ou PDF</label>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*,video/*"
+                    accept="image/*,video/*,application/pdf,.pdf"
                     onChange={handleFileChange}
                     className="hidden"
                   />
 
                   {selectedImage ? (
                     <div className="relative w-full aspect-video md:aspect-[3/1] rounded-xl overflow-hidden border border-slate-200 group bg-slate-900 flex items-center justify-center">
-                      {isVideoUrl(selectedImage) ? (
+                      {selectedFile && (selectedFile.type === "application/pdf" || selectedFile.name.toLowerCase().endsWith(".pdf")) ? (
+                        <div className="flex flex-col items-center gap-2 p-6 text-center text-white">
+                          <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500">
+                            <FileText size={28} />
+                          </div>
+                          <span className="text-xs font-bold text-slate-200 truncate max-w-md">{selectedFile.name}</span>
+                          <span className="text-[10px] text-slate-400">Documento PDF • {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                        </div>
+                      ) : isVideoUrl(selectedImage) ? (
                         <video src={selectedImage} controls className="h-full w-full object-contain" />
                       ) : (
                         <img src={selectedImage} alt="Preview" className="h-full w-full object-contain" />
                       )}
                       <button
                         type="button"
-                        onClick={() => setSelectedImage(null)}
+                        onClick={() => {
+                          setSelectedImage(null);
+                          setSelectedFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = "";
+                        }}
                         className="absolute top-3 right-3 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm cursor-pointer"
                       >
                         <X size={12} strokeWidth={2.5} />
@@ -352,8 +423,8 @@ export const PersonalDocuments: React.FC = () => {
                       onClick={() => fileInputRef.current?.click()}
                       className="w-full aspect-video md:aspect-[3/1] bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50/50 transition-all gap-2 cursor-pointer"
                     >
-                      <ImageIcon size={32} />
-                      <span className="text-xs font-semibold">Toque para selecionar imagem ou vídeo</span>
+                      <FileText size={32} />
+                      <span className="text-xs font-semibold">Toque para selecionar imagem, vídeo ou PDF</span>
                     </button>
                   )}
                 </div>
@@ -386,7 +457,7 @@ export const PersonalDocuments: React.FC = () => {
         ) : images.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center bg-white border border-slate-100 rounded-2xl p-8 shadow-sm">
             <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-300 border border-slate-100 mb-4 shadow-inner">
-              <ImageIcon size={24} />
+              <FileText size={24} />
             </div>
             <h4 className="text-base font-black text-slate-700 tracking-tight mb-1">Nenhum documento anexado</h4>
             <p className="text-xs text-slate-405 font-medium max-w-xs leading-relaxed mb-4">Anexe comprovantes, exames, fotos ou notas importantes usando o botão acima.</p>
@@ -406,14 +477,54 @@ export const PersonalDocuments: React.FC = () => {
                 key={img.id}
                 className="flex flex-col bg-white rounded-2xl border border-slate-150 shadow-sm overflow-hidden"
               >
-                {/* Image panel */}
-                <div className="relative aspect-video w-full bg-slate-900 border-b border-slate-100 group">
-                  {isVideoUrl(img.link) ? (
+                {/* File panel */}
+                <div className="relative aspect-video w-full bg-slate-900 border-b border-slate-100 group flex items-center justify-center">
+                  {img.fileType === "pdf" || (img.link && img.link.split("?")[0].toLowerCase().endsWith(".pdf")) ? (
+                    <div className="flex flex-col items-center justify-center p-6 text-center text-white h-full w-full bg-gradient-to-br from-slate-800 to-slate-950">
+                      <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 mb-3 shadow-inner">
+                        <FileText size={30} />
+                      </div>
+                      <span className="text-xs font-black text-slate-100 px-4 truncate max-w-full" title={img.originalName || img.descricao}>
+                        {img.originalName || img.descricao}
+                      </span>
+                      {img.size ? (
+                        <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-extrabold">
+                          PDF • {(img.size / (1024 * 1024)).toFixed(2)} MB
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-extrabold">
+                          Documento PDF
+                        </span>
+                      )}
+                      
+                      <div className="flex items-center gap-2 mt-4 relative z-10">
+                        <a
+                          href={img.link}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg transition-all"
+                        >
+                          <ExternalLink size={11} />
+                          Abrir PDF
+                        </a>
+                        <a
+                          href={img.link}
+                          download={img.originalName || "documento.pdf"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded-lg transition-all border border-slate-700"
+                        >
+                          <Download size={11} />
+                          Baixar
+                        </a>
+                      </div>
+                    </div>
+                  ) : img.fileType === "video" || isVideoUrl(img.link) ? (
                     <video 
                       src={img.link} 
                       controls
                       playsInline muted preload="metadata"
-                      className="w-full h-full object-contain"
+                      className="w-full h-full object-contain bg-slate-950"
                     />
                   ) : (
                     <img 
@@ -421,11 +532,12 @@ export const PersonalDocuments: React.FC = () => {
                       alt={img.descricao} 
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover transition-all duration-300 group-hover:scale-102"
+                      onClick={() => window.open(img.link, "_blank")}
                     />
                   )}
                   
                   {/* Delete button bar */}
-                  <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                  <div className="absolute top-3 right-3 flex items-center gap-1.5 z-20">
                     <button
                       onClick={() => handleRemoveImage(img.id)}
                       className="p-2 bg-red-650 hover:bg-red-700 text-white rounded-xl shadow-md flex items-center justify-center active:scale-90 transition-all cursor-pointer backdrop-blur-sm"
@@ -435,9 +547,16 @@ export const PersonalDocuments: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Thumbnail Date Badge */}
-                  <div className="absolute bottom-3 left-3 px-2.5 py-1 bg-black/55 text-white text-[9px] font-black uppercase tracking-widest rounded-lg backdrop-blur-sm">
-                    {img.data}
+                  {/* Thumbnail Date Badge and User badge */}
+                  <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5 z-20">
+                    <span className="px-2 py-0.5 bg-black/60 text-white text-[8px] font-black uppercase tracking-widest rounded-md backdrop-blur-sm">
+                      {img.data}
+                    </span>
+                    {img.uploadedByEmail && (
+                      <span className="px-2 py-0.5 bg-blue-950/70 border border-blue-500/20 text-blue-300 text-[8px] font-black tracking-wider rounded-md backdrop-blur-sm">
+                        {img.uploadedByEmail.split("@")[0]}
+                      </span>
+                    )}
                   </div>
                 </div>
 
