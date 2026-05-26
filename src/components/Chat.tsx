@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, Camera, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, ChevronDown, Trash2, Activity } from "lucide-react";
+import { ArrowLeft, Send, User, Bot, Loader2, Plus, Sparkles, Image as ImageIcon, Camera, X, Shield, LogOut, Lock, Info, Settings, CalendarPlus, Edit3, Building2, FileText, Check, ChevronDown, Trash2, Activity, AlertCircle, Video, ExternalLink, Download } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeRaw from "rehype-raw";
@@ -45,6 +45,14 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     decodedUrl.endsWith(".3gp") ||
     decodedUrl.endsWith(".mkv")
   );
+};
+
+const isPdfUrl = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  if (url.startsWith("data:application/pdf")) return true;
+  const cleanUrl = url.split("?")[0].toLowerCase();
+  const decodedUrl = decodeURIComponent(cleanUrl);
+  return cleanUrl.endsWith(".pdf") || decodedUrl.endsWith(".pdf");
 };
 
 interface Message {
@@ -109,7 +117,9 @@ const MessageForm: React.FC<{
   onSubmit: (cmd: string) => void;
   selectedImage?: string | null;
   onSelectImage?: (img: string | null) => void;
-}> = ({ form, onSubmit, selectedImage, onSelectImage }) => {
+  selectedFileObj?: File | null;
+  onSelectFileObj?: (file: File | null) => void;
+}> = ({ form, onSubmit, selectedImage, onSelectImage, selectedFileObj, onSelectFileObj }) => {
   const { apiFetch } = useGroup();
   const [showRemovePatientConfirm, setShowRemovePatientConfirm] = useState(false);
   const [isRemovingPatient, setIsRemovingPatient] = useState(false);
@@ -162,12 +172,72 @@ const MessageForm: React.FC<{
     });
   };
 
+  const [fileError, setFileError] = useState<string | null>(null);
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && onSelectImage) {
-      const dataUrl = await resizeImage(file);
-      onSelectImage(dataUrl);
+    if (!file) return;
+
+    setFileError(null);
+
+    // Validate type
+    const mime = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    let fileTypeResolved: "image" | "video" | "pdf" | null = null;
+
+    if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
+      fileTypeResolved = "image";
+    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime")) {
+      fileTypeResolved = "video";
+    } else if (mime === "application/pdf" || name.endsWith(".pdf")) {
+      fileTypeResolved = "pdf";
     }
+
+    if (!fileTypeResolved) {
+      setFileError("Tipo de arquivo não permitido. Envie uma imagem, vídeo ou PDF.");
+      if (onSelectImage) onSelectImage(null);
+      if (onSelectFileObj) onSelectFileObj(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    // Validate size
+    if (fileTypeResolved === "image" && file.size > 10 * 1024 * 1024) {
+      setFileError("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 10MB para imagens).");
+      if (onSelectImage) onSelectImage(null);
+      if (onSelectFileObj) onSelectFileObj(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (fileTypeResolved === "video" && file.size > 50 * 1024 * 1024) {
+      setFileError("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 50MB para vídeos).");
+      if (onSelectImage) onSelectImage(null);
+      if (onSelectFileObj) onSelectFileObj(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (fileTypeResolved === "pdf" && file.size > 20 * 1024 * 1024) {
+      setFileError("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 20MB para PDFs).");
+      if (onSelectImage) onSelectImage(null);
+      if (onSelectFileObj) onSelectFileObj(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (onSelectFileObj) {
+      onSelectFileObj(file);
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (onSelectImage) {
+        onSelectImage(event.target?.result as string);
+      }
+    };
+    reader.onerror = () => {
+      setFileError("Não foi possível ler o arquivo.");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -534,12 +604,12 @@ const MessageForm: React.FC<{
       
       {isImageForm && (
         <div className="space-y-2">
-          <label className="text-[10px] uppercase tracking-wider font-bold text-gray-500 ml-1">Anexar Documento / Foto ou Vídeo</label>
+          <label className="text-[10px] uppercase tracking-wider font-bold text-gray-500 ml-1">Anexar Documento / Foto, Vídeo ou PDF</label>
           <input
             id="native-image-upload"
             ref={fileInputRef}
             type="file"
-            accept="image/*,video/*"
+            accept="image/*,video/*,application/pdf,.pdf"
             onChange={handleFileChange}
             style={{
               position: "absolute",
@@ -550,20 +620,45 @@ const MessageForm: React.FC<{
             }}
           />
           
+          {fileError && (
+            <div className="flex items-center gap-1.5 p-2.5 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[10px] font-bold">
+              <AlertCircle size={12} className="shrink-0" />
+              <span>{fileError}</span>
+            </div>
+          )}
+
           {selectedImage ? (
-            <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-200 group">
-              {isVideoUrl(selectedImage) ? (
-                <video src={selectedImage} controls className="w-full h-full object-contain bg-slate-900" />
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-200 bg-slate-900 flex items-center justify-center group">
+              {isPdfUrl(selectedImage) ? (
+                <div className="flex flex-col items-center gap-2 p-6 text-center text-white h-full w-full bg-gradient-to-br from-slate-800 to-slate-950 justify-center">
+                  <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500">
+                    <FileText size={28} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-200 truncate max-w-[200px]">
+                    {selectedFileObj?.name || "Documento PDF"}
+                  </span>
+                  {selectedFileObj?.size && (
+                    <span className="text-[10px] text-slate-400">
+                      PDF • {(selectedFileObj.size / (1024 * 1024)).toFixed(2)} MB
+                    </span>
+                  )}
+                </div>
+              ) : isVideoUrl(selectedImage) ? (
+                <video src={selectedImage} controls className="w-full h-full object-contain" />
               ) : (
-                <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
+                <img src={selectedImage} alt="Preview" className="w-full h-full object-contain" />
               )}
               <button 
                 type="button"
-                onClick={() => setShowRemoveConfirm(true)}
-                className="absolute top-3 right-3 px-3 py-1.5 bg-red-600/90 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-black uppercase tracking-widest backdrop-blur-sm cursor-pointer"
+                onClick={() => {
+                  if (onSelectImage) onSelectImage(null);
+                  if (onSelectFileObj) onSelectFileObj(null);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                }}
+                className="absolute top-3 right-3 px-3 py-1.5 bg-red-600/90 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-black uppercase tracking-widest backdrop-blur-sm cursor-pointer z-10"
               >
                 <X size={12} strokeWidth={3} />
-                Remover {isVideoUrl(selectedImage) ? "Vídeo" : "Imagem"}
+                Remover {isPdfUrl(selectedImage) ? "Documento" : isVideoUrl(selectedImage) ? "Vídeo" : "Imagem"}
               </button>
             </div>
           ) : (
@@ -572,8 +667,8 @@ const MessageForm: React.FC<{
               onClick={() => fileInputRef.current?.click()}
               className="w-full aspect-video bg-white border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all gap-2 cursor-pointer"
             >
-              <ImageIcon size={32} />
-              <span className="text-xs font-medium">Toque para selecionar imagem ou vídeo</span>
+              <FileText size={32} />
+              <span className="text-xs font-semibold text-gray-500">Toque para selecionar imagem, vídeo ou PDF</span>
             </button>
           )}
         </div>
@@ -752,6 +847,7 @@ export const Chat: React.FC<{
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFileObj, setSelectedFileObj] = useState<File | null>(null);
   const [lastProcessedFile, setLastProcessedFile] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2561,7 +2657,7 @@ ${aiPart}
     if (cmd.startsWith("/img")) {
       setIsLoading(true);
       try {
-        if (!selectedImage) throw new Error("Selecione uma imagem ou vídeo acima antes de enviar.");
+        if (!selectedImage) throw new Error("Selecione uma imagem, vídeo ou PDF acima antes de enviar.");
         
         const id = cmdInput.match(/id:\s*([^,]+)/i)?.[1]?.trim();
         const descMatch = cmdInput.match(/(?:desc|descrição):\s*([^,]+)/i);
@@ -2570,7 +2666,7 @@ ${aiPart}
 
         if (!id) throw new Error("Use: /img id: [ID], desc: [Opcional]");
 
-        const mimeType = selectedImage.split(";")[0].split(":")[1];
+        const mimeType = selectedImage.split(";")[0].split(":")[1] || (selectedFileObj?.type || (selectedFileObj?.name?.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg"));
         const base64Data = selectedImage.split(",")[1];
 
         const ext = mimeType.split("/")[1] || "jpg";
@@ -2581,10 +2677,12 @@ ${aiPart}
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             patientId: id,
-            description: desc || "Documento via Chat",
+            description: desc || selectedFileObj?.name || "Documento via Chat",
             mimeType: mimeType,
             base64Data: base64Data,
-            fileName: `Chat_P${id}_${new Date().getTime()}.${extResolved}`
+            fileName: selectedFileObj?.name || `Chat_P${id}_${new Date().getTime()}.${extResolved}`,
+            originalName: selectedFileObj?.name || `Chat_P${id}_${new Date().getTime()}.${extResolved}`,
+            size: selectedFileObj?.size || base64Data.length * 0.75
           })
         });
         
@@ -2602,6 +2700,7 @@ ${aiPart}
         }
 
         setSelectedImage(null); // Clear image after upload
+        setSelectedFileObj(null); // Clear file obj after upload
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro no upload: ${err.message}` }]);
       } finally {
@@ -3113,6 +3212,7 @@ ${aiPart}
     
     setInput("");
     setSelectedImage(null);
+    setSelectedFileObj(null);
     setMessages(prev => [...prev, { 
       role: "user", 
       text: userMessage, 
@@ -3272,7 +3372,19 @@ ${aiPart}
                     </>
                   )}
                   {msg.image && (
-                    <img src={msg.image} alt="User upload" className="max-w-full rounded-lg mb-2 shadow-sm" />
+                    <div className="max-w-full rounded-lg mb-2 shadow-sm overflow-hidden bg-slate-100 flex items-center justify-center">
+                      {isPdfUrl(msg.image) ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-900 text-center gap-2">
+                          <FileText className="text-red-500 animate-pulse" size={32} />
+                          <span className="text-[10px] font-bold text-white truncate max-w-[150px]">Documento PDF</span>
+                          <a href={msg.image} target="_blank" rel="noreferrer" className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg transition-all">Abrir PDF</a>
+                        </div>
+                      ) : isVideoUrl(msg.image) ? (
+                        <video src={msg.image} controls className="max-h-[300px] w-full object-contain bg-slate-950" />
+                      ) : (
+                        <img src={msg.image} alt="User upload" className="max-h-[300px] w-full object-contain" />
+                      )}
+                    </div>
                   )}
                   {msg.audio && (
                     <audio controls src={msg.audio} className="max-w-full mb-2" />
@@ -3859,7 +3971,13 @@ ${aiPart}
                                           <div key={idx} className="flex flex-col gap-3 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
                                             {img.src && (
                                               <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-slate-100">
-                                                {isVideoUrl(img.src) ? (
+                                                {isPdfUrl(img.src) ? (
+                                                  <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-900 text-center gap-2">
+                                                    <FileText className="text-red-500" size={32} />
+                                                    <span className="text-[10px] font-bold text-white truncate max-w-[150px]">{img.alt || "Documento PDF"}</span>
+                                                    <a href={img.src} target="_blank" rel="noreferrer" className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg transition-all">Abrir PDF</a>
+                                                  </div>
+                                                ) : isVideoUrl(img.src) ? (
                                                   <video 
                                                     src={img.src} 
                                                     controls 
@@ -3993,6 +4111,8 @@ ${aiPart}
                           onSubmit={(cmd) => handleSend(undefined, cmd)} 
                           selectedImage={selectedImage}
                           onSelectImage={setSelectedImage}
+                          selectedFileObj={selectedFileObj}
+                          onSelectFileObj={setSelectedFileObj}
                         />
                       )}
                     </>
