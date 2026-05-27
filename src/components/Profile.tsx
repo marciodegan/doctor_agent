@@ -5,6 +5,7 @@ import { db } from "../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { Camera, Loader2, Check, User as UserIcon, X, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { APP_VERSION } from "../lib/versionCheck";
 
 export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => void, installPrompt?: any, onInstall?: () => void }) {
   const { user } = useAuth();
@@ -275,11 +276,19 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
 
         {/* PWA Update Section */}
         <div className="border-t border-gray-100 pt-6 mt-6 space-y-4">
-          <div className="flex flex-col gap-1 px-1">
-            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Atualização do Aplicativo</h4>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              Verifique se você está usando a versão mais recente do Dr. Agent com todos os novos recursos e otimizações.
-            </p>
+          <div className="flex justify-between items-start px-1 gap-4">
+            <div className="flex flex-col gap-1 pr-2">
+              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Atualização do Aplicativo</h4>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Verifique se você está usando a versão mais recente do Dr. Agent com todos os novos recursos e otimizações.
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="text-[10px] uppercase font-black tracking-wider text-gray-400 block mb-0.5">Versão</span>
+              <span className="text-xs font-black bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-full inline-block">
+                v{APP_VERSION}
+              </span>
+            </div>
           </div>
 
           <button

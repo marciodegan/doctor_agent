@@ -1695,24 +1695,75 @@ app.post("/api/app/logs_secondary", express.json(), async (req, res) => {
   }
 });
 
+// Helpers for secure file uploading and formatting
+const sanitizeFileName = (fileName: string): string => {
+  if (!fileName) return "arquivo_" + Date.now();
+  
+  // 1. Normalize accents
+  let sanitized = fileName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  
+  // 2. Separate name and extension
+  const lastDotIndex = sanitized.lastIndexOf(".");
+  let namePart = lastDotIndex !== -1 ? sanitized.substring(0, lastDotIndex) : sanitized;
+  let extPart = lastDotIndex !== -1 ? sanitized.substring(lastDotIndex + 1) : "";
+  
+  // 3. Replace spaces with dash
+  namePart = namePart.replace(/\s+/g, "-");
+  
+  // 4. Keep only letters, numbers, dash and underscore
+  namePart = namePart.toLowerCase().replace(/[^a-z0-9-_.]/g, "");
+  
+  // Lowercase extension and keep only alphanumeric
+  extPart = extPart.toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  // If namePart becomes empty, generate a fallback
+  let finalName = namePart || "arquivo_" + Date.now();
+  
+  // Assemble back
+  return extPart ? `${finalName}.${extPart}` : finalName;
+};
+
+const getSafeContentType = (fileName: string, fileMime?: string): string => {
+  const name = (fileName || "").toLowerCase();
+  const ext = name.split(".").pop() || "";
+  const mime = (fileMime || "").toLowerCase();
+
+  if (ext === "mov") return "video/quicktime";
+  if (ext === "mp4") return "video/mp4";
+  if (ext === "m4v") return "video/x-m4v";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "pdf") return "application/pdf";
+
+  if (mime && mime !== "application/octet-stream" && mime !== "") {
+    return mime;
+  }
+
+  return "application/octet-stream";
+};
+
 // Upload image/document directly to Firebase Storage and link to Firestore
 app.post("/api/app/upload-image", express.json({ limit: "100mb" }), async (req, res) => {
-  const { patientId, description, fileName, mimeType, base64Data, originalName, size } = req.body;
+  const { patientId, description, fileName, mimeType, base64Data, originalName, size, platform } = req.body;
 
   if (!patientId || !base64Data) return res.status(400).json({ error: "PatientID e Imagem/Arquivo são obrigatórios." });
+
+  const rawName = originalName || fileName || "file";
+  const safeFileName = sanitizeFileName(rawName);
+  const safeContentType = getSafeContentType(safeFileName, mimeType);
 
   try {
     const authUser = await requireAuth(req);
     const { groupId } = await requirePatientAccess(req, patientId);
 
     // Determine type, validation and size limits
-    const mime = (mimeType || "").toLowerCase();
-    const name = (fileName || originalName || "file").toLowerCase();
+    const mime = safeContentType;
+    const name = safeFileName;
     
     let fileTypeResolved: "image" | "video" | "pdf" = "image";
     if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
       fileTypeResolved = "image";
-    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime")) {
+    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime") || name.endsWith(".m4v")) {
       fileTypeResolved = "video";
     } else if (mime === "application/pdf" || name.endsWith(".pdf")) {
       fileTypeResolved = "pdf";
@@ -1723,12 +1774,20 @@ app.post("/api/app/upload-image", express.json({ limit: "100mb" }), async (req, 
     const buffer = Buffer.from(base64Data, "base64");
     const fileSize = size || buffer.length;
 
+    // Detailed logs before upload to storage
+    console.log("[Upload] file metadata received");
+    console.log("[Upload] name", rawName);
+    console.log("[Upload] type", mimeType);
+    console.log("[Upload] size", fileSize);
+    console.log("[Upload] safeFileName", safeFileName);
+    console.log("[Upload] safeContentType", safeContentType);
+
     // Size limit check
     if (fileTypeResolved === "image" && fileSize > 10 * 1024 * 1024) {
       return res.status(400).json({ error: "Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 10MB para imagens)." });
     }
-    if (fileTypeResolved === "video" && fileSize > 50 * 1024 * 1024) {
-      return res.status(400).json({ error: "Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 50MB para vídeos)." });
+    if (fileTypeResolved === "video" && fileSize > 100 * 1024 * 1024) {
+      return res.status(400).json({ error: "Este vídeo é muito grande. Escolha um vídeo menor para anexar." });
     }
     if (fileTypeResolved === "pdf" && fileSize > 20 * 1024 * 1024) {
       return res.status(400).json({ error: "Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 20MB para PDFs)." });
@@ -1736,22 +1795,26 @@ app.post("/api/app/upload-image", express.json({ limit: "100mb" }), async (req, 
 
     // 2. Upload to Firebase Storage with organized path
     const fileId = db.collection("files").doc().id;
-    const cleanOrigName = originalName || fileName || `file_${Date.now()}`;
     
-    let destination = `patients/${patientId}/${cleanOrigName}`;
+    let destination = `patients/${patientId}/${safeFileName}`;
     if (groupId) {
-      destination = `groups/${groupId}/files/${fileId}/${cleanOrigName}`;
+      destination = `groups/${groupId}/files/${fileId}/${safeFileName}`;
     }
+
+    console.log("[Upload] storagePath", destination);
 
     const file = bucket.file(destination);
 
     await file.save(buffer, {
       metadata: {
-        contentType: mimeType || (fileTypeResolved === "pdf" ? "application/pdf" : "image/jpeg"),
+        contentType: safeContentType,
         metadata: {
           patientId: patientId,
           description: description || "",
-          groupId: groupId || ""
+          groupId: groupId || "",
+          originalName: rawName,
+          uploadedFrom: "pwa",
+          platform: platform || "other"
         }
       }
     });
@@ -1768,8 +1831,8 @@ app.post("/api/app/upload-image", express.json({ limit: "100mb" }), async (req, 
       patientId: patientId, // For backwards compatibility
       uploadedBy: authUser.uid,
       uploadedByEmail: authUser.email || "",
-      originalName: cleanOrigName,
-      contentType: mimeType || (fileTypeResolved === "pdf" ? "application/pdf" : "image/jpeg"),
+      originalName: rawName,
+      contentType: safeContentType,
       fileType: fileTypeResolved,
       size: fileSize,
       storagePath: destination,
@@ -1788,6 +1851,11 @@ app.post("/api/app/upload-image", express.json({ limit: "100mb" }), async (req, 
 
     res.json({ success: true, fileId: fileId, link: publicUrl });
   } catch (error) {
+    console.error("[Upload] error full", error);
+    if (error && typeof error === "object") {
+      console.error("[Upload] error code", (error as any).code);
+      console.error("[Upload] error message", (error as any).message);
+    }
     handleApiError(res, error, "Uploading files or images to Storage");
   }
 });

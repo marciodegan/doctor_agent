@@ -24,6 +24,52 @@ import { useGroup } from "../contexts/GroupContext";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 import { PatientListView } from "./PatientListView";
 
+const sanitizeFileName = (fileName: string): string => {
+  if (!fileName) return "arquivo_" + Date.now();
+  
+  // 1. Normalize accents
+  let sanitized = fileName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  
+  // 2. Separate name and extension
+  const lastDotIndex = sanitized.lastIndexOf(".");
+  let namePart = lastDotIndex !== -1 ? sanitized.substring(0, lastDotIndex) : sanitized;
+  let extPart = lastDotIndex !== -1 ? sanitized.substring(lastDotIndex + 1) : "";
+  
+  // 3. Replace spaces with dash
+  namePart = namePart.replace(/\s+/g, "-");
+  
+  // 4. Keep only letters, numbers, dash and underscore
+  namePart = namePart.toLowerCase().replace(/[^a-z0-9-_.]/g, "");
+  
+  // Lowercase extension and keep only alphanumeric
+  extPart = extPart.toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  // If namePart becomes empty, generate a fallback
+  let finalName = namePart || "arquivo_" + Date.now();
+  
+  // Assemble back
+  return extPart ? `${finalName}.${extPart}` : finalName;
+};
+
+const getSafeContentType = (file: File | { name: string; type?: string }): string => {
+  const name = (file.name || "").toLowerCase();
+  const ext = name.split(".").pop() || "";
+  const mime = (file.type || "").toLowerCase();
+
+  if (ext === "mov") return "video/quicktime";
+  if (ext === "mp4") return "video/mp4";
+  if (ext === "m4v") return "video/x-m4v";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "pdf") return "application/pdf";
+
+  if (mime && mime !== "application/octet-stream" && mime !== "") {
+    return mime;
+  }
+
+  return "application/octet-stream";
+};
+
 const isVideoUrl = (url: string | null | undefined): boolean => {
   if (!url) return false;
   if (url.startsWith("data:video/")) return true;
@@ -181,14 +227,23 @@ const MessageForm: React.FC<{
 
     setFileError(null);
 
+    // Normalize file safely
+    const safeFileName = sanitizeFileName(file.name || "arquivo");
+    const safeContentType = getSafeContentType(file);
+    const normalizedFile = new File(
+      [file],
+      safeFileName,
+      { type: safeContentType, lastModified: file.lastModified || Date.now() }
+    );
+
     // Validate type
-    const mime = (file.type || "").toLowerCase();
-    const name = (file.name || "").toLowerCase();
+    const mime = (normalizedFile.type || "").toLowerCase();
+    const name = (normalizedFile.name || "").toLowerCase();
     let fileTypeResolved: "image" | "video" | "pdf" | null = null;
 
     if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
       fileTypeResolved = "image";
-    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime")) {
+    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime") || name.endsWith(".m4v")) {
       fileTypeResolved = "video";
     } else if (mime === "application/pdf" || name.endsWith(".pdf")) {
       fileTypeResolved = "pdf";
@@ -203,21 +258,21 @@ const MessageForm: React.FC<{
     }
 
     // Validate size
-    if (fileTypeResolved === "image" && file.size > 10 * 1024 * 1024) {
+    if (fileTypeResolved === "image" && normalizedFile.size > 10 * 1024 * 1024) {
       setFileError("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 10MB para imagens).");
       if (onSelectImage) onSelectImage(null);
       if (onSelectFileObj) onSelectFileObj(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (fileTypeResolved === "video" && file.size > 50 * 1024 * 1024) {
-      setFileError("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 50MB para vídeos).");
+    if (fileTypeResolved === "video" && normalizedFile.size > 100 * 1024 * 1024) {
+      setFileError("Este vídeo é muito grande. Escolha um vídeo menor para anexar.");
       if (onSelectImage) onSelectImage(null);
       if (onSelectFileObj) onSelectFileObj(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (fileTypeResolved === "pdf" && file.size > 20 * 1024 * 1024) {
+    if (fileTypeResolved === "pdf" && normalizedFile.size > 20 * 1024 * 1024) {
       setFileError("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 20MB para PDFs).");
       if (onSelectImage) onSelectImage(null);
       if (onSelectFileObj) onSelectFileObj(null);
@@ -226,7 +281,7 @@ const MessageForm: React.FC<{
     }
 
     if (onSelectFileObj) {
-      onSelectFileObj(file);
+      onSelectFileObj(normalizedFile);
     }
 
     const reader = new FileReader();
@@ -238,7 +293,7 @@ const MessageForm: React.FC<{
     reader.onerror = () => {
       setFileError("Não foi possível ler o arquivo.");
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(normalizedFile);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -610,7 +665,7 @@ const MessageForm: React.FC<{
             id="native-image-upload"
             ref={fileInputRef}
             type="file"
-            accept="image/*,video/*,application/pdf,.pdf"
+            accept="image/*,video/*,video/mp4,video/quicktime,.mov,.mp4,.m4v,application/pdf,.pdf"
             onChange={handleFileChange}
             style={{
               position: "absolute",
@@ -2657,6 +2712,7 @@ ${aiPart}
 
     if (cmd.startsWith("/img")) {
       setIsLoading(true);
+      let isVideoUpload = false;
       try {
         if (!selectedImage) throw new Error("Selecione uma imagem, vídeo ou PDF acima antes de enviar.");
         
@@ -2672,6 +2728,19 @@ ${aiPart}
 
         const ext = mimeType.split("/")[1] || "jpg";
         const extResolved = ext === "quicktime" ? "mov" : ext;
+        const safeName = selectedFileObj?.name || `Chat_P${id}_${new Date().getTime()}.${extResolved}`;
+
+        if (mimeType.startsWith("video/") || extResolved === "mov" || extResolved === "mp4") {
+          isVideoUpload = true;
+        }
+
+        // Detailed pre-upload logs for debugging
+        console.log("[Upload] file", selectedFileObj);
+        console.log("[Upload] name", selectedFileObj?.name || safeName);
+        console.log("[Upload] type", selectedFileObj?.type || mimeType);
+        console.log("[Upload] size", selectedFileObj?.size || (base64Data ? base64Data.length * 0.75 : 0));
+        console.log("[Upload] safeFileName", safeName);
+        console.log("[Upload] safeContentType", mimeType);
 
         const res = await apiFetch("/api/app/upload-image", {
           method: "POST",
@@ -2681,9 +2750,10 @@ ${aiPart}
             description: desc || selectedFileObj?.name || "Documento via Chat",
             mimeType: mimeType,
             base64Data: base64Data,
-            fileName: selectedFileObj?.name || `Chat_P${id}_${new Date().getTime()}.${extResolved}`,
-            originalName: selectedFileObj?.name || `Chat_P${id}_${new Date().getTime()}.${extResolved}`,
-            size: selectedFileObj?.size || base64Data.length * 0.75
+            fileName: safeName,
+            originalName: selectedFileObj?.name || safeName,
+            size: selectedFileObj?.size || base64Data.length * 0.75,
+            platform: /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other"
           })
         });
         
@@ -2703,7 +2773,15 @@ ${aiPart}
         setSelectedImage(null); // Clear image after upload
         setSelectedFileObj(null); // Clear file obj after upload
       } catch (err: any) {
-        setMessages(prev => [...prev, { role: "model", text: `❌ Erro no upload: ${err.message}` }]);
+        console.error("[Upload] error full", err);
+        console.error("[Upload] error code", err?.code);
+        console.error("[Upload] error message", err?.message);
+
+        const friendlyMsg = isVideoUpload
+          ? "Não foi possível enviar este vídeo. Tente salvar o vídeo novamente no iPhone ou escolher uma versão menor."
+          : `Erro no upload: ${err.message}`;
+
+        setMessages(prev => [...prev, { role: "model", text: `❌ ${friendlyMsg}` }]);
       } finally {
         setIsLoading(false);
         return true;
@@ -4079,7 +4157,7 @@ ${aiPart}
                               <div className="bg-white rounded-[1.5rem] border border-gray-150 shadow-sm p-6 sm:p-7 space-y-5 max-w-lg mx-auto my-1">
                                 {/* Título */}
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-8.5 h-8.5 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                                     <Activity size={18} className="text-blue-600 animate-pulse" />
                                   </div>
                                   <div>

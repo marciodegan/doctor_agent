@@ -33,6 +33,52 @@ interface PersonalImage {
   uploadedByEmail?: string;
 }
 
+const sanitizeFileName = (fileName: string): string => {
+  if (!fileName) return "arquivo_" + Date.now();
+  
+  // 1. Normalize accents
+  let sanitized = fileName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  
+  // 2. Separate name and extension
+  const lastDotIndex = sanitized.lastIndexOf(".");
+  let namePart = lastDotIndex !== -1 ? sanitized.substring(0, lastDotIndex) : sanitized;
+  let extPart = lastDotIndex !== -1 ? sanitized.substring(lastDotIndex + 1) : "";
+  
+  // 3. Replace spaces with dash
+  namePart = namePart.replace(/\s+/g, "-");
+  
+  // 4. Keep only letters, numbers, dash and underscore
+  namePart = namePart.toLowerCase().replace(/[^a-z0-9-_.]/g, "");
+  
+  // Lowercase extension and keep only alphanumeric
+  extPart = extPart.toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  // If namePart becomes empty, generate a fallback
+  let finalName = namePart || "arquivo_" + Date.now();
+  
+  // Assemble back
+  return extPart ? `${finalName}.${extPart}` : finalName;
+};
+
+const getSafeContentType = (file: File | { name: string; type?: string }): string => {
+  const name = (file.name || "").toLowerCase();
+  const ext = name.split(".").pop() || "";
+  const mime = (file.type || "").toLowerCase();
+
+  if (ext === "mov") return "video/quicktime";
+  if (ext === "mp4") return "video/mp4";
+  if (ext === "m4v") return "video/x-m4v";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "pdf") return "application/pdf";
+
+  if (mime && mime !== "application/octet-stream" && mime !== "") {
+    return mime;
+  }
+
+  return "application/octet-stream";
+};
+
 const isVideoUrl = (url: string | null | undefined): boolean => {
   if (!url) return false;
   if (url.startsWith("data:video/")) return true;
@@ -125,14 +171,23 @@ export const PersonalDocuments: React.FC = () => {
 
     setErrorMsg(null);
 
+    // Normalize file safely
+    const safeFileName = sanitizeFileName(file.name || "arquivo");
+    const safeContentType = getSafeContentType(file);
+    const normalizedFile = new File(
+      [file],
+      safeFileName,
+      { type: safeContentType, lastModified: file.lastModified || Date.now() }
+    );
+
     // Validate type
-    const mime = (file.type || "").toLowerCase();
-    const name = (file.name || "").toLowerCase();
+    const mime = (normalizedFile.type || "").toLowerCase();
+    const name = (normalizedFile.name || "").toLowerCase();
     let fileTypeResolved: "image" | "video" | "pdf" | null = null;
 
     if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
       fileTypeResolved = "image";
-    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime")) {
+    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime") || name.endsWith(".m4v")) {
       fileTypeResolved = "video";
     } else if (mime === "application/pdf" || name.endsWith(".pdf")) {
       fileTypeResolved = "pdf";
@@ -147,21 +202,21 @@ export const PersonalDocuments: React.FC = () => {
     }
 
     // Validate size
-    if (fileTypeResolved === "image" && file.size > 10 * 1024 * 1024) {
+    if (fileTypeResolved === "image" && normalizedFile.size > 10 * 1024 * 1024) {
       setErrorMsg("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 10MB para imagens).");
       setSelectedFile(null);
       setSelectedImage(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (fileTypeResolved === "video" && file.size > 50 * 1024 * 1024) {
-      setErrorMsg("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 50MB para vídeos).");
+    if (fileTypeResolved === "video" && normalizedFile.size > 100 * 1024 * 1024) {
+      setErrorMsg("Este vídeo é muito grande. Escolha um vídeo menor para anexar.");
       setSelectedFile(null);
       setSelectedImage(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (fileTypeResolved === "pdf" && file.size > 20 * 1024 * 1024) {
+    if (fileTypeResolved === "pdf" && normalizedFile.size > 20 * 1024 * 1024) {
       setErrorMsg("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 20MB para PDFs).");
       setSelectedFile(null);
       setSelectedImage(null);
@@ -170,7 +225,7 @@ export const PersonalDocuments: React.FC = () => {
     }
 
     // Load file to preview
-    setSelectedFile(file);
+    setSelectedFile(normalizedFile);
     const reader = new FileReader();
     reader.onload = (event) => {
       setSelectedImage(event.target?.result as string);
@@ -178,7 +233,7 @@ export const PersonalDocuments: React.FC = () => {
     reader.onerror = () => {
       setErrorMsg("Não foi possível ler o arquivo.");
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(normalizedFile);
   };
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -192,10 +247,26 @@ export const PersonalDocuments: React.FC = () => {
     setIsUploading(true);
     setErrorMsg(null);
 
+    // Determine type for correct error messaging below
+    const mime = (selectedFile.type || "").toLowerCase();
+    const name = (selectedFile.name || "").toLowerCase();
+    let fileTypeResolved: "image" | "video" | "pdf" | "image" = "image";
+    if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".m4v")) {
+      fileTypeResolved = "video";
+    }
+
     try {
       const mimeType = selectedFile.type || (selectedFile.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
       const base64Data = selectedImage.split(",")[1];
       const patientId = `personal_${activeGroup.id}`;
+
+      // Detailed pre-upload logs for debugging
+      console.log("[Upload] file", selectedFile);
+      console.log("[Upload] name", selectedFile.name);
+      console.log("[Upload] type", selectedFile.type);
+      console.log("[Upload] size", selectedFile.size);
+      console.log("[Upload] safeFileName", selectedFile.name);
+      console.log("[Upload] safeContentType", mimeType);
 
       const res = await apiFetch("/api/app/upload-image", {
         method: "POST",
@@ -207,7 +278,8 @@ export const PersonalDocuments: React.FC = () => {
           base64Data: base64Data,
           fileName: selectedFile.name,
           originalName: selectedFile.name,
-          size: selectedFile.size
+          size: selectedFile.size,
+          platform: /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other"
         })
       });
 
@@ -224,8 +296,15 @@ export const PersonalDocuments: React.FC = () => {
       // Refresh listing
       await fetchImages();
     } catch (err: any) {
-      console.error("Upload error:", err);
-      setErrorMsg(err.message || "Ocorreu um erro ao fazer upload do arquivo.");
+      console.error("[Upload] error full", err);
+      console.error("[Upload] error code", err?.code);
+      console.error("[Upload] error message", err?.message);
+
+      if (fileTypeResolved === "video") {
+        setErrorMsg("Não foi possível enviar este vídeo. Tente salvar o vídeo novamente no iPhone ou escolher uma versão menor.");
+      } else {
+        setErrorMsg(err.message || "Ocorreu um erro ao fazer upload do arquivo.");
+      }
     } finally {
       setIsUploading(false);
     }
@@ -384,7 +463,7 @@ export const PersonalDocuments: React.FC = () => {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*,video/*,application/pdf,.pdf"
+                    accept="image/*,video/*,video/mp4,video/quicktime,.mov,.mp4,.m4v,application/pdf,.pdf"
                     onChange={handleFileChange}
                     className="hidden"
                   />
