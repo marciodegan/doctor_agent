@@ -3,7 +3,7 @@ import { registerRoute, NavigationRoute } from 'workbox-routing';
 
 // --- VERSION CONFIGURATION ---
 // Change this version manually at each new deploy to force service worker updates.
-const APP_VERSION = "1.0.2";
+const APP_VERSION = "1.0.3";
 const CACHE_VERSION = `dr-agent-v${APP_VERSION}`;
 
 console.log("[PWA] Service worker initializing version:", APP_VERSION);
