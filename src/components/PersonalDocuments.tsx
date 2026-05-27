@@ -171,18 +171,9 @@ export const PersonalDocuments: React.FC = () => {
 
     setErrorMsg(null);
 
-    // Normalize file safely
-    const safeFileName = sanitizeFileName(file.name || "arquivo");
-    const safeContentType = getSafeContentType(file);
-    const normalizedFile = new File(
-      [file],
-      safeFileName,
-      { type: safeContentType, lastModified: file.lastModified || Date.now() }
-    );
-
     // Validate type
-    const mime = (normalizedFile.type || "").toLowerCase();
-    const name = (normalizedFile.name || "").toLowerCase();
+    const mime = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
     let fileTypeResolved: "image" | "video" | "pdf" | null = null;
 
     if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
@@ -202,21 +193,21 @@ export const PersonalDocuments: React.FC = () => {
     }
 
     // Validate size
-    if (fileTypeResolved === "image" && normalizedFile.size > 10 * 1024 * 1024) {
+    if (fileTypeResolved === "image" && file.size > 10 * 1024 * 1024) {
       setErrorMsg("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 10MB para imagens).");
       setSelectedFile(null);
       setSelectedImage(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (fileTypeResolved === "video" && normalizedFile.size > 100 * 1024 * 1024) {
+    if (fileTypeResolved === "video" && file.size > 100 * 1024 * 1024) {
       setErrorMsg("Este vídeo é muito grande. Escolha um vídeo menor para anexar.");
       setSelectedFile(null);
       setSelectedImage(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (fileTypeResolved === "pdf" && normalizedFile.size > 20 * 1024 * 1024) {
+    if (fileTypeResolved === "pdf" && file.size > 20 * 1024 * 1024) {
       setErrorMsg("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 20MB para PDFs).");
       setSelectedFile(null);
       setSelectedImage(null);
@@ -225,20 +216,20 @@ export const PersonalDocuments: React.FC = () => {
     }
 
     // Load file to preview
-    setSelectedFile(normalizedFile);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setSelectedImage(event.target?.result as string);
-    };
-    reader.onerror = () => {
-      setErrorMsg("Não foi possível ler o arquivo.");
-    };
-    reader.readAsDataURL(normalizedFile);
+    setSelectedFile(file);
+    try {
+      if (selectedImage && selectedImage.startsWith("blob:")) {
+        URL.revokeObjectURL(selectedImage);
+      }
+      setSelectedImage(URL.createObjectURL(file));
+    } catch (err) {
+      setErrorMsg("Não foi possível gerar a pré-visualização do arquivo.");
+    }
   };
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedImage || !selectedFile) {
+    if (!selectedFile) {
       setErrorMsg("Selecione um arquivo antes de enviar.");
       return;
     }
@@ -256,37 +247,34 @@ export const PersonalDocuments: React.FC = () => {
     }
 
     try {
-      const mimeType = selectedFile.type || (selectedFile.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
-      const base64Data = selectedImage.split(",")[1];
       const patientId = `personal_${activeGroup.id}`;
 
       // Detailed pre-upload logs for debugging
-      console.log("[Upload] file", selectedFile);
-      console.log("[Upload] name", selectedFile.name);
-      console.log("[Upload] type", selectedFile.type);
-      console.log("[Upload] size", selectedFile.size);
-      console.log("[Upload] safeFileName", selectedFile.name);
-      console.log("[Upload] safeContentType", mimeType);
+      console.log("[Upload] [FormData] file", selectedFile);
+      console.log("[Upload] [FormData] name", selectedFile.name);
+      console.log("[Upload] [FormData] type", selectedFile.type);
+      console.log("[Upload] [FormData] size", selectedFile.size);
+
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("patientId", patientId);
+      formData.append("description", description || selectedFile.name);
+      formData.append("platform", /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other");
 
       const res = await apiFetch("/api/app/upload-image", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patientId: patientId,
-          description: description || selectedFile.name,
-          mimeType: mimeType,
-          base64Data: base64Data,
-          fileName: selectedFile.name,
-          originalName: selectedFile.name,
-          size: selectedFile.size,
-          platform: /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other"
-        })
+        body: formData
       });
 
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (!res.ok || data.error) throw new Error(data.error || "Erro no upload");
 
       // Clean form on success
+      if (selectedImage && selectedImage.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(selectedImage);
+        } catch (e) {}
+      }
       setSelectedImage(null);
       setSelectedFile(null);
       setDescription("");

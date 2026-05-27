@@ -227,18 +227,9 @@ const MessageForm: React.FC<{
 
     setFileError(null);
 
-    // Normalize file safely
-    const safeFileName = sanitizeFileName(file.name || "arquivo");
-    const safeContentType = getSafeContentType(file);
-    const normalizedFile = new File(
-      [file],
-      safeFileName,
-      { type: safeContentType, lastModified: file.lastModified || Date.now() }
-    );
-
     // Validate type
-    const mime = (normalizedFile.type || "").toLowerCase();
-    const name = (normalizedFile.name || "").toLowerCase();
+    const mime = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
     let fileTypeResolved: "image" | "video" | "pdf" | null = null;
 
     if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
@@ -258,21 +249,21 @@ const MessageForm: React.FC<{
     }
 
     // Validate size
-    if (fileTypeResolved === "image" && normalizedFile.size > 10 * 1024 * 1024) {
+    if (fileTypeResolved === "image" && file.size > 10 * 1024 * 1024) {
       setFileError("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 10MB para imagens).");
       if (onSelectImage) onSelectImage(null);
       if (onSelectFileObj) onSelectFileObj(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (fileTypeResolved === "video" && normalizedFile.size > 100 * 1024 * 1024) {
+    if (fileTypeResolved === "video" && file.size > 100 * 1024 * 1024) {
       setFileError("Este vídeo é muito grande. Escolha um vídeo menor para anexar.");
       if (onSelectImage) onSelectImage(null);
       if (onSelectFileObj) onSelectFileObj(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (fileTypeResolved === "pdf" && normalizedFile.size > 20 * 1024 * 1024) {
+    if (fileTypeResolved === "pdf" && file.size > 20 * 1024 * 1024) {
       setFileError("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 20MB para PDFs).");
       if (onSelectImage) onSelectImage(null);
       if (onSelectFileObj) onSelectFileObj(null);
@@ -281,19 +272,29 @@ const MessageForm: React.FC<{
     }
 
     if (onSelectFileObj) {
-      onSelectFileObj(normalizedFile);
+      onSelectFileObj(file);
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (onSelectImage) {
-        onSelectImage(event.target?.result as string);
+    if (fileTypeResolved === "image") {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (onSelectImage) {
+          onSelectImage(event.target?.result as string);
+        }
+      };
+      reader.onerror = () => {
+        setFileError("Não foi possível ler a imagem.");
+      };
+      reader.readAsDataURL(file);
+    } else {
+      try {
+        if (onSelectImage) {
+          onSelectImage(URL.createObjectURL(file));
+        }
+      } catch (err) {
+        setFileError("Não foi possível gerar a pré-visualização.");
       }
-    };
-    reader.onerror = () => {
-      setFileError("Não foi possível ler o arquivo.");
-    };
-    reader.readAsDataURL(normalizedFile);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -2723,42 +2724,61 @@ ${aiPart}
 
         if (!id) throw new Error("Use: /img id: [ID], desc: [Opcional]");
 
-        const mimeType = selectedImage.split(";")[0].split(":")[1] || (selectedFileObj?.type || (selectedFileObj?.name?.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg"));
-        const base64Data = selectedImage.split(",")[1];
+        let res;
+        
+        if (selectedFileObj) {
+          const mimeType = selectedFileObj.type || "";
+          if (mimeType.startsWith("video/") || selectedFileObj.name.toLowerCase().endsWith(".mov") || selectedFileObj.name.toLowerCase().endsWith(".mp4")) {
+            isVideoUpload = true;
+          }
 
-        const ext = mimeType.split("/")[1] || "jpg";
-        const extResolved = ext === "quicktime" ? "mov" : ext;
-        const safeName = selectedFileObj?.name || `Chat_P${id}_${new Date().getTime()}.${extResolved}`;
+          console.log("[Upload] [FormData] file", selectedFileObj);
+          console.log("[Upload] [FormData] name", selectedFileObj.name);
+          console.log("[Upload] [FormData] size", selectedFileObj.size);
 
-        if (mimeType.startsWith("video/") || extResolved === "mov" || extResolved === "mp4") {
-          isVideoUpload = true;
+          const formData = new FormData();
+          formData.append("file", selectedFileObj);
+          formData.append("patientId", id);
+          formData.append("description", desc || selectedFileObj.name || "Documento via Chat");
+          formData.append("platform", /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other");
+
+          res = await apiFetch("/api/app/upload-image", {
+            method: "POST",
+            body: formData
+          });
+        } else {
+          // Fallback to Base64 JSON
+          const mimeType = selectedImage.split(";")[0].split(":")[1] || "image/jpeg";
+          const base64Data = selectedImage.split(",")[1];
+          const ext = mimeType.split("/")[1] || "jpg";
+          const extResolved = ext === "quicktime" ? "mov" : ext;
+          const safeName = `Chat_P${id}_${new Date().getTime()}.${extResolved}`;
+
+          if (mimeType.startsWith("video/") || extResolved === "mov" || extResolved === "mp4") {
+            isVideoUpload = true;
+          }
+
+          console.log("[Upload] [Base64] name", safeName);
+          console.log("[Upload] [Base64] size", base64Data.length * 0.75);
+
+          res = await apiFetch("/api/app/upload-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              patientId: id,
+              description: desc || "Documento via Chat",
+              mimeType: mimeType,
+              base64Data: base64Data,
+              fileName: safeName,
+              originalName: safeName,
+              size: base64Data.length * 0.75,
+              platform: /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other"
+            })
+          });
         }
 
-        // Detailed pre-upload logs for debugging
-        console.log("[Upload] file", selectedFileObj);
-        console.log("[Upload] name", selectedFileObj?.name || safeName);
-        console.log("[Upload] type", selectedFileObj?.type || mimeType);
-        console.log("[Upload] size", selectedFileObj?.size || (base64Data ? base64Data.length * 0.75 : 0));
-        console.log("[Upload] safeFileName", safeName);
-        console.log("[Upload] safeContentType", mimeType);
-
-        const res = await apiFetch("/api/app/upload-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            patientId: id,
-            description: desc || selectedFileObj?.name || "Documento via Chat",
-            mimeType: mimeType,
-            base64Data: base64Data,
-            fileName: safeName,
-            originalName: selectedFileObj?.name || safeName,
-            size: selectedFileObj?.size || base64Data.length * 0.75,
-            platform: /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other"
-          })
-        });
-        
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        if (!res.ok || data.error) throw new Error(data.error || "Erro no upload");
 
         setMessages([]);
         
@@ -2770,6 +2790,11 @@ ${aiPart}
           await handleDirectCommand(`/p ${id}`);
         }
 
+        if (selectedImage && selectedImage.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(selectedImage);
+          } catch (e) {}
+        }
         setSelectedImage(null); // Clear image after upload
         setSelectedFileObj(null); // Clear file obj after upload
       } catch (err: any) {

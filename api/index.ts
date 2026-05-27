@@ -1,4 +1,5 @@
 import express from "express";
+import multer from "multer";
 import { google } from "googleapis";
 import cookieParser from "cookie-parser";
 import path from "path";
@@ -1743,10 +1744,71 @@ const getSafeContentType = (fileName: string, fileMime?: string): string => {
 };
 
 // Upload image/document directly to Firebase Storage and link to Firestore
-app.post("/api/app/upload-image", express.json({ limit: "100mb" }), async (req, res) => {
-  const { patientId, description, fileName, mimeType, base64Data, originalName, size, platform } = req.body;
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+});
 
-  if (!patientId || !base64Data) return res.status(400).json({ error: "PatientID e Imagem/Arquivo são obrigatórios." });
+app.post("/api/app/upload-image", (req, res, next) => {
+  const isMultipart = (req.headers["content-type"] || "").includes("multipart/form-data");
+  if (isMultipart) {
+    upload.single("file")(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message || "Erro no upload do arquivo multi-parte." });
+      }
+      next();
+    });
+  } else {
+    express.json({ limit: "100mb" })(req, res, next);
+  }
+}, async (req, res) => {
+  const isMultipart = (req.headers["content-type"] || "").includes("multipart/form-data");
+  
+  let patientId: string = "";
+  let description: string = "";
+  let fileName: string = "";
+  let mimeType: string = "";
+  let originalName: string = "";
+  let size: number = 0;
+  let platform: string = "";
+  let buffer: Buffer;
+
+  if (isMultipart) {
+    const file = req.file;
+    patientId = req.body.patientId || "";
+    description = req.body.description || "";
+    platform = req.body.platform || "";
+    
+    if (!file) {
+      return res.status(400).json({ error: "Nenhum arquivo enviado no corpo da requisição." });
+    }
+    if (!patientId) {
+      return res.status(400).json({ error: "PatientID é obrigatório." });
+    }
+
+    fileName = file.originalname;
+    originalName = file.originalname;
+    mimeType = file.mimetype;
+    size = file.size;
+    buffer = file.buffer;
+  } else {
+    const { patientId: pId, description: desc, fileName: fName, mimeType: mType, base64Data, originalName: origName, size: sz, platform: plt } = req.body || {};
+    patientId = pId;
+    description = desc || "";
+    fileName = fName || "";
+    mimeType = mType || "";
+    originalName = origName || "";
+    size = sz || 0;
+    platform = plt || "";
+
+    if (!patientId || !base64Data) return res.status(400).json({ error: "PatientID e Imagem/Arquivo são obrigatórios." });
+
+    buffer = Buffer.from(base64Data, "base64");
+    size = size || buffer.length;
+    fileName = fileName || "file";
+    originalName = originalName || fileName;
+    mimeType = mimeType || "image/jpeg";
+  }
 
   const rawName = originalName || fileName || "file";
   const safeFileName = sanitizeFileName(rawName);
@@ -1771,7 +1833,6 @@ app.post("/api/app/upload-image", express.json({ limit: "100mb" }), async (req, 
       return res.status(400).json({ error: "Tipo de arquivo não permitido. Envie uma imagem, vídeo ou PDF." });
     }
 
-    const buffer = Buffer.from(base64Data, "base64");
     const fileSize = size || buffer.length;
 
     // Detailed logs before upload to storage
