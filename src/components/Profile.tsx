@@ -188,7 +188,7 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
   }
 
   return (
-    <div className="bg-white md:rounded-3xl p-6 md:border md:border-gray-100 md:shadow-xl md:shadow-blue-500/5 flex flex-col min-h-dvh md:min-h-0 md:max-h-[90vh] h-full md:h-auto overflow-y-auto md:overflow-hidden -webkit-overflow-scrolling-touch pt-[calc(3.25rem+1.5rem+env(safe-area-inset-top))] md:pt-6 pb-[calc(5rem+3rem+env(safe-area-inset-bottom))] md:pb-6 relative z-10">
+    <div className="glass-panel p-6 md:rounded-3xl flex flex-col min-h-dvh md:min-h-0 md:max-h-[90vh] h-full md:h-auto overflow-y-auto md:overflow-hidden -webkit-overflow-scrolling-touch pt-[calc(3.25rem+1.5rem+env(safe-area-inset-top))] md:pt-6 pb-[calc(5rem+3rem+env(safe-area-inset-bottom))] md:pb-6 relative z-10">
       <div className="flex items-center justify-between mb-6 shrink-0">
         <h3 className="font-black text-gray-900 tracking-tight">Meu Perfil</h3>
         {onHose && (
@@ -231,7 +231,7 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
               placeholder="Seu nome"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+              className="w-full glass-input px-4 py-3 rounded-2xl text-sm font-medium transition-all shadow-sm"
               required
             />
           </div>
@@ -243,7 +243,7 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
               placeholder="(00) 00000-0000"
               value={whatsapp}
               onChange={(e) => setWhatsapp(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+              className="w-full glass-input px-4 py-3 rounded-2xl text-sm font-medium transition-all shadow-sm"
             />
           </div>
 
@@ -253,7 +253,7 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
               type="email"
               value={user?.email || ""}
               disabled
-              className="w-full bg-gray-50 border border-gray-100 px-4 py-3 rounded-2xl text-sm font-medium text-gray-400 outline-none cursor-not-allowed italic"
+              className="w-full glass-input pr-4 pl-4 py-3 rounded-2xl text-sm font-medium text-gray-400 outline-none cursor-not-allowed italic opacity-70"
             />
           </div>
         </div>
@@ -295,7 +295,7 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
             type="button"
             onClick={checkForAppUpdate}
             disabled={checkingUpdate}
-            className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+            className="w-full glass-button hover:bg-white/50 border-gray-200/40 text-slate-705 font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 hover:text-slate-900 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
           >
             {checkingUpdate ? (
               <Loader2 className="animate-spin text-blue-600" size={17} />

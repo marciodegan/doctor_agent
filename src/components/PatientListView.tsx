@@ -375,7 +375,7 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Buscar paciente..."
-          className="w-full rounded-2xl border border-gray-100 bg-white pl-11 pr-4 py-3 text-sm font-semibold text-gray-800 shadow-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all font-sans"
+          className="w-full rounded-2xl glass-input pl-11 pr-4 py-3 text-sm font-semibold text-gray-800 shadow-sm outline-none transition-all font-sans"
         />
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
           <Search size={18} />
@@ -461,7 +461,7 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                         <div 
                           key={p.id}
                           onClick={() => onCommand(`/p ${p.id}`, true)}
-                          className="group bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 hover:border-blue-200 hover:shadow-md transition-all duration-200 cursor-pointer text-left"
+                          className="group glass-card rounded-2xl shadow-sm px-4 py-3 hover:border-blue-200/50 hover:shadow-md transition-all duration-200 cursor-pointer text-left"
                         >
                           <div className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
                             {p.nome}
@@ -535,7 +535,7 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                 return (
                   <div key={statusIdx} className="space-y-3">
                     {/* Status Group Header */}
-                    <div className="flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 select-none">
+                    <div className="flex items-center justify-between rounded-2xl border border-blue-200/40 bg-blue-50/70 backdrop-blur-sm px-4 py-3 select-none">
                       <span className="text-[11px] font-black uppercase tracking-widest text-blue-700">
                         {sName}
                       </span>
@@ -552,7 +552,7 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                           <div 
                             key={p.id}
                             onClick={() => onCommand(`/p ${p.id}`, true)}
-                            className="group bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 hover:border-blue-200 hover:shadow-md transition-all duration-200 cursor-pointer text-left"
+                            className="group glass-card rounded-2xl shadow-sm px-4 py-3 hover:border-blue-200/50 hover:shadow-md transition-all duration-200 cursor-pointer text-left"
                           >
                             <div className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
                               {p.nome}

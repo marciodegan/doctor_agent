@@ -400,8 +400,8 @@ export function GroupSelector({ onSelect }: { onSelect?: () => void }) {
                     }}
                     className={`w-full flex items-center gap-2.5 p-2 rounded-xl transition-all border-2 cursor-pointer ${
                       activeGroup?.id === group.id
-                        ? "bg-blue-50 border-blue-600 shadow-sm"
-                        : "bg-white border-transparent hover:border-gray-100 hover:bg-gray-50"
+                        ? "bg-blue-100/60 border-blue-600/60 shadow-sm"
+                        : "bg-transparent border-transparent hover:border-white/20 hover:bg-white/30"
                     }`}
                   >
                     <div

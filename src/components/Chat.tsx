@@ -340,7 +340,7 @@ const MessageForm: React.FC<{
               <select
                 value={values[field.name] || ""}
                 onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
-                className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none appearance-none cursor-pointer pr-10 shadow-sm transition-all"
+                className="w-full h-12 px-4 glass-input rounded-xl text-slate-800 text-sm appearance-none cursor-pointer pr-10 shadow-sm transition-all"
                 required={!field.optional}
               >
                 <option value="" disabled={!field.optional}>{field.optional ? "Opcional (Deixar em branco)" : "Selecione uma opção"}</option>
@@ -370,7 +370,7 @@ const MessageForm: React.FC<{
               onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
               placeholder={field.placeholder}
               rows={3}
-              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm resize-none"
+              className="w-full px-4 py-3 glass-input rounded-xl text-slate-800 text-sm transition-all shadow-sm resize-none"
               required={!field.optional}
             />
           ) : (
@@ -379,7 +379,7 @@ const MessageForm: React.FC<{
               value={values[field.name] || ""}
               onChange={(e) => setValues(prev => ({ ...prev, [field.name]: e.target.value }))}
               placeholder={field.placeholder}
-              className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-slate-800 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm"
+              className="w-full h-12 px-4 glass-input rounded-xl text-slate-800 text-sm transition-all shadow-sm"
               required={!field.optional}
               {...(field.type === "number" ? { inputMode: "numeric" } : {})}
             />
@@ -431,7 +431,7 @@ const MessageForm: React.FC<{
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 sm:p-8 bg-white rounded-[2.5rem] border border-gray-100 space-y-6 shadow-2xl shadow-blue-900/5 transition-all">
+        <form onSubmit={handleSubmit} className="p-6 sm:p-8 glass-panel rounded-[2.5rem] space-y-6 shadow-xl transition-all">
           <AnimatePresence>
             {showRemoveConfirm && (
               <motion.div 
@@ -558,7 +558,7 @@ const MessageForm: React.FC<{
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 p-5 bg-white rounded-[2rem] border border-blue-50 space-y-5 shadow-2xl shadow-blue-900/10 transition-all">
+    <form onSubmit={handleSubmit} className="mt-4 p-5 glass-panel rounded-[2rem] space-y-5 shadow-xl transition-all">
       <AnimatePresence>
         {showRemoveConfirm && (
           <motion.div 
@@ -3416,7 +3416,7 @@ ${aiPart}
     <div 
       id="nexus-chat"
       ref={chatContainerRef}
-      className="flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 relative pb-4"
+      className="flex flex-col glass-panel rounded-2xl relative pb-4"
     >
       {/* Messages */}
       <div ref={scrollRef} className="px-2 sm:px-6 py-4 space-y-6 flex-1">
@@ -3431,7 +3431,7 @@ ${aiPart}
               className="flex justify-start"
             >
               <div className="flex gap-3 w-full">
-                <div className={(msg.isProfile || msg.patientNameForStatus || msg.form?.commandPrefix?.includes("/calendario_add")) ? "text-sm w-full overflow-y-auto space-y-6" : `p-3 rounded-2xl text-sm bg-gray-50 text-gray-800 border border-gray-100 shadow-sm w-full overflow-y-auto`}>
+                <div className={(msg.isProfile || msg.patientNameForStatus || msg.form?.commandPrefix?.includes("/calendario_add")) ? "text-sm w-full overflow-y-auto space-y-6" : `p-4 rounded-2xl text-sm glass-subcard text-gray-800 shadow-sm w-full overflow-y-auto`}>
                   {msg.isListing && msg.listingTitle && (
                     <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
                       <h3 className="text-base font-extrabold text-gray-800 tracking-tight">{msg.listingTitle}</h3>
@@ -3447,7 +3447,7 @@ ${aiPart}
                   {msg.isProfile && msg.profileData && (
                     <>
                       {/* Patient header card */}
-                      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 flex flex-row items-center justify-between gap-4 relative overflow-hidden">
+                      <div className="glass-card rounded-3xl p-5 flex flex-row items-center justify-between gap-4 relative overflow-hidden shadow-sm">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
                         
                         {/* Coluna da Esquerda: Nome, Idade e Botão Editar */}
@@ -3485,7 +3485,7 @@ ${aiPart}
                       <div className="flex flex-row items-center justify-between gap-3">
                         <button 
                           onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
-                          className="w-1/2 bg-white border border-blue-100 h-11 rounded-2xl text-blue-600 text-xs font-bold uppercase tracking-wider flex items-center justify-center hover:bg-blue-50/40 transition-all active:scale-95 shadow-sm"
+                          className="w-1/2 glass-button border-blue-100/40 h-11 rounded-2xl text-blue-600 text-xs font-bold uppercase tracking-wider flex items-center justify-center hover:bg-white/70 transition-all active:scale-95 shadow-sm"
                         >
                           <span className="max-w-[125px] sm:max-w-none truncate px-1">
                             {allStatuses.find(s => s.id === msg.profileData?.status)?.nome || (msg.profileData?.status && msg.profileData?.status !== "Não informado" ? msg.profileData?.status : "Sem Status")}

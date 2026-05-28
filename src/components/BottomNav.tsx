@@ -87,13 +87,13 @@ export function BottomNav({
     bottom: 0,
     paddingBottom: bottomPadding,
   }}
-  className="fixed left-0 right-0 lg:left-64 z-[60] w-full lg:w-[calc(100%-16rem)] bg-white border-t border-gray-100 shadow-[0_-4px_25px_rgba(15,23,42,0.08)]"
+  className="fixed left-0 right-0 lg:left-64 z-[60] w-full lg:w-[calc(100%-16rem)] glass-nav shadow-[0_-8px_32px_rgba(15,23,42,0.06)]"
 >
   <div 
     style={{
       paddingTop: topPadding,
     }}
-    className="flex items-center justify-around px-4 bg-white"
+    className="flex items-center justify-around px-4 bg-transparent"
   >
         {tabs.map((tab, idx) => {
           const isActive = currentView === tab.id;
@@ -106,8 +106,8 @@ export function BottomNav({
               onClick={() => {
                 const mainElement = document.querySelector("main");
                 if (mainElement) {
-                  mainElement.scrollTo({ top: 0, behavior: "instant" as any });
-                  mainElement.scrollTop = 0;
+                   mainElement.scrollTo({ top: 0, behavior: "instant" as any });
+                   mainElement.scrollTop = 0;
                 }
                 if (tab.action) {
                   tab.action();
@@ -115,7 +115,7 @@ export function BottomNav({
                   onNavigate(tab.id, (tab as any).prompt);
                 }
               }}
-              className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 min-w-[64px] relative group px-1"
+              className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 min-w-[64px] relative group px-1 py-1"
             >
               <AnimatePresence>
                 {isActive && (
@@ -124,8 +124,8 @@ export function BottomNav({
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
-                    className="absolute inset-0 bg-gray-100/70 rounded-2xl -z-10"
-                    transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
+                    className="absolute inset-x-1 inset-y-0.5 bg-blue-100/60 border border-white/40 shadow-sm rounded-2xl -z-10"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                   />
                 )}
               </AnimatePresence>
@@ -133,7 +133,7 @@ export function BottomNav({
               <motion.div
                 animate={{
                   scale: isActive ? 1.15 : 1,
-                  color: isActive ? "#000000" : "#4b5563",
+                  color: isActive ? "#2563eb" : "#4b5563",
                 }}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 className="relative"
@@ -149,14 +149,14 @@ export function BottomNav({
                 {isActive && !isEquipe && (
                   <motion.div
                     layoutId="active-dot"
-                    className="absolute -top-1 -right-1 w-2 h-2 bg-black rounded-full border-2 border-white shadow-sm"
+                    className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full border-2 border-white shadow-sm"
                   />
                 )}
               </motion.div>
 
               <span
                 className={`text-[9px] font-black uppercase tracking-tight transition-colors duration-200 truncate max-w-[90px] text-center ${
-                  isActive ? "text-black" : "text-gray-700"
+                  isActive ? "text-blue-600" : "text-gray-500"
                 }`}
               >
                 {(tab.label).split(" ")[0]}

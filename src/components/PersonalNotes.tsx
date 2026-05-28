@@ -120,12 +120,12 @@ export const PersonalNotes: React.FC<PersonalNotesProps> = ({ onNavigateToShoppi
 
   return (
     <div 
-      className="flex flex-col bg-slate-50 pb-4"
+      className="flex flex-col bg-transparent pb-4"
     >
       {/* Top Section containing both Header and Input Form */}
-      <div className="bg-white border-b border-slate-100 shadow-sm">
+      <div className="glass-panel border-b border-slate-200/30">
         {/* Header content */}
-        <div className="p-4 border-b border-slate-50 bg-white">
+        <div className="p-4 border-b border-slate-250 bg-transparent">
           <div className="max-w-xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-yellow-50 flex items-center justify-center border border-yellow-100 text-yellow-600">
@@ -151,7 +151,7 @@ export const PersonalNotes: React.FC<PersonalNotesProps> = ({ onNavigateToShoppi
         </div>
 
         {/* Input Form content */}
-        <div className="px-4 py-3 bg-white">
+        <div className="px-4 py-3 bg-transparent">
           <div className="max-w-xl mx-auto flex flex-col gap-2">
             <form onSubmit={handleAddNote} className="relative">
               <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-yellow-500" size={18} />
@@ -160,7 +160,7 @@ export const PersonalNotes: React.FC<PersonalNotesProps> = ({ onNavigateToShoppi
                 placeholder="Escreva algo novo..."
                 value={newNoteContent}
                 onChange={(e) => setNewNoteContent(e.target.value)}
-                className="w-full bg-slate-100 border border-slate-200 rounded-xl py-4 pl-10 pr-16 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500 outline-none transition-all"
+                className="w-full glass-input rounded-xl py-4 pl-10 pr-16 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500 outline-none transition-all"
               />
               {newNoteContent.trim() && (
                 <button 
@@ -180,7 +180,7 @@ export const PersonalNotes: React.FC<PersonalNotesProps> = ({ onNavigateToShoppi
                 placeholder="Buscar nas notas..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-100/50 border border-slate-100 rounded-xl py-2 px-4 text-xs font-semibold text-slate-600 placeholder:text-slate-400 outline-none transition-all"
+                className="w-full glass-input rounded-xl py-2 px-4 text-xs font-semibold text-slate-600 placeholder:text-slate-400 outline-none transition-all"
               />
             </div>
           </div>
@@ -211,7 +211,7 @@ export const PersonalNotes: React.FC<PersonalNotesProps> = ({ onNavigateToShoppi
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="group flex items-center gap-4 p-4 bg-white rounded-2xl border border-slate-100 transition-all hover:border-blue-100 hover:shadow-xl hover:shadow-blue-900/5 shadow-sm"
+                  className="group flex items-center gap-4 p-4 glass-card rounded-2xl transition-all hover:border-yellow-500 hover:shadow-xl hover:shadow-yellow-900/5 shadow-sm"
                 >
                   <div className="flex-1">
                     <input
@@ -248,7 +248,7 @@ export const PersonalNotes: React.FC<PersonalNotesProps> = ({ onNavigateToShoppi
       </div>
 
       {/* Footer Info */}
-      <div className="p-4 bg-white border-t border-slate-100">
+      <div className="p-4 glass-panel border-t border-slate-205">
         <div className="max-w-xl mx-auto flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-yellow-500"></span>

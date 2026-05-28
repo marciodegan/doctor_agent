@@ -298,11 +298,11 @@ export default function AppWorkspace() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#FDFDFD] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
+    <div className="h-full flex flex-col bg-transparent text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
       {/* Top Header - Both Mobile and Desktop */}
       <header
         style={{ height: 'calc(3.25rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
-        className={`fixed top-0 left-0 lg:left-64 right-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 ${isFullscreen ? 'hidden' : ''}`}
+        className={`fixed top-0 left-0 lg:left-64 right-0 glass-header z-50 ${isFullscreen ? 'hidden' : ''}`}
       >
         <div className="h-full w-full flex items-center justify-center px-4 relative">
           {/* Left Toggle - Mobile Only */}
@@ -352,7 +352,7 @@ export default function AppWorkspace() {
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
               style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-              className="fixed left-0 top-0 bottom-0 w-72 bg-white z-[70] flex flex-col p-6 lg:hidden"
+              className="fixed left-0 top-0 bottom-0 w-72 glass-panel shadow-2xl z-[70] flex flex-col p-6 lg:hidden"
             >
               <div className="flex items-center justify-between mb-10">
                 <div className="flex items-center gap-2">
@@ -431,9 +431,9 @@ export default function AppWorkspace() {
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
               style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-              className="fixed right-0 top-0 bottom-0 w-[85%] max-w-sm bg-white z-[70] flex flex-col overflow-y-auto lg:hidden"
+              className="fixed right-0 top-0 bottom-0 w-[85%] max-w-sm glass-panel shadow-2xl z-[70] flex flex-col overflow-y-auto lg:hidden"
             >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+              <div className="p-6 border-b border-gray-200/40 flex items-center justify-between sticky top-0 bg-white/40 backdrop-blur-md z-10">
                 <div className="flex items-center gap-2">
                   <Users size={18} className="text-blue-600" />
                   <h2 className="font-bold text-lg">Ambientes</h2>
@@ -472,8 +472,8 @@ export default function AppWorkspace() {
 
       {/* Sidebar - Desktop Only */}
       <aside
-        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-        className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col p-6 z-50"
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', borderRadius: 0 }}
+        className="fixed left-0 top-0 bottom-0 w-64 glass-panel border-r border-gray-200/40 hidden lg:flex flex-col p-6 z-50 shadow-none!"
       >
         <div className="flex items-center justify-between mb-10 px-2">
           <div className="flex items-center gap-2">
@@ -769,8 +769,8 @@ function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNo
       onClick={onClick}
       className={`flex items-center gap-3 w-full p-2.5 rounded-xl transition-all ${
       active
-        ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
-        : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+        ? "glass-button-primary text-white"
+        : "text-gray-500 hover:bg-white/45 hover:text-gray-900 border border-transparent hover:border-white/20"
     }`}>
       {icon}
       <span className="text-sm font-semibold">{label}</span>
