@@ -115,12 +115,52 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const groupKeysCache = React.useRef<{ [groupId: string]: Uint8Array }>({});
 
   const getGroupCryptoKey = async (groupId: string): Promise<Uint8Array | null> => {
-    if (!user || !userKeys) {
-      console.log("[E2E] getGroupCryptoKey missing user or userKeys");
+    if (!user) {
+      console.log("[E2E] getGroupCryptoKey missing user");
       return null;
     }
+
     if (groupKeysCache.current[groupId]) {
       return groupKeysCache.current[groupId];
+    }
+
+    let resolvedUserKeys = userKeys;
+    if (!resolvedUserKeys) {
+      console.log("[E2E] getGroupCryptoKey: userKeys is null in React state, trying to resolve from Firestore...");
+      try {
+        const privateKeyRef = doc(db, `users/${user.uid}/private`, "keyData");
+        const privateKeySnap = await getDoc(privateKeyRef);
+        if (privateKeySnap.exists()) {
+          const data = privateKeySnap.data();
+          resolvedUserKeys = {
+            publicKeyJwk: data.publicKeyJwk,
+            privateKeyJwk: data.privateKeyJwk,
+          };
+          console.log("[E2E] getGroupCryptoKey: Successfully resolved userKeys from Firestore on-the-fly!");
+        } else {
+          console.log("[E2E] getGroupCryptoKey: No userKeys found in Firestore, generating on-the-fly...");
+          const { generateUserKeyPair } = await import("../lib/crypto");
+          const keys = await generateUserKeyPair();
+          await setDoc(privateKeyRef, {
+            publicKeyJwk: keys.publicKeyJwk,
+            privateKeyJwk: keys.privateKeyJwk,
+            createdAt: new Date().toISOString(),
+          });
+          await setDoc(doc(db, "users", user.uid), {
+            publicKeyJwk: keys.publicKeyJwk,
+          }, { merge: true });
+          resolvedUserKeys = keys;
+          console.log("[E2E] getGroupCryptoKey: Successfully generated and saved new userKeys on-the-fly!");
+        }
+      } catch (keyErr) {
+        console.error("[E2E] getGroupCryptoKey: Failed to resolve/generate userKeys on-the-fly:", keyErr);
+        return null;
+      }
+    }
+
+    if (!resolvedUserKeys) {
+      console.log("[E2E] getGroupCryptoKey: Could not resolve userKeys");
+      return null;
     }
 
     try {
@@ -131,7 +171,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         if (memberData.encryptedGroupKey) {
           console.log(`[E2E] Decrypting encryptedGroupKey for group: ${groupId}`);
           const { decryptGroupKeyWithPrivateKey } = await import("../lib/crypto");
-          const rawKey = await decryptGroupKeyWithPrivateKey(memberData.encryptedGroupKey, userKeys.privateKeyJwk);
+          const rawKey = await decryptGroupKeyWithPrivateKey(memberData.encryptedGroupKey, resolvedUserKeys.privateKeyJwk);
           groupKeysCache.current[groupId] = rawKey;
           return rawKey;
         }
@@ -146,7 +186,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           console.log(`[E2E] Self-healing and bootstrapping symmetric key for group: ${groupId}`);
           const { generateGroupKey, encryptGroupKeyWithPublicKey } = await import("../lib/crypto");
           const newGroupKey = await generateGroupKey();
-          const encryptedGroupKey = await encryptGroupKeyWithPublicKey(newGroupKey, userKeys.publicKeyJwk);
+          const encryptedGroupKey = await encryptGroupKeyWithPublicKey(newGroupKey, resolvedUserKeys.publicKeyJwk);
           
           await setDoc(memberRef, {
             encryptedGroupKey,
