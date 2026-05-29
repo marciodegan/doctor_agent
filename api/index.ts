@@ -1773,6 +1773,15 @@ const getSafeContentType = (fileName: string, fileMime?: string): string => {
   if (ext === "mov") return "video/quicktime";
   if (ext === "mp4") return "video/mp4";
   if (ext === "m4v") return "video/x-m4v";
+  if (ext === "webm") return "video/webm";
+  if (ext === "3gp") return "video/3gpp";
+  if (ext === "3gpp") return "video/3gpp";
+  if (ext === "mkv") return "video/x-matroska";
+  if (ext === "avi") return "video/x-msvideo";
+  if (ext === "wmv") return "video/x-ms-wmv";
+  if (ext === "flv") return "video/x-flv";
+  if (ext === "qt") return "video/quicktime";
+  if (ext === "ts") return "video/mp2t";
   if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
   if (ext === "png") return "image/png";
   if (ext === "pdf") return "application/pdf";
@@ -1927,7 +1936,22 @@ app.post("/api/app/upload-image", (req, res, next) => {
     let fileTypeResolved: "image" | "video" | "pdf" = "image";
     if (mimeToCheck.startsWith("image/") || nameToCheck.endsWith(".heic") || nameToCheck.endsWith(".jpeg") || nameToCheck.endsWith(".jpg") || nameToCheck.endsWith(".png") || nameToCheck.endsWith(".webp")) {
       fileTypeResolved = "image";
-    } else if (mimeToCheck.startsWith("video/") || nameToCheck.endsWith(".mp4") || nameToCheck.endsWith(".mov") || nameToCheck.endsWith(".webm") || nameToCheck.endsWith(".quicktime") || nameToCheck.endsWith(".m4v")) {
+    } else if (
+      mimeToCheck.startsWith("video/") || 
+      nameToCheck.endsWith(".mp4") || 
+      nameToCheck.endsWith(".mov") || 
+      nameToCheck.endsWith(".webm") || 
+      nameToCheck.endsWith(".quicktime") || 
+      nameToCheck.endsWith(".m4v") || 
+      nameToCheck.endsWith(".3gp") || 
+      nameToCheck.endsWith(".3gpp") || 
+      nameToCheck.endsWith(".mkv") || 
+      nameToCheck.endsWith(".avi") || 
+      nameToCheck.endsWith(".wmv") || 
+      nameToCheck.endsWith(".flv") || 
+      nameToCheck.endsWith(".qt") || 
+      nameToCheck.endsWith(".ts")
+    ) {
       fileTypeResolved = "video";
     } else if (mimeToCheck === "application/pdf" || nameToCheck.endsWith(".pdf")) {
       fileTypeResolved = "pdf";

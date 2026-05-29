@@ -185,7 +185,22 @@ export const PersonalDocuments: React.FC = () => {
 
     if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
       fileTypeResolved = "image";
-    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime") || name.endsWith(".m4v")) {
+    } else if (
+      mime.startsWith("video/") || 
+      name.endsWith(".mp4") || 
+      name.endsWith(".mov") || 
+      name.endsWith(".webm") || 
+      name.endsWith(".quicktime") || 
+      name.endsWith(".m4v") || 
+      name.endsWith(".3gp") || 
+      name.endsWith(".3gpp") || 
+      name.endsWith(".mkv") || 
+      name.endsWith(".avi") || 
+      name.endsWith(".wmv") || 
+      name.endsWith(".flv") || 
+      name.endsWith(".qt") || 
+      name.endsWith(".ts")
+    ) {
       fileTypeResolved = "video";
     } else if (mime === "application/pdf" || name.endsWith(".pdf")) {
       fileTypeResolved = "pdf";
@@ -249,7 +264,22 @@ export const PersonalDocuments: React.FC = () => {
     const mime = (selectedFile.type || "").toLowerCase();
     const name = (selectedFile.name || "").toLowerCase();
     let fileTypeResolved: "image" | "video" | "pdf" | "image" = "image";
-    if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".m4v")) {
+    if (
+      mime.startsWith("video/") || 
+      name.endsWith(".mp4") || 
+      name.endsWith(".mov") || 
+      name.endsWith(".webm") || 
+      name.endsWith(".quicktime") || 
+      name.endsWith(".m4v") || 
+      name.endsWith(".3gp") || 
+      name.endsWith(".3gpp") || 
+      name.endsWith(".mkv") || 
+      name.endsWith(".avi") || 
+      name.endsWith(".wmv") || 
+      name.endsWith(".flv") || 
+      name.endsWith(".qt") || 
+      name.endsWith(".ts")
+    ) {
       fileTypeResolved = "video";
     }
 
@@ -485,7 +515,7 @@ export const PersonalDocuments: React.FC = () => {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*,video/*,video/mp4,video/quicktime,.mov,.mp4,.m4v,application/pdf,.pdf"
+                    accept="image/*,video/*,application/pdf"
                     onChange={handleFileChange}
                     className="hidden"
                   />

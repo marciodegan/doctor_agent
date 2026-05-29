@@ -235,7 +235,22 @@ const MessageForm: React.FC<{
 
     if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
       fileTypeResolved = "image";
-    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime") || name.endsWith(".m4v")) {
+    } else if (
+      mime.startsWith("video/") || 
+      name.endsWith(".mp4") || 
+      name.endsWith(".mov") || 
+      name.endsWith(".webm") || 
+      name.endsWith(".quicktime") || 
+      name.endsWith(".m4v") || 
+      name.endsWith(".3gp") || 
+      name.endsWith(".3gpp") || 
+      name.endsWith(".mkv") || 
+      name.endsWith(".avi") || 
+      name.endsWith(".wmv") || 
+      name.endsWith(".flv") || 
+      name.endsWith(".qt") || 
+      name.endsWith(".ts")
+    ) {
       fileTypeResolved = "video";
     } else if (mime === "application/pdf" || name.endsWith(".pdf")) {
       fileTypeResolved = "pdf";
@@ -667,7 +682,7 @@ const MessageForm: React.FC<{
             id="native-image-upload"
             ref={fileInputRef}
             type="file"
-            accept="image/*,video/*,video/mp4,video/quicktime,.mov,.mp4,.m4v,application/pdf,.pdf"
+            accept="image/*,video/*,application/pdf"
             onChange={handleFileChange}
             style={{
               position: "absolute",
@@ -2737,22 +2752,20 @@ ${aiPart}
         if (selectedFileObj) {
           actualFile = selectedFileObj;
         } else if (selectedImage) {
-          // Convert base64 data to File for encryption
+          // Convert data URL or blob URL to File for encryption safely without atob
           try {
-            const mimeType = selectedImage.split(";")[0].split(":")[1] || "image/jpeg";
-            const base64Data = selectedImage.split(",")[1];
+            const mimeType = selectedImage.startsWith("data:") 
+              ? (selectedImage.split(";")[0].split(":")[1] || "image/jpeg")
+              : (selectedFileObj?.type || "image/jpeg");
             const ext = mimeType.split("/")[1] || "jpg";
             const extResolved = ext === "quicktime" ? "mov" : ext;
             const safeName = `Chat_P${id}_${new Date().getTime()}.${extResolved}`;
             
-            const bytes = atob(base64Data);
-            const u8arr = new Uint8Array(bytes.length);
-            for (let i = 0; i < bytes.length; i++) {
-              u8arr[i] = bytes.charCodeAt(i);
-            }
-            actualFile = new File([u8arr], safeName, { type: mimeType });
+            const fileResponse = await fetch(selectedImage);
+            const fileBlob = await fileResponse.blob();
+            actualFile = new File([fileBlob], safeName, { type: mimeType });
           } catch (e) {
-            console.warn("[E2E] Base64 file parsing failed", e);
+            console.warn("[E2E] File parsing from selectedImage failed", e);
           }
         }
 
@@ -2778,7 +2791,23 @@ ${aiPart}
         }
 
         const mimeTypeToCheck = actualFile ? actualFile.type : "";
-        if (mimeTypeToCheck.startsWith("video/") || (actualFile && (actualFile.name.toLowerCase().endsWith(".mov") || actualFile.name.toLowerCase().endsWith(".mp4")))) {
+        const nameToCheckLower = actualFile ? (actualFile.name || "").toLowerCase() : "";
+        if (
+          mimeTypeToCheck.startsWith("video/") || 
+          nameToCheckLower.endsWith(".mp4") || 
+          nameToCheckLower.endsWith(".mov") || 
+          nameToCheckLower.endsWith(".webm") || 
+          nameToCheckLower.endsWith(".quicktime") || 
+          nameToCheckLower.endsWith(".m4v") || 
+          nameToCheckLower.endsWith(".3gp") || 
+          nameToCheckLower.endsWith(".3gpp") || 
+          nameToCheckLower.endsWith(".mkv") || 
+          nameToCheckLower.endsWith(".avi") || 
+          nameToCheckLower.endsWith(".wmv") || 
+          nameToCheckLower.endsWith(".flv") || 
+          nameToCheckLower.endsWith(".qt") || 
+          nameToCheckLower.endsWith(".ts")
+        ) {
           isVideoUpload = true;
         }
 

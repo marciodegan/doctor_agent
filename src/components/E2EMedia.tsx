@@ -145,8 +145,23 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
 
   // Resolve type
   const actualContentType = encryption?.originalContentType || "";
-  const isVideo = actualContentType.startsWith("video/") || fallbackType === "video" || src.toLowerCase().split("?")[0].endsWith(".mp4") || src.toLowerCase().split("?")[0].endsWith(".mov");
-  const isPdf = actualContentType === "application/pdf" || fallbackType === "pdf" || src.toLowerCase().split("?")[0].endsWith(".pdf");
+  const cleanSrcPath = src.toLowerCase().split("?")[0];
+  const isVideoExtension = 
+    cleanSrcPath.endsWith(".mp4") || 
+    cleanSrcPath.endsWith(".mov") || 
+    cleanSrcPath.endsWith(".webm") || 
+    cleanSrcPath.endsWith(".quicktime") || 
+    cleanSrcPath.endsWith(".m4v") || 
+    cleanSrcPath.endsWith(".3gp") || 
+    cleanSrcPath.endsWith(".3gpp") || 
+    cleanSrcPath.endsWith(".mkv") || 
+    cleanSrcPath.endsWith(".avi") || 
+    cleanSrcPath.endsWith(".wmv") || 
+    cleanSrcPath.endsWith(".flv") || 
+    cleanSrcPath.endsWith(".qt") || 
+    cleanSrcPath.endsWith(".ts");
+  const isVideo = actualContentType.startsWith("video/") || fallbackType === "video" || isVideoExtension;
+  const isPdf = actualContentType === "application/pdf" || fallbackType === "pdf" || cleanSrcPath.endsWith(".pdf");
 
   if (isPdf) {
     return (
