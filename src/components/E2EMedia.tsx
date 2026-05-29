@@ -61,8 +61,14 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
           throw new Error("Chave de segurança indisponível.");
         }
 
-        console.log(`[E2E] Fetching and decrypting resource: ${src}`);
-        const res = await fetch(src);
+        let fetchUrl = src;
+        // Routing through our proxy to avoid CORS issues for storage resources in the iframe
+        if (src.startsWith("https://storage.googleapis.com/") || src.includes(".firebasestorage.app") || src.includes("firebasestorage.googleapis.com")) {
+          fetchUrl = `/api/app/proxy-storage-file?url=${encodeURIComponent(src)}`;
+        }
+
+        console.log(`[E2E] Fetching and decrypting resource: ${fetchUrl}`);
+        const res = await fetch(fetchUrl);
         if (!res.ok) {
           throw new Error(`Downloads falharam com status: ${res.status}`);
         }

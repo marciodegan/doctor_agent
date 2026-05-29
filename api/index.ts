@@ -1784,6 +1784,52 @@ const getSafeContentType = (fileName: string, fileMime?: string): string => {
   return "application/octet-stream";
 };
 
+// Secure proxy for Firebase Storage files to bypass browser CORS restrictions during decryption
+app.get("/api/app/proxy-storage-file", async (req, res) => {
+  const fileUrl = req.query.url as string;
+  if (!fileUrl) {
+    return res.status(400).json({ error: "Parâmetro URL é obrigatório." });
+  }
+
+  try {
+    await requireAuth(req);
+
+    const parsedUrl = new URL(fileUrl);
+    const host = parsedUrl.hostname;
+    const isValidHost = 
+      host === "storage.googleapis.com" || 
+      host.endsWith(".firebasestorage.app") || 
+      host === "firebasestorage.googleapis.com";
+
+    if (!isValidHost) {
+      return res.status(400).json({ error: "Host de armazenamento inválido." });
+    }
+
+    console.log(`[ProxyStorage] Fetching file over backend proxy to bypass CORS: ${fileUrl}`);
+    const r = await fetch(fileUrl);
+    if (!r.ok) {
+      return res.status(r.status).json({ error: `Erro no servidor do Storage: ${r.statusText}` });
+    }
+
+    const contentType = r.headers.get("content-type");
+    if (contentType) {
+      res.setHeader("Content-Type", contentType);
+    }
+    const contentLength = r.headers.get("content-length");
+    if (contentLength) {
+      res.setHeader("Content-Length", contentLength);
+    }
+
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
+    const arrayBuffer = await r.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (error: any) {
+    console.error("[ProxyStorage] Proxy file failed:", error);
+    res.status(500).json({ error: error.message || "Falha do proxy do arquivo." });
+  }
+});
+
 // Upload image/document directly to Firebase Storage and link to Firestore
 const upload = multer({
   storage: multer.memoryStorage(),
