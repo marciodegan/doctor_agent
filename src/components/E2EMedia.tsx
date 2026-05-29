@@ -24,7 +24,7 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
   alt = "Imagem",
   controls = true
 }) => {
-  const { activeGroup, getGroupCryptoKey } = useGroup();
+  const { activeGroup, getGroupCryptoKey, apiFetch } = useGroup();
   const [decryptedUrl, setDecryptedUrl] = useState<string | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,12 +63,14 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
 
         let fetchUrl = src;
         // Routing through our proxy to avoid CORS issues for storage resources in the iframe
+        let isProxied = false;
         if (src.startsWith("https://storage.googleapis.com/") || src.includes(".firebasestorage.app") || src.includes("firebasestorage.googleapis.com")) {
           fetchUrl = `/api/app/proxy-storage-file?url=${encodeURIComponent(src)}`;
+          isProxied = true;
         }
 
         console.log(`[E2E] Fetching and decrypting resource: ${fetchUrl}`);
-        const res = await fetch(fetchUrl);
+        const res = isProxied ? await apiFetch(fetchUrl) : await fetch(fetchUrl);
         if (!res.ok) {
           throw new Error(`Downloads falharam com status: ${res.status}`);
         }
@@ -128,7 +130,7 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
       <div className={`flex flex-col items-center justify-center p-6 bg-red-50 border border-red-100 rounded-2xl ${className}`}>
         <AlertCircle className="h-5 w-5 text-red-500 mb-1" />
         <span className="text-[9px] font-bold text-red-600 uppercase tracking-widest text-center">
-          {error === "Chave de segurança indisponível." ? "Acesso Negado" : "Erro ao descriptografar"}
+          {error === "Chave de segurança indisponível." ? "Acesso Negado" : `Erro ao descriptografar (${error})`}
         </span>
       </div>
     );

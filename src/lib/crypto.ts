@@ -227,8 +227,9 @@ export async function decryptFile(
     });
 
     return URL.createObjectURL(decryptedBlob);
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Crypto] Decryption failed", error);
-    throw new Error("Não foi possível abrir este arquivo protegido.");
+    const detail = error && error.message ? `: ${error.message}` : " (erro de integridade ou chave incorreta)";
+    throw new Error(`Não foi possível abrir este arquivo protegido${detail}`);
   }
 }
