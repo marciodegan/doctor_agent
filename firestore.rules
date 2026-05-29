@@ -67,6 +67,10 @@ service cloud.firestore {
         allow read: if isSignedIn() && request.auth.uid == userId;
         allow write: if isSignedIn() && request.auth.uid == userId;
       }
+
+      match /private/{docId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
     }
 
     // User personal notes
