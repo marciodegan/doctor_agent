@@ -27,6 +27,7 @@ interface Group {
   active?: boolean;
   ativo?: boolean;
   role?: string;
+  encryptionEnabled?: boolean;
 }
 
 interface GroupMember {
@@ -399,6 +400,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
             status: status as any,
             active: status === "active",
             ativo: status === "active",
+            encryptionEnabled: !!data.encryptionEnabled,
           } as Group;
         });
         setOwnedGroups(owned);
@@ -556,7 +558,8 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         active: status === "active",
         ativo: status === "active",
         createdBy: centralDoc?.createdBy || m.createdBy || "",
-        role: m.role || ""
+        role: m.role || "",
+        encryptionEnabled: centralDoc?.encryptionEnabled || false,
       } as Group;
     });
 
@@ -600,6 +603,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           status: g.status || existing.status || "active",
           active: (g.status || existing.status || "active") === "active",
           ativo: (g.status || existing.status || "active") === "active",
+          encryptionEnabled: centralDoc?.encryptionEnabled || g.encryptionEnabled || existing.encryptionEnabled || false,
         });
       } else {
         groupsMap.set(g.id, {
@@ -609,6 +613,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           groupType,
           active: g.status === "active",
           ativo: g.status === "active",
+          encryptionEnabled: centralDoc?.encryptionEnabled || g.encryptionEnabled || false,
         });
       }
     });
@@ -766,6 +771,59 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         status: "active",
         joinedAt: serverTimestamp(),
       });
+
+      // E2E Encryption Bootstrapping
+      try {
+        let activeUserKeys = userKeys;
+        if (!activeUserKeys) {
+          console.log("[E2E] userKeys not in context state yet during group creation, loading from database...");
+          const privateKeyRef = doc(db, `users/${user.uid}/private`, "keyData");
+          const privateKeySnap = await getDoc(privateKeyRef);
+          if (privateKeySnap.exists()) {
+            const data = privateKeySnap.data();
+            activeUserKeys = {
+              publicKeyJwk: data.publicKeyJwk,
+              privateKeyJwk: data.privateKeyJwk,
+            };
+          } else {
+            console.log("[E2E] Generating keys on-the-fly during group creation...");
+            const { generateUserKeyPair } = await import("../lib/crypto");
+            const keys = await generateUserKeyPair();
+            await setDoc(privateKeyRef, {
+              publicKeyJwk: keys.publicKeyJwk,
+              privateKeyJwk: keys.privateKeyJwk,
+              createdAt: new Date().toISOString(),
+            });
+            await setDoc(doc(db, "users", user.uid), {
+              publicKeyJwk: keys.publicKeyJwk,
+            }, { merge: true });
+            activeUserKeys = keys;
+          }
+        }
+
+        if (activeUserKeys) {
+          console.log("[E2E] Bootstrapping symmetric key for new group:", groupId);
+          const { generateGroupKey, encryptGroupKeyWithPublicKey } = await import("../lib/crypto");
+          const newGroupKey = await generateGroupKey();
+          const encryptedGroupKey = await encryptGroupKeyWithPublicKey(newGroupKey, activeUserKeys.publicKeyJwk);
+
+          // Update member document with the encryptedGroupKey
+          await setDoc(doc(db, `groups/${groupId}/members`, user.uid), {
+            encryptedGroupKey,
+            keyVersion: 1
+          }, { merge: true });
+
+          // Update group document to set encryptionEnabled
+          await setDoc(groupRef, {
+            encryptionEnabled: true
+          }, { merge: true });
+
+          // Cache the decrypted key in-memory
+          groupKeysCache.current[groupId] = newGroupKey;
+        }
+      } catch (cryptoErr) {
+        console.error("[E2E] Failed to bootstrap E2E key on group creation:", cryptoErr);
+      }
 
       // Add to user's memberships
       await setDoc(doc(db, `users/${user.uid}/memberships`, groupId), {

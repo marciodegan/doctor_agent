@@ -263,18 +263,19 @@ export const PersonalDocuments: React.FC = () => {
 
       try {
         const groupKey = await getGroupCryptoKey(activeGroup.id);
-        if (groupKey) {
-          console.log("[E2E] Encrypting personal document before upload");
-          const { encryptFile } = await import("../lib/crypto");
-          const { encryptedBlob, ivBase64: iv } = await encryptFile(selectedFile, groupKey);
-          fileToUpload = new File([encryptedBlob], selectedFile.name + ".encrypted", { type: "application/octet-stream" });
-          isEncrypted = true;
-          ivBase64 = iv;
-          originalContentType = selectedFile.type || "application/octet-stream";
+        if (!groupKey) {
+          throw new Error("Chave de segurança do grupo indisponível. Para sua segurança, o envio de arquivos não criptografados foi bloqueado.");
         }
-      } catch (e) {
+        console.log("[E2E] Encrypting personal document before upload");
+        const { encryptFile } = await import("../lib/crypto");
+        const { encryptedBlob, ivBase64: iv } = await encryptFile(selectedFile, groupKey);
+        fileToUpload = new File([encryptedBlob], selectedFile.name + ".encrypted", { type: "application/octet-stream" });
+        isEncrypted = true;
+        ivBase64 = iv;
+        originalContentType = selectedFile.type || "application/octet-stream";
+      } catch (e: any) {
         console.error("[E2E] Client-side encryption failed", e);
-        throw new Error("Falha ao criptografar o arquivo antes do envio.");
+        throw new Error(e.message || "Falha ao criptografar o arquivo antes do envio.");
       }
 
       // Detailed pre-upload logs for debugging

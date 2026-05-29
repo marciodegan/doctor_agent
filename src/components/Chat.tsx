@@ -2760,19 +2760,20 @@ ${aiPart}
           try {
             if (activeGroup?.id) {
               const groupKey = await getGroupCryptoKey(activeGroup.id);
-              if (groupKey) {
-                console.log("[E2E] Encrypting chat file before upload");
-                const { encryptFile } = await import("../lib/crypto");
-                const { encryptedBlob, ivBase64: iv } = await encryptFile(actualFile, groupKey);
-                fileToUpload = new File([encryptedBlob], actualFile.name + ".encrypted", { type: "application/octet-stream" });
-                isEncrypted = true;
-                ivBase64 = iv;
-                originalContentType = actualFile.type || "application/octet-stream";
+              if (!groupKey) {
+                throw new Error("Chave de segurança do grupo indisponível. Para sua segurança, o envio de arquivos não criptografados foi bloqueado.");
               }
+              console.log("[E2E] Encrypting chat file before upload");
+              const { encryptFile } = await import("../lib/crypto");
+              const { encryptedBlob, ivBase64: iv } = await encryptFile(actualFile, groupKey);
+              fileToUpload = new File([encryptedBlob], actualFile.name + ".encrypted", { type: "application/octet-stream" });
+              isEncrypted = true;
+              ivBase64 = iv;
+              originalContentType = actualFile.type || "application/octet-stream";
             }
-          } catch (e) {
+          } catch (e: any) {
             console.error("[E2E] Chat file encryption failure", e);
-            throw new Error("Não foi possível criptografar o arquivo no dispositivo.");
+            throw new Error(e.message || "Não foi possível criptografar o arquivo no dispositivo.");
           }
         }
 
