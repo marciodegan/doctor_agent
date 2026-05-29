@@ -23,6 +23,7 @@ import {
 import { useGroup } from "../contexts/GroupContext";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 import { PatientListView } from "./PatientListView";
+import { E2EMedia } from "./E2EMedia";
 
 const sanitizeFileName = (fileName: string): string => {
   if (!fileName) return "arquivo_" + Date.now();
@@ -899,7 +900,7 @@ export const Chat: React.FC<{
   initialCommand?: string | null,
   onCommandExecuted?: () => void
 }> = ({ onNavigateToCalendar, onViewLogs, initialCommand, onCommandExecuted }) => {
-  const { activeGroup, companyName, whatsappNumber, imageAnalysisPrompt, apiFetch } = useGroup();
+  const { activeGroup, companyName, whatsappNumber, imageAnalysisPrompt, apiFetch, getGroupCryptoKey } = useGroup();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -2726,55 +2727,79 @@ ${aiPart}
 
         let res;
         
+        let fileToUpload: File | null = selectedFileObj;
+        let isEncrypted = false;
+        let ivBase64 = "";
+        let originalContentType = "";
+
+        // Normalize image/video parsing for encryption
+        let actualFile: File | null = null;
         if (selectedFileObj) {
-          const mimeType = selectedFileObj.type || "";
-          if (mimeType.startsWith("video/") || selectedFileObj.name.toLowerCase().endsWith(".mov") || selectedFileObj.name.toLowerCase().endsWith(".mp4")) {
-            isVideoUpload = true;
+          actualFile = selectedFileObj;
+        } else if (selectedImage) {
+          // Convert base64 data to File for encryption
+          try {
+            const mimeType = selectedImage.split(";")[0].split(":")[1] || "image/jpeg";
+            const base64Data = selectedImage.split(",")[1];
+            const ext = mimeType.split("/")[1] || "jpg";
+            const extResolved = ext === "quicktime" ? "mov" : ext;
+            const safeName = `Chat_P${id}_${new Date().getTime()}.${extResolved}`;
+            
+            const bytes = atob(base64Data);
+            const u8arr = new Uint8Array(bytes.length);
+            for (let i = 0; i < bytes.length; i++) {
+              u8arr[i] = bytes.charCodeAt(i);
+            }
+            actualFile = new File([u8arr], safeName, { type: mimeType });
+          } catch (e) {
+            console.warn("[E2E] Base64 file parsing failed", e);
           }
+        }
 
-          console.log("[Upload] [FormData] file", selectedFileObj);
-          console.log("[Upload] [FormData] name", selectedFileObj.name);
-          console.log("[Upload] [FormData] size", selectedFileObj.size);
+        if (actualFile) {
+          try {
+            if (activeGroup?.id) {
+              const groupKey = await getGroupCryptoKey(activeGroup.id);
+              if (groupKey) {
+                console.log("[E2E] Encrypting chat file before upload");
+                const { encryptFile } = await import("../lib/crypto");
+                const { encryptedBlob, ivBase64: iv } = await encryptFile(actualFile, groupKey);
+                fileToUpload = new File([encryptedBlob], actualFile.name + ".encrypted", { type: "application/octet-stream" });
+                isEncrypted = true;
+                ivBase64 = iv;
+                originalContentType = actualFile.type || "application/octet-stream";
+              }
+            }
+          } catch (e) {
+            console.error("[E2E] Chat file encryption failure", e);
+            throw new Error("Não foi possível criptografar o arquivo no dispositivo.");
+          }
+        }
 
+        const mimeTypeToCheck = actualFile ? actualFile.type : "";
+        if (mimeTypeToCheck.startsWith("video/") || (actualFile && (actualFile.name.toLowerCase().endsWith(".mov") || actualFile.name.toLowerCase().endsWith(".mp4")))) {
+          isVideoUpload = true;
+        }
+
+        if (fileToUpload) {
+          console.log("[Upload] [FormData] sending file, encryption status:", isEncrypted);
           const formData = new FormData();
-          formData.append("file", selectedFileObj);
+          formData.append("file", fileToUpload);
           formData.append("patientId", id);
-          formData.append("description", desc || selectedFileObj.name || "Documento via Chat");
+          formData.append("description", desc || (actualFile ? actualFile.name : "Documento via Chat"));
           formData.append("platform", /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other");
+          if (isEncrypted) {
+            formData.append("isEncrypted", "true");
+            formData.append("iv", ivBase64);
+            formData.append("originalContentType", originalContentType);
+          }
 
           res = await apiFetch("/api/app/upload-image", {
             method: "POST",
             body: formData
           });
         } else {
-          // Fallback to Base64 JSON
-          const mimeType = selectedImage.split(";")[0].split(":")[1] || "image/jpeg";
-          const base64Data = selectedImage.split(",")[1];
-          const ext = mimeType.split("/")[1] || "jpg";
-          const extResolved = ext === "quicktime" ? "mov" : ext;
-          const safeName = `Chat_P${id}_${new Date().getTime()}.${extResolved}`;
-
-          if (mimeType.startsWith("video/") || extResolved === "mov" || extResolved === "mp4") {
-            isVideoUpload = true;
-          }
-
-          console.log("[Upload] [Base64] name", safeName);
-          console.log("[Upload] [Base64] size", base64Data.length * 0.75);
-
-          res = await apiFetch("/api/app/upload-image", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              patientId: id,
-              description: desc || "Documento via Chat",
-              mimeType: mimeType,
-              base64Data: base64Data,
-              fileName: safeName,
-              originalName: safeName,
-              size: base64Data.length * 0.75,
-              platform: /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other"
-            })
-          });
+          throw new Error("Nenhum arquivo ou imagem selecionados para upload.");
         }
 
         const data = await res.json();
@@ -3503,17 +3528,13 @@ ${aiPart}
                   )}
                   {msg.image && (
                     <div className="max-w-full rounded-lg mb-2 shadow-sm overflow-hidden bg-slate-100 flex items-center justify-center">
-                      {isPdfUrl(msg.image) ? (
-                        <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-900 text-center gap-2">
-                          <FileText className="text-red-500 animate-pulse" size={32} />
-                          <span className="text-[10px] font-bold text-white truncate max-w-[150px]">Documento PDF</span>
-                          <a href={msg.image} target="_blank" rel="noreferrer" className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg transition-all">Abrir PDF</a>
-                        </div>
-                      ) : isVideoUrl(msg.image) ? (
-                        <video src={msg.image} controls className="max-h-[300px] w-full object-contain bg-slate-950" />
-                      ) : (
-                        <img src={msg.image} alt="User upload" className="max-h-[300px] w-full object-contain" />
-                      )}
+                      <E2EMedia
+                        src={msg.image}
+                        encryption={null}
+                        fallbackType={isPdfUrl(msg.image) ? "pdf" : isVideoUrl(msg.image) ? "video" : "image"}
+                        alt="Preview de envio"
+                        className="max-h-[300px] w-full object-contain"
+                      />
                     </div>
                   )}
                   {msg.audio && (
@@ -4097,78 +4118,69 @@ ${aiPart}
                                       {imagensItems.length === 0 ? (
                                         <p className="text-xs text-slate-400 italic font-medium">Nenhum registro</p>
                                       ) : (
-                                        imagensItems.map((img, idx) => (
-                                          <div key={idx} className="flex flex-col gap-3 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
-                                            {img.src && (
-                                              <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-slate-100">
-                                                {isPdfUrl(img.src) ? (
-                                                  <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-900 text-center gap-2">
-                                                    <FileText className="text-red-500" size={32} />
-                                                    <span className="text-[10px] font-bold text-white truncate max-w-[150px]">{img.alt || "Documento PDF"}</span>
-                                                    <a href={img.src} target="_blank" rel="noreferrer" className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg transition-all">Abrir PDF</a>
-                                                  </div>
-                                                ) : isVideoUrl(img.src) ? (
-                                                  <video 
-                                                    src={img.src} 
-                                                    controls 
-                                                    playsInline muted preload="metadata"
-                                                    className="w-full h-full object-cover" 
+                                        imagensItems.map((img, idx) => {
+                                          const originalRecord = msg.reportData?.imagens?.find((item: any) => item.link === img.src);
+                                          const encryptionMeta = originalRecord?.encryption;
+
+                                          return (
+                                            <div key={idx} className="flex flex-col gap-3 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
+                                              {img.src && (
+                                                <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-slate-100">
+                                                  <E2EMedia
+                                                    src={img.src}
+                                                    encryption={encryptionMeta}
+                                                    fallbackType={isPdfUrl(img.src) ? "pdf" : isVideoUrl(img.src) ? "video" : "image"}
+                                                    alt={img.alt || "Imagem de exame"}
+                                                    className="w-full h-full object-cover animate-fade-in"
                                                   />
-                                                ) : (
-                                                  <img 
-                                                    src={img.src} 
-                                                    alt={img.alt || "Imagem de exame"} 
-                                                    referrerPolicy="no-referrer"
-                                                    className="w-full h-full object-cover" 
-                                                  />
-                                                )}
-                                              </div>
-                                            )}
-                                            
-                                            <div className="flex flex-row items-center justify-between gap-4">
-                                              <div className="flex flex-col min-w-0 flex-1">
-                                                <span className="font-semibold text-slate-800 text-sm leading-snug">
-                                                  {img.alt || "Sem descrição"}
-                                                </span>
-                                                {img.date && (
-                                                  <span className="text-[11px] font-medium text-slate-400 mt-1">
-                                                    {img.date}
+                                                </div>
+                                              )}
+                                              
+                                              <div className="flex flex-row items-center justify-between gap-4">
+                                                <div className="flex flex-col min-w-0 flex-1">
+                                                  <span className="font-semibold text-slate-800 text-sm leading-snug">
+                                                    {img.alt || "Sem descrição"}
                                                   </span>
-                                                )}
+                                                  {img.date && (
+                                                    <span className="text-[11px] font-medium text-slate-400 mt-1">
+                                                      {img.date}
+                                                    </span>
+                                                  )}
+                                                </div>
+
+                                                {/* Action Buttons */}
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                  {img.trashCmd && (
+                                                    <button
+                                                      onClick={() => {
+                                                        setConfirmCommand({
+                                                          title: "Remover esta imagem?",
+                                                          cmd: img.trashCmd!,
+                                                          shouldClear: false
+                                                        });
+                                                      }}
+                                                      className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100/70 transition-all font-sans text-xs active:scale-90"
+                                                      title="Remover Imagem"
+                                                    >
+                                                      🗑️
+                                                    </button>
+                                                  )}
+                                                </div>
                                               </div>
 
-                                              {/* Action Buttons */}
-                                              <div className="flex items-center gap-1.5 shrink-0">
-                                                {img.trashCmd && (
-                                                  <button
-                                                    onClick={() => {
-                                                      setConfirmCommand({
-                                                        title: "Remover esta imagem?",
-                                                        cmd: img.trashCmd!,
-                                                        shouldClear: false
-                                                      });
-                                                    }}
-                                                    className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100/70 transition-all font-sans text-xs active:scale-90"
-                                                    title="Remover Imagem"
-                                                  >
-                                                    🗑️
-                                                  </button>
-                                                )}
-                                              </div>
+                                              {img.aiAnalysis && (
+                                                <div className="bg-blue-50/10 border border-blue-50/50 rounded-2xl p-3.5 text-xs text-slate-600 mt-1 flex flex-col gap-1.5">
+                                                  <span className="font-bold text-blue-800 flex items-center gap-1">
+                                                    🤖 Análise Inteligente:
+                                                  </span>
+                                                  <p className="whitespace-pre-wrap leading-relaxed">
+                                                    {img.aiAnalysis}
+                                                  </p>
+                                                </div>
+                                              )}
                                             </div>
-
-                                            {img.aiAnalysis && (
-                                              <div className="bg-blue-50/10 border border-blue-50/50 rounded-2xl p-3.5 text-xs text-slate-600 mt-1 flex flex-col gap-1.5">
-                                                <span className="font-bold text-blue-800 flex items-center gap-1">
-                                                  🤖 Análise Inteligente:
-                                                </span>
-                                                <p className="whitespace-pre-wrap leading-relaxed">
-                                                  {img.aiAnalysis}
-                                                </p>
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))
+                                          );
+                                        })
                                       )}
                                     </div>
                                   </div>

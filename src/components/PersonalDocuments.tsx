@@ -19,6 +19,7 @@ import { ai } from "../lib/gemini";
 import { db } from "../lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import ReactMarkdown from "react-markdown";
+import { E2EMedia } from "./E2EMedia";
 
 interface PersonalImage {
   id: string;
@@ -31,6 +32,12 @@ interface PersonalImage {
   size?: number;
   originalName?: string;
   uploadedByEmail?: string;
+  encryption?: {
+    algorithm: string;
+    iv: string;
+    originalContentType: string;
+    encrypted: boolean;
+  } | null;
 }
 
 const sanitizeFileName = (fileName: string): string => {
@@ -103,7 +110,7 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
 };
 
 export const PersonalDocuments: React.FC = () => {
-  const { activeGroup, apiFetch, imageAnalysisPrompt } = useGroup();
+  const { activeGroup, apiFetch, imageAnalysisPrompt, getGroupCryptoKey } = useGroup();
   
   const [images, setImages] = useState<PersonalImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -249,17 +256,43 @@ export const PersonalDocuments: React.FC = () => {
     try {
       const patientId = `personal_${activeGroup.id}`;
 
+      let fileToUpload = selectedFile;
+      let isEncrypted = false;
+      let ivBase64 = "";
+      let originalContentType = "";
+
+      try {
+        const groupKey = await getGroupCryptoKey(activeGroup.id);
+        if (groupKey) {
+          console.log("[E2E] Encrypting personal document before upload");
+          const { encryptFile } = await import("../lib/crypto");
+          const { encryptedBlob, ivBase64: iv } = await encryptFile(selectedFile, groupKey);
+          fileToUpload = new File([encryptedBlob], selectedFile.name + ".encrypted", { type: "application/octet-stream" });
+          isEncrypted = true;
+          ivBase64 = iv;
+          originalContentType = selectedFile.type || "application/octet-stream";
+        }
+      } catch (e) {
+        console.error("[E2E] Client-side encryption failed", e);
+        throw new Error("Falha ao criptografar o arquivo antes do envio.");
+      }
+
       // Detailed pre-upload logs for debugging
-      console.log("[Upload] [FormData] file", selectedFile);
-      console.log("[Upload] [FormData] name", selectedFile.name);
-      console.log("[Upload] [FormData] type", selectedFile.type);
-      console.log("[Upload] [FormData] size", selectedFile.size);
+      console.log("[Upload] [FormData] file", fileToUpload);
+      console.log("[Upload] [FormData] name", fileToUpload.name);
+      console.log("[Upload] [FormData] type", fileToUpload.type);
+      console.log("[Upload] [FormData] size", fileToUpload.size);
 
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      formData.append("file", fileToUpload);
       formData.append("patientId", patientId);
       formData.append("description", description || selectedFile.name);
       formData.append("platform", /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other");
+      if (isEncrypted) {
+        formData.append("isEncrypted", "true");
+        formData.append("iv", ivBase64);
+        formData.append("originalContentType", originalContentType);
+      }
 
       const res = await apiFetch("/api/app/upload-image", {
         method: "POST",
@@ -546,62 +579,13 @@ export const PersonalDocuments: React.FC = () => {
               >
                 {/* File panel */}
                 <div className="relative aspect-video w-full bg-slate-900 border-b border-slate-100 group flex items-center justify-center">
-                  {img.fileType === "pdf" || (img.link && img.link.split("?")[0].toLowerCase().endsWith(".pdf")) ? (
-                    <div className="flex flex-col items-center justify-center p-6 text-center text-white h-full w-full bg-gradient-to-br from-slate-800 to-slate-950">
-                      <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 mb-3 shadow-inner">
-                        <FileText size={30} />
-                      </div>
-                      <span className="text-xs font-black text-slate-100 px-4 truncate max-w-full" title={img.originalName || img.descricao}>
-                        {img.originalName || img.descricao}
-                      </span>
-                      {img.size ? (
-                        <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-extrabold">
-                          PDF • {(img.size / (1024 * 1024)).toFixed(2)} MB
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-extrabold">
-                          Documento PDF
-                        </span>
-                      )}
-                      
-                      <div className="flex items-center gap-2 mt-4 relative z-10">
-                        <a
-                          href={img.link}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg transition-all"
-                        >
-                          <ExternalLink size={11} />
-                          Abrir PDF
-                        </a>
-                        <a
-                          href={img.link}
-                          download={img.originalName || "documento.pdf"}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded-lg transition-all border border-slate-700"
-                        >
-                          <Download size={11} />
-                          Baixar
-                        </a>
-                      </div>
-                    </div>
-                  ) : img.fileType === "video" || isVideoUrl(img.link) ? (
-                    <video 
-                      src={img.link} 
-                      controls
-                      playsInline muted preload="metadata"
-                      className="w-full h-full object-contain bg-slate-950"
-                    />
-                  ) : (
-                    <img 
-                      src={img.link} 
-                      alt={img.descricao} 
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover transition-all duration-300 group-hover:scale-102"
-                      onClick={() => window.open(img.link, "_blank")}
-                    />
-                  )}
+                  <E2EMedia
+                    src={img.link}
+                    encryption={img.encryption}
+                    fallbackType={img.fileType}
+                    alt={img.descricao}
+                    className="w-full h-full object-cover animate-fade-in"
+                  />
                   
                   {/* Delete button bar */}
                   <div className="absolute top-3 right-3 flex items-center gap-1.5 z-20">

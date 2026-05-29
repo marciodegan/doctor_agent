@@ -37,6 +37,7 @@ interface GroupMember {
   whatsapp?: string;
   role: string;
   status: "active" | "pending" | "cancelled" | "removed" | "conectado";
+  encryptedGroupKey?: string;
 }
 
 interface GroupContextType {
@@ -75,6 +76,7 @@ interface GroupContextType {
     whatsapp?: string,
   ) => Promise<void>;
   apiFetch: (url: string, init?: RequestInit) => Promise<Response>;
+  getGroupCryptoKey: (groupId: string) => Promise<Uint8Array | null>;
   isManagementOpen: boolean;
   setIsManagementOpen: (open: boolean) => void;
   managementMode: "dashboard" | "members" | "configs" | "shopping_config";
@@ -86,7 +88,7 @@ interface GroupContextType {
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
 
 export function GroupProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, userKeys } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [invites, setInvites] = useState<Group[]>([]);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
@@ -107,6 +109,109 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [configsActiveTab, setConfigsActiveTab] = useState<string | null>(null);
   const [firestoreLastGroupId, setFirestoreLastGroupId] = useState<string | null>(null);
   const [groupDocs, setGroupDocs] = useState<Record<string, any>>({});
+
+  // In-memory cache of decrypted group symmetric key (Uint8Array)
+  const groupKeysCache = React.useRef<{ [groupId: string]: Uint8Array }>({});
+
+  const getGroupCryptoKey = async (groupId: string): Promise<Uint8Array | null> => {
+    if (!user || !userKeys) {
+      console.log("[E2E] getGroupCryptoKey missing user or userKeys");
+      return null;
+    }
+    if (groupKeysCache.current[groupId]) {
+      return groupKeysCache.current[groupId];
+    }
+
+    try {
+      const memberRef = doc(db, `groups/${groupId}/members`, user.uid);
+      const memberSnap = await getDoc(memberRef);
+      if (memberSnap.exists()) {
+        const memberData = memberSnap.data();
+        if (memberData.encryptedGroupKey) {
+          console.log(`[E2E] Decrypting encryptedGroupKey for group: ${groupId}`);
+          const { decryptGroupKeyWithPrivateKey } = await import("../lib/crypto");
+          const rawKey = await decryptGroupKeyWithPrivateKey(memberData.encryptedGroupKey, userKeys.privateKeyJwk);
+          groupKeysCache.current[groupId] = rawKey;
+          return rawKey;
+        }
+      }
+
+      // Self-healing: if current user is owner/creator of an active group that doesn't have an E2E key yet, let's bootstrap it!
+      const groupRef = doc(db, `groups`, groupId);
+      const groupSnap = await getDoc(groupRef);
+      if (groupSnap.exists()) {
+        const groupData = groupSnap.data();
+        if (groupData.createdBy === user.uid) {
+          console.log(`[E2E] Self-healing and bootstrapping symmetric key for group: ${groupId}`);
+          const { generateGroupKey, encryptGroupKeyWithPublicKey } = await import("../lib/crypto");
+          const newGroupKey = await generateGroupKey();
+          const encryptedGroupKey = await encryptGroupKeyWithPublicKey(newGroupKey, userKeys.publicKeyJwk);
+          
+          await setDoc(memberRef, {
+            encryptedGroupKey,
+            keyVersion: 1
+          }, { merge: true });
+
+          await setDoc(groupRef, {
+            encryptionEnabled: true
+          }, { merge: true });
+
+          groupKeysCache.current[groupId] = newGroupKey;
+          return newGroupKey;
+        }
+      }
+    } catch (e) {
+      console.error("[E2E] getGroupCryptoKey failed:", e);
+    }
+    return null;
+  };
+
+  // Background secure key sync / rotation to other verified members of active group
+  useEffect(() => {
+    if (activeGroup && activeGroupMembers.length > 0 && user && userKeys) {
+      const syncGroupKeys = async () => {
+        try {
+          const myKey = await getGroupCryptoKey(activeGroup.id);
+          if (!myKey) return;
+
+          for (const member of activeGroupMembers) {
+            // Locate member documents that are active/conectado but don't have the encryptedGroupKey yet
+            if (
+              member.userId && 
+              member.userId !== user.uid && 
+              (member.status === "conectado" || member.status === "active") && 
+              !member.encryptedGroupKey
+            ) {
+              const targetUserSnap = await getDoc(doc(db, "users", member.userId));
+              if (targetUserSnap.exists()) {
+                const targetData = targetUserSnap.data();
+                if (targetData.publicKeyJwk) {
+                  console.log(`[E2E] Encrypting group key with member public key for email: ${member.userEmail}`);
+                  const { encryptGroupKeyWithPublicKey } = await import("../lib/crypto");
+                  const encryptedKey = await encryptGroupKeyWithPublicKey(myKey, targetData.publicKeyJwk);
+                  
+                  await setDoc(
+                    doc(db, `groups/${activeGroup.id}/members`, member.userId),
+                    { encryptedGroupKey: encryptedKey },
+                    { merge: true }
+                  );
+                  console.log(`[E2E] Successfully synced and updated key for member ${member.userEmail}`);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[E2E] Background key sync warning:", err);
+        }
+      };
+
+      // Stagger slightly to allow memberships listing to fully settle
+      const timer = setTimeout(() => {
+        syncGroupKeys();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeGroup, activeGroupMembers, user, userKeys]);
 
   const safeLocalStorage = {
     getItem: (key: string) => {
@@ -1318,6 +1423,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
         cancelInvite,
         updateProfile,
         apiFetch,
+        getGroupCryptoKey,
         isManagementOpen,
         setIsManagementOpen,
         managementMode,

@@ -213,6 +213,33 @@ const setAuthCookies = (res: express.Response, tokens: any) => {
   res.cookie("n_active", "1", { ...cookieOptions, httpOnly: false, partitioned: false });
 };
 
+const clearAuthCookies = (res: express.Response) => {
+  const options = { httpOnly: true, secure: true, sameSite: "none" as const, path: "/" };
+  res.clearCookie(COOKIE_NAME, { ...options, partitioned: true });
+  res.clearCookie(LEGACY_COOKIE_NAME, options);
+  res.clearCookie("n_session_p", { ...options, partitioned: true });
+  res.clearCookie("n_session_u", options);
+  res.clearCookie("google_token", options);
+};
+
+const isInvalidGrantError = (err: any) => {
+  if (!err) return false;
+  const errMsg = (err.message || "").toLowerCase();
+  const errDesc = (err.response?.data?.error_description || "").toLowerCase();
+  const errCode = (err.code || "").toLowerCase();
+  const errString = JSON.stringify(err).toLowerCase();
+
+  return (
+    errMsg.includes("invalid_grant") ||
+    errMsg.includes("expired or revoked") ||
+    errDesc.includes("invalid_grant") ||
+    errDesc.includes("expired or revoked") ||
+    errCode.includes("invalid_grant") ||
+    errString.includes("invalid_grant") ||
+    errString.includes("expired or revoked")
+  );
+};
+
 // Helper to get auth client from cookie
 const getAuthClient = (req: express.Request) => {
   const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
@@ -254,8 +281,11 @@ const getUserId = async (req: express.Request) => {
       return id;
     }
     return null;
-  } catch (e) {
+  } catch (e: any) {
     console.error("[API] Error getting user ID:", e);
+    if (isInvalidGrantError(e)) {
+      (req as any).isInvalidGrant = true;
+    }
     return null;
   }
 };
@@ -272,6 +302,10 @@ const verifyMembership = async (req: express.Request, res: express.Response, nex
     next();
   } catch (err: any) {
     console.error("[verifyMembership] Failed:", err.message);
+    if (isInvalidGrantError(err) || (req as any).isInvalidGrant) {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: "invalid_grant", message: "Sua sessão expirou. Por favor, faça login novamente." });
+    }
     const code = err.statusCode || 401;
     res.status(code).json({ error: err.message || "Unauthorized" });
   }
@@ -709,6 +743,13 @@ app.get("/api/auth/firebase-token", async (req, res) => {
     res.json({ customToken });
   } catch (err: any) {
     console.error("[Firebase] Error in /api/auth/firebase-token:", err);
+    if (isInvalidGrantError(err)) {
+      clearAuthCookies(res);
+      return res.status(401).json({
+        error: "invalid_grant",
+        message: "Sua sessão expirou ou o token de acesso foi revogado. Por favor, faça login novamente."
+      });
+    }
     res.status(500).json({ 
       error: err.message, 
       details: "This error usually means the Firebase Admin SDK is not correctly initialized with a Service Account which is required for createCustomToken on external platforms like Vercel."
@@ -738,12 +779,7 @@ app.get("/api/auth/status", (req, res) => {
 });
 
 app.post("/api/auth/logout", (req, res) => {
-  const options = { httpOnly: true, secure: true, sameSite: "none" as const, path: "/" };
-  res.clearCookie(COOKIE_NAME, { ...options, partitioned: true });
-  res.clearCookie(LEGACY_COOKIE_NAME, options);
-  res.clearCookie("n_session_p", { ...options, partitioned: true });
-  res.clearCookie("n_session_u", options);
-  res.clearCookie("google_token", options);
+  clearAuthCookies(res);
   res.json({ success: true });
 });
 
@@ -760,6 +796,10 @@ const verifyGeneralAuth = async (req: express.Request, res: express.Response, ne
     (req as any).user = user;
     next();
   } catch (err: any) {
+    if (isInvalidGrantError(err) || (req as any).isInvalidGrant) {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: "invalid_grant", message: "Sua sessão expirou. Por favor, faça login novamente." });
+    }
     res.status(401).json({ error: err.message || "Unauthorized" });
   }
 };
@@ -1166,7 +1206,8 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
           contentType: data.contentType || "",
           size: data.size || 0,
           originalName: data.originalName || data.description || "Arquivo",
-          uploadedByEmail: data.uploadedByEmail || ""
+          uploadedByEmail: data.uploadedByEmail || "",
+          encryption: data.encryption || null
         };
       });
 
@@ -1773,11 +1814,19 @@ app.post("/api/app/upload-image", (req, res, next) => {
   let platform: string = "";
   let buffer: Buffer;
 
+  // Encryption helper fields from client
+  let isEncrypted = false;
+  let iv = "";
+  let originalContentType = "";
+
   if (isMultipart) {
     const file = req.file;
     patientId = req.body.patientId || "";
     description = req.body.description || "";
     platform = req.body.platform || "";
+    isEncrypted = req.body.isEncrypted === "true" || req.body.isEncrypted === true;
+    iv = req.body.iv || "";
+    originalContentType = req.body.originalContentType || "";
     
     if (!file) {
       return res.status(400).json({ error: "Nenhum arquivo enviado no corpo da requisição." });
@@ -1792,7 +1841,7 @@ app.post("/api/app/upload-image", (req, res, next) => {
     size = file.size;
     buffer = file.buffer;
   } else {
-    const { patientId: pId, description: desc, fileName: fName, mimeType: mType, base64Data, originalName: origName, size: sz, platform: plt } = req.body || {};
+    const { patientId: pId, description: desc, fileName: fName, mimeType: mType, base64Data, originalName: origName, size: sz, platform: plt, isEncrypted: isEnc, iv: ivVal, originalContentType: origContType } = req.body || {};
     patientId = pId;
     description = desc || "";
     fileName = fName || "";
@@ -1800,6 +1849,9 @@ app.post("/api/app/upload-image", (req, res, next) => {
     originalName = origName || "";
     size = sz || 0;
     platform = plt || "";
+    isEncrypted = isEnc === "true" || isEnc === true;
+    iv = ivVal || "";
+    originalContentType = origContType || "";
 
     if (!patientId || !base64Data) return res.status(400).json({ error: "PatientID e Imagem/Arquivo são obrigatórios." });
 
@@ -1822,12 +1874,16 @@ app.post("/api/app/upload-image", (req, res, next) => {
     const mime = safeContentType;
     const name = safeFileName;
     
+    // Choose which mime/name to use for logical type checking
+    const mimeToCheck = isEncrypted ? (originalContentType || "") : mime;
+    const nameToCheck = isEncrypted ? (rawName || "") : name;
+
     let fileTypeResolved: "image" | "video" | "pdf" = "image";
-    if (mime.startsWith("image/") || name.endsWith(".heic") || name.endsWith(".jpeg") || name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
+    if (mimeToCheck.startsWith("image/") || nameToCheck.endsWith(".heic") || nameToCheck.endsWith(".jpeg") || nameToCheck.endsWith(".jpg") || nameToCheck.endsWith(".png") || nameToCheck.endsWith(".webp")) {
       fileTypeResolved = "image";
-    } else if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".quicktime") || name.endsWith(".m4v")) {
+    } else if (mimeToCheck.startsWith("video/") || nameToCheck.endsWith(".mp4") || nameToCheck.endsWith(".mov") || nameToCheck.endsWith(".webm") || nameToCheck.endsWith(".quicktime") || nameToCheck.endsWith(".m4v")) {
       fileTypeResolved = "video";
-    } else if (mime === "application/pdf" || name.endsWith(".pdf")) {
+    } else if (mimeToCheck === "application/pdf" || nameToCheck.endsWith(".pdf")) {
       fileTypeResolved = "pdf";
     } else {
       return res.status(400).json({ error: "Tipo de arquivo não permitido. Envie uma imagem, vídeo ou PDF." });
@@ -1842,6 +1898,9 @@ app.post("/api/app/upload-image", (req, res, next) => {
     console.log("[Upload] size", fileSize);
     console.log("[Upload] safeFileName", safeFileName);
     console.log("[Upload] safeContentType", safeContentType);
+    console.log("[Upload] isEncrypted", isEncrypted);
+    console.log("[Upload] iv", iv);
+    console.log("[Upload] originalContentType", originalContentType);
 
     // Size limit check
     if (fileTypeResolved === "image" && fileSize > 10 * 1024 * 1024) {
@@ -1859,23 +1918,33 @@ app.post("/api/app/upload-image", (req, res, next) => {
     
     let destination = `patients/${patientId}/${safeFileName}`;
     if (groupId) {
-      destination = `groups/${groupId}/files/${fileId}/${safeFileName}`;
+      if (isEncrypted) {
+        destination = `groups/${groupId}/encrypted-files/${fileId}/${safeFileName}.encrypted`;
+      } else {
+        destination = `groups/${groupId}/files/${fileId}/${safeFileName}`;
+      }
     }
 
     console.log("[Upload] storagePath", destination);
 
     const file = bucket.file(destination);
+    const contentTypeToSave = isEncrypted ? "application/octet-stream" : safeContentType;
 
     await file.save(buffer, {
       metadata: {
-        contentType: safeContentType,
+        contentType: contentTypeToSave,
         metadata: {
           patientId: patientId,
           description: description || "",
           groupId: groupId || "",
           originalName: rawName,
           uploadedFrom: "pwa",
-          platform: platform || "other"
+          platform: platform || "other",
+          ...(isEncrypted ? {
+            encrypted: "true",
+            iv: iv,
+            originalContentType: originalContentType
+          } : {})
         }
       }
     });
@@ -1893,7 +1962,7 @@ app.post("/api/app/upload-image", (req, res, next) => {
       uploadedBy: authUser.uid,
       uploadedByEmail: authUser.email || "",
       originalName: rawName,
-      contentType: safeContentType,
+      contentType: contentTypeToSave,
       fileType: fileTypeResolved,
       size: fileSize,
       storagePath: destination,
@@ -1905,7 +1974,17 @@ app.post("/api/app/upload-image", (req, res, next) => {
       status: "active",
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+
+      // E2E Encryption-specific metadata (if encrypted)
+      ...(isEncrypted ? {
+        encryption: {
+          algorithm: "AES-GCM",
+          iv: iv,
+          originalContentType: originalContentType,
+          encrypted: true
+        }
+      } : {})
     };
 
     await fileRef.set(metadata);

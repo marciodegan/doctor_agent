@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
-import { auth as fbAuth } from "../lib/firebase";
+import { auth as fbAuth, db } from "../lib/firebase";
 import { signInWithCustomToken, signOut as fbSignOut, onAuthStateChanged, User } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 interface AuthContextType {
   isAuthenticated: boolean | null;
   user: User | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  userKeys: { publicKeyJwk: JsonWebKey; privateKeyJwk: JsonWebKey } | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -14,6 +16,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [user, setUser] = useState<User | null>(fbAuth.currentUser);
+  const [userKeys, setUserKeys] = useState<{ publicKeyJwk: JsonWebKey; privateKeyJwk: JsonWebKey } | null>(null);
   const pollIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -22,6 +25,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      import("../lib/crypto").then(async ({ generateUserKeyPair }) => {
+        try {
+          const privateKeyRef = doc(db, `users/${user.uid}/private`, "keyData");
+          const privateKeySnap = await getDoc(privateKeyRef);
+          if (privateKeySnap.exists()) {
+            const data = privateKeySnap.data();
+            setUserKeys({
+              publicKeyJwk: data.publicKeyJwk,
+              privateKeyJwk: data.privateKeyJwk,
+            });
+          } else {
+            const keys = await generateUserKeyPair();
+            await setDoc(privateKeyRef, {
+              publicKeyJwk: keys.publicKeyJwk,
+              privateKeyJwk: keys.privateKeyJwk,
+              createdAt: new Date().toISOString(),
+            });
+            await setDoc(doc(db, "users", user.uid), {
+              publicKeyJwk: keys.publicKeyJwk,
+            }, { merge: true });
+            setUserKeys(keys);
+          }
+        } catch (e) {
+          console.error("[useAuth] Failed to load/create user keys:", e);
+        }
+      });
+    } else {
+      setUserKeys(null);
+    }
+  }, [user]);
 
   const checkAuth = async () => {
     try {
@@ -35,6 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (fbRes.ok) {
             const { customToken } = await fbRes.json();
             await signInWithCustomToken(fbAuth, customToken);
+          } else if (fbRes.status === 401) {
+            await logout();
+            return;
           }
         } catch (e) {}
       }
@@ -63,6 +102,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (fbRes.ok) {
             const { customToken } = await fbRes.json();
             await signInWithCustomToken(fbAuth, customToken);
+          } else if (fbRes.status === 401) {
+            await logout();
+            return;
           }
         } catch (e) {}
       }
@@ -98,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, userKeys }}>
       {children}
     </AuthContext.Provider>
   );
