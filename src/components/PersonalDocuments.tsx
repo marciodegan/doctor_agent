@@ -353,7 +353,7 @@ export const PersonalDocuments: React.FC = () => {
       console.error("[Upload] error message", err?.message);
 
       if (fileTypeResolved === "video") {
-        setErrorMsg("Não foi possível enviar este vídeo. Tente salvar o vídeo novamente no iPhone ou escolher uma versão menor.");
+        setErrorMsg(`Não foi possível enviar este vídeo (${err.message || err}). Tente salvar o vídeo novamente no iPhone ou escolher uma versão menor.`);
       } else {
         setErrorMsg(err.message || "Ocorreu um erro ao fazer upload do arquivo.");
       }

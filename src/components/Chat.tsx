@@ -52,6 +52,63 @@ const sanitizeFileName = (fileName: string): string => {
   return extPart ? `${finalName}.${extPart}` : finalName;
 };
 
+const base64ToBytes = (base64: string): Uint8Array => {
+  const clean = base64.replace(/[^A-Za-z0-9+/=]/g, "");
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const lookup = new Uint8Array(256);
+  for (let i = 0; i < chars.length; i++) {
+    lookup[chars.charCodeAt(i)] = i;
+  }
+  
+  let bufferLength = clean.length * 0.75;
+  if (clean.endsWith("==")) {
+    bufferLength -= 2;
+  } else if (clean.endsWith("=")) {
+    bufferLength -= 1;
+  }
+  
+  const bytes = new Uint8Array(bufferLength);
+  let p = 0;
+  for (let i = 0; i < clean.length; i += 4) {
+    const encoded1 = lookup[clean.charCodeAt(i)];
+    const encoded2 = lookup[clean.charCodeAt(i + 1)];
+    const encoded3 = lookup[clean.charCodeAt(i + 2)];
+    const encoded4 = lookup[clean.charCodeAt(i + 3)];
+    
+    bytes[p++] = (encoded1 << 2) | (encoded2 >> 4);
+    if (p < bufferLength) {
+      bytes[p++] = ((encoded2 & 15) << 4) | (encoded3 >> 2);
+    }
+    if (p < bufferLength) {
+      bytes[p++] = ((encoded3 & 3) << 6) | (encoded4 & 63);
+    }
+  }
+  return bytes;
+};
+
+const safeDataURItoBlob = (dataURI: string): Blob => {
+  try {
+    const parts = dataURI.split(",");
+    const byteString = parts[0].includes("base64")
+      ? base64ToBytes(parts[1])
+      : decodeURIComponent(parts[1]);
+    const mimeString = parts[0].split(":")[1].split(";")[0];
+    
+    if (typeof byteString === "string") {
+      const u8 = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) {
+        u8[i] = byteString.charCodeAt(i);
+      }
+      return new Blob([u8], { type: mimeString });
+    } else {
+      return new Blob([byteString], { type: mimeString });
+    }
+  } catch (e) {
+    console.error("Failed to parse data URI", e);
+    throw e;
+  }
+};
+
 const getSafeContentType = (file: File | { name: string; type?: string }): string => {
   const name = (file.name || "").toLowerCase();
   const ext = name.split(".").pop() || "";
@@ -2752,7 +2809,7 @@ ${aiPart}
         if (selectedFileObj) {
           actualFile = selectedFileObj;
         } else if (selectedImage) {
-          // Convert data URL or blob URL to File for encryption safely without atob
+          // Convert data URL or blob URL to File for encryption safely without atob or Safari fetch data bugs
           try {
             const mimeType = selectedImage.startsWith("data:") 
               ? (selectedImage.split(";")[0].split(":")[1] || "image/jpeg")
@@ -2761,8 +2818,13 @@ ${aiPart}
             const extResolved = ext === "quicktime" ? "mov" : ext;
             const safeName = `Chat_P${id}_${new Date().getTime()}.${extResolved}`;
             
-            const fileResponse = await fetch(selectedImage);
-            const fileBlob = await fileResponse.blob();
+            let fileBlob: Blob;
+            if (selectedImage.startsWith("data:")) {
+              fileBlob = safeDataURItoBlob(selectedImage);
+            } else {
+              const fileResponse = await fetch(selectedImage);
+              fileBlob = await fileResponse.blob();
+            }
             actualFile = new File([fileBlob], safeName, { type: mimeType });
           } catch (e) {
             console.warn("[E2E] File parsing from selectedImage failed", e);
@@ -2858,7 +2920,7 @@ ${aiPart}
         console.error("[Upload] error message", err?.message);
 
         const friendlyMsg = isVideoUpload
-          ? "Não foi possível enviar este vídeo. Tente salvar o vídeo novamente no iPhone ou escolher uma versão menor."
+          ? `Não foi possível enviar este vídeo (${err.message || err}). Tente salvar o vídeo novamente no iPhone ou escolher uma versão menor.`
           : `Erro no upload: ${err.message}`;
 
         setMessages(prev => [...prev, { role: "model", text: `❌ ${friendlyMsg}` }]);
