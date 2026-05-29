@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Loader2, AlertCircle, FileText } from "lucide-react";
 import { useGroup } from "../contexts/GroupContext";
+import { useAuth } from "../hooks/useAuth";
 
 interface E2EMediaProps {
   src: string;
@@ -24,10 +25,14 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
   alt = "Imagem",
   controls = true
 }) => {
-  const { activeGroup, getGroupCryptoKey, apiFetch } = useGroup();
+  const { user } = useAuth();
+  const { activeGroup, getGroupCryptoKey, apiFetch, activeGroupMembers } = useGroup();
   const [decryptedUrl, setDecryptedUrl] = useState<string | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const myMemberRecord = activeGroupMembers.find((m) => m.userId === user?.uid);
+  const myEncryptedKey = myMemberRecord?.encryptedGroupKey;
 
   useEffect(() => {
     let active = true;
@@ -112,7 +117,7 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
         }
       }
     };
-  }, [src, encryption, activeGroup?.id, getGroupCryptoKey]);
+  }, [src, encryption, activeGroup?.id, getGroupCryptoKey, myEncryptedKey]);
 
   if (isDecrypting) {
     return (
