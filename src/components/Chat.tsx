@@ -5,7 +5,8 @@ import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
-import { auth, db } from "../lib/firebase";
+import { auth, db, storage } from "../lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
   collection, 
   query, 
@@ -14,6 +15,7 @@ import {
   orderBy, 
   getDocs, 
   getDoc,
+  setDoc,
   addDoc, 
   updateDoc,
   deleteDoc,
@@ -149,6 +151,45 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     decodedUrl.endsWith(".3gp") ||
     decodedUrl.endsWith(".mkv")
   );
+};
+
+const sanitizeVideoFileName = (fileName: string): string => {
+  if (!fileName) return "video_" + Date.now();
+  let sanitized = fileName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const lastDotIndex = sanitized.lastIndexOf(".");
+  let namePart = lastDotIndex !== -1 ? sanitized.substring(0, lastDotIndex) : sanitized;
+  let extPart = lastDotIndex !== -1 ? sanitized.substring(lastDotIndex + 1) : "";
+
+  namePart = namePart.replace(/\s+/g, "_");
+  namePart = namePart.replace(/[^a-zA-Z0-9._-]/g, "");
+  extPart = extPart.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  let finalName = namePart || "video_" + Date.now();
+  return extPart ? `${finalName}.${extPart}` : finalName;
+};
+
+const getVideoContentType = (file: File): string => {
+  if (file.type && file.type.startsWith("video/")) {
+    return file.type;
+  }
+  const ext = (file.name || "").toLowerCase().split(".").pop();
+  if (ext === "mp4") return "video/mp4";
+  if (ext === "mov" || ext === "quicktime" || ext === "qt") return "video/quicktime";
+  if (ext === "m4v") return "video/x-m4v";
+  if (ext === "webm") return "video/webm";
+  if (ext === "avi") return "video/x-msvideo";
+  if (ext === "wmv") return "video/x-ms-wmv";
+  if (ext === "flv") return "video/x-flv";
+  if (ext === "3gp" || ext === "3gpp") return "video/3gpp";
+  if (ext === "mkv") return "video/x-matroska";
+  return "application/octet-stream";
+};
+
+const isSupportedVideo = (file: File): boolean => {
+  const mime = (file.type || "").toLowerCase();
+  if (mime.startsWith("video/")) return true;
+  const ext = (file.name || "").toLowerCase().split(".").pop() || "";
+  return ["mp4", "mov", "qt", "quicktime", "m4v", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
 };
 
 const isPdfUrl = (url: string | null | undefined): boolean => {
@@ -2832,6 +2873,87 @@ ${aiPart}
         }
 
         if (actualFile) {
+          const isVideo = (
+            (actualFile.type && actualFile.type.startsWith("video/")) ||
+            (actualFile.name && (
+              actualFile.name.toLowerCase().endsWith(".mp4") ||
+              actualFile.name.toLowerCase().endsWith(".mov") ||
+              actualFile.name.toLowerCase().endsWith(".webm") ||
+              actualFile.name.toLowerCase().endsWith(".quicktime") ||
+              actualFile.name.toLowerCase().endsWith(".m4v") ||
+              actualFile.name.toLowerCase().endsWith(".qt")
+            ))
+          );
+
+          if (isVideo) {
+            try {
+              if (!isSupportedVideo(actualFile)) {
+                throw new Error("Formato de vídeo não suportado. Os formatos aceitos são MP4, MOV, QuickTime, M4V e outros vídeos.");
+              }
+              if (actualFile.size > 100 * 1024 * 1024) {
+                throw new Error("Este vídeo é muito grande (máximo de 100MB). Escolha um vídeo menor para anexar.");
+              }
+
+              const safeFileName = sanitizeVideoFileName(actualFile.name);
+              const inferredContentType = getVideoContentType(actualFile);
+              const timestamp = Date.now();
+              const storagePath = `patient-files/${id}/${timestamp}-${safeFileName}`;
+
+              console.log("[ChatVideoUpload] Direct storage path:", storagePath);
+
+              const storageRef = ref(storage, storagePath);
+              const metadata = {
+                contentType: inferredContentType,
+              };
+
+              const uploadResult = await uploadBytes(storageRef, actualFile, metadata);
+              const downloadURL = await getDownloadURL(uploadResult.ref);
+
+              console.log("[ChatVideoUpload] Finished. URL:", downloadURL);
+
+              const fileRef = doc(collection(db, "files"));
+              const fileId = fileRef.id;
+
+              await setDoc(fileRef, {
+                id: fileId,
+                groupId: activeGroup?.id || "",
+                patientId: id,
+                uploadedBy: auth.currentUser?.uid || "",
+                uploadedByEmail: auth.currentUser?.email || "",
+                originalName: actualFile.name,
+                contentType: inferredContentType,
+                fileType: "video",
+                size: actualFile.size,
+                storagePath: storagePath,
+                downloadURL: downloadURL,
+
+                description: desc || actualFile.name || "Vídeo via Chat",
+                link: downloadURL,
+                status: "active",
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+
+              setMessages([]);
+              await handleDirectCommand(`/p ${id}`);
+
+              if (selectedImage && selectedImage.startsWith("blob:")) {
+                try { URL.revokeObjectURL(selectedImage); } catch (e) {}
+              }
+              setSelectedImage(null);
+              setSelectedFileObj(null);
+              setIsLoading(false);
+              return true;
+            } catch (videoErr: any) {
+              console.error("[ChatVideoUpload] Error during video upload:", videoErr);
+              const isCustomErr = videoErr.message.includes("Formato de vídeo") || videoErr.message.includes("Este vídeo é muito grande");
+              const finalErrorMsgStr = isCustomErr ? videoErr.message : `Não foi possível enviar este vídeo. Tente salvar como MP4 ou selecione uma versão menor. (${videoErr.message || videoErr})`;
+              alert(finalErrorMsgStr);
+              setIsLoading(false);
+              return true;
+            }
+          }
+
           try {
             if (activeGroup?.id) {
               const groupKey = await getGroupCryptoKey(activeGroup.id);
