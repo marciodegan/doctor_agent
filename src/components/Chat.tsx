@@ -6,7 +6,7 @@ import rehypeSanitize from "rehype-sanitize";
 import rehypeRaw from "rehype-raw";
 import { tools, executeTool, ai } from "../lib/gemini";
 import { auth, db, storage } from "../lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { 
   collection, 
   query, 
@@ -28,29 +28,23 @@ import { PatientListView } from "./PatientListView";
 import { E2EMedia } from "./E2EMedia";
 
 const sanitizeFileName = (fileName: string): string => {
-  if (!fileName) return "arquivo_" + Date.now();
+  if (!fileName) return `file_${Date.now()}`;
   
-  // 1. Normalize accents
+  // Normalize and remove accents/diacritics
   let sanitized = fileName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   
-  // 2. Separate name and extension
   const lastDotIndex = sanitized.lastIndexOf(".");
   let namePart = lastDotIndex !== -1 ? sanitized.substring(0, lastDotIndex) : sanitized;
   let extPart = lastDotIndex !== -1 ? sanitized.substring(lastDotIndex + 1) : "";
-  
-  // 3. Replace spaces with dash
-  namePart = namePart.replace(/\s+/g, "-");
-  
-  // 4. Keep only letters, numbers, dash and underscore
-  namePart = namePart.toLowerCase().replace(/[^a-z0-9-_.]/g, "");
-  
-  // Lowercase extension and keep only alphanumeric
+
+  // Replace spaces with underscores
+  namePart = namePart.replace(/\s+/g, "_");
+  // Keep only letters, numbers, dot, underscore and hyphen
+  namePart = namePart.replace(/[^a-zA-Z0-9._-]/g, "");
+  // Keep only alphanumeric for extension
   extPart = extPart.toLowerCase().replace(/[^a-z0-9]/g, "");
-  
-  // If namePart becomes empty, generate a fallback
-  let finalName = namePart || "arquivo_" + Date.now();
-  
-  // Assemble back
+
+  let finalName = namePart || "file_" + Date.now();
   return extPart ? `${finalName}.${extPart}` : finalName;
 };
 
@@ -111,23 +105,68 @@ const safeDataURItoBlob = (dataURI: string): Blob => {
   }
 };
 
-const getSafeContentType = (file: File | { name: string; type?: string }): string => {
+const getSafeContentType = (file: File): string => {
+  let mime = (file.type || "").toLowerCase();
   const name = (file.name || "").toLowerCase();
   const ext = name.split(".").pop() || "";
-  const mime = (file.type || "").toLowerCase();
 
-  if (ext === "mov") return "video/quicktime";
-  if (ext === "mp4") return "video/mp4";
-  if (ext === "m4v") return "video/x-m4v";
-  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
-  if (ext === "png") return "image/png";
-  if (ext === "pdf") return "application/pdf";
-
-  if (mime && mime !== "application/octet-stream" && mime !== "") {
-    return mime;
+  if (!mime || mime === "application/octet-stream" || mime === "application/x-utext") {
+    switch (ext) {
+      case "mov":
+      case "qt":
+      case "quicktime":
+        return "video/quicktime";
+      case "mp4":
+        return "video/mp4";
+      case "m4v":
+        return "video/x-m4v";
+      case "hevc":
+        return "video/hevc";
+      case "webm":
+        return "video/webm";
+      case "avi":
+        return "video/x-msvideo";
+      case "wmv":
+        return "video/x-ms-wmv";
+      case "mkv":
+        return "video/x-matroska";
+      case "jpg":
+      case "jpeg":
+        return "image/jpeg";
+      case "png":
+        return "image/png";
+      case "webp":
+        return "image/webp";
+      case "heic":
+        return "image/heic";
+      case "heif":
+        return "image/heif";
+      case "pdf":
+        return "application/pdf";
+    }
   }
+  return mime || "application/octet-stream";
+};
 
-  return "application/octet-stream";
+const isImageFile = (file: File): boolean => {
+  const mime = (file.type || "").toLowerCase();
+  if (mime.startsWith("image/")) return true;
+  const ext = (file.name || "").toLowerCase().split(".").pop() || "";
+  return ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext);
+};
+
+const isVideoFile = (file: File): boolean => {
+  const mime = (file.type || "").toLowerCase();
+  if (mime.startsWith("video/")) return true;
+  const ext = (file.name || "").toLowerCase().split(".").pop() || "";
+  return ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
+};
+
+const isPdfFile = (file: File): boolean => {
+  const mime = (file.type || "").toLowerCase();
+  if (mime === "application/pdf") return true;
+  const ext = (file.name || "").toLowerCase().split(".").pop() || "";
+  return ext === "pdf";
 };
 
 const isVideoUrl = (url: string | null | undefined): boolean => {
@@ -151,45 +190,6 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     decodedUrl.endsWith(".3gp") ||
     decodedUrl.endsWith(".mkv")
   );
-};
-
-const sanitizeVideoFileName = (fileName: string): string => {
-  if (!fileName) return "video_" + Date.now();
-  let sanitized = fileName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const lastDotIndex = sanitized.lastIndexOf(".");
-  let namePart = lastDotIndex !== -1 ? sanitized.substring(0, lastDotIndex) : sanitized;
-  let extPart = lastDotIndex !== -1 ? sanitized.substring(lastDotIndex + 1) : "";
-
-  namePart = namePart.replace(/\s+/g, "_");
-  namePart = namePart.replace(/[^a-zA-Z0-9._-]/g, "");
-  extPart = extPart.toLowerCase().replace(/[^a-z0-9]/g, "");
-
-  let finalName = namePart || "video_" + Date.now();
-  return extPart ? `${finalName}.${extPart}` : finalName;
-};
-
-const getVideoContentType = (file: File): string => {
-  if (file.type && file.type.startsWith("video/")) {
-    return file.type;
-  }
-  const ext = (file.name || "").toLowerCase().split(".").pop();
-  if (ext === "mp4") return "video/mp4";
-  if (ext === "mov" || ext === "quicktime" || ext === "qt") return "video/quicktime";
-  if (ext === "m4v") return "video/x-m4v";
-  if (ext === "webm") return "video/webm";
-  if (ext === "avi") return "video/x-msvideo";
-  if (ext === "wmv") return "video/x-ms-wmv";
-  if (ext === "flv") return "video/x-flv";
-  if (ext === "3gp" || ext === "3gpp") return "video/3gpp";
-  if (ext === "mkv") return "video/x-matroska";
-  return "application/octet-stream";
-};
-
-const isSupportedVideo = (file: File): boolean => {
-  const mime = (file.type || "").toLowerCase();
-  if (mime.startsWith("video/")) return true;
-  const ext = (file.name || "").toLowerCase().split(".").pop() || "";
-  return ["mp4", "mov", "qt", "quicktime", "m4v", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
 };
 
 const isPdfUrl = (url: string | null | undefined): boolean => {
@@ -265,7 +265,8 @@ const MessageForm: React.FC<{
   onSelectImage?: (img: string | null) => void;
   selectedFileObj?: File | null;
   onSelectFileObj?: (file: File | null) => void;
-}> = ({ form, onSubmit, selectedImage, onSelectImage, selectedFileObj, onSelectFileObj }) => {
+  uploadProgress?: number | null;
+}> = ({ form, onSubmit, selectedImage, onSelectImage, selectedFileObj, onSelectFileObj, uploadProgress }) => {
   const { apiFetch } = useGroup();
   const [showRemovePatientConfirm, setShowRemovePatientConfirm] = useState(false);
   const [isRemovingPatient, setIsRemovingPatient] = useState(false);
@@ -942,14 +943,27 @@ const MessageForm: React.FC<{
               {/* Primary action takes full width on mobile, and is highlighted as main action */}
               <button 
                 type="submit"
-                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-95 cursor-pointer"
+                disabled={uploadProgress !== null && uploadProgress !== undefined && uploadProgress >= 0}
+                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-95 cursor-pointer disabled:bg-blue-400 disabled:cursor-not-allowed"
               >
-                {form.submitLabel.toLowerCase().includes("salvar") || form.submitLabel.toLowerCase().includes("registrar") ? (
-                  <Check size={16} strokeWidth={3} />
+                {uploadProgress !== null && uploadProgress !== undefined && uploadProgress >= 0 ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    SALVANDO ({Math.round(uploadProgress)}%)
+                  </>
                 ) : (
-                  <Plus size={16} strokeWidth={3} />
+                  <>
+                    {form.submitLabel.toLowerCase().includes("salvar") || form.submitLabel.toLowerCase().includes("registrar") ? (
+                      <Check size={16} strokeWidth={3} />
+                    ) : (
+                      <Plus size={16} strokeWidth={3} />
+                    )}
+                    {form.submitLabel}
+                  </>
                 )}
-                {form.submitLabel}
               </button>
 
               {/* Secondary actions below it side-by-side on mobile */}
@@ -990,14 +1004,27 @@ const MessageForm: React.FC<{
 
               <button 
                 type="submit"
-                className="flex-1 sm:flex-none bg-blue-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-95 cursor-pointer"
+                disabled={uploadProgress !== null && uploadProgress !== undefined && uploadProgress >= 0}
+                className="flex-1 sm:flex-none bg-blue-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-95 cursor-pointer disabled:bg-blue-400 disabled:cursor-not-allowed"
               >
-                {form.submitLabel.toLowerCase().includes("salvar") || form.submitLabel.toLowerCase().includes("registrar") ? (
-                  <Check size={16} strokeWidth={3} />
+                {uploadProgress !== null && uploadProgress !== undefined && uploadProgress >= 0 ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    ENVIANDO ({Math.round(uploadProgress)}%)
+                  </>
                 ) : (
-                  <Plus size={16} strokeWidth={3} />
+                  <>
+                    {form.submitLabel.toLowerCase().includes("salvar") || form.submitLabel.toLowerCase().includes("registrar") ? (
+                      <Check size={16} strokeWidth={3} />
+                    ) : (
+                      <Plus size={16} strokeWidth={3} />
+                    )}
+                    {form.submitLabel}
+                  </>
                 )}
-                {form.submitLabel}
               </button>
             </div>
           )}
@@ -1017,6 +1044,7 @@ export const Chat: React.FC<{
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFileObj, setSelectedFileObj] = useState<File | null>(null);
   const [lastProcessedFile, setLastProcessedFile] = useState<string | null>(null);
@@ -2827,7 +2855,11 @@ ${aiPart}
 
     if (cmd.startsWith("/img")) {
       setIsLoading(true);
+      setUploadProgress(0);
       let isVideoUpload = false;
+      let originalContentType = "";
+      let actualFile: File | null = selectedFileObj;
+
       try {
         if (!selectedImage) throw new Error("Selecione uma imagem, vídeo ou PDF acima antes de enviar.");
         
@@ -2838,19 +2870,8 @@ ${aiPart}
 
         if (!id) throw new Error("Use: /img id: [ID], desc: [Opcional]");
 
-        let res;
-        
-        let fileToUpload: File | null = selectedFileObj;
-        let isEncrypted = false;
-        let ivBase64 = "";
-        let originalContentType = "";
-
-        // Normalize image/video parsing for encryption
-        let actualFile: File | null = null;
-        if (selectedFileObj) {
-          actualFile = selectedFileObj;
-        } else if (selectedImage) {
-          // Convert data URL or blob URL to File for encryption safely without atob or Safari fetch data bugs
+        // 1. Reconstruct File from selectedImage if selectedFileObj is not present
+        if (!actualFile && selectedImage) {
           try {
             const mimeType = selectedImage.startsWith("data:") 
               ? (selectedImage.split(";")[0].split(":")[1] || "image/jpeg")
@@ -2868,165 +2889,145 @@ ${aiPart}
             }
             actualFile = new File([fileBlob], safeName, { type: mimeType });
           } catch (e) {
-            console.warn("[E2E] File parsing from selectedImage failed", e);
+            console.warn("[E2E] Parsing selectedImage fallback failed", e);
           }
         }
 
-        if (actualFile) {
-          const isVideo = (
-            (actualFile.type && actualFile.type.startsWith("video/")) ||
-            (actualFile.name && (
-              actualFile.name.toLowerCase().endsWith(".mp4") ||
-              actualFile.name.toLowerCase().endsWith(".mov") ||
-              actualFile.name.toLowerCase().endsWith(".webm") ||
-              actualFile.name.toLowerCase().endsWith(".quicktime") ||
-              actualFile.name.toLowerCase().endsWith(".m4v") ||
-              actualFile.name.toLowerCase().endsWith(".qt")
-            ))
-          );
+        if (!actualFile) throw new Error("Nenhum arquivo ou imagem selecionados para upload.");
 
-          if (isVideo) {
-            try {
-              if (!isSupportedVideo(actualFile)) {
-                throw new Error("Formato de vídeo não suportado. Os formatos aceitos são MP4, MOV, QuickTime, M4V e outros vídeos.");
-              }
-              if (actualFile.size > 100 * 1024 * 1024) {
-                throw new Error("Este vídeo é muito grande (máximo de 100MB). Escolha um vídeo menor para anexar.");
-              }
+        // Identify file types using helper methods
+        const isInferredImage = isImageFile(actualFile);
+        const isInferredVideo = isVideoFile(actualFile);
+        const isInferredPdf = isPdfFile(actualFile);
 
-              const safeFileName = sanitizeVideoFileName(actualFile.name);
-              const inferredContentType = getVideoContentType(actualFile);
-              const timestamp = Date.now();
-              const storagePath = `patient-files/${id}/${timestamp}-${safeFileName}`;
+        let fileTypeResolved: "image" | "video" | "pdf" = "image";
+        if (isInferredVideo) {
+          fileTypeResolved = "video";
+          isVideoUpload = true;
+        } else if (isInferredPdf) {
+          fileTypeResolved = "pdf";
+        }
 
-              console.log("[ChatVideoUpload] Direct storage path:", storagePath);
+        originalContentType = getSafeContentType(actualFile);
+        const safeFileName = sanitizeFileName(actualFile.name);
+        const fileId = doc(collection(db, "files")).id;
+        const timestamp = Date.now();
 
-              const storageRef = ref(storage, storagePath);
-              const metadata = {
-                contentType: inferredContentType,
-              };
+        let fileToUpload: File | Blob = actualFile;
+        let isEncrypted = false;
+        let ivBase64 = "";
 
-              const uploadResult = await uploadBytes(storageRef, actualFile, metadata);
-              const downloadURL = await getDownloadURL(uploadResult.ref);
-
-              console.log("[ChatVideoUpload] Finished. URL:", downloadURL);
-
-              const fileRef = doc(collection(db, "files"));
-              const fileId = fileRef.id;
-
-              await setDoc(fileRef, {
-                id: fileId,
-                groupId: activeGroup?.id || "",
-                patientId: id,
-                uploadedBy: auth.currentUser?.uid || "",
-                uploadedByEmail: auth.currentUser?.email || "",
-                originalName: actualFile.name,
-                contentType: inferredContentType,
-                fileType: "video",
-                size: actualFile.size,
-                storagePath: storagePath,
-                downloadURL: downloadURL,
-
-                description: desc || actualFile.name || "Vídeo via Chat",
-                link: downloadURL,
-                status: "active",
-                createdAt: new Date(),
-                updatedAt: new Date()
-              });
-
-              setMessages([]);
-              await handleDirectCommand(`/p ${id}`);
-
-              if (selectedImage && selectedImage.startsWith("blob:")) {
-                try { URL.revokeObjectURL(selectedImage); } catch (e) {}
-              }
-              setSelectedImage(null);
-              setSelectedFileObj(null);
-              setIsLoading(false);
-              return true;
-            } catch (videoErr: any) {
-              console.error("[ChatVideoUpload] Error during video upload:", videoErr);
-              const isCustomErr = videoErr.message.includes("Formato de vídeo") || videoErr.message.includes("Este vídeo é muito grande");
-              const finalErrorMsgStr = isCustomErr ? videoErr.message : `Não foi possível enviar este vídeo. Tente salvar como MP4 ou selecione uma versão menor. (${videoErr.message || videoErr})`;
-              alert(finalErrorMsgStr);
-              setIsLoading(false);
-              return true;
-            }
-          }
-
-          try {
-            if (activeGroup?.id) {
-              const groupKey = await getGroupCryptoKey(activeGroup.id);
-              if (!groupKey) {
-                throw new Error("Chave de segurança do grupo indisponível. Para sua segurança, o envio de arquivos não criptografados foi bloqueado.");
-              }
+        // 2. Perform Client-side E2E encryption prior to Firebase Storage upload
+        try {
+          if (activeGroup?.id) {
+            const groupKey = await getGroupCryptoKey(activeGroup.id);
+            if (groupKey) {
               console.log("[E2E] Encrypting chat file before upload");
               const { encryptFile } = await import("../lib/crypto");
               const { encryptedBlob, ivBase64: iv } = await encryptFile(actualFile, groupKey);
               fileToUpload = new File([encryptedBlob], actualFile.name + ".encrypted", { type: "application/octet-stream" });
               isEncrypted = true;
               ivBase64 = iv;
-              originalContentType = actualFile.type || "application/octet-stream";
             }
-          } catch (e: any) {
-            console.error("[E2E] Chat file encryption failure", e);
-            throw new Error(e.message || "Não foi possível criptografar o arquivo no dispositivo.");
           }
+        } catch (encryptError: any) {
+          console.error("[E2E] Chat file encryption failure", encryptError);
+          throw new Error(`Não foi possível criptografar o arquivo no dispositivo: ${encryptError.message || encryptError}`);
         }
 
-        const mimeTypeToCheck = actualFile ? actualFile.type : "";
-        const nameToCheckLower = actualFile ? (actualFile.name || "").toLowerCase() : "";
-        if (
-          mimeTypeToCheck.startsWith("video/") || 
-          nameToCheckLower.endsWith(".mp4") || 
-          nameToCheckLower.endsWith(".mov") || 
-          nameToCheckLower.endsWith(".webm") || 
-          nameToCheckLower.endsWith(".quicktime") || 
-          nameToCheckLower.endsWith(".m4v") || 
-          nameToCheckLower.endsWith(".3gp") || 
-          nameToCheckLower.endsWith(".3gpp") || 
-          nameToCheckLower.endsWith(".mkv") || 
-          nameToCheckLower.endsWith(".avi") || 
-          nameToCheckLower.endsWith(".wmv") || 
-          nameToCheckLower.endsWith(".flv") || 
-          nameToCheckLower.endsWith(".qt") || 
-          nameToCheckLower.endsWith(".ts")
-        ) {
-          isVideoUpload = true;
-        }
-
-        if (fileToUpload) {
-          console.log("[Upload] [FormData] sending file, encryption status:", isEncrypted);
-          const formData = new FormData();
-          formData.append("file", fileToUpload);
-          formData.append("patientId", id);
-          formData.append("description", desc || (actualFile ? actualFile.name : "Documento via Chat"));
-          formData.append("platform", /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "other");
-          if (isEncrypted) {
-            formData.append("isEncrypted", "true");
-            formData.append("iv", ivBase64);
-            formData.append("originalContentType", originalContentType);
-          }
-
-          res = await apiFetch("/api/app/upload-image", {
-            method: "POST",
-            body: formData
-          });
+        // 3. Determine safe Firebase Storage destination path
+        let storagePath = "";
+        if (isEncrypted) {
+          storagePath = `groups/${activeGroup?.id}/encrypted-files/${fileId}/${safeFileName}.encrypted`;
         } else {
-          throw new Error("Nenhum arquivo ou imagem selecionados para upload.");
+          storagePath = `groups/${activeGroup?.id}/patients/${id}/files/${timestamp}-${safeFileName}`;
         }
 
-        const data = await res.json();
-        if (!res.ok || data.error) throw new Error(data.error || "Erro no upload");
+        console.log("[ChatUpload] Starting direct Firebase Storage upload...");
+        console.log("- file.name:", actualFile.name);
+        console.log("- file.type:", actualFile.type);
+        console.log("- inferred type:", originalContentType);
+        console.log("- file.size:", actualFile.size);
+        console.log("- storage path:", storagePath);
+
+        // 4. Initiate client-side resumable upload with progress updates
+        const storageRef = ref(storage, storagePath);
+        const metadata = {
+          contentType: isEncrypted ? "application/octet-stream" : originalContentType,
+          customMetadata: {
+            originalName: actualFile.name,
+            contentType: originalContentType,
+          },
+        };
+
+        const uploadTask = uploadBytesResumable(storageRef, fileToUpload, metadata);
+
+        const downloadURL = await new Promise<string>((resolve, reject) => {
+          uploadTask.on(
+            "state_changed",
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              console.log(`[ChatUpload] Progress: ${progress.toFixed(2)}%`);
+              setUploadProgress(progress);
+            },
+            (error) => {
+              reject(error);
+            },
+            async () => {
+              try {
+                const url = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve(url);
+              } catch (err) {
+                reject(err);
+              }
+            }
+          );
+        });
+
+        console.log("[ChatUpload] Completed successfully. URL:", downloadURL);
+
+        // 5. Create Firestore metadata database entry
+        const fileRef = doc(db, "files", fileId);
+        await setDoc(fileRef, {
+          id: fileId,
+          groupId: activeGroup?.id || "",
+          patientId: id,
+          uploadedBy: auth.currentUser?.uid || "",
+          uploadedByEmail: auth.currentUser?.email || "",
+          createdBy: auth.currentUser?.uid || "",
+          originalName: actualFile.name,
+          originalFileName: actualFile.name,
+          safeFileName: safeFileName,
+          contentType: originalContentType,
+          fileType: fileTypeResolved,
+          size: actualFile.size,
+          storagePath: storagePath,
+          downloadURL: downloadURL,
+          downloadUrl: downloadURL,
+
+          description: desc || actualFile.name || "Documento via Chat",
+          link: downloadURL,
+          status: "active",
+          timestamp: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+
+          ...(isEncrypted ? {
+            encryption: {
+              algorithm: "AES-GCM",
+              iv: ivBase64,
+              originalContentType: originalContentType,
+              encrypted: true
+            }
+          } : {})
+        });
 
         setMessages([]);
-        
-        if (useAI && data.fileId) {
-          await handleDirectCommand(`/p ${id}`);
+
+        await handleDirectCommand(`/p ${id}`);
+        if (useAI) {
           setMessages(prev => [...prev, { role: "model", text: "⏳ **Solicitando análise inteligente da imagem enviada...**" }]);
-          await handleDirectCommand(`/ai_analyze id: ${data.fileId}, pId: ${id}`);
-        } else {
-          await handleDirectCommand(`/p ${id}`);
+          await handleDirectCommand(`/ai_analyze id: ${fileId}, pId: ${id}`);
         }
 
         if (selectedImage && selectedImage.startsWith("blob:")) {
@@ -3034,20 +3035,26 @@ ${aiPart}
             URL.revokeObjectURL(selectedImage);
           } catch (e) {}
         }
-        setSelectedImage(null); // Clear image after upload
-        setSelectedFileObj(null); // Clear file obj after upload
+        setSelectedImage(null);
+        setSelectedFileObj(null);
+        setUploadProgress(null);
       } catch (err: any) {
-        console.error("[Upload] error full", err);
-        console.error("[Upload] error code", err?.code);
-        console.error("[Upload] error message", err?.message);
+        console.error("[Upload] Error complete trace:", err);
+        console.error("[Upload] file.name:", actualFile?.name);
+        console.error("[Upload] file.type:", actualFile?.type);
+        console.error("[Upload] inferred content type:", originalContentType);
+        console.error("[Upload] file.size:", actualFile?.size);
+        console.error("[Upload] Firebase error code:", err?.code);
+        console.error("[Upload] Firebase error message:", err?.message);
 
         const friendlyMsg = isVideoUpload
-          ? `Não foi possível enviar este vídeo (${err.message || err}). Tente salvar o vídeo novamente no iPhone ou escolher uma versão menor.`
-          : `Erro no upload: ${err.message}`;
+          ? "Não foi possível enviar este vídeo. Tente salvar novamente como MP4 ou enviar uma versão menor."
+          : "Não foi possível enviar o arquivo. Verifique sua conexão e tente novamente.";
 
         setMessages(prev => [...prev, { role: "model", text: `❌ ${friendlyMsg}` }]);
       } finally {
         setIsLoading(false);
+        setUploadProgress(null);
         return true;
       }
     }
@@ -4537,6 +4544,7 @@ ${aiPart}
                           onSelectImage={setSelectedImage}
                           selectedFileObj={selectedFileObj}
                           onSelectFileObj={setSelectedFileObj}
+                          uploadProgress={uploadProgress}
                         />
                       )}
                     </>

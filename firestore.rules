@@ -225,10 +225,18 @@ service cloud.firestore {
     }
 
     match /files/{fileId} {
-      allow read, write: if isSignedIn() && (
-        (resource != null && canAccessPatient(existing().patientId)) ||
-        (request.resource != null && canAccessPatient(incoming().patientId))
+      allow read: if isSignedIn() && (
+        isMember(resource.data.groupId) || 
+        (resource.data.patientId != null && canAccessPatient(resource.data.patientId))
       );
+      allow create: if isSignedIn() && (
+        isMember(incoming().groupId) || 
+        (incoming().patientId != null && canAccessPatient(incoming().patientId))
+      );
+      allow update: if isSignedIn() && (
+        isMember(existing().groupId) && isMember(incoming().groupId)
+      );
+      allow delete: if isSignedIn() && isMember(existing().groupId);
     }
   }
 }
