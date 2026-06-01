@@ -13,36 +13,30 @@ export default defineConfig(({mode}) => {
       VitePWA({
         strategies: 'injectManifest',
         srcDir: 'src',
-        filename: 'sw.js',
+        filename: 'service-worker.js',
         registerType: 'autoUpdate',
-        injectRegister: 'auto',
+        injectRegister: false,
         manifestFilename: 'manifest.json',
         devOptions: {
           enabled: true,
           type: 'module'
         },
-        includeAssets: ['favicon.ico', 'favicon.png', 'apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png'],
+        includeAssets: ['favicon.ico', 'favicon.png', 'apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-192-maskable.png', 'icons/icon-512.png', 'icons/icon-512-maskable.png'],
         injectManifest: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         },
         manifest: {
-          id: '/',
-          scope: '/',
           name: 'Dr. Agent',
           short_name: 'Dr. Agent',
-          description: 'Seu assistente inteligente integrado ao Google Workspace. Gerencie pacientes, calendário e documentos com segurança e automação.',
+          description: 'Organização de pacientes, agenda, arquivos e equipe médica.',
           theme_color: '#2563eb',
           background_color: '#ffffff',
           display: 'standalone',
+          display_override: ['standalone', 'minimal-ui'],
           orientation: 'portrait',
-          start_url: '/app',
+          start_url: '/?source=pwa',
+          scope: '/',
           icons: [
-            {
-              src: '/favicon.png',
-              sizes: '64x64',
-              type: 'image/png',
-              purpose: 'any'
-            },
             {
               src: '/icons/icon-192.png',
               sizes: '192x192',
@@ -50,7 +44,7 @@ export default defineConfig(({mode}) => {
               purpose: 'any'
             },
             {
-              src: '/icons/icon-192.png',
+              src: '/icons/icon-192-maskable.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'maskable'
@@ -62,7 +56,7 @@ export default defineConfig(({mode}) => {
               purpose: 'any'
             },
             {
-              src: '/icons/icon-512.png',
+              src: '/icons/icon-512-maskable.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable'

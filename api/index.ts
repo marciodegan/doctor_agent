@@ -3292,6 +3292,19 @@ async function startServer() {
     });
   } else {
     const distPath = path.join(process.cwd(), "dist");
+
+    // Explicitly serve manifest.json with standard PWA content-type and safety
+    app.get("/manifest.json", (req, res) => {
+      res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+      res.sendFile(path.join(distPath, "manifest.json"));
+    });
+
+    // Explicitly serve service-worker.js with standard Javascript content-type and cache bypass
+    app.get("/service-worker.js", (req, res) => {
+      res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+      res.sendFile(path.join(distPath, "service-worker.js"));
+    });
+
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));

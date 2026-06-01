@@ -210,7 +210,7 @@ export default function AppWorkspace() {
 
     // Check if running as PWA
     const isPWA = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
-    console.log("[PWA] Running as PWA:", isPWA);
+    console.log("[PWA] Running standalone", isPWA);
     if (isPWA) {
       console.log("[PWA] App already installed");
     }

@@ -338,11 +338,16 @@ export function Profile({ onHose, installPrompt, onInstall }: { onHose?: () => v
               </button>
             ) : isAndroid ? (
               <div className="bg-amber-50/50 border border-amber-100/80 rounded-2xl p-4 text-xs text-amber-800 leading-relaxed">
-                <p className="font-bold flex items-center gap-1.5 mb-1 text-amber-900">
+                <p className="font-bold flex items-center gap-1.5 mb-1.5 text-amber-900">
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                  Como instalar no Android:
+                  Instalação no Android:
                 </p>
-                Para instalar, toque no botão <strong className="font-extrabold">⋮ (três pontos)</strong> no topo do navegador Chrome e selecione <strong className="font-semibold">"Instalar aplicativo"</strong> ou <strong className="font-semibold">"Adicionar à tela inicial"</strong>.
+                <p className="mb-2">
+                  O app ainda não está disponível para instalação neste navegador. Verifique se está usando o Chrome atualizado.
+                </p>
+                <p className="text-[11px] text-amber-700">
+                  Caso o botão não apareça, você também pode instalar tocando no botão <strong className="font-extrabold">⋮ (três pontos)</strong> no canto superior do Chrome e selecionando <strong className="font-semibold">"Instalar aplicativo"</strong> ou <strong className="font-semibold">"Adicionar à tela inicial"</strong>.
+                </p>
               </div>
             ) : null}
           </div>

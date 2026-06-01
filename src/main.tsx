@@ -42,11 +42,30 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
-import { registerSW } from 'virtual:pwa-register';
-
 if (typeof window !== 'undefined') {
+  console.log("[PWA] Manifest linked");
+
+  if ("serviceWorker" in navigator) {
+    console.log("[PWA] Service Worker supported");
+    
+    window.addEventListener("load", async () => {
+      try {
+        const registration = await navigator.serviceWorker.register("/service-worker.js", {
+          scope: "/"
+        });
+        console.log("[PWA] Service Worker registered", registration);
+
+        await navigator.serviceWorker.ready;
+        console.log("[PWA] Service Worker ready");
+      } catch (error) {
+        console.error("[PWA] Service Worker registration failed", error);
+      }
+    });
+  }
+
   // Catch the install prompt event globally to avoid timing issues on Android Chrome
   window.addEventListener('beforeinstallprompt', (e: any) => {
+    console.log("[PWA] beforeinstallprompt fired");
     console.log("[PWA] Global beforeinstallprompt fired and captured.");
     e.preventDefault();
     (window as any).deferredInstallPrompt = e;
@@ -55,20 +74,11 @@ if (typeof window !== 'undefined') {
   });
 
   window.addEventListener('appinstalled', () => {
+    console.log("[PWA] App installed");
     console.log("[PWA] App successfully installed!");
     (window as any).deferredInstallPrompt = null;
     window.dispatchEvent(new CustomEvent('pwa-installed'));
   });
-
-  registerSW({
-    onNeedRefresh() {
-      if (confirm('Nova versão disponível. Atualizar?')) {
-        window.location.reload();
-      }
-    },
-  });
-  console.log("[PWA] Service worker registered");
-  console.log("[PWA] Manifest loaded");
 }
 
 createRoot(document.getElementById('root')!).render(
