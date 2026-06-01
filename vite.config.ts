@@ -34,7 +34,7 @@ export default defineConfig(({mode}) => {
           display: 'standalone',
           display_override: ['standalone', 'minimal-ui'],
           orientation: 'portrait',
-          start_url: '/?source=pwa',
+          start_url: '/app?source=pwa',
           scope: '/',
           icons: [
             {

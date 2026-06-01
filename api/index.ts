@@ -3271,6 +3271,36 @@ app.get("/api/stripe/status", async (req, res) => {
 });
 
 async function startServer() {
+  const distPath = path.join(process.cwd(), "dist");
+
+  // Explicitly serve manifest.json with standard PWA content-type and safety in both dev and prod
+  app.get("/manifest.json", (req, res) => {
+    res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    const prodPath = path.join(distPath, "manifest.json");
+    const devPath = path.join(process.cwd(), "public", "manifest.json");
+    if (fs.existsSync(prodPath)) {
+      res.sendFile(prodPath);
+    } else if (fs.existsSync(devPath)) {
+      res.sendFile(devPath);
+    } else {
+      res.status(404).json({ error: "Manifest not found" });
+    }
+  });
+
+  // Explicitly serve service-worker.js with correct Content-Type and no-cache in both dev and prod
+  app.get("/service-worker.js", (req, res, next) => {
+    const prodPath = path.join(distPath, "service-worker.js");
+    if (fs.existsSync(prodPath)) {
+      res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.sendFile(prodPath);
+    } else {
+      // Let Vite middleware compile dynamically in dev
+      next();
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
@@ -3291,20 +3321,6 @@ async function startServer() {
       }
     });
   } else {
-    const distPath = path.join(process.cwd(), "dist");
-
-    // Explicitly serve manifest.json with standard PWA content-type and safety
-    app.get("/manifest.json", (req, res) => {
-      res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
-      res.sendFile(path.join(distPath, "manifest.json"));
-    });
-
-    // Explicitly serve service-worker.js with standard Javascript content-type and cache bypass
-    app.get("/service-worker.js", (req, res) => {
-      res.setHeader("Content-Type", "application/javascript; charset=utf-8");
-      res.sendFile(path.join(distPath, "service-worker.js"));
-    });
-
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));

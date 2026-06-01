@@ -1,8 +1,7 @@
-import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching';
-import { registerRoute, NavigationRoute } from 'workbox-routing';
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 
 // --- VERSION CONFIGURATION ---
-const APP_VERSION = "1.0.4";
+const APP_VERSION = "1.0.5";
 const CACHE_NAME = `dr-agent-v${APP_VERSION}`;
 
 console.log("[PWA] Service worker initializing version:", APP_VERSION);
@@ -16,23 +15,6 @@ const manifestFilter = (self.__WB_MANIFEST || []).filter(entry => {
 });
 
 precacheAndRoute(manifestFilter);
-
-// SPA Navigation route fallback (excluding API, auth and assets)
-try {
-  const handler = createHandlerBoundToURL('/index.html');
-  const navigationRoute = new NavigationRoute(handler, {
-    denylist: [
-      /^\/api\//,
-      /^\/auth\/callback/,
-      /^\/manifest\.json/,
-      /^\/service-worker\.js/,
-      /^\/icons\//,
-    ],
-  });
-  registerRoute(navigationRoute);
-} catch (e) {
-  console.error('[ServiceWorker] Navigation fallback setup failed:', e);
-}
 
 // Service Worker installation
 self.addEventListener("install", (event) => {
@@ -60,7 +42,7 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Custom fetch interceptor to guarantee manifest/icons/service-worker are never aggressively cached
+// Custom fetch interceptor for standard GET requests with network-first with cache fallback strategy
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
     return;
@@ -68,7 +50,7 @@ self.addEventListener("fetch", (event) => {
 
   const requestUrl = new URL(event.request.url);
 
-  // Bypass service-worker caching for these critical files
+  // Bypass service-worker caching entirely for these critical configuration/icon files
   if (
     requestUrl.pathname.includes("manifest.json") ||
     requestUrl.pathname.includes("/icons/") ||
@@ -77,5 +59,34 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Let other requests fall through to Workbox handlers or network
+  // Network-First with Cache Fallback Strategy
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        // Cache clone of GET basic responses
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return response;
+      })
+      .catch(() => {
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // For navigation mode (e.g. /, /app), fallback to cached index.html
+          if (event.request.mode === 'navigate') {
+            return caches.match('/index.html');
+          }
+          return new Response("Offline content not available for this resource.", {
+            status: 503,
+            statusText: "Service Unavailable",
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
+        });
+      })
+  );
 });
