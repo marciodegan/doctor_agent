@@ -14,6 +14,18 @@ export default function App() {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   useEffect(() => {
+    // If we've started with ?source=pwa or are in standalone mode on the root path /,
+    // automatically and transparently redirect to /app.
+    const params = new URLSearchParams(window.location.search);
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    if ((isPWA || params.get('source') === 'pwa') && window.location.pathname === '/') {
+      console.log("[PWA] Standalone/PWA startup detected, redirecting to /app");
+      window.history.replaceState(null, "", "/app");
+      setCurrentPath("/app");
+    }
+  }, []);
+
+  useEffect(() => {
     const handleLocationChange = () => {
       setCurrentPath(window.location.pathname.toLowerCase());
     };

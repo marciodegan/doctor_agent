@@ -187,6 +187,12 @@ export default function AppWorkspace() {
   }, [currentView, activePatientId, activePatientName]);
 
   useEffect(() => {
+    // Sync immediately if event already fired and is on window object
+    if (typeof window !== "undefined" && (window as any).deferredInstallPrompt) {
+      console.log("[PWA] Found deferredInstallPrompt on window during mount");
+      setInstallPrompt((window as any).deferredInstallPrompt);
+    }
+
     const handleAvailable = (e: any) => {
       console.log("[PWA] Install prompt available from global event");
       setInstallPrompt(e.detail || (window as any).deferredInstallPrompt);

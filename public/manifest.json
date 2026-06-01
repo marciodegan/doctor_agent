@@ -2,7 +2,7 @@
   "name": "Dr. Agent",
   "short_name": "Dr. Agent",
   "description": "Organização de pacientes, agenda, arquivos e equipe médica.",
-  "start_url": "/app?source=pwa",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],

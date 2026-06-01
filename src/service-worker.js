@@ -1,91 +1,144 @@
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches } from "workbox-precaching";
 
-// --- VERSION CONFIGURATION ---
-const APP_VERSION = "1.0.5";
-const CACHE_NAME = `dr-agent-v${APP_VERSION}`;
+const APP_VERSION = "1.0.6";
+const CACHE_NAME = `dr-agent-runtime-v${APP_VERSION}`;
 
 console.log("[PWA] Service worker initializing version:", APP_VERSION);
 
 cleanupOutdatedCaches();
 
-// Precaching files built by Vite (excluding manifest, favicon and icons to avoid aggressive cache lock)
-const manifestFilter = (self.__WB_MANIFEST || []).filter(entry => {
+const manifestFilter = (self.__WB_MANIFEST || []).filter((entry) => {
   const url = typeof entry === "string" ? entry : entry.url;
-  return !url.includes("manifest") && !url.includes("icons/") && !url.includes("favicon") && !url.includes("apple-touch-icon");
+
+  return (
+    !url.includes("manifest") &&
+    !url.includes("icons/") &&
+    !url.includes("favicon") &&
+    !url.includes("apple-touch-icon") &&
+    !url.includes("service-worker")
+  );
 });
 
 precacheAndRoute(manifestFilter);
 
-// Service Worker installation
 self.addEventListener("install", (event) => {
   console.log("[PWA] Service Worker installing");
   self.skipWaiting();
 });
 
-// Cache management on service worker activation
 self.addEventListener("activate", (event) => {
   console.log("[PWA] Service Worker activating");
+
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((cacheName) => cacheName !== CACHE_NAME && !cacheName.includes('workbox-precache'))
-          .map((cacheName) => {
-            console.log("[ServiceWorker] Removing old cache:", cacheName);
-            return caches.delete(cacheName);
-          })
-      );
-    }).then(() => {
-      console.log("[PWA] Service Worker ready and Clients claimed");
-      return self.clients.claim();
-    })
+    caches
+      .keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames
+            .filter((cacheName) => {
+              return (
+                cacheName !== CACHE_NAME &&
+                !cacheName.includes("workbox-precache")
+              );
+            })
+            .map((cacheName) => {
+              console.log("[PWA] Removing old cache:", cacheName);
+              return caches.delete(cacheName);
+            })
+        );
+      })
+      .then(() => {
+        console.log("[PWA] Service Worker ready and clients claimed");
+        return self.clients.claim();
+      })
   );
 });
 
-// Custom fetch interceptor for standard GET requests with network-first with cache fallback strategy
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") {
+  const request = event.request;
+
+  if (request.method !== "GET") {
     return;
   }
 
-  const requestUrl = new URL(event.request.url);
+  const requestUrl = new URL(request.url);
 
-  // Bypass service-worker caching entirely for these critical configuration/icon files
+  if (!requestUrl.protocol.startsWith("http")) {
+    return;
+  }
+
   if (
     requestUrl.pathname.includes("manifest.json") ||
     requestUrl.pathname.includes("/icons/") ||
+    requestUrl.pathname.includes("favicon") ||
+    requestUrl.pathname.includes("apple-touch-icon") ||
     requestUrl.pathname.includes("service-worker.js")
   ) {
     return;
   }
 
-  // Network-First with Cache Fallback Strategy
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Cache clone of GET basic responses
-        if (response && response.status === 200 && response.type === 'basic') {
-          const responseToCache = response.clone();
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const responseClone = response.clone();
+
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+            cache.put("/index.html", responseClone);
+          });
+
+          return response;
+        })
+        .catch(async () => {
+          const cachedIndex =
+            (await caches.match("/index.html")) ||
+            (await caches.match("/"));
+
+          if (cachedIndex) {
+            return cachedIndex;
+          }
+
+          return new Response("App offline", {
+            status: 503,
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8"
+            }
+          });
+        })
+    );
+
+    return;
+  }
+
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        if (
+          response &&
+          response.status === 200 &&
+          response.type === "basic"
+        ) {
+          const responseClone = response.clone();
+
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseClone);
           });
         }
+
         return response;
       })
-      .catch(() => {
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
+      .catch(async () => {
+        const cachedResponse = await caches.match(request);
+
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        return new Response("Offline content not available.", {
+          status: 503,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8"
           }
-          // For navigation mode (e.g. /, /app), fallback to cached index.html
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
-          return new Response("Offline content not available for this resource.", {
-            status: 503,
-            statusText: "Service Unavailable",
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-          });
         });
       })
   );

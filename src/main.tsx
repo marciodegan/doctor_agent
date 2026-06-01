@@ -47,6 +47,7 @@ if (typeof window !== 'undefined') {
 
   if ("serviceWorker" in navigator) {
     console.log("[PWA] Service Worker supported");
+    console.log("[PWA] Controller", navigator.serviceWorker.controller);
     
     window.addEventListener("load", async () => {
       try {
