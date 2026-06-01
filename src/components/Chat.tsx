@@ -26,6 +26,8 @@ import { useGroup } from "../contexts/GroupContext";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 import { PatientListView } from "./PatientListView";
 import { E2EMedia } from "./E2EMedia";
+import { mediaUploadService } from "../services/mediaUploadService";
+
 
 const sanitizeFileName = (fileName: string): string => {
   if (!fileName) return `file_${Date.now()}`;
@@ -2857,7 +2859,6 @@ ${aiPart}
       setIsLoading(true);
       setUploadProgress(0);
       let isVideoUpload = false;
-      let originalContentType = "";
       let actualFile: File | null = selectedFileObj;
 
       try {
@@ -2895,131 +2896,25 @@ ${aiPart}
 
         if (!actualFile) throw new Error("Nenhum arquivo ou imagem selecionados para upload.");
 
-        // Identify file types using helper methods
-        const isInferredImage = isImageFile(actualFile);
         const isInferredVideo = isVideoFile(actualFile);
-        const isInferredPdf = isPdfFile(actualFile);
-
-        let fileTypeResolved: "image" | "video" | "pdf" = "image";
         if (isInferredVideo) {
-          fileTypeResolved = "video";
           isVideoUpload = true;
-        } else if (isInferredPdf) {
-          fileTypeResolved = "pdf";
         }
 
-        originalContentType = getSafeContentType(actualFile);
-        const safeFileName = sanitizeFileName(actualFile.name);
-        const fileId = doc(collection(db, "files")).id;
-        const timestamp = Date.now();
+        const groupKey = activeGroup?.id ? await getGroupCryptoKey(activeGroup.id) : null;
 
-        let fileToUpload: File | Blob = actualFile;
-        let isEncrypted = false;
-        let ivBase64 = "";
-
-        // 2. Perform Client-side E2E encryption prior to Firebase Storage upload
-        try {
-          if (activeGroup?.id) {
-            const groupKey = await getGroupCryptoKey(activeGroup.id);
-            if (groupKey) {
-              console.log("[E2E] Encrypting chat file before upload");
-              const { encryptFile } = await import("../lib/crypto");
-              const { encryptedBlob, ivBase64: iv } = await encryptFile(actualFile, groupKey);
-              fileToUpload = new File([encryptedBlob], actualFile.name + ".encrypted", { type: "application/octet-stream" });
-              isEncrypted = true;
-              ivBase64 = iv;
-            }
-          }
-        } catch (encryptError: any) {
-          console.error("[E2E] Chat file encryption failure", encryptError);
-          throw new Error(`Não foi possível criptografar o arquivo no dispositivo: ${encryptError.message || encryptError}`);
-        }
-
-        // 3. Determine safe Firebase Storage destination path
-        let storagePath = "";
-        if (isEncrypted) {
-          storagePath = `groups/${activeGroup?.id}/encrypted-files/${fileId}/${safeFileName}.encrypted`;
-        } else {
-          storagePath = `groups/${activeGroup?.id}/patients/${id}/files/${timestamp}-${safeFileName}`;
-        }
-
-        console.log("[ChatUpload] Starting direct Firebase Storage upload...");
-        console.log("- file.name:", actualFile.name);
-        console.log("- file.type:", actualFile.type);
-        console.log("- inferred type:", originalContentType);
-        console.log("- file.size:", actualFile.size);
-        console.log("- storage path:", storagePath);
-
-        // 4. Initiate client-side resumable upload with progress updates
-        const storageRef = ref(storage, storagePath);
-        const metadata = {
-          contentType: isEncrypted ? "application/octet-stream" : originalContentType,
-          customMetadata: {
-            originalName: actualFile.name,
-            contentType: originalContentType,
-          },
-        };
-
-        const uploadTask = uploadBytesResumable(storageRef, fileToUpload, metadata);
-
-        const downloadURL = await new Promise<string>((resolve, reject) => {
-          uploadTask.on(
-            "state_changed",
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              console.log(`[ChatUpload] Progress: ${progress.toFixed(2)}%`);
-              setUploadProgress(progress);
-            },
-            (error) => {
-              reject(error);
-            },
-            async () => {
-              try {
-                const url = await getDownloadURL(uploadTask.snapshot.ref);
-                resolve(url);
-              } catch (err) {
-                reject(err);
-              }
-            }
-          );
-        });
-
-        console.log("[ChatUpload] Completed successfully. URL:", downloadURL);
-
-        // 5. Create Firestore metadata database entry
-        const fileRef = doc(db, "files", fileId);
-        await setDoc(fileRef, {
-          id: fileId,
+        const { fileId } = await mediaUploadService.upload({
+          file: actualFile,
           groupId: activeGroup?.id || "",
           patientId: id,
-          uploadedBy: auth.currentUser?.uid || "",
-          uploadedByEmail: auth.currentUser?.email || "",
           createdBy: auth.currentUser?.uid || "",
-          originalName: actualFile.name,
-          originalFileName: actualFile.name,
-          safeFileName: safeFileName,
-          contentType: originalContentType,
-          fileType: fileTypeResolved,
-          size: actualFile.size,
-          storagePath: storagePath,
-          downloadURL: downloadURL,
-          downloadUrl: downloadURL,
-
+          createdByEmail: auth.currentUser?.email || "",
           description: desc || actualFile.name || "Documento via Chat",
-          link: downloadURL,
-          status: "active",
-          timestamp: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-
-          ...(isEncrypted ? {
-            encryption: {
-              algorithm: "AES-GCM",
-              iv: ivBase64,
-              originalContentType: originalContentType,
-              encrypted: true
-            }
-          } : {})
+          groupKey,
+          onProgress: (progress) => {
+            console.log(`[ChatUpload] Progress: ${progress.toFixed(2)}%`);
+            setUploadProgress(progress);
+          }
         });
 
         setMessages([]);
@@ -3040,16 +2935,12 @@ ${aiPart}
         setUploadProgress(null);
       } catch (err: any) {
         console.error("[Upload] Error complete trace:", err);
-        console.error("[Upload] file.name:", actualFile?.name);
-        console.error("[Upload] file.type:", actualFile?.type);
-        console.error("[Upload] inferred content type:", originalContentType);
-        console.error("[Upload] file.size:", actualFile?.size);
-        console.error("[Upload] Firebase error code:", err?.code);
-        console.error("[Upload] Firebase error message:", err?.message);
-
-        const friendlyMsg = isVideoUpload
-          ? "Não foi possível enviar este vídeo. Tente salvar novamente como MP4 ou enviar uma versão menor."
-          : "Não foi possível enviar o arquivo. Verifique sua conexão e tente novamente.";
+        const errMsg = err?.message || "";
+        const friendlyMsg = errMsg.includes("proteger")
+          ? "Não foi possível proteger este arquivo. Tente novamente."
+          : isVideoUpload
+            ? "Não foi possível enviar este vídeo. Tente salvar novamente como MP4 ou enviar uma versão menor."
+            : "Não foi possível enviar o arquivo. Verifique sua conexão e tente novamente.";
 
         setMessages(prev => [...prev, { role: "model", text: `❌ ${friendlyMsg}` }]);
       } finally {

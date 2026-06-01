@@ -21,6 +21,7 @@ import { collection, query, where, onSnapshot, doc, setDoc } from "firebase/fire
 import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import ReactMarkdown from "react-markdown";
 import { E2EMedia } from "./E2EMedia";
+import { mediaUploadService } from "../services/mediaUploadService";
 
 interface PersonalImage {
   id: string;
@@ -279,130 +280,24 @@ export const PersonalDocuments: React.FC = () => {
     setErrorMsg(null);
     setUploadProgress(0);
 
-    const isInferredImage = isImageFile(selectedFile);
-    const isInferredVideo = isVideoFile(selectedFile);
-    const isInferredPdf = isPdfFile(selectedFile);
-
-    let fileTypeResolved: "image" | "video" | "pdf" = "image";
-    if (isInferredVideo) {
-      fileTypeResolved = "video";
-    } else if (isInferredPdf) {
-      fileTypeResolved = "pdf";
-    }
-
-    const originalContentType = getInferredContentType(selectedFile);
-    const safeFileName = sanitizeFileName(selectedFile.name);
+    const isVideo = isVideoFile(selectedFile);
     const patientId = `personal_${activeGroup.id}`;
-    const timestamp = Date.now();
-    const fileId = doc(collection(db, "files")).id;
-
-    let fileToUpload: File | Blob = selectedFile;
-    let isEncrypted = false;
-    let ivBase64 = "";
 
     try {
-      // 1. Attempt Client-side E2E Encryption if Group Crypto Key is available
-      try {
-        const groupKey = await getGroupCryptoKey(activeGroup.id);
-        if (groupKey) {
-          console.log("[E2E] Encrypting personal document before upload");
-          const { encryptFile } = await import("../lib/crypto");
-          const { encryptedBlob, ivBase64: iv } = await encryptFile(selectedFile, groupKey);
-          fileToUpload = new File([encryptedBlob], selectedFile.name + ".encrypted", { type: "application/octet-stream" });
-          isEncrypted = true;
-          ivBase64 = iv;
-        }
-      } catch (encryptError: any) {
-        console.error("[E2E] Client-side encryption failed", encryptError);
-        throw new Error(`Falha ao criptografar o arquivo antes do envio: ${encryptError.message || encryptError}`);
-      }
+      const groupKey = await getGroupCryptoKey(activeGroup.id);
 
-      // 2. Determine target storage path
-      let storagePath = "";
-      if (isEncrypted) {
-        storagePath = `groups/${activeGroup.id}/encrypted-files/${fileId}/${safeFileName}.encrypted`;
-      } else {
-        storagePath = `groups/${activeGroup.id}/patients/${patientId}/files/${timestamp}-${safeFileName}`;
-      }
-
-      console.log("[Upload] Initiating direct Firebase Storage upload...");
-      console.log("- file.name:", selectedFile.name);
-      console.log("- file.type:", selectedFile.type);
-      console.log("- inferred content type:", originalContentType);
-      console.log("- file.size:", selectedFile.size);
-      console.log("- storage path:", storagePath);
-
-      // 3. Initiate client-side resumable upload to Storage
-      const storageRef = ref(storage, storagePath);
-      const metadata = {
-        contentType: isEncrypted ? "application/octet-stream" : originalContentType,
-        customMetadata: {
-          originalName: selectedFile.name,
-          contentType: originalContentType,
-        },
-      };
-
-      const uploadTask = uploadBytesResumable(storageRef, fileToUpload, metadata);
-
-      const downloadURL = await new Promise<string>((resolve, reject) => {
-        uploadTask.on(
-          "state_changed",
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            console.log(`[Upload] Progress: ${progress.toFixed(2)}%`);
-            setUploadProgress(progress);
-          },
-          (error) => {
-            reject(error);
-          },
-          async () => {
-            try {
-              const url = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve(url);
-            } catch (err) {
-              reject(err);
-            }
-          }
-        );
+      const { fileId, downloadURL } = await mediaUploadService.upload({
+        file: selectedFile,
+        groupId: activeGroup.id,
+        patientId: patientId,
+        createdBy: auth.currentUser?.uid || "",
+        createdByEmail: auth.currentUser?.email || "",
+        description: description || selectedFile.name || "Documento",
+        groupKey,
+        onProgress: (p) => setUploadProgress(p)
       });
 
       console.log("[Upload] Upload successfully completed. URL:", downloadURL);
-
-      // 4. Create files metadata entry in Firestore client-side
-      const fileRef = doc(db, "files", fileId);
-      await setDoc(fileRef, {
-        id: fileId,
-        groupId: activeGroup.id,
-        patientId: patientId,
-        uploadedBy: auth.currentUser?.uid || "",
-        uploadedByEmail: auth.currentUser?.email || "",
-        createdBy: auth.currentUser?.uid || "",
-        originalName: selectedFile.name,
-        originalFileName: selectedFile.name,
-        safeFileName: safeFileName,
-        contentType: originalContentType,
-        fileType: fileTypeResolved,
-        size: selectedFile.size,
-        storagePath: storagePath,
-        downloadURL: downloadURL,
-        downloadUrl: downloadURL,
-
-        description: description || selectedFile.name || "Documento",
-        link: downloadURL,
-        status: "active",
-        timestamp: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-
-        ...(isEncrypted ? {
-          encryption: {
-            algorithm: "AES-GCM",
-            iv: ivBase64,
-            originalContentType: originalContentType,
-            encrypted: true
-          }
-        } : {})
-      });
 
       // 5. Cleanup local picker and preview states on success
       if (selectedImage && selectedImage.startsWith("blob:")) {
@@ -421,14 +316,10 @@ export const PersonalDocuments: React.FC = () => {
       await fetchImages();
     } catch (err: any) {
       console.error("[Upload] Error complete trace:", err);
-      console.error("[Upload] file.name:", selectedFile?.name);
-      console.error("[Upload] file.type:", selectedFile?.type);
-      console.error("[Upload] inferred content type:", originalContentType);
-      console.error("[Upload] file.size:", selectedFile?.size);
-      console.error("[Upload] Firebase error code:", err?.code);
-      console.error("[Upload] Firebase error message:", err?.message);
-
-      if (fileTypeResolved === "video") {
+      const errMsg = err?.message || "";
+      if (errMsg.includes("proteger")) {
+        setErrorMsg("Não foi possível proteger este arquivo. Tente novamente.");
+      } else if (isVideo) {
         setErrorMsg("Não foi possível enviar este vídeo. Tente salvar novamente como MP4 ou enviar uma versão menor.");
       } else {
         setErrorMsg("Não foi possível enviar o arquivo. Verifique sua conexão e tente novamente.");
@@ -593,7 +484,18 @@ export const PersonalDocuments: React.FC = () => {
                     type="file"
                     accept="image/*,video/*,application/pdf"
                     onChange={handleFileChange}
-                    className="hidden"
+                    style={{
+                      position: "absolute",
+                      width: "1px",
+                      height: "1px",
+                      padding: "0",
+                      margin: "-1px",
+                      overflow: "hidden",
+                      clip: "rect(0, 0, 0, 0)",
+                      whiteSpace: "nowrap",
+                      border: "0",
+                      opacity: 0
+                    }}
                   />
 
                   {selectedImage ? (

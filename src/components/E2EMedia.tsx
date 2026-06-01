@@ -15,6 +15,11 @@ interface E2EMediaProps {
   fallbackType?: "image" | "video" | "pdf";
   alt?: string;
   controls?: boolean;
+  // Flat encryption attributes support
+  encrypted?: boolean;
+  iv?: string | null;
+  algorithm?: string | null;
+  originalContentType?: string | null;
 }
 
 export const E2EMedia: React.FC<E2EMediaProps> = ({
@@ -23,7 +28,11 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
   className = "",
   fallbackType = "image",
   alt = "Imagem",
-  controls = true
+  controls = true,
+  encrypted,
+  iv,
+  algorithm,
+  originalContentType
 }) => {
   const { user } = useAuth();
   const { activeGroup, getGroupCryptoKey, apiFetch, activeGroupMembers } = useGroup();
@@ -39,8 +48,22 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
     let urlToCleanup: string | null = null;
 
     const resolveMedia = async () => {
+      // Consolidate metadata to pass to our service
+      const isEncrypted = encryption?.encrypted === true || encrypted === true;
+      const algorithmVal = encryption?.algorithm || algorithm || null;
+      const ivVal = encryption?.iv || iv || null;
+      const originalContentTypeVal = encryption?.originalContentType || originalContentType || null;
+
+      const fileMetadata = {
+        downloadUrl: src,
+        encrypted: isEncrypted,
+        iv: ivVal,
+        originalContentType: originalContentTypeVal,
+        algorithm: algorithmVal,
+      };
+
       // If of legacy type or no encryption
-      if (!encryption || !encryption.encrypted) {
+      if (!isEncrypted) {
         if (active) {
           setDecryptedUrl(src);
           setIsDecrypting(false);
@@ -62,36 +85,15 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
 
       try {
         const key = await getGroupCryptoKey(activeGroup.id);
-        if (!key) {
-          throw new Error("Chave de segurança indisponível.");
-        }
+        const { mediaPreviewService } = await import("../services/mediaPreviewService");
 
-        let fetchUrl = src;
-        // Routing through our proxy to avoid CORS issues for storage resources in the iframe
-        let isProxied = false;
-        if (src.startsWith("https://storage.googleapis.com/") || src.includes(".firebasestorage.app") || src.includes("firebasestorage.googleapis.com")) {
-          fetchUrl = `/api/app/proxy-storage-file?url=${encodeURIComponent(src)}`;
-          isProxied = true;
-        }
-
-        console.log(`[E2E] Fetching and decrypting resource: ${fetchUrl}`);
-        const res = isProxied ? await apiFetch(fetchUrl) : await fetch(fetchUrl);
-        if (!res.ok) {
-          throw new Error(`Downloads falharam com status: ${res.status}`);
-        }
-        const encryptedBlob = await res.blob();
-
-        const { decryptFile } = await import("../lib/crypto");
-        const decryptedUrlString = await decryptFile(
-          encryptedBlob,
-          key,
-          encryption.iv,
-          encryption.originalContentType
-        );
+        const previewUrl = await mediaPreviewService.getPreviewUrl(fileMetadata, key, apiFetch);
 
         if (active) {
-          setDecryptedUrl(decryptedUrlString);
-          urlToCleanup = decryptedUrlString;
+          setDecryptedUrl(previewUrl);
+          if (previewUrl && previewUrl.startsWith("blob:")) {
+            urlToCleanup = previewUrl;
+          }
         }
       } catch (err: any) {
         console.error("[E2E] Decryption on-the-fly failed:", err);
