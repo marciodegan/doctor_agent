@@ -71,7 +71,9 @@ export default function AppWorkspace() {
     : "Dr. Agent";
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [installPrompt, setInstallPrompt] = useState<any>(() => {
+    return (typeof window !== "undefined" && (window as any).deferredInstallPrompt) || null;
+  });
   const [currentView, setCurrentView] = useState<NavView | null>("calendar");
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
   const [activePatientName, setActivePatientName] = useState<string | null>(null);
@@ -185,10 +187,23 @@ export default function AppWorkspace() {
   }, [currentView, activePatientId, activePatientName]);
 
   useEffect(() => {
+    const handleAvailable = (e: any) => {
+      console.log("[PWA] Install prompt available from global event");
+      setInstallPrompt(e.detail || (window as any).deferredInstallPrompt);
+    };
+
+    const handleInstalled = () => {
+      console.log("[PWA] App installed event triggered, resetting prompt state");
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener('pwa-install-available' as any, handleAvailable);
+    window.addEventListener('pwa-installed' as any, handleInstalled);
+
     const handleBeforeInstall = (e: any) => {
-      console.log("[PWA] beforeinstallprompt event fired");
-      console.log("[PWA] beforeinstallprompt fired");
+      console.log("[PWA] beforeinstallprompt event fired inside AppWorkspace");
       e.preventDefault();
+      (window as any).deferredInstallPrompt = e;
       setInstallPrompt(e);
     };
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
@@ -200,7 +215,11 @@ export default function AppWorkspace() {
       console.log("[PWA] App already installed");
     }
 
-    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+    return () => {
+      window.removeEventListener('pwa-install-available' as any, handleAvailable);
+      window.removeEventListener('pwa-installed' as any, handleInstalled);
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+    };
   }, []);
 
   const toggleFullscreen = async () => {

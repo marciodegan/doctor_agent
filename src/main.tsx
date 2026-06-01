@@ -45,6 +45,21 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 import { registerSW } from 'virtual:pwa-register';
 
 if (typeof window !== 'undefined') {
+  // Catch the install prompt event globally to avoid timing issues on Android Chrome
+  window.addEventListener('beforeinstallprompt', (e: any) => {
+    console.log("[PWA] Global beforeinstallprompt fired and captured.");
+    e.preventDefault();
+    (window as any).deferredInstallPrompt = e;
+    const event = new CustomEvent('pwa-install-available', { detail: e });
+    window.dispatchEvent(event);
+  });
+
+  window.addEventListener('appinstalled', () => {
+    console.log("[PWA] App successfully installed!");
+    (window as any).deferredInstallPrompt = null;
+    window.dispatchEvent(new CustomEvent('pwa-installed'));
+  });
+
   registerSW({
     onNeedRefresh() {
       if (confirm('Nova versão disponível. Atualizar?')) {
