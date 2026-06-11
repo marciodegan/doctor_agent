@@ -12,12 +12,8 @@
     margin: 0;
     padding: 0;
     overflow: hidden;
-    background:
-      radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 38%),
-      radial-gradient(circle at top right, rgba(14, 165, 233, 0.05), transparent 35%),
-      radial-gradient(circle at bottom left, rgba(37, 99, 235, 0.03), transparent 30%),
-      linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
-    color-scheme: light;
+    background: #091124 !important; /* solid elegant medicine/navy-petroleum blue */
+    color-scheme: dark;
   }
 
   #root {
@@ -104,41 +100,44 @@
 /* --- LIQUID GLASS GLASSMORPHISM STYLE SHEET --- */
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.65) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.48) !important;
+  border: 1px solid rgba(255, 255, 255, 1) !important;
   box-shadow: 
-    0 10px 30px rgba(15, 23, 42, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+    0 10px 30px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  color: #0f172a !important;
 }
 
 .glass-panel {
-  background: rgba(255, 255, 255, 0.72) !important;
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  background: rgba(12, 21, 38, 0.8) !important;
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow: 
-    0 12px 36px rgba(15, 23, 42, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65) !important;
+    0 16px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }
 
 .glass-subcard {
-  background: rgba(255, 255, 255, 0.55) !important;
-  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 1) !important;
   box-shadow: 
-    0 4px 12px rgba(15, 23, 42, 0.02),
-    inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+    0 8px 24px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  color: #0f172a !important;
 }
 
 .glass-modal {
-  background: rgba(255, 255, 255, 0.8) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
   backdrop-filter: blur(28px) saturate(190%);
   -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 1) !important;
   box-shadow: 
-    0 24px 60px rgba(15, 23, 42, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+    0 30px 70px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  color: #0f172a !important;
 }
 
 .glass-button {
@@ -187,51 +186,50 @@
 }
 
 .glass-input {
-  background: rgba(255, 255, 255, 0.72) !important;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
   box-shadow: 
     inset 0 1px 2px rgba(15, 23, 42, 0.02),
-    0 4px 12px rgba(15, 23, 42, 0.02) !important;
+    0 4px 12px rgba(15, 23, 42, 0.01) !important;
+  color: #0f172a !important;
   transition: all 0.2s ease;
 }
 
 .glass-input:focus {
-  border-color: rgba(37, 99, 235, 0.45) !important;
-  background: rgba(255, 255, 255, 0.88) !important;
+  border-color: rgba(37, 99, 235, 0.5) !important;
+  background: #ffffff !important;
   box-shadow: 
-    0 0 0 3px rgba(37, 99, 235, 0.12),
+    0 0 0 3px rgba(37, 99, 235, 0.15),
     inset 0 1px 2px rgba(15, 23, 42, 0.02) !important;
   outline: none;
 }
 
 .glass-nav {
-  background: rgba(255, 255, 255, 0.78) !important;
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border-top: 1px solid rgba(226, 232, 240, 0.5) !important;
-  box-shadow: 0 -8px 30px rgba(15, 23, 42, 0.06) !important;
+  background: rgba(12, 21, 38, 0.9) !important;
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3) !important;
 }
 
 .glass-header {
-  background: rgba(255, 255, 255, 0.72) !important;
-  backdrop-filter: blur(26px) saturate(180%);
-  -webkit-backdrop-filter: blur(26px) saturate(180%);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.4) !important;
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.02) !important;
+  background: rgba(12, 21, 38, 0.8) !important;
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2) !important;
 }
 
 @supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
   .glass-card,
-  .glass-panel,
   .glass-subcard,
   .glass-modal,
-  .glass-button,
-  .glass-button-primary,
-  .glass-input,
+  .glass-input {
+    background: #ffffff !important;
+  }
+  .glass-panel,
   .glass-header,
   .glass-nav {
-    background: #ffffff !important;
+    background: #0c1424 !important;
   }
 }

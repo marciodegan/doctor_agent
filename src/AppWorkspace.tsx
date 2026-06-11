@@ -294,12 +294,12 @@ export default function AppWorkspace() {
 
   if (isAuthenticated === null) {
     return (
-      <div className="min-h-dvh bg-gray-50 flex items-center justify-center">
+      <div className="min-h-dvh bg-[#091124] flex items-center justify-center">
         <div className="animate-pulse flex flex-col items-center gap-4">
-          <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
+          <div className="w-12 h-12 bg-blue-950/40 text-blue-400 rounded-2xl flex items-center justify-center">
             <Layout size={32} />
           </div>
-          <p className="text-gray-400 font-medium tracking-tight">Initializing {companyName}...</p>
+          <p className="text-blue-100/60 font-medium tracking-tight">Initializing {companyName}...</p>
         </div>
       </div>
     );
@@ -316,8 +316,10 @@ export default function AppWorkspace() {
 
   if (isAuthenticated && !activeGroup) {
     return (
-      <div className="min-h-dvh bg-[#FDFDFD] flex items-center justify-center p-6">
-        <GroupSelector onSelect={handleGroupSelection} />
+      <div className="min-h-dvh bg-[#091124] flex items-center justify-center p-6">
+        <div className="w-full max-w-md p-6 bg-white rounded-3xl border border-white/50 shadow-2xl text-gray-900">
+          <GroupSelector onSelect={handleGroupSelection} />
+        </div>
       </div>
     );
   }
@@ -384,9 +386,9 @@ export default function AppWorkspace() {
                   <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
                     <Stethoscope size={18} />
                   </div>
-                  <h1 className="font-bold text-xl tracking-tight text-blue-600">{headerName}</h1>
+                  <h1 className="font-bold text-xl tracking-tight text-white">{headerName}</h1>
                 </div>
-                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-gray-400">
+                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-gray-400 hover:text-white">
                   <X size={20} />
                 </button>
               </div>
@@ -428,7 +430,7 @@ export default function AppWorkspace() {
               <div className="mt-auto">
                 <button
                   onClick={logout}
-                  className="flex items-center gap-3 w-full p-3 text-sm text-gray-500 hover:text-red-600 transition-colors bg-gray-50 rounded-2xl"
+                  className="flex items-center gap-3 w-full p-3 text-sm text-zinc-400 hover:text-red-400 transition-colors bg-white/5 rounded-2xl"
                 >
                   <LogOut size={16} />
                   <span className="font-medium">Disconnect</span>
@@ -505,7 +507,7 @@ export default function AppWorkspace() {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
               <Stethoscope size={18} />
             </div>
-            <h1 className="font-bold text-xl tracking-tight text-blue-600 truncate max-w-[140px]">{headerName}</h1>
+            <h1 className="font-bold text-xl tracking-tight text-white truncate max-w-[140px]">{headerName}</h1>
           </div>
         </div>
 
@@ -558,9 +560,9 @@ export default function AppWorkspace() {
           {isAuthenticated ? (
             <button
               onClick={logout}
-              className="flex items-center gap-3 w-full p-2 text-sm text-gray-500 hover:text-red-600 transition-colors group"
+              className="flex items-center gap-3 w-full p-2 text-sm text-zinc-400 hover:text-red-400 transition-colors group"
             >
-              <div className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center group-hover:bg-red-50 transition-colors">
+              <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center group-hover:bg-red-500/20 group-hover:text-red-400 transition-colors">
                 <LogOut size={16} />
               </div>
               <span className="font-medium">Disconnect</span>
@@ -568,9 +570,9 @@ export default function AppWorkspace() {
           ) : (
             <button
               onClick={login}
-              className="flex items-center gap-3 w-full p-2 text-sm text-blue-600 font-bold"
+              className="flex items-center gap-3 w-full p-2 text-sm text-blue-400 font-bold hover:text-blue-300 transition-colors"
             >
-              <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
                 <LogIn size={16} />
               </div>
               <span>Connect Google</span>
@@ -795,7 +797,7 @@ function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNo
       className={`flex items-center gap-3 w-full p-2.5 rounded-xl transition-all ${
       active
         ? "glass-button-primary text-white"
-        : "text-gray-500 hover:bg-white/45 hover:text-gray-900 border border-transparent hover:border-white/20"
+        : "text-zinc-400 hover:bg-white/10 hover:text-white border border-transparent hover:border-white/5"
     }`}>
       {icon}
       <span className="text-sm font-semibold">{label}</span>
