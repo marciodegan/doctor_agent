@@ -12,8 +12,12 @@
     margin: 0;
     padding: 0;
     overflow: hidden;
-    background: #091124 !important; /* solid elegant medicine/navy-petroleum blue */
-    color-scheme: dark;
+    background:
+      radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 38%),
+      radial-gradient(circle at top right, rgba(14, 165, 233, 0.05), transparent 35%),
+      radial-gradient(circle at bottom left, rgba(37, 99, 235, 0.03), transparent 30%),
+      linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
+    color-scheme: light;
   }
 
   #root {
@@ -111,13 +115,13 @@
 }
 
 .glass-panel {
-  background: rgba(12, 21, 38, 0.8) !important;
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
   box-shadow: 
-    0 16px 40px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+    0 12px 36px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65) !important;
 }
 
 .glass-subcard {
@@ -205,19 +209,19 @@
 }
 
 .glass-nav {
-  background: rgba(12, 21, 38, 0.9) !important;
-  backdrop-filter: blur(32px) saturate(190%);
-  -webkit-backdrop-filter: blur(32px) saturate(190%);
-  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-top: 1px solid rgba(226, 232, 240, 0.5) !important;
+  box-shadow: 0 -8px 30px rgba(15, 23, 42, 0.06) !important;
 }
 
 .glass-header {
-  background: rgba(12, 21, 38, 0.8) !important;
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.4) !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.02) !important;
 }
 
 @supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
@@ -230,6 +234,6 @@
   .glass-panel,
   .glass-header,
   .glass-nav {
-    background: #0c1424 !important;
+    background: #ffffff !important;
   }
 }

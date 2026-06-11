@@ -74,7 +74,7 @@ export function BottomNav({
         alt="Group"
       />
     ) : (
-      <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-slate-300">
+      <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
         <Users size={18} />
       </div>
     ),
@@ -87,7 +87,7 @@ export function BottomNav({
     bottom: 0,
     paddingBottom: bottomPadding,
   }}
-  className="fixed left-0 right-0 lg:left-64 z-[60] w-full lg:w-[calc(100%-16rem)] glass-nav shadow-[0_-8px_32px_rgba(0,0,0,0.2)]"
+  className="fixed left-0 right-0 lg:left-64 z-[60] w-full lg:w-[calc(100%-16rem)] glass-nav shadow-[0_-8px_32px_rgba(15,23,42,0.06)]"
 >
   <div 
     style={{
@@ -124,7 +124,7 @@ export function BottomNav({
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
-                    className="absolute inset-x-1 inset-y-0.5 bg-blue-500/15 border border-white/5 shadow-sm rounded-2xl -z-10"
+                    className="absolute inset-x-1 inset-y-0.5 bg-blue-100/60 border border-white/40 shadow-sm rounded-2xl -z-10"
                     transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                   />
                 )}
@@ -133,15 +133,15 @@ export function BottomNav({
               <motion.div
                 animate={{
                   scale: isActive ? 1.15 : 1,
-                  color: isActive ? "#3b82f6" : "#a1a1aa",
+                  color: isActive ? "#2563eb" : "#4b5563",
                 }}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 className="relative"
               >
                 {isEquipe ? (
                   <div className="relative">
-                    {tab.icon}
-                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-slate-900 shadow-sm" />
+                     {tab.icon}
+                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm" />
                   </div>
                 ) : (
                   tab.icon
@@ -149,14 +149,14 @@ export function BottomNav({
                 {isActive && !isEquipe && (
                   <motion.div
                     layoutId="active-dot"
-                    className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full border border-slate-900 shadow-sm"
+                    className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full border-2 border-white shadow-sm"
                   />
                 )}
               </motion.div>
 
               <span
                 className={`text-[9px] font-black uppercase tracking-tight transition-colors duration-200 truncate max-w-[90px] text-center ${
-                  isActive ? "text-blue-500" : "text-zinc-400"
+                  isActive ? "text-blue-600" : "text-gray-500"
                 }`}
               >
                 {(tab.label).split(" ")[0]}
