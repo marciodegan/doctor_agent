@@ -209,6 +209,9 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
     return keys;
   }, [hasNome, hasHospital, hasQuarto, hasStatus, hasProcedimento, hasIdade, hasObservacoes, contatosItems, informacoesItems, imagensItems]);
 
+  // State for showing checkboxes (activated when clicking WhatsApp icon)
+  const [showCheckboxes, setShowCheckboxes] = useState(false);
+
   // Default all keys selected
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set(allKeys));
 
@@ -252,64 +255,69 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
 
   // Generate WhatsApp message text containing ONLY selected fields
   const generateWhatsAppMessage = () => {
-    const parts: string[] = [];
-    parts.push("Paciente");
+    const sections: string[] = [];
 
+    // Header info lines
+    const headerLines: string[] = [];
     if (selectedKeys.has("header_nome") && (profileData?.nome || cad?.Nome)) {
-      parts.push(`Nome: ${profileData?.nome || cad?.Nome}`);
+      headerLines.push(`*Paciente*: ${profileData?.nome || cad?.Nome}`);
     }
     if (selectedKeys.has("header_hospital") && (profileData?.hospitalNome || cad?.hospitalName || cad?.hospital_nome)) {
-      parts.push(`Hospital: ${profileData?.hospitalNome || cad?.hospitalName || cad?.hospital_nome}`);
+      headerLines.push(`*Hospital*: ${profileData?.hospitalNome || cad?.hospitalName || cad?.hospital_nome}`);
     }
     if (selectedKeys.has("header_quarto") && (profileData?.roomNumber || cad?.roomNumber || cad?.room_number)) {
-      parts.push(`Quarto: ${profileData?.roomNumber || cad?.roomNumber || cad?.room_number}`);
+      headerLines.push(`*Quarto*: ${profileData?.roomNumber || cad?.roomNumber || cad?.room_number}`);
     }
     if (selectedKeys.has("header_status") && statusStr && statusStr !== "Sem Status" && statusStr !== "Não informado") {
-      parts.push(`Diagnóstico:\n${statusStr}`);
+      headerLines.push(`*Diagnóstico*: ${statusStr}`);
     }
     if (selectedKeys.has("header_procedimento") && procedimentoStr) {
-      parts.push(`Procedimento:\n${procedimentoStr}`);
+      headerLines.push(`*Procedimento*: ${procedimentoStr}`);
     }
     if (selectedKeys.has("header_idade") && profileData?.idade && profileData?.idade !== "N/A") {
-      parts.push(`Idade: ${profileData.idade} ${Number(profileData.idade) === 1 ? "ANO" : "ANOS"}`);
+      headerLines.push(`*Idade*: ${profileData.idade} ${Number(profileData.idade) === 1 ? "ANO" : "ANOS"}`);
     }
     if (selectedKeys.has("header_observacoes") && obsStr) {
-      parts.push(`Observações:\n${obsStr}`);
+      headerLines.push(`*Observações*: ${obsStr}`);
+    }
+
+    if (headerLines.length > 0) {
+      sections.push(headerLines.join("\n"));
     }
 
     // Selected Contatos
     const selContatos = contatosItems.filter((_, idx) => selectedKeys.has(`contato_${idx}`));
     if (selContatos.length > 0) {
-      parts.push("Contatos:");
-      selContatos.forEach((c) => {
+      const cLines = selContatos.map((c) => {
         const phone = c.phoneLinkText ? ` - ${c.phoneLinkText}` : "";
-        parts.push(`• ${c.name}${phone}`);
+        return `• ${c.name}${phone}`;
       });
+      sections.push(`*Contatos*:\n${cLines.join("\n")}`);
     }
 
     // Selected Informações
     const selInfos = informacoesItems.filter((_, idx) => selectedKeys.has(`info_${idx}`));
     if (selInfos.length > 0) {
-      parts.push("Informações:");
-      selInfos.forEach((inf) => {
+      const iLines = selInfos.map((inf) => {
         const dateStr = inf.date ? ` (${inf.date})` : "";
-        parts.push(`• ${inf.content}${dateStr}`);
+        return `• ${inf.content}${dateStr}`;
       });
+      sections.push(`*Informações*:\n${iLines.join("\n")}`);
     }
 
     // Selected Imagens
     const selImgs = imagensItems.filter((_, idx) => selectedKeys.has(`img_${idx}`));
     if (selImgs.length > 0) {
-      parts.push("Imagens / Documentos:");
-      selImgs.forEach((img) => {
+      const imgLines = selImgs.map((img) => {
         const desc = img.alt || "Imagem";
         const dateStr = img.date ? ` (${img.date})` : "";
         const linkStr = img.src ? `\n  Link: ${img.src}` : "";
-        parts.push(`• ${desc}${dateStr}${linkStr}`);
+        return `• ${desc}${dateStr}${linkStr}`;
       });
+      sections.push(`*Imagens*:\n${imgLines.join("\n")}`);
     }
 
-    return parts.join("\n\n").trim();
+    return sections.join("\n\n").trim();
   };
 
   const handleShareWhatsApp = async () => {
@@ -325,9 +333,6 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
     const selImgs = imagensItems.filter((_, idx) => selectedKeys.has(`img_${idx}`));
     const hasImagesSelected = selImgs.length > 0;
 
-    // Technical check: wa.me only supports text parameters in URLs.
-    // If native sharing is supported on device (iOS/Android) and images are selected,
-    // we try navigator.share first for native OS share experience.
     if (hasImagesSelected && typeof navigator !== "undefined" && navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
       try {
         await navigator.share({
@@ -370,25 +375,35 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
 
   return (
     <div className="flex flex-col gap-5 pb-20 relative">
-      {/* Top Bar: Selecionar todos */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-3.5 shadow-sm flex items-center justify-between transition-all">
-        <label className="flex items-center gap-3 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={isAllSelected}
-            onChange={toggleSelectAll}
-            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer accent-emerald-600"
-          />
-          <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-            Selecionar todos
-          </span>
-        </label>
-        <span className="text-[11px] font-bold text-slate-400">
-          {selectedKeys.size} / {allKeys.length} selecionados
-        </span>
-      </div>
+      {/* Top Bar when selection mode is active */}
+      {showCheckboxes && (
+        <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-3.5 shadow-sm flex items-center justify-between transition-all animate-fade-in">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={isAllSelected}
+              onChange={toggleSelectAll}
+              className="w-4.5 h-4.5 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer accent-emerald-600"
+            />
+            <span className="text-xs font-bold text-emerald-950 uppercase tracking-wide">
+              Selecionar todos para WhatsApp
+            </span>
+          </label>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-bold text-emerald-700">
+              {selectedKeys.size} / {allKeys.length}
+            </span>
+            <button
+              onClick={() => setShowCheckboxes(false)}
+              className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-white/80 hover:bg-white px-2.5 py-1 rounded-lg border border-slate-200 transition-all"
+            >
+              Concluir
+            </button>
+          </div>
+        </div>
+      )}
 
-      {/* Patient header card with checkboxes */}
+      {/* Patient header card */}
       {profileData && (
         <>
           <div className="glass-card rounded-3xl p-5 flex flex-row items-center justify-between gap-4 relative overflow-hidden shadow-sm">
@@ -398,13 +413,15 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
             <div className="flex flex-col items-start relative z-10 min-w-0 flex-1">
               {hasNome && (
                 <div className="flex items-center gap-2.5 w-full mb-1.5">
-                  <input
-                    type="checkbox"
-                    checked={selectedKeys.has("header_nome")}
-                    onChange={() => toggleKey("header_nome")}
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer accent-emerald-600 shrink-0"
-                    title="Selecionar Nome"
-                  />
+                  {showCheckboxes && (
+                    <input
+                      type="checkbox"
+                      checked={selectedKeys.has("header_nome")}
+                      onChange={() => toggleKey("header_nome")}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer accent-emerald-600 shrink-0"
+                      title="Selecionar Nome"
+                    />
+                  )}
                   <h3 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight leading-tight truncate flex-1">
                     {profileData.nome}
                   </h3>
@@ -414,13 +431,15 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
               <div className="flex flex-row items-center gap-2 mt-0.5">
                 {hasIdade && (
                   <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedKeys.has("header_idade")}
-                      onChange={() => toggleKey("header_idade")}
-                      className="w-3.5 h-3.5 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600 shrink-0"
-                      title="Selecionar Idade"
-                    />
+                    {showCheckboxes && (
+                      <input
+                        type="checkbox"
+                        checked={selectedKeys.has("header_idade")}
+                        onChange={() => toggleKey("header_idade")}
+                        className="w-3.5 h-3.5 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600 shrink-0"
+                        title="Selecionar Idade"
+                      />
+                    )}
                     <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg shrink-0 uppercase tracking-wider">
                       {`${profileData.idade} ${Number(profileData.idade) === 1 ? "ANO" : "ANOS"}`}
                     </span>
@@ -442,13 +461,15 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
                   <span className="text-xs font-bold text-blue-500 tracking-tight truncate uppercase" title={profileData?.hospitalNome || "Sem Hospital"}>
                     {profileData?.hospitalNome || "Sem Hospital"}
                   </span>
-                  <input
-                    type="checkbox"
-                    checked={selectedKeys.has("header_hospital")}
-                    onChange={() => toggleKey("header_hospital")}
-                    className="w-3.5 h-3.5 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600 shrink-0"
-                    title="Selecionar Hospital"
-                  />
+                  {showCheckboxes && (
+                    <input
+                      type="checkbox"
+                      checked={selectedKeys.has("header_hospital")}
+                      onChange={() => toggleKey("header_hospital")}
+                      className="w-3.5 h-3.5 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600 shrink-0"
+                      title="Selecionar Hospital"
+                    />
+                  )}
                 </label>
               )}
 
@@ -457,22 +478,24 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
                   <span className="text-[11px] font-medium text-slate-400 truncate">
                     Quarto: {profileData?.roomNumber || "Não inf."}
                   </span>
-                  <input
-                    type="checkbox"
-                    checked={selectedKeys.has("header_quarto")}
-                    onChange={() => toggleKey("header_quarto")}
-                    className="w-3.5 h-3.5 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600 shrink-0"
-                    title="Selecionar Quarto"
-                  />
+                  {showCheckboxes && (
+                    <input
+                      type="checkbox"
+                      checked={selectedKeys.has("header_quarto")}
+                      onChange={() => toggleKey("header_quarto")}
+                      className="w-3.5 h-3.5 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600 shrink-0"
+                      title="Selecionar Quarto"
+                    />
+                  )}
                 </label>
               )}
             </div>
           </div>
 
-          {/* Status and schedule actions */}
-          <div className="flex flex-row items-center justify-between gap-3">
-            <div className="w-1/2 flex items-center gap-2">
-              {hasStatus && (
+          {/* Status, WhatsApp toggle, and schedule actions */}
+          <div className="flex flex-row items-center justify-between gap-2.5">
+            <div className="flex-1 flex items-center gap-2 min-w-0">
+              {showCheckboxes && hasStatus && (
                 <input
                   type="checkbox"
                   checked={selectedKeys.has("header_status")}
@@ -483,20 +506,34 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
               )}
               <button
                 onClick={() => handleDirectCommand(`/status_alterar ${profileData?.id}`)}
-                className="flex-1 glass-button border-blue-100/40 h-11 rounded-2xl text-blue-600 text-xs font-bold uppercase tracking-wider flex items-center justify-center hover:bg-white/70 transition-all active:scale-95 shadow-sm"
+                className="w-full glass-button border-blue-100/40 h-11 rounded-2xl text-blue-600 text-xs font-bold uppercase tracking-wider flex items-center justify-center hover:bg-white/70 transition-all active:scale-95 shadow-sm"
               >
-                <span className="max-w-[125px] sm:max-w-none truncate px-1">
+                <span className="truncate px-1">
                   {statusStr}
                 </span>
               </button>
             </div>
 
+            {/* WhatsApp toggle button */}
+            <button
+              onClick={() => setShowCheckboxes((prev) => !prev)}
+              className={`h-11 px-3.5 rounded-2xl transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] text-xs font-bold uppercase tracking-wider shrink-0 shadow-sm ${
+                showCheckboxes
+                  ? "bg-emerald-700 text-white shadow-emerald-600/20 ring-2 ring-emerald-500"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/10"
+              }`}
+              title="Alternar modo WhatsApp"
+            >
+              <MessageSquare size={16} fill="currentColor" className="shrink-0" />
+              <span className="hidden xs:inline sm:inline">WhatsApp</span>
+            </button>
+
             <button
               onClick={() => handleDirectCommand(`/calendario_form pid: ${profileData?.id}, paciente: ${profileData?.nome}, hospId: ${profileData?.hospitalId}, room: ${profileData?.roomNumber}, type: ${profileData?.surgery_type}, procedure: ${profileData?.procedure || ""}`)}
-              className="w-1/2 bg-emerald-600 text-white h-11 rounded-2xl shadow-lg shadow-emerald-500/10 hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] text-xs font-bold uppercase tracking-wider"
+              className="flex-1 bg-emerald-600 text-white h-11 rounded-2xl shadow-lg shadow-emerald-500/10 hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] text-xs font-bold uppercase tracking-wider min-w-0"
             >
               <CalendarPlus size={16} className="text-emerald-100 shrink-0" />
-              <span className="truncate px-1 font-bold">Agendar Novo</span>
+              <span className="truncate px-1 font-bold">Agendar</span>
             </button>
           </div>
         </>
@@ -537,13 +574,15 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
                 return (
                   <div key={idx} className="flex flex-col gap-2 pb-4 last:pb-0 border-b border-gray-50 last:border-0">
                     <div className="flex flex-row items-center justify-between gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedKeys.has(itemKey)}
-                        onChange={() => toggleKey(itemKey)}
-                        className="w-4 h-4 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600 shrink-0"
-                        title="Selecionar este contato"
-                      />
+                      {showCheckboxes && (
+                        <input
+                          type="checkbox"
+                          checked={selectedKeys.has(itemKey)}
+                          onChange={() => toggleKey(itemKey)}
+                          className="w-4 h-4 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600 shrink-0"
+                          title="Selecionar este contato"
+                        />
+                      )}
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="font-semibold text-slate-800 text-sm leading-snug">
                           {c.name}
@@ -630,13 +669,15 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
                 return (
                   <div key={idx} className="flex flex-col gap-2 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
                     <div className="flex flex-row items-start justify-between gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedKeys.has(itemKey)}
-                        onChange={() => toggleKey(itemKey)}
-                        className="w-4 h-4 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600 shrink-0 mt-0.5"
-                        title="Selecionar esta informação"
-                      />
+                      {showCheckboxes && (
+                        <input
+                          type="checkbox"
+                          checked={selectedKeys.has(itemKey)}
+                          onChange={() => toggleKey(itemKey)}
+                          className="w-4 h-4 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600 shrink-0 mt-0.5"
+                          title="Selecionar esta informação"
+                        />
+                      )}
                       <div className="flex flex-col min-w-0 flex-1">
                         <p className="text-sm text-slate-700 font-medium leading-relaxed break-words whitespace-pre-wrap">
                           {inf.content}
@@ -714,15 +755,17 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
                   <div key={idx} className="flex flex-col gap-3 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
                     {img.src && (
                       <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-slate-100">
-                        <div className="absolute top-3 left-3 z-20 bg-white/90 backdrop-blur-sm p-1.5 rounded-lg border border-gray-200/50 shadow-sm flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedKeys.has(itemKey)}
-                            onChange={() => toggleKey(itemKey)}
-                            className="w-4 h-4 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600"
-                            title="Selecionar esta imagem"
-                          />
-                        </div>
+                        {showCheckboxes && (
+                          <div className="absolute top-3 left-3 z-20 bg-white/90 backdrop-blur-sm p-1.5 rounded-lg border border-gray-200/50 shadow-sm flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedKeys.has(itemKey)}
+                              onChange={() => toggleKey(itemKey)}
+                              className="w-4 h-4 rounded text-emerald-600 border-gray-300 cursor-pointer accent-emerald-600"
+                              title="Selecionar esta imagem"
+                            />
+                          </div>
+                        )}
                         <E2EMedia
                           src={img.src}
                           encryption={encryptionMeta}
@@ -734,7 +777,7 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
                     )}
 
                     <div className="flex flex-row items-center justify-between gap-3">
-                      {!img.src && (
+                      {showCheckboxes && !img.src && (
                         <input
                           type="checkbox"
                           checked={selectedKeys.has(itemKey)}
@@ -792,15 +835,25 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
         </div>
       )}
 
-      {/* Sticky / Floating WhatsApp Share Button at the bottom */}
+      {/* Floating WhatsApp Share Button at the bottom */}
       <div className="sticky bottom-4 z-30 pt-2">
-        <button
-          onClick={handleShareWhatsApp}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-5 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] text-xs sm:text-sm uppercase tracking-wider"
-        >
-          <MessageSquare size={18} fill="currentColor" className="shrink-0" />
-          <span>Compartilhar via WhatsApp ({selectedKeys.size})</span>
-        </button>
+        {!showCheckboxes ? (
+          <button
+            onClick={() => setShowCheckboxes(true)}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-5 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] text-xs sm:text-sm uppercase tracking-wider"
+          >
+            <MessageSquare size={18} fill="currentColor" className="shrink-0" />
+            <span>Compartilhar via WhatsApp</span>
+          </button>
+        ) : (
+          <button
+            onClick={handleShareWhatsApp}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-5 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] text-xs sm:text-sm uppercase tracking-wider animate-fade-in"
+          >
+            <MessageSquare size={18} fill="currentColor" className="shrink-0" />
+            <span>Enviar no WhatsApp ({selectedKeys.size})</span>
+          </button>
+        )}
       </div>
     </div>
   );
