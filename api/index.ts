@@ -2986,8 +2986,8 @@ app.get("/api/debug/storage-buckets", async (req, res) => {
 });
 
 // Generic Storage Upload (Original for Firebase Storage)
-app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res) => {
-  const { name, mimeType, base64Data } = req.body;
+app.post("/api/storage/upload", express.json({ limit: "100mb" }), async (req, res) => {
+  const { name, mimeType, base64Data, storagePath, destination: reqDest, customMetadata } = req.body;
 
   if (!base64Data) {
     return res.status(400).json({ error: "Missing base64Data" });
@@ -2996,7 +2996,7 @@ app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res
   try {
     const buffer = Buffer.from(base64Data, "base64");
     const filename = name || `Upload_${Date.now()}.jpg`;
-    const destination = `uploads/${filename}`;
+    const destination = storagePath || reqDest || `uploads/${filename}`;
     
     // We'll try a few common bucket names if the primary one fails
     const projectId = firebaseConfig.projectId;
@@ -3017,12 +3017,15 @@ app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res
       if (!bucketName || bucketName === "") continue;
       attemptedBuckets.push(bucketName);
       try {
-        console.log(`[Upload] Attempting bucket: ${bucketName}`);
+        console.log(`[Upload] Attempting bucket: ${bucketName} for path: ${destination}`);
         const currentBucket = getStorage().bucket(bucketName);
         const currentFile = currentBucket.file(destination);
         
         await currentFile.save(buffer, {
-          metadata: { contentType: mimeType || "image/jpeg" },
+          metadata: {
+            contentType: mimeType || "image/jpeg",
+            customMetadata: customMetadata || {}
+          },
           resumable: false
         });
         
@@ -3052,7 +3055,10 @@ app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res
               const currentBucket = getStorage().bucket(bName);
               const currentFile = currentBucket.file(destination);
               await currentFile.save(buffer, {
-                metadata: { contentType: mimeType || "image/jpeg" },
+                metadata: {
+                  contentType: mimeType || "image/jpeg",
+                  customMetadata: customMetadata || {}
+                },
                 resumable: false
               });
               fileObj = currentFile;
@@ -3093,6 +3099,8 @@ app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res
     res.json({
       id: fileObj.name,
       name: fileObj.name,
+      downloadURL: publicUrl,
+      downloadUrl: publicUrl,
       webViewLink: publicUrl,
       webContentLink: publicUrl
     });

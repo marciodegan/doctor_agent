@@ -15,6 +15,64 @@ export interface UploadOptions {
   onProgress?: (progress: number) => void;
 }
 
+async function uploadViaServerApi(
+  fileBlob: File | Blob,
+  fileName: string,
+  storagePath: string,
+  mimeType: string,
+  originalName: string,
+  onProgress?: (progress: number) => void
+): Promise<string> {
+  if (onProgress) onProgress(10);
+
+  const base64Data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const res = reader.result as string;
+      if (!res) return reject(new Error("Falha ao converter arquivo para envio."));
+      const commaIdx = res.indexOf(",");
+      resolve(commaIdx !== -1 ? res.substring(commaIdx + 1) : res);
+    };
+    reader.onerror = (e) => reject(e);
+    reader.readAsDataURL(fileBlob);
+  });
+
+  if (onProgress) onProgress(40);
+
+  const res = await fetch("/api/storage/upload", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: fileName,
+      mimeType: mimeType,
+      base64Data: base64Data,
+      storagePath: storagePath,
+      customMetadata: {
+        originalName: originalName,
+        contentType: mimeType,
+      },
+    }),
+  });
+
+  if (onProgress) onProgress(85);
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Erro no servidor de upload (${res.status}).`);
+  }
+
+  const data = await res.json();
+  const url = data.downloadURL || data.downloadUrl || data.webViewLink || data.webContentLink;
+  if (!url) {
+    throw new Error("O servidor não retornou um link de acesso válido para o arquivo.");
+  }
+
+  if (onProgress) onProgress(100);
+  return url;
+}
+
 export const mediaUploadService = {
   validateFile(file: File): { isValid: boolean; error?: string } {
     const mime = (file.type || "").toLowerCase();
@@ -132,42 +190,55 @@ export const mediaUploadService = {
       storagePath = `groups/${groupId}/patients/${patientId}/files/${timestamp}-${safeFileName}`;
     }
 
-    console.log("[mediaUploadService] Starting direct Firebase Storage upload...");
-    console.log("- file.name:", file.name);
-    console.log("- storage path:", storagePath);
+    let downloadURL = "";
+    try {
+      console.log("[mediaUploadService] Starting direct Firebase Storage upload...");
+      console.log("- file.name:", file.name);
+      console.log("- storage path:", storagePath);
 
-    // Initiate upload
-    const storageRef = ref(storage, storagePath);
-    const metadata = {
-      contentType: isEncrypted ? "application/octet-stream" : originalContentType,
-      customMetadata: {
-        originalName: file.name,
-        contentType: originalContentType,
-      },
-    };
-
-    const uploadTask = uploadBytesResumable(storageRef, fileToUpload, metadata);
-
-    const downloadURL = await new Promise<string>((resolve, reject) => {
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          if (onProgress) onProgress(progress);
+      // Initiate upload
+      const storageRef = ref(storage, storagePath);
+      const metadata = {
+        contentType: isEncrypted ? "application/octet-stream" : originalContentType,
+        customMetadata: {
+          originalName: file.name,
+          contentType: originalContentType,
         },
-        (error) => {
-          reject(error);
-        },
-        async () => {
-          try {
-            const url = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(url);
-          } catch (err) {
-            reject(err);
+      };
+
+      const uploadTask = uploadBytesResumable(storageRef, fileToUpload, metadata);
+
+      downloadURL = await new Promise<string>((resolve, reject) => {
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            if (onProgress) onProgress(progress);
+          },
+          (error) => {
+            reject(error);
+          },
+          async () => {
+            try {
+              const url = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve(url);
+            } catch (err) {
+              reject(err);
+            }
           }
-        }
+        );
+      });
+    } catch (clientUploadErr: any) {
+      console.warn("[mediaUploadService] Direct client upload failed/unauthorized. Falling back to backend server upload API...", clientUploadErr);
+      downloadURL = await uploadViaServerApi(
+        fileToUpload,
+        safeFileName,
+        storagePath,
+        isEncrypted ? "application/octet-stream" : originalContentType,
+        file.name,
+        onProgress
       );
-    });
+    }
 
     console.log("[mediaUploadService] Upload successful. downloadURL:", downloadURL);
 
