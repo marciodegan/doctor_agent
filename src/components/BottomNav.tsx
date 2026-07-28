@@ -55,6 +55,12 @@ export function BottomNav({
       prompt: "/open_calendar",
     },
     {
+      id: "medications",
+      label: "Medicações",
+      icon: <ShoppingCart size={20} />,
+      prompt: "/medications",
+    },
+    {
       id: "notes",
       label: "Notas",
       icon: <StickyNote size={20} />,

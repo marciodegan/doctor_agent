@@ -3270,6 +3270,1046 @@ app.get("/api/stripe/status", async (req, res) => {
   }
 });
 
+// ============================================================================
+// --- Medicações e Estoque Cirúrgico APIs ---
+// ============================================================================
+
+async function logAudit(groupId: string, userId: string, userName: string, action: string, entityType: string, entityId: string, details: string) {
+  try {
+    const auditRef = db.collection("groups").doc(groupId).collection("auditLogs").doc();
+    await auditRef.set({
+      id: auditRef.id,
+      groupId,
+      userId,
+      userName,
+      action,
+      entityType,
+      entityId,
+      details,
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) {
+    console.error("Failed to log audit:", e);
+  }
+}
+
+// 1. Medications Catalog
+app.get("/api/app/medications", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("groups").doc(groupId).collection("medications").get();
+    const list = snap.docs.map(doc => doc.data());
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/app/medications", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const medData = req.body;
+    const medRef = db.collection("groups").doc(groupId).collection("medications").doc();
+    
+    const medication = {
+      id: medRef.id,
+      groupId,
+      genericName: medData.genericName || "",
+      commercialName: medData.commercialName || "",
+      category: medData.category || "Anestésico",
+      activeIngredient: medData.activeIngredient || "",
+      concentration: parseFloat(medData.concentration) || 0,
+      concentrationUnit: medData.concentrationUnit || "mg",
+      dosageForm: medData.dosageForm || "Injetável",
+      presentation: medData.presentation || "Ampola",
+      volumePerUnit: parseFloat(medData.volumePerUnit) || 1,
+      stockUnit: medData.stockUnit || "Ampola",
+      routeOfAdministration: medData.routeOfAdministration || "EV",
+      manufacturer: medData.manufacturer || "",
+      highVigilance: !!medData.highVigilance,
+      controlled: !!medData.controlled,
+      requiresDoubleCheck: !!medData.requiresDoubleCheck,
+      allowsFractioning: !!medData.allowsFractioning,
+      roundingRule: medData.roundingRule || "exact",
+      minStock: parseFloat(medData.minStock) || 0,
+      reorderPoint: parseFloat(medData.reorderPoint) || 0,
+      idealStock: parseFloat(medData.idealStock) || 0,
+      storageCondition: medData.storageCondition || "",
+      observations: medData.observations || "",
+      status: medData.status || "active",
+      createdAt: new Date().toISOString(),
+      createdBy: user.uid,
+      updatedAt: new Date().toISOString(),
+      updatedBy: user.uid
+    };
+
+    await medRef.set(medication);
+    await logAudit(groupId, user.uid, user.email || "Usuário", "CREATE_MED", "medication", medRef.id, `Cadastrou medicamento: ${medication.genericName}`);
+    res.json(medication);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put("/api/app/medications/:id", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { id } = req.params;
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const medData = req.body;
+    const medRef = db.collection("groups").doc(groupId).collection("medications").doc(id);
+    
+    const update = {
+      ...medData,
+      updatedAt: new Date().toISOString(),
+      updatedBy: user.uid
+    };
+    delete update.id;
+    delete update.groupId;
+    delete update.createdAt;
+    delete update.createdBy;
+
+    await medRef.update(update);
+    await logAudit(groupId, user.uid, user.email || "Usuário", "UPDATE_MED", "medication", id, `Atualizou dados do medicamento`);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Protocols
+app.get("/api/app/protocols", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("groups").doc(groupId).collection("protocols").get();
+    const list = snap.docs.map(doc => doc.data());
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/app/protocols", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const pData = req.body;
+    const pRef = db.collection("groups").doc(groupId).collection("protocols").doc();
+    
+    const protocol = {
+      id: pRef.id,
+      groupId,
+      name: pData.name || "",
+      description: pData.description || "",
+      procedureType: pData.procedureType || "",
+      specialty: pData.specialty || "",
+      minAge: pData.minAge ? parseInt(pData.minAge) : null,
+      maxAge: pData.maxAge ? parseInt(pData.maxAge) : null,
+      minWeight: pData.minWeight ? parseFloat(pData.minWeight) : null,
+      maxWeight: pData.maxWeight ? parseFloat(pData.maxWeight) : null,
+      applicationConditions: pData.applicationConditions || "",
+      exclusionCriteria: pData.exclusionCriteria || "",
+      version: 1,
+      effectiveDate: new Date().toISOString().split("T")[0],
+      status: pData.status || "draft",
+      createdBy: user.uid,
+      createdAt: new Date().toISOString(),
+      medications: pData.medications || []
+    };
+
+    await pRef.set(protocol);
+    await logAudit(groupId, user.uid, user.email || "Usuário", "CREATE_PROTOCOL", "protocol", pRef.id, `Criou protocolo: ${protocol.name}`);
+    res.json(protocol);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put("/api/app/protocols/:id", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { id } = req.params;
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const pData = req.body;
+    const pRef = db.collection("groups").doc(groupId).collection("protocols").doc(id);
+    
+    const currentSnap = await pRef.get();
+    if (!currentSnap.exists) {
+      return res.status(404).json({ error: "Protocolo não encontrado." });
+    }
+    const current = currentSnap.data() || {};
+    
+    // Versioning logic: If modifying an already published protocol, create a new version
+    let updatedVersion = current.version || 1;
+    if (current.status === "published" && pData.status === "published") {
+      updatedVersion += 1;
+      // Save history of previous version
+      await db.collection("groups").doc(groupId).collection("protocolVersions").doc(`${id}_v${current.version}`).set({
+        ...current,
+        archivedAt: new Date().toISOString()
+      });
+    }
+
+    const update: any = {
+      ...pData,
+      version: updatedVersion,
+      updatedAt: new Date().toISOString()
+    };
+    
+    if (pData.status === "published") {
+      update.publishedBy = user.uid;
+      update.publishedAt = new Date().toISOString();
+    } else if (pData.status === "approved") {
+      update.approvedBy = user.uid;
+      update.approvedAt = new Date().toISOString();
+    }
+
+    delete update.id;
+    delete update.groupId;
+    delete update.createdAt;
+    delete update.createdBy;
+
+    await pRef.update(update);
+    await logAudit(groupId, user.uid, user.email || "Usuário", "UPDATE_PROTOCOL", "protocol", id, `Atualizou protocolo para versão ${updatedVersion}`);
+    res.json({ success: true, version: updatedVersion });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. Inventory Locations
+app.get("/api/app/inventory-locations", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("groups").doc(groupId).collection("inventoryLocations").get();
+    let list = snap.docs.map(doc => doc.data());
+    
+    // Pre-populate if empty
+    if (list.length === 0) {
+      const defaults = [
+        { name: "Almoxarifado Central", type: "central", description: "Estoque principal" },
+        { name: "Maleta de Anestesia A", type: "bag", description: "Maleta móvel" },
+        { name: "Farmácia Centro Cirúrgico", type: "surgery_center", description: "Medicamentos de pronto uso" }
+      ];
+      const batch = db.batch();
+      for (const d of defaults) {
+        const ref = db.collection("groups").doc(groupId).collection("inventoryLocations").doc();
+        const loc = { id: ref.id, groupId, status: "active", ...d };
+        batch.set(ref, loc);
+        list.push(loc);
+      }
+      await batch.commit();
+    }
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/app/inventory-locations", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const lData = req.body;
+    const lRef = db.collection("groups").doc(groupId).collection("inventoryLocations").doc();
+    
+    const location = {
+      id: lRef.id,
+      groupId,
+      name: lData.name || "",
+      type: lData.type || "central",
+      description: lData.description || "",
+      status: "active"
+    };
+
+    await lRef.set(location);
+    await logAudit(groupId, user.uid, user.email || "Usuário", "CREATE_LOCATION", "inventoryLocation", lRef.id, `Criou local de estoque: ${location.name}`);
+    res.json(location);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 4. Inventory Batches
+app.get("/api/app/inventory-batches", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("groups").doc(groupId).collection("inventoryBatches").get();
+    const list = snap.docs.map(doc => doc.data());
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/app/inventory-batches", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const bData = req.body;
+    
+    const medDoc = await db.collection("groups").doc(groupId).collection("medications").doc(bData.medicationId).get();
+    if (!medDoc.exists) return res.status(404).json({ error: "Medicamento não encontrado" });
+    const medName = medDoc.data()?.genericName || "Medicamento";
+
+    const bRef = db.collection("groups").doc(groupId).collection("inventoryBatches").doc();
+    
+    const qty = parseFloat(bData.initialQuantity) || 0;
+    
+    const batch = {
+      id: bRef.id,
+      groupId,
+      medicationId: bData.medicationId,
+      genericName: medName,
+      batchNumber: bData.batchNumber || "LOT-NEW",
+      expiryDate: bData.expiryDate || "",
+      initialQuantity: qty,
+      quantityAvailable: qty,
+      quantityReserved: 0,
+      quantityUnavailable: 0,
+      locationId: bData.locationId || "",
+      locationName: bData.locationName || "Almoxarifado",
+      supplier: bData.supplier || "",
+      entryDate: new Date().toISOString(),
+      createdBy: user.uid
+    };
+
+    const batchOps = db.batch();
+    batchOps.set(bRef, batch);
+
+    // Track movement
+    const movRef = db.collection("groups").doc(groupId).collection("stockMovements").doc();
+    batchOps.set(movRef, {
+      id: movRef.id,
+      groupId,
+      batchId: bRef.id,
+      medicationId: batch.medicationId,
+      genericName: batch.genericName,
+      type: "entry",
+      quantity: qty,
+      locationId: batch.locationId,
+      userId: user.uid,
+      userName: user.email || "Estoquista",
+      description: `Entrada inicial de estoque - Lote ${batch.batchNumber}`,
+      timestamp: new Date().toISOString()
+    });
+
+    await batchOps.commit();
+    await logAudit(groupId, user.uid, user.email || "Usuário", "ENTRY_BATCH", "inventoryBatch", bRef.id, `Cadastrou lote ${batch.batchNumber} de ${batch.genericName}`);
+    res.json(batch);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Adjust stock / inventory audit
+app.post("/api/app/inventory-batches/adjust", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const { batchId, newQuantity, justification } = req.body;
+    
+    if (!justification) return res.status(400).json({ error: "Justificativa obrigatória para ajustes manuais." });
+
+    const bRef = db.collection("groups").doc(groupId).collection("inventoryBatches").doc(batchId);
+    const bSnap = await bRef.get();
+    if (!bSnap.exists) return res.status(404).json({ error: "Lote não encontrado" });
+    
+    const current = bSnap.data() || {};
+    const oldQty = current.quantityAvailable || 0;
+    const diff = parseFloat(newQuantity) - oldQty;
+    
+    const batchOps = db.batch();
+    batchOps.update(bRef, {
+      quantityAvailable: parseFloat(newQuantity)
+    });
+
+    // Track movement
+    const movRef = db.collection("groups").doc(groupId).collection("stockMovements").doc();
+    batchOps.set(movRef, {
+      id: movRef.id,
+      groupId,
+      batchId,
+      medicationId: current.medicationId,
+      genericName: current.genericName,
+      type: "inventory_adjustment",
+      quantity: diff,
+      locationId: current.locationId,
+      userId: user.uid,
+      userName: user.email || "Estoquista",
+      description: `Ajuste manual de estoque. Motivo: ${justification}`,
+      timestamp: new Date().toISOString()
+    });
+
+    await batchOps.commit();
+    await logAudit(groupId, user.uid, user.email || "Usuário", "ADJUST_STOCK", "inventoryBatch", batchId, `Ajustou saldo de estoque de ${current.genericName}. De ${oldQty} para ${newQuantity}.`);
+    res.json({ success: true, newQuantity });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. Medication Plans (Surgical Planning)
+app.get("/api/app/medication-plans", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("groups").doc(groupId).collection("medicationPlans").get();
+    const list = snap.docs.map(doc => doc.data());
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/app/medication-plans/:surgeryId", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { surgeryId } = req.params;
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const doc = await db.collection("groups").doc(groupId).collection("medicationPlans").doc(surgeryId).get();
+    if (doc.exists) {
+      res.json(doc.data());
+    } else {
+      res.status(404).json({ error: "Planejamento não encontrado." });
+    }
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/app/medication-plans/calculate", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  
+  try {
+    await requireGroupMember(req, groupId);
+    const { protocolId, patientWeight, patientAge, patientAllergies = [], patientRestrictions = "" } = req.body;
+    
+    if (!protocolId) return res.status(400).json({ error: "Protocol ID is required" });
+    const weightNum = parseFloat(patientWeight);
+    const ageNum = parseInt(patientAge);
+    
+    if (isNaN(weightNum) || weightNum <= 0) {
+      return res.status(400).json({ error: "Peso do paciente válido é obrigatório." });
+    }
+    
+    const protocolDoc = await db.collection("groups").doc(groupId).collection("protocols").doc(protocolId).get();
+    if (!protocolDoc.exists) {
+      return res.status(404).json({ error: "Protocolo não encontrado ou inativo." });
+    }
+    
+    const protocol = protocolDoc.data();
+    if (protocol?.status !== "published" && protocol?.status !== "approved") {
+      return res.status(400).json({ error: "Não existe um protocolo aprovado para este cálculo. Cadastre ou selecione um protocolo antes de continuar." });
+    }
+    
+    const items: any[] = [];
+    
+    // Check patient's age and weight limits
+    if (protocol.minWeight && weightNum < protocol.minWeight) {
+      return res.status(400).json({ error: `Peso do paciente está abaixo do mínimo exigido pelo protocolo (${protocol.minWeight} kg).` });
+    }
+    if (protocol.maxWeight && weightNum > protocol.maxWeight) {
+      return res.status(400).json({ error: `Peso do paciente está acima do máximo exigido pelo protocolo (${protocol.maxWeight} kg).` });
+    }
+    if (protocol.minAge && ageNum < protocol.minAge) {
+      return res.status(400).json({ error: `Idade do paciente está abaixo do mínimo exigido pelo protocolo (${protocol.minAge} anos).` });
+    }
+    if (protocol.maxAge && ageNum > protocol.maxAge) {
+      return res.status(400).json({ error: `Idade do paciente está acima do máximo exigido pelo protocolo (${protocol.maxAge} anos).` });
+    }
+    
+    for (const pMed of (protocol.medications || [])) {
+      const medDoc = await db.collection("groups").doc(groupId).collection("medications").doc(pMed.medicationId).get();
+      if (!medDoc.exists) {
+        return res.status(404).json({ error: `Medicamento ${pMed.genericName} não encontrado no catálogo.` });
+      }
+      
+      const medication = medDoc.data();
+      if (medication?.status === "inactive") {
+        return res.status(400).json({ error: `Medicamento ${pMed.genericName} está inativo.` });
+      }
+      
+      // Check concentration compatibilities
+      const medUnit = (medication?.concentrationUnit || "").toLowerCase().trim();
+      const resUnit = (pMed.resultUnit || "").toLowerCase().trim();
+      
+      // Enforce specific incompatibility warning
+      if (medUnit !== resUnit) {
+        return res.status(400).json({
+          error: "Não foi possível calcular porque as unidades informadas são incompatíveis. Revise a concentração e a fórmula do protocolo."
+        });
+      }
+      
+      let calculatedDose = 0;
+      if (pMed.formulaType === "fixed") {
+        calculatedDose = pMed.formulaValue;
+      } else if (pMed.formulaType === "dose_per_weight" || pMed.formulaType === "dose_per_weight_time") {
+        calculatedDose = pMed.formulaValue * weightNum;
+      } else if (pMed.formulaType === "dose_per_bsa") {
+        const bsa = Math.sqrt((weightNum * 170) / 3600); // Mosteller assuming 170cm height
+        calculatedDose = pMed.formulaValue * bsa;
+      }
+      
+      // Limits Check
+      const warnings: string[] = [];
+      if (pMed.minDose && calculatedDose < pMed.minDose) {
+        warnings.push(`Dose calculada (${calculatedDose.toFixed(2)} ${resUnit}) está abaixo da dose mínima recomendada (${pMed.minDose} ${resUnit}).`);
+      }
+      if (pMed.maxDose && calculatedDose > pMed.maxDose) {
+        warnings.push(`Dose calculada (${calculatedDose.toFixed(2)} ${resUnit}) ultrapassa a dose máxima de segurança recomendada (${pMed.maxDose} ${resUnit}).`);
+      }
+      
+      // Check allergy warning
+      const matchesAllergy = patientAllergies.some((allg: string) => 
+        pMed.genericName.toLowerCase().includes(allg.toLowerCase()) || 
+        allg.toLowerCase().includes(pMed.genericName.toLowerCase())
+      );
+      if (matchesAllergy) {
+        warnings.push(`ALERTA CRÍTICO: O paciente possui alergia registrada compatível com ${pMed.genericName}.`);
+      }
+      
+      // Calculation of volume: dose / concentration
+      let calculatedVolume = medication?.concentration ? (calculatedDose / medication.concentration) : 0;
+      
+      // Rounding rules
+      const roundRule = pMed.roundingRule || medication?.roundingRule || "exact";
+      if (roundRule === "ceil") {
+        calculatedVolume = Math.ceil(calculatedVolume);
+      } else if (roundRule === "floor") {
+        calculatedVolume = Math.floor(calculatedVolume);
+      } else if (roundRule === "nearest") {
+        calculatedVolume = Math.round(calculatedVolume);
+      }
+      
+      // Redo dose based on rounded volume
+      const finalDose = medication?.concentration ? (calculatedVolume * medication.concentration) : calculatedDose;
+      
+      items.push({
+        medicationId: pMed.medicationId,
+        genericName: pMed.genericName,
+        formulaType: pMed.formulaType,
+        formulaValue: pMed.formulaValue,
+        calculatedDose: finalDose,
+        calculatedVolume,
+        doseUnit: pMed.resultUnit,
+        adjustedDose: finalDose,
+        adjustedVolume: calculatedVolume,
+        isAdjusted: false,
+        warnings,
+        highVigilance: !!medication?.highVigilance,
+        requiresDoubleCheck: !!medication?.requiresDoubleCheck,
+        doubleChecked: false,
+        status: "pending",
+        quantitySeparated: 0,
+        quantityAdministered: 0,
+        quantityReturned: 0,
+        quantityWasted: 0,
+        quantityLost: 0
+      });
+    }
+    
+    res.json({
+      protocolId,
+      protocolName: protocol.name,
+      protocolVersion: protocol.version,
+      patientWeight: weightNum,
+      patientAge: ageNum,
+      patientAllergies,
+      patientRestrictions,
+      items
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/app/medication-plans/confirm", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const { surgeryId, patientName, protocolId, protocolName, protocolVersion, patientWeight, patientAge, patientAllergies = [], patientRestrictions = "", items, justifications = {} } = req.body;
+    
+    if (!surgeryId) return res.status(400).json({ error: "Surgery ID is required" });
+    
+    const dbRef = db.collection("groups").doc(groupId);
+    
+    // Double Check constraint: check if any high vigilance item requires double check but hasn't been signed off
+    for (const item of items) {
+      if (item.requiresDoubleCheck && !item.doubleChecked) {
+        return res.status(400).json({ error: `O medicamento de alta vigilância ${item.genericName} exige dupla conferência por outro profissional antes da confirmação.` });
+      }
+    }
+    
+    const batchOps = db.batch();
+    
+    // Process stock reservation FEFO
+    for (const item of items) {
+      const batchesSnap = await dbRef.collection("inventoryBatches")
+        .where("medicationId", "==", item.medicationId)
+        .get();
+        
+      const batches = batchesSnap.docs.map(d => d.data())
+        .filter(b => b.quantityAvailable > 0 && new Date(b.expiryDate) >= new Date())
+        .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
+        
+      let needed = Math.ceil(item.adjustedVolume);
+      let reservedAmount = 0;
+      
+      for (const batch of batches) {
+        if (needed <= 0) break;
+        const take = Math.min(batch.quantityAvailable, needed);
+        
+        // Update batch available / reserved
+        const bRef = dbRef.collection("inventoryBatches").doc(batch.id);
+        batchOps.update(bRef, {
+          quantityAvailable: admin.firestore.FieldValue.increment(-take),
+          quantityReserved: admin.firestore.FieldValue.increment(take)
+        });
+        
+        // Add individual stock reservation
+        const itemResRef = dbRef.collection("stockReservations").doc();
+        batchOps.set(itemResRef, {
+          id: itemResRef.id,
+          groupId,
+          surgeryId,
+          medicationId: item.medicationId,
+          batchId: batch.id,
+          batchNumber: batch.batchNumber,
+          quantity: take,
+          status: "active"
+        });
+        
+        // Log movement
+        const movRef = dbRef.collection("stockMovements").doc();
+        batchOps.set(movRef, {
+          id: movRef.id,
+          groupId,
+          batchId: batch.id,
+          medicationId: item.medicationId,
+          genericName: item.genericName,
+          type: "reservation",
+          quantity: take,
+          locationId: batch.locationId,
+          surgeryId,
+          patientName,
+          userId: user.uid,
+          userName: user.email || "Médico",
+          description: `Reserva para cirurgia de ${patientName}`,
+          timestamp: new Date().toISOString()
+        });
+        
+        needed -= take;
+        reservedAmount += take;
+        
+        item.batchId = batch.id;
+        item.batchNumber = batch.batchNumber;
+      }
+    }
+    
+    // Save medication plan
+    const planRef = dbRef.collection("medicationPlans").doc(surgeryId);
+    const planData = {
+      id: surgeryId,
+      groupId,
+      surgeryId,
+      patientName,
+      protocolId,
+      protocolName,
+      protocolVersion,
+      status: "confirmed",
+      patientWeight,
+      patientAge,
+      patientAllergies,
+      patientRestrictions,
+      calculatedBy: user.uid,
+      calculatedAt: new Date().toISOString(),
+      confirmedBy: user.uid,
+      confirmedAt: new Date().toISOString(),
+      items,
+      justifications,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    batchOps.set(planRef, planData);
+    
+    // Also update surgery status in calendario
+    const surgRef = dbRef.collection("calendario").doc(surgeryId);
+    batchOps.update(surgRef, {
+      medicationStatus: "confirmed"
+    });
+    
+    await batchOps.commit();
+    await logAudit(groupId, user.uid, user.email || "Médico", "CONFIRM_PLAN", "medicationPlan", surgeryId, `Confirmado planejamento de medicação para ${patientName}`);
+    
+    res.json({ success: true, plan: planData });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create/Approve double checks
+app.post("/api/app/medication-plans/double-check", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const { surgeryId, medicationId, witnessEmail } = req.body;
+
+    const dbRef = db.collection("groups").doc(groupId);
+    
+    // Validate witness is another member in the group
+    const membersSnap = await dbRef.collection("members")
+      .where("userEmail", "==", witnessEmail.trim().toLowerCase())
+      .get();
+      
+    if (membersSnap.empty && user.email?.trim().toLowerCase() === witnessEmail.trim().toLowerCase()) {
+      return res.status(400).json({ error: "A dupla conferência exige um segundo profissional diferente da conta atual." });
+    }
+
+    const witnessName = !membersSnap.empty ? (membersSnap.docs[0].data().displayName || witnessEmail) : witnessEmail;
+
+    const checkRef = dbRef.collection("doubleChecks").doc();
+    const checkData = {
+      id: checkRef.id,
+      groupId,
+      surgeryId,
+      medicationId,
+      witnessUserId: !membersSnap.empty ? membersSnap.docs[0].id : "external",
+      witnessName,
+      witnessEmail,
+      timestamp: new Date().toISOString(),
+      status: "approved"
+    };
+
+    await checkRef.set(checkData);
+    res.json(checkData);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/app/medication-plans/separate", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const { surgeryId, items } = req.body;
+
+    const dbRef = db.collection("groups").doc(groupId);
+    const planRef = dbRef.collection("medicationPlans").doc(surgeryId);
+    
+    const planSnap = await planRef.get();
+    if (!planSnap.exists) return res.status(404).json({ error: "Planejamento não encontrado" });
+    const plan = planSnap.data();
+
+    const batchOps = db.batch();
+    const updatedItems = (plan?.items || []).map((pItem: any) => {
+      const match = items.find((i: any) => i.medicationId === pItem.medicationId);
+      if (match) {
+        return {
+          ...pItem,
+          status: "separated",
+          quantitySeparated: match.quantitySeparated || pItem.adjustedVolume,
+          batchId: match.batchId || pItem.batchId,
+          batchNumber: match.batchNumber || pItem.batchNumber
+        };
+      }
+      return pItem;
+    });
+
+    batchOps.update(planRef, {
+      items: updatedItems,
+      status: "separated",
+      updatedAt: new Date().toISOString()
+    });
+
+    // Also update surgery status in calendario
+    const surgRef = dbRef.collection("calendario").doc(surgeryId);
+    batchOps.update(surgRef, {
+      medicationStatus: "separated"
+    });
+
+    // Log separation movements
+    for (const item of updatedItems) {
+      if (item.status === "separated") {
+        const movRef = dbRef.collection("stockMovements").doc();
+        batchOps.set(movRef, {
+          id: movRef.id,
+          groupId,
+          batchId: item.batchId || "unknown",
+          medicationId: item.medicationId,
+          genericName: item.genericName,
+          type: "separation",
+          quantity: item.quantitySeparated,
+          surgeryId,
+          patientName: plan?.patientName,
+          userId: user.uid,
+          userName: user.email || "Enfermagem",
+          description: `Separação de kit cirúrgico para ${plan?.patientName}`,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    await batchOps.commit();
+    await logAudit(groupId, user.uid, user.email || "Enfermagem", "SEPARATE_KIT", "medicationPlan", surgeryId, `Kit cirúrgico separado para ${plan?.patientName}`);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/app/medication-plans/close", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const { surgeryId, items } = req.body; // Array of item details containing final quantities: administered, returned, wasted, lost
+
+    const dbRef = db.collection("groups").doc(groupId);
+    const planRef = dbRef.collection("medicationPlans").doc(surgeryId);
+    
+    const planSnap = await planRef.get();
+    if (!planSnap.exists) return res.status(404).json({ error: "Planejamento não encontrado" });
+    const plan = planSnap.data();
+
+    const batchOps = db.batch();
+    const updatedItems = (plan?.items || []).map((pItem: any) => {
+      const match = items.find((i: any) => i.medicationId === pItem.medicationId);
+      if (match) {
+        const separated = pItem.quantitySeparated || pItem.adjustedVolume || 0;
+        const adminQty = parseFloat(match.quantityAdministered) || 0;
+        const retQty = parseFloat(match.quantityReturned) || 0;
+        const wasteQty = parseFloat(match.quantityWasted) || 0;
+        const lostQty = parseFloat(match.quantityLost) || 0;
+
+        // Core Formula Verification: separated = administered + returned + wasted + lost
+        const sum = adminQty + retQty + wasteQty + lostQty;
+        if (Math.abs(separated - sum) > 0.001) {
+          throw new Error(`Divergência na conferência de ${pItem.genericName}: Separado (${separated}) deve ser igual à soma de Administrado (${adminQty}) + Devolvido (${retQty}) + Desperdiçado (${wasteQty}) + Perdido (${lostQty}).`);
+        }
+
+        return {
+          ...pItem,
+          status: "finished",
+          quantityAdministered: adminQty,
+          quantityReturned: retQty,
+          quantityWasted: wasteQty,
+          quantityLost: lostQty
+        };
+      }
+      return pItem;
+    });
+
+    batchOps.update(planRef, {
+      items: updatedItems,
+      status: "finished",
+      updatedAt: new Date().toISOString()
+    });
+
+    // Also update surgery status in calendario
+    const surgRef = dbRef.collection("calendario").doc(surgeryId);
+    batchOps.update(surgRef, {
+      medicationStatus: "finished"
+    });
+
+    // Resolve reservations & stock updates
+    for (const item of updatedItems) {
+      if (item.batchId) {
+        const bRef = dbRef.collection("inventoryBatches").doc(item.batchId);
+        
+        // Remove from reserved amount (as reservation is fulfilled/closed)
+        const totalReservedToDeduct = item.quantitySeparated || item.adjustedVolume || 0;
+        
+        // Add back returned quantity to available stock
+        const returnAmount = item.quantityReturned || 0;
+        
+        // Deduct wasted/administered/lost from total pool (they were already subtracted from available when reserved,
+        // so we only need to deduct them from the quantityReserved, and add back the returned quantity to available!)
+        batchOps.update(bRef, {
+          quantityReserved: admin.firestore.FieldValue.increment(-totalReservedToDeduct),
+          quantityAvailable: admin.firestore.FieldValue.increment(returnAmount)
+        });
+
+        // Record movements for consumed/administered
+        if (item.quantityAdministered > 0) {
+          const movRef = dbRef.collection("stockMovements").doc();
+          batchOps.set(movRef, {
+            id: movRef.id,
+            groupId,
+            batchId: item.batchId,
+            medicationId: item.medicationId,
+            genericName: item.genericName,
+            type: "administration",
+            quantity: item.quantityAdministered,
+            surgeryId,
+            patientName: plan?.patientName,
+            userId: user.uid,
+            userName: user.email || "Enfermagem",
+            description: `Administração cirúrgica para ${plan?.patientName}`,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // Record movements for returned
+        if (item.quantityReturned > 0) {
+          const movRef = dbRef.collection("stockMovements").doc();
+          batchOps.set(movRef, {
+            id: movRef.id,
+            groupId,
+            batchId: item.batchId,
+            medicationId: item.medicationId,
+            genericName: item.genericName,
+            type: "return",
+            quantity: item.quantityReturned,
+            surgeryId,
+            patientName: plan?.patientName,
+            userId: user.uid,
+            userName: user.email || "Enfermagem",
+            description: `Retorno ao estoque para ${plan?.patientName}`,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // Record movements for waste
+        if (item.quantityWasted > 0) {
+          const movRef = dbRef.collection("stockMovements").doc();
+          batchOps.set(movRef, {
+            id: movRef.id,
+            groupId,
+            batchId: item.batchId,
+            medicationId: item.medicationId,
+            genericName: item.genericName,
+            type: "waste",
+            quantity: item.quantityWasted,
+            surgeryId,
+            patientName: plan?.patientName,
+            userId: user.uid,
+            userName: user.email || "Enfermagem",
+            description: `Desperdício justificado de medicação - ${plan?.patientName}`,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // Record movements for loss
+        if (item.quantityLost > 0) {
+          const movRef = dbRef.collection("stockMovements").doc();
+          batchOps.set(movRef, {
+            id: movRef.id,
+            groupId,
+            batchId: item.batchId,
+            medicationId: item.medicationId,
+            genericName: item.genericName,
+            type: "loss",
+            quantity: item.quantityLost,
+            surgeryId,
+            patientName: plan?.patientName,
+            userId: user.uid,
+            userName: user.email || "Enfermagem",
+            description: `Perda registrada de medicação - ${plan?.patientName}`,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    await batchOps.commit();
+    await logAudit(groupId, user.uid, user.email || "Enfermagem", "CLOSE_PLAN", "medicationPlan", surgeryId, `Finalizado fechamento de consumo para ${plan?.patientName}`);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post("/api/app/medication-plans/cancel", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    const { surgeryId } = req.body;
+
+    const dbRef = db.collection("groups").doc(groupId);
+    const planRef = dbRef.collection("medicationPlans").doc(surgeryId);
+    
+    const planSnap = await planRef.get();
+    if (!planSnap.exists) return res.status(404).json({ error: "Planejamento não encontrado" });
+    const plan = planSnap.data();
+
+    // Release stock reservations
+    const reservationsSnap = await dbRef.collection("stockReservations")
+      .where("surgeryId", "==", surgeryId)
+      .get();
+
+    const batchOps = db.batch();
+    
+    for (const d of reservationsSnap.docs) {
+      const resData = d.data();
+      // Add back to batch available, decrement reserved
+      const bRef = dbRef.collection("inventoryBatches").doc(resData.batchId);
+      batchOps.update(bRef, {
+        quantityAvailable: admin.firestore.FieldValue.increment(resData.quantity),
+        quantityReserved: admin.firestore.FieldValue.increment(-resData.quantity)
+      });
+      // Delete reservation
+      batchOps.delete(d.ref);
+    }
+
+    batchOps.update(planRef, {
+      status: "cancelled",
+      updatedAt: new Date().toISOString()
+    });
+
+    // Also update surgery status in calendario
+    const surgRef = dbRef.collection("calendario").doc(surgeryId);
+    batchOps.update(surgRef, {
+      medicationStatus: "cancelled"
+    });
+
+    await batchOps.commit();
+    await logAudit(groupId, user.uid, user.email || "Médico", "CANCEL_PLAN", "medicationPlan", surgeryId, `Planejamento de medicamentos cancelado para ${plan?.patientName}`);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. Audit Logs
+app.get("/api/app/audit-logs", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("groups").doc(groupId).collection("auditLogs").orderBy("timestamp", "desc").limit(100).get();
+    const list = snap.docs.map(doc => doc.data());
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 async function startServer() {
   const distPath = path.join(process.cwd(), "dist");
 

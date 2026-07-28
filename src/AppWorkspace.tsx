@@ -37,7 +37,8 @@ import {
   Lock,
   Loader2,
   Stethoscope,
-  PowerOff
+  PowerOff,
+  ShoppingCart
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -48,8 +49,9 @@ import { PersonalDocuments } from "./components/PersonalDocuments";
 import { PatientLogs } from "./components/PatientLogs";
 import { ShoppingList } from "./components/ShoppingList";
 import { PersonalNotes } from "./components/PersonalNotes";
+import MedicationInventoryModule from "./components/medications/MedicationInventoryModule";
 
-type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes";
+type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes" | "medications";
 
 export default function AppWorkspace() {
   const { isAuthenticated, user, login, logout } = useAuth();
@@ -409,6 +411,12 @@ export default function AppWorkspace() {
                   active={currentView === "calendar"}
                   onClick={() => navigateAndAction("calendar")}
                 />
+                <NavItem
+                  icon={<ShoppingCart size={18} />}
+                  label="Medicações"
+                  active={currentView === "medications"}
+                  onClick={() => navigateAndAction("medications")}
+                />
 
                 <div className="pt-8 space-y-1">
                   <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Account</div>
@@ -531,6 +539,12 @@ export default function AppWorkspace() {
             label="Calendário"
             active={currentView === "calendar"}
             onClick={() => navigateAndAction("calendar")}
+          />
+          <NavItem
+            icon={<ShoppingCart size={18} />}
+            label="Medicações"
+            active={currentView === "medications"}
+            onClick={() => navigateAndAction("medications")}
           />
 
           <div className="pt-8 space-y-1">
@@ -746,6 +760,8 @@ export default function AppWorkspace() {
                           prefilledType={activePatientType || undefined}
                           prefilledSala={activePatientSala || undefined}
                         />
+                      ) : currentView === "medications" ? (
+                        <MedicationInventoryModule />
                       ) : currentView === "shopping_list" ? (
                         <ShoppingList onBack={() => navigateAndAction("notes")} />
                       ) : currentView === "logs" && activePatientId ? (
