@@ -3,6 +3,7 @@ import { MessageSquare, Plus, CalendarPlus, Share2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { E2EMedia } from "./E2EMedia";
+import { useGroup } from "../contexts/GroupContext";
 
 interface PatientProfileSheetProps {
   msg: any;
@@ -242,9 +243,11 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
     });
   };
 
-  // Get patient phone number
-  const getPatientPhone = () => {
-    const rawPhone = cad?.Telefone || cad?.phone || profileData?.telefone || "";
+  const { userWhatsapp, whatsappNumber } = useGroup();
+
+  // Get user profile or patient whatsapp phone number
+  const getUserPhone = () => {
+    const rawPhone = userWhatsapp || whatsappNumber || cad?.Telefone || cad?.phone || profileData?.telefone || "";
     const cleanDigits = rawPhone.replace(/\D/g, "");
     if (!cleanDigits) return "";
     if (!cleanDigits.startsWith("55") && (cleanDigits.length === 10 || cleanDigits.length === 11)) {
@@ -253,8 +256,28 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
     return cleanDigits;
   };
 
+  // Helper to shorten long image URLs for WhatsApp messages
+  const shortenImageLink = async (url: string): Promise<string> => {
+    if (!url) return "";
+    if (url.length < 50) return url;
+    try {
+      const res = await fetch("/api/shorten-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.shortUrl) return data.shortUrl;
+      }
+    } catch (e) {
+      console.warn("Failed to shorten image link:", e);
+    }
+    return url;
+  };
+
   // Generate WhatsApp message text containing ONLY selected fields
-  const generateWhatsAppMessage = () => {
+  const generateWhatsAppMessage = async () => {
     const sections: string[] = [];
 
     // Header info lines
@@ -308,12 +331,15 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
     // Selected Imagens
     const selImgs = imagensItems.filter((_, idx) => selectedKeys.has(`img_${idx}`));
     if (selImgs.length > 0) {
-      const imgLines = selImgs.map((img) => {
-        const desc = img.alt || "Imagem";
-        const dateStr = img.date ? ` (${img.date})` : "";
-        const linkStr = img.src ? `\n  Link: ${img.src}` : "";
-        return `• ${desc}${dateStr}${linkStr}`;
-      });
+      const imgLines = await Promise.all(
+        selImgs.map(async (img) => {
+          const desc = img.alt || "Imagem";
+          const dateStr = img.date ? ` (${img.date})` : "";
+          const shortUrl = img.src ? await shortenImageLink(img.src) : "";
+          const linkStr = shortUrl ? `\n  Link: ${shortUrl}` : "";
+          return `• ${desc}${dateStr}${linkStr}`;
+        })
+      );
       sections.push(`*Imagens*:\n${imgLines.join("\n")}`);
     }
 
@@ -321,13 +347,13 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
   };
 
   const handleShareWhatsApp = async () => {
-    const textToShare = generateWhatsAppMessage();
+    const textToShare = await generateWhatsAppMessage();
     if (!textToShare) {
       alert("Selecione pelo menos um item para compartilhar.");
       return;
     }
 
-    const patientPhone = getPatientPhone();
+    const userPhone = getUserPhone();
     const encodedText = encodeURIComponent(textToShare);
 
     const selImgs = imagensItems.filter((_, idx) => selectedKeys.has(`img_${idx}`));
@@ -349,8 +375,8 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
       }
     }
 
-    const waUrl = patientPhone
-      ? `https://wa.me/${patientPhone}?text=${encodedText}`
+    const waUrl = userPhone
+      ? `https://wa.me/${userPhone}?text=${encodedText}`
       : `https://wa.me/?text=${encodedText}`;
 
     window.open(waUrl, "_blank", "noopener,noreferrer");

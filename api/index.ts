@@ -1793,6 +1793,42 @@ const getSafeContentType = (fileName: string, fileMime?: string): string => {
   return "application/octet-stream";
 };
 
+// URL Shortener endpoint for WhatsApp sharing
+const shortUrlStore = new Map<string, string>();
+
+app.post("/api/shorten-url", express.json(), (req, res) => {
+  const { url } = req.body || {};
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ error: "URL é obrigatória" });
+  }
+
+  for (const [code, target] of shortUrlStore.entries()) {
+    if (target === url) {
+      const host = req.get("host") || "";
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+      const shortUrl = `${protocol}://${host}/s/${code}`;
+      return res.json({ code, shortUrl });
+    }
+  }
+
+  const code = Math.random().toString(36).substring(2, 8);
+  shortUrlStore.set(code, url);
+
+  const host = req.get("host") || "";
+  const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const shortUrl = `${protocol}://${host}/s/${code}`;
+  return res.json({ code, shortUrl });
+});
+
+app.get("/s/:code", (req, res) => {
+  const code = req.params.code;
+  const longUrl = shortUrlStore.get(code);
+  if (!longUrl) {
+    return res.status(404).send("Link não encontrado ou expirado.");
+  }
+  return res.redirect(longUrl);
+});
+
 // Secure proxy for Firebase Storage files to bypass browser CORS restrictions during decryption
 app.get("/api/app/proxy-storage-file", async (req, res) => {
   const fileUrl = req.query.url as string;
