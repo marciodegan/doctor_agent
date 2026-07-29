@@ -1796,12 +1796,13 @@ const getSafeContentType = (fileName: string, fileMime?: string): string => {
 // URL Shortener endpoint for WhatsApp sharing
 const shortUrlStore = new Map<string, string>();
 
-app.post("/api/shorten-url", express.json(), (req, res) => {
+app.post("/api/shorten-url", express.json(), async (req, res) => {
   let { url } = req.body || {};
   if (!url || typeof url !== "string") {
     return res.status(400).json({ error: "URL é obrigatória" });
   }
 
+  // Extract raw storage URL if wrapped in proxy
   if (url.includes("proxy-storage-file?url=")) {
     try {
       const idx = url.indexOf("proxy-storage-file?url=");
@@ -1813,9 +1814,10 @@ app.post("/api/shorten-url", express.json(), (req, res) => {
     } catch (e) {}
   }
 
+  // Check in-memory store
   for (const [code, target] of shortUrlStore.entries()) {
     if (target === url) {
-      const host = req.get("host") || "";
+      const host = req.get("x-forwarded-host") || req.get("host") || "";
       const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
       const shortUrl = `${protocol}://${host}/s/${code}`;
       return res.json({ code, shortUrl });
@@ -1825,19 +1827,97 @@ app.post("/api/shorten-url", express.json(), (req, res) => {
   const code = Math.random().toString(36).substring(2, 8);
   shortUrlStore.set(code, url);
 
-  const host = req.get("host") || "";
+  try {
+    await db.collection("short_urls").doc(code).set({
+      url,
+      createdAt: new Date().toISOString()
+    });
+  } catch (e) {
+    console.warn("[ShortenURL] Failed to persist in Firestore:", e);
+  }
+
+  const host = req.get("x-forwarded-host") || req.get("host") || "";
   const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
   const shortUrl = `${protocol}://${host}/s/${code}`;
   return res.json({ code, shortUrl });
 });
 
-app.get("/s/:code", (req, res) => {
+app.get("/s/:code", async (req, res) => {
   const code = req.params.code;
-  const longUrl = shortUrlStore.get(code);
+  let longUrl = shortUrlStore.get(code);
+
   if (!longUrl) {
-    return res.status(404).send("Link não encontrado ou expirado.");
+    try {
+      const doc = await db.collection("short_urls").doc(code).get();
+      if (doc.exists) {
+        longUrl = doc.data()?.url;
+        if (longUrl) {
+          shortUrlStore.set(code, longUrl);
+        }
+      }
+    } catch (e) {
+      console.warn("[ShortenURL] Firestore lookup error:", e);
+    }
   }
-  return res.redirect(longUrl);
+
+  if (!longUrl) {
+    return res.status(404).send("Link de imagem não encontrado ou expirado.");
+  }
+
+  try {
+    let bucketName = "";
+    let filePath = "";
+
+    if (longUrl.includes("storage.googleapis.com/") || longUrl.includes("firebasestorage.googleapis.com/")) {
+      const parsed = new URL(longUrl);
+      if (parsed.hostname === "storage.googleapis.com") {
+        const parts = parsed.pathname.substring(1).split("/");
+        bucketName = parts[0];
+        filePath = decodeURIComponent(parts.slice(1).join("/"));
+      } else if (parsed.hostname.includes("firebasestorage.googleapis.com")) {
+        const match = parsed.pathname.match(/\/v0\/b\/([^/]+)\/o\/(.+)/);
+        if (match) {
+          bucketName = match[1];
+          filePath = decodeURIComponent(match[2].split("?")[0]);
+        }
+      }
+    }
+
+    if (bucketName && filePath) {
+      try {
+        const targetBucket = getStorage().bucket(bucketName);
+        const fileRef = targetBucket.file(filePath);
+        const [exists] = await fileRef.exists();
+        if (exists) {
+          const [metadata] = await fileRef.getMetadata();
+          const [buffer] = await fileRef.download();
+          const contentType = metadata.contentType || "image/jpeg";
+          res.setHeader("Content-Type", contentType);
+          res.setHeader("Cache-Control", "public, max-age=31536000");
+          return res.send(buffer);
+        }
+      } catch (err) {
+        console.warn("[ShortenURL] Admin SDK fetch failed, falling back to direct fetch/redirect:", err);
+      }
+    }
+
+    // Direct HTTP fetch fallback
+    if (longUrl.startsWith("http")) {
+      const r = await fetch(longUrl);
+      if (r.ok) {
+        const contentType = r.headers.get("content-type") || "image/jpeg";
+        res.setHeader("Content-Type", contentType);
+        res.setHeader("Cache-Control", "public, max-age=31536000");
+        const arrayBuf = await r.arrayBuffer();
+        return res.send(Buffer.from(arrayBuf));
+      }
+    }
+
+    return res.redirect(longUrl);
+  } catch (err: any) {
+    console.error("[ShortenURL] Error serving short URL:", err);
+    return res.redirect(longUrl);
+  }
 });
 
 // Secure proxy for Firebase Storage files to bypass browser CORS restrictions during decryption
