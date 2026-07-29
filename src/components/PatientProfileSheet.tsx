@@ -243,7 +243,7 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
     });
   };
 
-  const { userWhatsapp, whatsappNumber } = useGroup();
+  const { activeGroup, userWhatsapp, whatsappNumber } = useGroup();
 
   // Get user profile or patient whatsapp phone number
   const getUserPhone = () => {
@@ -256,8 +256,8 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
     return cleanDigits;
   };
 
-  // Helper to shorten long image URLs for WhatsApp messages
-  const shortenImageLink = async (rawUrl: string): Promise<string> => {
+  // Helper to create secure share links for WhatsApp messages
+  const shortenImageLink = async (rawUrl: string, altText?: string): Promise<string> => {
     if (!rawUrl) return "";
     let directUrl = rawUrl;
     if (rawUrl.includes("proxy-storage-file?url=")) {
@@ -274,17 +274,24 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
     }
 
     try {
-      const res = await fetch("/api/shorten-url", {
+      const gId = activeGroup?.id || cad?.groupId || msg?.groupId || "";
+      const pName = profileData?.nome || cad?.Nome || "";
+      const res = await fetch("/api/share/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: directUrl }),
+        body: JSON.stringify({
+          url: directUrl,
+          groupId: gId,
+          patientName: pName,
+          alt: altText || "Imagem"
+        }),
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.shortUrl) return data.shortUrl;
+        if (data.shareUrl) return data.shareUrl;
       }
     } catch (e) {
-      console.warn("Failed to shorten image link:", e);
+      console.warn("Failed to create secure share link:", e);
     }
     return directUrl;
   };
@@ -348,7 +355,7 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
         selImgs.map(async (img) => {
           const desc = img.alt || "Imagem";
           const dateStr = img.date ? ` (${img.date})` : "";
-          const shortUrl = img.src ? await shortenImageLink(img.src) : "";
+          const shortUrl = img.src ? await shortenImageLink(img.src, desc) : "";
           const linkStr = shortUrl ? `\n  Link: ${shortUrl}` : "";
           return `• ${desc}${dateStr}${linkStr}`;
         })

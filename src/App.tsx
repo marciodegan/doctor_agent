@@ -5,6 +5,8 @@ import Eula from "./pages/Eula";
 import { fetchLatestVersion, APP_VERSION, VersionConfig } from "./lib/versionCheck";
 import { VersionUpdateModal } from "./components/VersionUpdateModal";
 
+import SharePage from "./pages/SharePage";
+
 // Lazy-load AppWorkspace
 const AppWorkspace = lazy(() => import("./AppWorkspace"));
 
@@ -69,6 +71,12 @@ export default function App() {
 
     if (cleanPath === "/eula") {
       return <Eula />;
+    }
+
+    if (cleanPath.startsWith("/share") || cleanPath.startsWith("/s/")) {
+      const parts = cleanPath.split("/");
+      const token = parts[parts.length - 1];
+      return <SharePage token={token} />;
     }
 
     if (cleanPath === "/app") {

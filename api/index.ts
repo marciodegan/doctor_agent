@@ -1793,94 +1793,223 @@ const getSafeContentType = (fileName: string, fileMime?: string): string => {
   return "application/octet-stream";
 };
 
-// URL Shortener endpoint for WhatsApp sharing
-const shortUrlStore = new Map<string, string>();
-
-app.post("/api/shorten-url", express.json(), async (req, res) => {
-  let { url } = req.body || {};
-  if (!url || typeof url !== "string") {
-    return res.status(400).json({ error: "URL é obrigatória" });
-  }
-
-  // Extract raw storage URL if wrapped in proxy
-  if (url.includes("proxy-storage-file?url=")) {
-    try {
-      const idx = url.indexOf("proxy-storage-file?url=");
-      const param = url.substring(idx + "proxy-storage-file?url=".length);
-      const decoded = decodeURIComponent(param);
-      if (decoded.startsWith("http")) {
-        url = decoded;
-      }
-    } catch (e) {}
-  }
-
-  // Check in-memory store
-  for (const [code, target] of shortUrlStore.entries()) {
-    if (target === url) {
-      const host = req.get("x-forwarded-host") || req.get("host") || "";
-      const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-      const shortUrl = `${protocol}://${host}/s/${code}`;
-      return res.json({ code, shortUrl });
-    }
-  }
-
-  const code = Math.random().toString(36).substring(2, 8);
-  shortUrlStore.set(code, url);
-
+// Secure Image Sharing Endpoints
+app.post("/api/share/create", express.json(), async (req, res) => {
   try {
-    await db.collection("short_urls").doc(code).set({
-      url,
-      createdAt: new Date().toISOString()
-    });
-  } catch (e) {
-    console.warn("[ShortenURL] Failed to persist in Firestore:", e);
-  }
+    const user = await getAuthenticatedUser(req);
+    let { url, groupId, patientName, alt } = req.body || {};
+    if (!url || typeof url !== "string") {
+      return res.status(400).json({ error: "URL é obrigatória" });
+    }
 
-  const host = req.get("x-forwarded-host") || req.get("host") || "";
-  const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-  const shortUrl = `${protocol}://${host}/s/${code}`;
-  return res.json({ code, shortUrl });
+    // Extract raw storage URL if wrapped in proxy
+    if (url.includes("proxy-storage-file?url=")) {
+      try {
+        const idx = url.indexOf("proxy-storage-file?url=");
+        const param = url.substring(idx + "proxy-storage-file?url=".length);
+        const decoded = decodeURIComponent(param);
+        if (decoded.startsWith("http")) {
+          url = decoded;
+        }
+      } catch (e) {}
+    }
+
+    const token = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+
+    const shareRecord = {
+      token,
+      groupId: groupId || "",
+      fileUrl: url,
+      patientName: patientName || "",
+      alt: alt || "Imagem",
+      createdBy: user?.uid || "",
+      createdAt: new Date().toISOString()
+    };
+
+    await db.collection("share_tokens").doc(token).set(shareRecord);
+
+    const host = req.get("x-forwarded-host") || req.get("host") || "";
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+    const shareUrl = `${protocol}://${host}/share/${token}`;
+
+    return res.json({ token, shareUrl, shortUrl: shareUrl });
+  } catch (err: any) {
+    console.error("[Share] Error creating token:", err);
+    return res.status(500).json({ error: err.message || "Erro ao gerar link de compartilhamento" });
+  }
 });
 
-app.get("/s/:code", async (req, res) => {
-  const code = req.params.code;
-  let longUrl = shortUrlStore.get(code);
-
-  if (!longUrl) {
-    try {
-      const doc = await db.collection("short_urls").doc(code).get();
-      if (doc.exists) {
-        longUrl = doc.data()?.url;
-        if (longUrl) {
-          shortUrlStore.set(code, longUrl);
-        }
-      }
-    } catch (e) {
-      console.warn("[ShortenURL] Firestore lookup error:", e);
-    }
-  }
-
-  if (!longUrl) {
-    return res.status(404).send("Link de imagem não encontrado ou expirado.");
-  }
-
+app.post("/api/shorten-url", express.json(), async (req, res, next) => {
+  // Direct internal forwarding for backwards compatibility
   try {
+    const user = await getAuthenticatedUser(req);
+    let { url, groupId, patientName, alt } = req.body || {};
+    if (!url || typeof url !== "string") {
+      return res.status(400).json({ error: "URL é obrigatória" });
+    }
+
+    if (url.includes("proxy-storage-file?url=")) {
+      try {
+        const idx = url.indexOf("proxy-storage-file?url=");
+        const param = url.substring(idx + "proxy-storage-file?url=".length);
+        const decoded = decodeURIComponent(param);
+        if (decoded.startsWith("http")) {
+          url = decoded;
+        }
+      } catch (e) {}
+    }
+
+    const token = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+
+    await db.collection("share_tokens").doc(token).set({
+      token,
+      groupId: groupId || "",
+      fileUrl: url,
+      patientName: patientName || "",
+      alt: alt || "Imagem",
+      createdBy: user?.uid || "",
+      createdAt: new Date().toISOString()
+    });
+
+    const host = req.get("x-forwarded-host") || req.get("host") || "";
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+    const shareUrl = `${protocol}://${host}/share/${token}`;
+
+    return res.json({ token, shareUrl, shortUrl: shareUrl, code: token });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/share/verify", express.json(), async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ error: "Token é obrigatório" });
+    }
+
+    // 1. Authenticated user check
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      return res.status(401).json({
+        error: "unauthenticated",
+        message: "Você precisa estar autenticado para visualizar esta imagem."
+      });
+    }
+
+    // 2. Fetch share token doc
+    let doc = await db.collection("share_tokens").doc(token).get();
+    let tokenData = doc.exists ? doc.data() : null;
+
+    if (!tokenData) {
+      const legacyDoc = await db.collection("short_urls").doc(token).get();
+      if (legacyDoc.exists) {
+        const leg = legacyDoc.data();
+        tokenData = {
+          token,
+          fileUrl: leg?.url || "",
+          groupId: leg?.groupId || "",
+          patientName: leg?.patientName || "",
+          alt: leg?.alt || "Imagem"
+        };
+      }
+    }
+
+    if (!tokenData) {
+      return res.status(404).json({
+        error: "not_found",
+        message: "O link de imagem compartilhado é inválido ou expirou."
+      });
+    }
+
+    const { groupId, patientName, alt } = tokenData;
+
+    // 3. Group membership check (if groupId is set)
+    if (groupId) {
+      try {
+        await requireGroupMember(req, groupId);
+      } catch (membershipErr: any) {
+        console.warn(`[Share] User ${user.email || user.uid} denied access to group ${groupId}:`, membershipErr.message);
+        return res.status(403).json({
+          error: "access_denied",
+          message: `Acesso Negado: Sua conta (${user.email || "conectada"}) não pertence ao grupo responsável por esta imagem.`
+        });
+      }
+    }
+
+    return res.json({
+      authorized: true,
+      token,
+      groupId: groupId || "",
+      patientName: patientName || "Ficha de Paciente",
+      alt: alt || "Imagem",
+      mediaUrl: `/api/share/media/${token}`
+    });
+  } catch (err: any) {
+    console.error("[Share] Error verifying token:", err);
+    return res.status(500).json({ error: "Erro interno ao validar compartilhamento." });
+  }
+});
+
+app.get("/api/share/media/:token", async (req, res) => {
+  try {
+    const token = req.params.token;
+
+    // 1. Authenticated user check
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      return res.status(401).send("Acesso restrito: Faça login para visualizar.");
+    }
+
+    // 2. Fetch share token doc
+    let doc = await db.collection("share_tokens").doc(token).get();
+    let tokenData = doc.exists ? doc.data() : null;
+
+    if (!tokenData) {
+      const legacyDoc = await db.collection("short_urls").doc(token).get();
+      if (legacyDoc.exists) {
+        tokenData = legacyDoc.data();
+      }
+    }
+
+    if (!tokenData) {
+      return res.status(404).send("Imagem não encontrada.");
+    }
+
+    const { groupId, fileUrl } = tokenData;
+
+    // 3. Group membership check
+    if (groupId) {
+      try {
+        await requireGroupMember(req, groupId);
+      } catch (e) {
+        return res.status(403).send("Acesso negado: Sua conta não pertence ao grupo responsável por esta imagem.");
+      }
+    }
+
+    if (!fileUrl) {
+      return res.status(404).send("Arquivo indisponível.");
+    }
+
+    // 4. Stream file bytes directly without exposing Storage URL
     let bucketName = "";
     let filePath = "";
 
-    if (longUrl.includes("storage.googleapis.com/") || longUrl.includes("firebasestorage.googleapis.com/")) {
-      const parsed = new URL(longUrl);
-      if (parsed.hostname === "storage.googleapis.com") {
-        const parts = parsed.pathname.substring(1).split("/");
-        bucketName = parts[0];
-        filePath = decodeURIComponent(parts.slice(1).join("/"));
-      } else if (parsed.hostname.includes("firebasestorage.googleapis.com")) {
-        const match = parsed.pathname.match(/\/v0\/b\/([^/]+)\/o\/(.+)/);
-        if (match) {
-          bucketName = match[1];
-          filePath = decodeURIComponent(match[2].split("?")[0]);
+    if (fileUrl.includes("storage.googleapis.com/") || fileUrl.includes("firebasestorage.googleapis.com/")) {
+      try {
+        const parsed = new URL(fileUrl);
+        if (parsed.hostname === "storage.googleapis.com") {
+          const parts = parsed.pathname.substring(1).split("/");
+          bucketName = parts[0];
+          filePath = decodeURIComponent(parts.slice(1).join("/"));
+        } else if (parsed.hostname.includes("firebasestorage.googleapis.com")) {
+          const match = parsed.pathname.match(/\/v0\/b\/([^/]+)\/o\/(.+)/);
+          if (match) {
+            bucketName = match[1];
+            filePath = decodeURIComponent(match[2].split("?")[0]);
+          }
         }
-      }
+      } catch (e) {}
     }
 
     if (bucketName && filePath) {
@@ -1893,31 +2022,35 @@ app.get("/s/:code", async (req, res) => {
           const [buffer] = await fileRef.download();
           const contentType = metadata.contentType || "image/jpeg";
           res.setHeader("Content-Type", contentType);
-          res.setHeader("Cache-Control", "public, max-age=31536000");
+          res.setHeader("Cache-Control", "private, max-age=86400");
           return res.send(buffer);
         }
       } catch (err) {
-        console.warn("[ShortenURL] Admin SDK fetch failed, falling back to direct fetch/redirect:", err);
+        console.warn("[ShareMedia] Admin SDK read error:", err);
       }
     }
 
-    // Direct HTTP fetch fallback
-    if (longUrl.startsWith("http")) {
-      const r = await fetch(longUrl);
+    // Fallback: server fetch directly and stream
+    if (fileUrl.startsWith("http")) {
+      const r = await fetch(fileUrl);
       if (r.ok) {
         const contentType = r.headers.get("content-type") || "image/jpeg";
         res.setHeader("Content-Type", contentType);
-        res.setHeader("Cache-Control", "public, max-age=31536000");
+        res.setHeader("Cache-Control", "private, max-age=86400");
         const arrayBuf = await r.arrayBuffer();
         return res.send(Buffer.from(arrayBuf));
       }
     }
 
-    return res.redirect(longUrl);
+    return res.status(404).send("Não foi possível carregar a imagem.");
   } catch (err: any) {
-    console.error("[ShortenURL] Error serving short URL:", err);
-    return res.redirect(longUrl);
+    console.error("[ShareMedia] Error:", err);
+    return res.status(500).send("Erro interno ao carregar a imagem.");
   }
+});
+
+app.get("/s/:code", (req, res) => {
+  res.redirect(301, `/share/${req.params.code}`);
 });
 
 // Secure proxy for Firebase Storage files to bypass browser CORS restrictions during decryption
