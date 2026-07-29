@@ -257,14 +257,27 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
   };
 
   // Helper to shorten long image URLs for WhatsApp messages
-  const shortenImageLink = async (url: string): Promise<string> => {
-    if (!url) return "";
-    if (url.length < 50) return url;
+  const shortenImageLink = async (rawUrl: string): Promise<string> => {
+    if (!rawUrl) return "";
+    let directUrl = rawUrl;
+    if (rawUrl.includes("proxy-storage-file?url=")) {
+      try {
+        const u = new URL(rawUrl, window.location.origin);
+        const actual = u.searchParams.get("url");
+        if (actual) directUrl = actual;
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (directUrl.startsWith("/")) {
+      directUrl = `${window.location.origin}${directUrl}`;
+    }
+
     try {
       const res = await fetch("/api/shorten-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: directUrl }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -273,7 +286,7 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
     } catch (e) {
       console.warn("Failed to shorten image link:", e);
     }
-    return url;
+    return directUrl;
   };
 
   // Generate WhatsApp message text containing ONLY selected fields

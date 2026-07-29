@@ -1797,9 +1797,20 @@ const getSafeContentType = (fileName: string, fileMime?: string): string => {
 const shortUrlStore = new Map<string, string>();
 
 app.post("/api/shorten-url", express.json(), (req, res) => {
-  const { url } = req.body || {};
+  let { url } = req.body || {};
   if (!url || typeof url !== "string") {
     return res.status(400).json({ error: "URL é obrigatória" });
+  }
+
+  if (url.includes("proxy-storage-file?url=")) {
+    try {
+      const idx = url.indexOf("proxy-storage-file?url=");
+      const param = url.substring(idx + "proxy-storage-file?url=".length);
+      const decoded = decodeURIComponent(param);
+      if (decoded.startsWith("http")) {
+        url = decoded;
+      }
+    } catch (e) {}
   }
 
   for (const [code, target] of shortUrlStore.entries()) {
