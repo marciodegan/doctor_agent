@@ -346,7 +346,7 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
               roomInfo = p.hospitalName;
             }
 
-            return `*Paciente*: ${p.nome}\nQuarto: ${roomInfo}\nFicha: ${shareUrl}`;
+            return `*Paciente*: ${p.nome}\n${roomInfo}\nFicha: ${shareUrl}`;
           })
         );
 
