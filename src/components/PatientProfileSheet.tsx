@@ -342,110 +342,75 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
     return directUrl;
   };
 
-  // Generate WhatsApp message text containing ONLY selected fields
+  // Generate WhatsApp message text containing ONLY patient name in bold and the share link for the patient sheet
   const generateWhatsAppMessage = async () => {
-    const sections: string[] = [];
+    const patientName = profileData?.nome || cad?.Nome || "Paciente";
+    let shareUrl = "";
 
-    // Header info lines
-    const headerLines: string[] = [];
-    if (selectedKeys.has("header_nome") && (profileData?.nome || cad?.Nome)) {
-      headerLines.push(`*Paciente*: ${profileData?.nome || cad?.Nome}`);
-    }
-    if (selectedKeys.has("header_hospital") && (profileData?.hospitalNome || cad?.hospitalName || cad?.hospital_nome)) {
-      headerLines.push(`*Hospital*: ${profileData?.hospitalNome || cad?.hospitalName || cad?.hospital_nome}`);
-    }
-    if (selectedKeys.has("header_quarto") && (profileData?.roomNumber || cad?.roomNumber || cad?.room_number)) {
-      headerLines.push(`*Quarto*: ${profileData?.roomNumber || cad?.roomNumber || cad?.room_number}`);
-    }
-    if (selectedKeys.has("header_status") && statusStr && statusStr !== "Sem Status" && statusStr !== "Não informado") {
-      headerLines.push(`*Diagnóstico*: ${statusStr}`);
-    }
-    if (selectedKeys.has("header_procedimento") && procedimentoStr) {
-      headerLines.push(`*Procedimento*: ${procedimentoStr}`);
-    }
-    if (selectedKeys.has("header_idade") && profileData?.idade && profileData?.idade !== "N/A") {
-      headerLines.push(`*Idade*: ${profileData.idade} ${Number(profileData.idade) === 1 ? "ANO" : "ANOS"}`);
-    }
-    if (selectedKeys.has("header_observacoes") && obsStr) {
-      headerLines.push(`*Observações*: ${obsStr}`);
-    }
-
-    if (headerLines.length > 0) {
-      sections.push(headerLines.join("\n"));
-    }
-
-    // Selected Contatos
-    const selContatos = contatosItems.filter((_, idx) => selectedKeys.has(`contato_${idx}`));
-    if (selContatos.length > 0) {
-      const cLines = selContatos.map((c) => {
-        const phone = c.phoneLinkText ? ` - ${c.phoneLinkText}` : "";
-        return `• ${c.name}${phone}`;
-      });
-      sections.push(`*Contatos*:\n${cLines.join("\n")}`);
-    }
-
-    // Selected Informações
-    const selInfos = informacoesItems.filter((_, idx) => selectedKeys.has(`info_${idx}`));
-    if (selInfos.length > 0) {
-      const iLines = selInfos.map((inf) => {
-        const dateStr = inf.date ? ` (${inf.date})` : "";
-        return `• ${inf.content}${dateStr}`;
-      });
-      sections.push(`*Informações*:\n${iLines.join("\n")}`);
-    }
-
-    // Selected Imagens
-    const selImgs = imagensItems.filter((_, idx) => selectedKeys.has(`img_${idx}`));
-    if (selImgs.length > 0) {
-      const imgLines = await Promise.all(
-        selImgs.map(async (img) => {
-          const desc = img.alt || "Imagem";
-          const dateStr = img.date ? ` (${img.date})` : "";
-          const shortUrl = img.src ? await shortenImageLink(img.src, desc) : "";
-          const linkStr = shortUrl ? `\n  Link: ${shortUrl}` : "";
-          return `• ${desc}${dateStr}${linkStr}`;
-        })
-      );
-      sections.push(`*Imagens*:\n${imgLines.join("\n")}`);
-    }
-
-    return sections.join("\n\n").trim();
-  };
-
-  const handleShareWhatsApp = async () => {
-    const textToShare = await generateWhatsAppMessage();
-    if (!textToShare) {
-      alert("Selecione pelo menos um item para compartilhar.");
-      return;
-    }
-
-    const userPhone = getUserPhone();
-    const encodedText = encodeURIComponent(textToShare);
-
-    const selImgs = imagensItems.filter((_, idx) => selectedKeys.has(`img_${idx}`));
-    const hasImagesSelected = selImgs.length > 0;
-
-    if (hasImagesSelected && typeof navigator !== "undefined" && navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    const patientId = profileData?.id || cad?.id;
+    if (patientId) {
       try {
-        await navigator.share({
-          title: `Ficha do Paciente - ${profileData?.nome || ""}`,
-          text: textToShare,
+        const res = await fetch("/api/share/patient/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patientId }),
+          credentials: "include",
         });
-        return;
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.warn("Native share fallback to wa.me:", err);
-        } else {
-          return; // User cancelled
+        const data = await res.json();
+        if (res.ok && data.shareUrl) {
+          shareUrl = data.shareUrl;
         }
+      } catch (err) {
+        console.error("Error creating patient share link:", err);
       }
     }
 
-    const waUrl = userPhone
-      ? `https://wa.me/${userPhone}?text=${encodedText}`
-      : `https://wa.me/?text=${encodedText}`;
+    if (!shareUrl && patientId) {
+      shareUrl = `${window.location.origin}/patient/${patientId}`;
+    }
 
-    window.open(waUrl, "_blank", "noopener,noreferrer");
+    return `*${patientName}*\n\n${shareUrl}`.trim();
+  };
+
+  const handleShareWhatsApp = async () => {
+    setIsSharingPatient(true);
+    try {
+      const textToShare = await generateWhatsAppMessage();
+      if (!textToShare) {
+        alert("Não foi possível gerar a mensagem de compartilhamento.");
+        return;
+      }
+
+      const userPhone = getUserPhone();
+      const encodedText = encodeURIComponent(textToShare);
+
+      if (typeof navigator !== "undefined" && navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        try {
+          await navigator.share({
+            title: `Ficha do Paciente - ${profileData?.nome || cad?.Nome || ""}`,
+            text: textToShare,
+          });
+          return;
+        } catch (err: any) {
+          if (err.name !== "AbortError") {
+            console.warn("Native share fallback to wa.me:", err);
+          } else {
+            return; // User cancelled
+          }
+        }
+      }
+
+      const waUrl = userPhone
+        ? `https://wa.me/${userPhone}?text=${encodedText}`
+        : `https://wa.me/?text=${encodedText}`;
+
+      window.open(waUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Error sharing via WhatsApp:", err);
+      alert("Erro ao abrir compartilhamento via WhatsApp.");
+    } finally {
+      setIsSharingPatient(false);
+    }
   };
 
   const mdComponents = {
@@ -615,15 +580,12 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
               </button>
             </div>
 
-            {/* WhatsApp toggle button */}
+            {/* WhatsApp button */}
             <button
-              onClick={() => setShowCheckboxes((prev) => !prev)}
-              className={`h-11 px-3.5 rounded-2xl transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] text-xs font-bold uppercase tracking-wider shrink-0 shadow-sm ${
-                showCheckboxes
-                  ? "bg-emerald-700 text-white shadow-emerald-600/20 ring-2 ring-emerald-500"
-                  : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/10"
-              }`}
-              title="Alternar modo WhatsApp"
+              onClick={handleShareWhatsApp}
+              disabled={isSharingPatient}
+              className="h-11 px-3.5 rounded-2xl transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] text-xs font-bold uppercase tracking-wider shrink-0 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/10 disabled:opacity-50"
+              title="Enviar Ficha no WhatsApp"
             >
               <MessageSquare size={16} fill="currentColor" className="shrink-0" />
               <span className="hidden xs:inline sm:inline">WhatsApp</span>
@@ -938,23 +900,14 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
 
       {/* Floating WhatsApp Share Button at the bottom */}
       <div className="sticky bottom-4 z-30 pt-2">
-        {!showCheckboxes ? (
-          <button
-            onClick={() => setShowCheckboxes(true)}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-5 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] text-xs sm:text-sm uppercase tracking-wider"
-          >
-            <MessageSquare size={18} fill="currentColor" className="shrink-0" />
-            <span>Compartilhar via WhatsApp</span>
-          </button>
-        ) : (
-          <button
-            onClick={handleShareWhatsApp}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-5 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] text-xs sm:text-sm uppercase tracking-wider animate-fade-in"
-          >
-            <MessageSquare size={18} fill="currentColor" className="shrink-0" />
-            <span>Enviar no WhatsApp ({selectedKeys.size})</span>
-          </button>
-        )}
+        <button
+          onClick={handleShareWhatsApp}
+          disabled={isSharingPatient}
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-5 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] text-xs sm:text-sm uppercase tracking-wider disabled:opacity-50"
+        >
+          <MessageSquare size={18} fill="currentColor" className="shrink-0" />
+          <span>{isSharingPatient ? "Gerando Link..." : "Enviar no WhatsApp"}</span>
+        </button>
       </div>
     </div>
   );

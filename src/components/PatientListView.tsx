@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Building2, Bed, Activity, ArrowLeft, ArrowRight, Plus, MapPin, User, FileText, ChevronRight, Search, Calendar as CalendarIcon } from "lucide-react";
+import { Building2, Bed, Activity, ArrowLeft, ArrowRight, Plus, MapPin, User, FileText, ChevronRight, Search, MessageSquare, Calendar as CalendarIcon } from "lucide-react";
 import { useGroup } from "../contexts/GroupContext";
 import { collection, query, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -66,10 +66,11 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
   pagination,
   onCommand
 }) => {
-  const { activeGroup, apiFetch } = useGroup();
+  const { activeGroup, apiFetch, userWhatsapp, whatsappNumber } = useGroup();
   const [localPatients, setLocalPatients] = useState<Patient[]>(patients);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isSharingAll, setIsSharingAll] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
 
   useEffect(() => {
@@ -282,6 +283,117 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
 
   const searchedPatients = processedPatients;
 
+  const handleShareAllWhatsApp = async () => {
+    if (!searchedPatients || searchedPatients.length === 0) {
+      alert("Nenhum paciente encontrado para compartilhar.");
+      return;
+    }
+
+    setIsSharingAll(true);
+    try {
+      const getPatientShareUrl = async (patientId: string): Promise<string> => {
+        if (!patientId) return "";
+        try {
+          const res = await apiFetch("/api/share/patient/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ patientId }),
+          });
+          const data = await res.json();
+          if (res.ok && data.shareUrl) {
+            return data.shareUrl;
+          }
+        } catch (err) {
+          console.error("Error creating share link for patient:", err);
+        }
+        return `${window.location.origin}/patient/${patientId}`;
+      };
+
+      // Group searchedPatients by status
+      const statusGrouped: Record<string, { id: string; name: string; list: Patient[] }> = {};
+      searchedPatients.forEach((p) => {
+        const sName = p.status || "Sem Status";
+        const sId = p.statusId?.toString() || "999";
+        if (!statusGrouped[sId]) {
+          statusGrouped[sId] = { id: sId, name: sName, list: [] };
+        }
+        statusGrouped[sId].list.push(p);
+      });
+
+      // Sort statuses by sort order configured in DB
+      const sortedStatuses = Object.values(statusGrouped).sort((a, b) => {
+        const sA = statuses.find((s) => s.id?.toString() === a.id);
+        const sB = statuses.find((s) => s.id?.toString() === b.id);
+        const orderA = sA && typeof sA.sortOrder === "number" ? sA.sortOrder : 999999;
+        const orderB = sB && typeof sB.sortOrder === "number" ? sB.sortOrder : 999999;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name);
+      });
+
+      const statusSections: string[] = [];
+
+      for (const { name: sName, list: groupedPatients } of sortedStatuses) {
+        const patientBlocks = await Promise.all(
+          groupedPatients.map(async (p) => {
+            const shareUrl = await getPatientShareUrl(p.id);
+
+            let roomInfo = "Não informado";
+            if (p.roomNumber && p.hospitalName) {
+              roomInfo = `${p.roomNumber} ${p.hospitalName}`;
+            } else if (p.roomNumber) {
+              roomInfo = p.roomNumber;
+            } else if (p.hospitalName) {
+              roomInfo = p.hospitalName;
+            }
+
+            return `*Paciente*: ${p.nome}\nQuarto: ${roomInfo}\nFicha: ${shareUrl}`;
+          })
+        );
+
+        statusSections.push(`*${sName}*\n${patientBlocks.join("\n\n")}`);
+      }
+
+      const textToShare = statusSections.join("\n\n").trim();
+
+      if (!textToShare) {
+        alert("Não foi possível gerar a lista de pacientes.");
+        return;
+      }
+
+      const rawPhone = userWhatsapp || whatsappNumber || "";
+      const cleanDigits = rawPhone.replace(/\D/g, "");
+      const userPhone = (cleanDigits.length === 10 || cleanDigits.length === 11) ? "55" + cleanDigits : cleanDigits;
+
+      if (typeof navigator !== "undefined" && navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        try {
+          await navigator.share({
+            title: "Lista de Pacientes por Status",
+            text: textToShare,
+          });
+          return;
+        } catch (err: any) {
+          if (err.name !== "AbortError") {
+            console.warn("Native share fallback to wa.me:", err);
+          } else {
+            return; // User cancelled
+          }
+        }
+      }
+
+      const encodedText = encodeURIComponent(textToShare);
+      const waUrl = userPhone
+        ? `https://wa.me/${userPhone}?text=${encodedText}`
+        : `https://wa.me/?text=${encodedText}`;
+
+      window.open(waUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Error sharing all patients to WhatsApp:", err);
+      alert("Erro ao enviar lista de pacientes no WhatsApp.");
+    } finally {
+      setIsSharingAll(false);
+    }
+  };
+
   const getStatusStyles = (statusName: string) => {
     const s = (statusName || "").toLowerCase();
     if (s.includes("alta")) {
@@ -358,13 +470,23 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
   return (
     <div className="space-y-6 w-full text-gray-800">
       {/* Action Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
         <button 
           onClick={() => onCommand("/iniciarcadastro", true)}
-          className="self-start inline-flex items-center gap-2 font-bold text-sm bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full shadow-md shadow-blue-500/10 hover:shadow-lg hover:shadow-blue-500/20 active:scale-[0.98] transition-all"
+          className="inline-flex items-center gap-2 font-bold text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-5 py-2.5 rounded-2xl shadow-md shadow-blue-500/10 hover:shadow-lg active:scale-[0.98] transition-all"
         >
           <Plus size={16} />
           Novo Paciente
+        </button>
+
+        <button
+          onClick={handleShareAllWhatsApp}
+          disabled={isSharingAll || searchedPatients.length === 0}
+          className="inline-flex items-center gap-2 font-bold text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 sm:px-5 py-2.5 rounded-2xl shadow-md shadow-emerald-600/20 hover:shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+          title="Enviar todos os pacientes agrupados por status no WhatsApp"
+        >
+          <MessageSquare size={16} fill="currentColor" />
+          <span>{isSharingAll ? "Gerando Lista..." : `Enviar Lista no WhatsApp (${searchedPatients.length})`}</span>
         </button>
       </div>
 
