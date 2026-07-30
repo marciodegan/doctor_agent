@@ -1951,6 +1951,194 @@ app.post("/api/share/verify", express.json(), async (req, res) => {
   }
 });
 
+// Secure Patient Profile Sharing Endpoints
+app.post("/api/share/patient/create", express.json(), async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "Você precisa estar autenticado." });
+    }
+
+    const { patientId } = req.body || {};
+    if (!patientId || typeof patientId !== "string") {
+      return res.status(400).json({ error: "patientId é obrigatório" });
+    }
+
+    const { groupId, patient } = await requirePatientAccess(req, patientId);
+
+    const existingSnap = await db.collection("patient_share_tokens")
+      .where("patientId", "==", patientId)
+      .limit(1)
+      .get();
+
+    let token = "";
+    if (!existingSnap.empty) {
+      token = existingSnap.docs[0].id;
+    } else {
+      token = "p_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+      await db.collection("patient_share_tokens").doc(token).set({
+        token,
+        type: "patient",
+        patientId,
+        groupId,
+        patientName: patient.name || "Paciente",
+        createdBy: user.uid,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    const host = req.get("x-forwarded-host") || req.get("host") || "";
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+    const shareUrl = `${protocol}://${host}/patient/${token}`;
+
+    return res.json({ token, shareUrl, patientId, patientName: patient.name });
+  } catch (err: any) {
+    console.error("[SharePatient] Error creating patient share token:", err);
+    return res.status(err.statusCode || 500).json({ error: err.message || "Erro ao gerar link do paciente" });
+  }
+});
+
+app.post("/api/share/patient/verify", express.json(), async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ error: "Token é obrigatório" });
+    }
+
+    // 1. Authenticated user check
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      return res.status(401).json({
+        error: "unauthenticated",
+        message: "Você precisa estar autenticado para acessar a página deste paciente."
+      });
+    }
+
+    // 2. Fetch token doc
+    const doc = await db.collection("patient_share_tokens").doc(token).get();
+    if (!doc.exists) {
+      return res.status(404).json({
+        error: "not_found",
+        message: "O link de compartilhamento deste paciente é inválido ou expirou."
+      });
+    }
+
+    const tokenData = doc.data();
+    const { patientId } = tokenData || {};
+
+    if (!patientId) {
+      return res.status(404).json({
+        error: "not_found",
+        message: "Paciente não encontrado para este link."
+      });
+    }
+
+    // 3. Group membership check via requirePatientAccess
+    let access;
+    try {
+      access = await requirePatientAccess(req, patientId);
+    } catch (accessErr: any) {
+      console.warn(`[SharePatient] Access denied to patient ${patientId} for user ${user.email || user.uid}:`, accessErr.message);
+      return res.status(403).json({
+        error: "access_denied",
+        message: `Acesso Negado: Sua conta (${user.email || "conectada"}) não pertence ao grupo responsável por este paciente.`
+      });
+    }
+
+    const { groupId, patient } = access;
+
+    // 4. Build full patient report data
+    const report: any = {
+      cadastro: null,
+      audios: [],
+      imagens: [],
+      familiares: []
+    };
+
+    const [contactsSnap, logsSnap, filesSnap, statusesSnap, hospitalsSnap] = await Promise.all([
+      db.collection("patients_contacts").where("patientId", "==", patientId).get(),
+      db.collection("patient_logs").where("patientId", "==", patientId).orderBy("createdAt", "desc").get(),
+      db.collection("files").where("patientId", "==", patientId).orderBy("timestamp", "desc").get(),
+      db.collection("patient_statuses").where("groupId", "==", groupId).get(),
+      db.collection("hospitals").where("groupId", "==", groupId).get()
+    ]);
+
+    const statusesMap = new Map();
+    statusesSnap.docs.forEach(d => {
+      const data = d.data();
+      statusesMap.set(d.id, data.name || data.nome);
+    });
+
+    const hospitalsMap = new Map();
+    hospitalsSnap.docs.forEach(d => {
+      const data = d.data();
+      hospitalsMap.set(d.id, data.name || data.nome);
+    });
+
+    const allStatuses = statusesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const allHospitals = hospitalsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    report.cadastro = {
+      ID: patientId,
+      Nome: patient.name,
+      Idade: patient.age || null,
+      Status: patient.status || null,
+      hospitalId: patient.hospitalId || null,
+      hospital_nome: hospitalsMap.get(patient.hospitalId) || patient.hospital_nome || "Não informado",
+      roomNumber: patient.roomNumber || patient.room_number || "Sala ?",
+      procedure: patient.procedure || "",
+      surgery_type: patient.surgery_type || "",
+      Telefone: patient.phone || patient.telefone || ""
+    };
+
+    report.familiares = contactsSnap.docs.map(d => ({
+      id: d.id,
+      nome: d.data().name || d.data().nome,
+      relacao: d.data().relationship || d.data().relacao,
+      fone: d.data().phone || d.data().fone
+    }));
+
+    report.audios = logsSnap.docs.map(d => ({
+      id: d.id,
+      conteudo: d.data().text || d.data().conteudo,
+      data: d.data().createdAt ? new Date(d.data().createdAt.toDate ? d.data().createdAt.toDate() : d.data().createdAt).toLocaleDateString("pt-BR") : ""
+    }));
+
+    report.imagens = filesSnap.docs.map(d => ({
+      id: d.id,
+      descricao: d.data().description || d.data().descricao || "Imagem",
+      link: d.data().url || d.data().link,
+      data: d.data().timestamp ? new Date(d.data().timestamp.toDate ? d.data().timestamp.toDate() : d.data().timestamp).toLocaleDateString("pt-BR") : "",
+      aiAnalysis: d.data().aiAnalysis || d.data().aiResposta
+    }));
+
+    return res.json({
+      authorized: true,
+      token,
+      patientId,
+      groupId,
+      patientName: patient.name || "Ficha do Paciente",
+      reportData: report,
+      allStatuses,
+      allHospitals,
+      profileData: {
+        id: patientId,
+        nome: patient.name,
+        idade: patient.age ? patient.age.toString() : "N/A",
+        status: patient.status || "",
+        hospitalId: patient.hospitalId || "",
+        hospitalNome: hospitalsMap.get(patient.hospitalId) || patient.hospital_nome || "Não informado",
+        roomNumber: patient.roomNumber || patient.room_number || "Sala ?",
+        surgery_type: patient.surgery_type || "",
+        procedure: patient.procedure || ""
+      }
+    });
+  } catch (err: any) {
+    console.error("[SharePatient] Error verifying patient token:", err);
+    return res.status(500).json({ error: "Erro interno ao validar acesso ao paciente." });
+  }
+});
+
 app.get("/api/share/media/:token", async (req, res) => {
   try {
     const token = req.params.token;

@@ -6,6 +6,7 @@ import { fetchLatestVersion, APP_VERSION, VersionConfig } from "./lib/versionChe
 import { VersionUpdateModal } from "./components/VersionUpdateModal";
 
 import SharePage from "./pages/SharePage";
+import PatientSharePage from "./pages/PatientSharePage";
 
 // Lazy-load AppWorkspace
 const AppWorkspace = lazy(() => import("./AppWorkspace"));
@@ -73,9 +74,18 @@ export default function App() {
       return <Eula />;
     }
 
+    if (cleanPath.startsWith("/patient") || cleanPath.startsWith("/p/")) {
+      const parts = cleanPath.split("/");
+      const token = parts[parts.length - 1];
+      return <PatientSharePage token={token} />;
+    }
+
     if (cleanPath.startsWith("/share") || cleanPath.startsWith("/s/")) {
       const parts = cleanPath.split("/");
       const token = parts[parts.length - 1];
+      if (token.startsWith("p_")) {
+        return <PatientSharePage token={token} />;
+      }
       return <SharePage token={token} />;
     }
 

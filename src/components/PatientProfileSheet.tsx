@@ -30,6 +30,52 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
   const reportData = msg.reportData;
   const text = msg.text || "";
 
+  const [isSharingPatient, setIsSharingPatient] = useState(false);
+  const [patientShareSuccess, setPatientShareSuccess] = useState(false);
+
+  const handleSharePatientLink = async () => {
+    if (!profileData?.id) return;
+    setIsSharingPatient(true);
+    try {
+      const res = await fetch("/api/share/patient/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientId: profileData.id }),
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        alert(data.error || "Erro ao criar link de compartilhamento");
+        return;
+      }
+
+      const shareUrl = data.shareUrl;
+      if (navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        try {
+          await navigator.share({
+            title: `Ficha do Paciente - ${profileData?.nome || ""}`,
+            text: `Acesse a ficha de ${profileData?.nome || "Paciente"} no app (Exclusivo para membros do grupo):`,
+            url: shareUrl,
+          });
+          setPatientShareSuccess(true);
+          setTimeout(() => setPatientShareSuccess(false), 3000);
+          return;
+        } catch (err: any) {
+          if (err.name === "AbortError") return;
+        }
+      }
+
+      await navigator.clipboard.writeText(shareUrl);
+      setPatientShareSuccess(true);
+      setTimeout(() => setPatientShareSuccess(false), 3000);
+    } catch (err) {
+      console.error("Error sharing patient link:", err);
+      alert("Não foi possível gerar o link de compartilhamento no momento.");
+    } finally {
+      setIsSharingPatient(false);
+    }
+  };
+
   const idxContatos = text.indexOf("`/novofamiliar");
   const idxInformacoes = text.indexOf("`/logpac");
   const idxImagens = text.indexOf("`/prep_img");
@@ -496,6 +542,15 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
                   className="text-[9px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50/50 px-2.5 py-1 rounded-lg hover:bg-blue-100/75 transition-all shrink-0 font-sans"
                 >
                   Editar
+                </button>
+                <button
+                  onClick={handleSharePatientLink}
+                  disabled={isSharingPatient}
+                  className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg hover:bg-emerald-100 transition-all shrink-0 font-sans flex items-center gap-1 shadow-sm"
+                  title="Compartilhar Link da Página do Paciente"
+                >
+                  <Share2 size={10} className="text-emerald-600 shrink-0" />
+                  <span>{patientShareSuccess ? "Link Copiado!" : "Compartilhar Link"}</span>
                 </button>
               </div>
             </div>

@@ -28,6 +28,7 @@ import { PatientListView } from "./PatientListView";
 import { E2EMedia } from "./E2EMedia";
 import { mediaUploadService } from "../services/mediaUploadService";
 import { PatientProfileSheet } from "./PatientProfileSheet";
+import { generatePatientReport } from "../lib/patientReport";
 
 
 const sanitizeFileName = (fileName: string): string => {
