@@ -115,9 +115,9 @@ const isImageFile = (file: File): boolean => {
 
 const isVideoFile = (file: File): boolean => {
   const mime = (file.type || "").toLowerCase();
-  if (mime.startsWith("video/")) return true;
+  if (mime.startsWith("video/") || mime.includes("hevc") || mime.includes("h265")) return true;
   const ext = (file.name || "").toLowerCase().split(".").pop() || "";
-  return ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
+  return ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "h265", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv", "ts"].includes(ext);
 };
 
 const isPdfFile = (file: File): boolean => {
@@ -125,6 +125,13 @@ const isPdfFile = (file: File): boolean => {
   if (mime === "application/pdf") return true;
   const ext = (file.name || "").toLowerCase().split(".").pop() || "";
   return ext === "pdf";
+};
+
+const isPdfUrl = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  if (url.startsWith("data:application/pdf")) return true;
+  const cleanUrl = url.split("?")[0].toLowerCase();
+  return cleanUrl.endsWith(".pdf") || decodeURIComponent(cleanUrl).endsWith(".pdf");
 };
 
 const isVideoUrl = (url: string | null | undefined): boolean => {
@@ -137,6 +144,10 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     cleanUrl.endsWith(".mov") ||
     cleanUrl.endsWith(".webm") ||
     cleanUrl.endsWith(".m4v") ||
+    cleanUrl.endsWith(".hevc") ||
+    cleanUrl.endsWith(".h265") ||
+    cleanUrl.endsWith(".qt") ||
+    cleanUrl.endsWith(".quicktime") ||
     cleanUrl.endsWith(".avi") ||
     cleanUrl.endsWith(".3gp") ||
     cleanUrl.endsWith(".mkv") ||
@@ -144,6 +155,10 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     decodedUrl.endsWith(".mov") ||
     decodedUrl.endsWith(".webm") ||
     decodedUrl.endsWith(".m4v") ||
+    decodedUrl.endsWith(".hevc") ||
+    decodedUrl.endsWith(".h265") ||
+    decodedUrl.endsWith(".qt") ||
+    decodedUrl.endsWith(".quicktime") ||
     decodedUrl.endsWith(".avi") ||
     decodedUrl.endsWith(".3gp") ||
     decodedUrl.endsWith(".mkv")
@@ -482,7 +497,7 @@ export const PersonalDocuments: React.FC = () => {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*,video/*,application/pdf"
+                    accept="image/*,video/*,application/pdf,.hevc,.h265,.mov,.mp4,.m4v,.qt,.quicktime"
                     onChange={handleFileChange}
                     style={{
                       position: "absolute",
@@ -500,16 +515,18 @@ export const PersonalDocuments: React.FC = () => {
 
                   {selectedImage ? (
                     <div className="relative w-full aspect-video md:aspect-[3/1] rounded-xl overflow-hidden border border-slate-200 group bg-slate-900 flex items-center justify-center">
-                      {selectedFile && (selectedFile.type === "application/pdf" || selectedFile.name.toLowerCase().endsWith(".pdf")) ? (
+                      {(selectedFile && isPdfFile(selectedFile)) || isPdfUrl(selectedImage) ? (
                         <div className="flex flex-col items-center gap-2 p-6 text-center text-white">
                           <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500">
                             <FileText size={28} />
                           </div>
-                          <span className="text-xs font-bold text-slate-200 truncate max-w-md">{selectedFile.name}</span>
-                          <span className="text-[10px] text-slate-400">Documento PDF • {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                          <span className="text-xs font-bold text-slate-200 truncate max-w-md">{selectedFile?.name || "Documento PDF"}</span>
+                          {selectedFile?.size && (
+                            <span className="text-[10px] text-slate-400">Documento PDF • {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                          )}
                         </div>
-                      ) : isVideoUrl(selectedImage) ? (
-                        <video src={selectedImage} controls className="h-full w-full object-contain" />
+                      ) : (selectedFile && isVideoFile(selectedFile)) || isVideoUrl(selectedImage) ? (
+                        <video src={selectedImage} controls playsInline preload="metadata" className="h-full w-full object-contain" />
                       ) : (
                         <img src={selectedImage} alt="Preview" className="h-full w-full object-contain" />
                       )}

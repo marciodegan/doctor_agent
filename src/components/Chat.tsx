@@ -161,9 +161,9 @@ const isImageFile = (file: File): boolean => {
 
 const isVideoFile = (file: File): boolean => {
   const mime = (file.type || "").toLowerCase();
-  if (mime.startsWith("video/")) return true;
+  if (mime.startsWith("video/") || mime.includes("hevc") || mime.includes("h265")) return true;
   const ext = (file.name || "").toLowerCase().split(".").pop() || "";
-  return ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
+  return ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "h265", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv", "ts"].includes(ext);
 };
 
 const isPdfFile = (file: File): boolean => {
@@ -183,6 +183,10 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     cleanUrl.endsWith(".mov") ||
     cleanUrl.endsWith(".webm") ||
     cleanUrl.endsWith(".m4v") ||
+    cleanUrl.endsWith(".hevc") ||
+    cleanUrl.endsWith(".h265") ||
+    cleanUrl.endsWith(".qt") ||
+    cleanUrl.endsWith(".quicktime") ||
     cleanUrl.endsWith(".avi") ||
     cleanUrl.endsWith(".3gp") ||
     cleanUrl.endsWith(".mkv") ||
@@ -190,6 +194,10 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     decodedUrl.endsWith(".mov") ||
     decodedUrl.endsWith(".webm") ||
     decodedUrl.endsWith(".m4v") ||
+    decodedUrl.endsWith(".hevc") ||
+    decodedUrl.endsWith(".h265") ||
+    decodedUrl.endsWith(".qt") ||
+    decodedUrl.endsWith(".quicktime") ||
     decodedUrl.endsWith(".avi") ||
     decodedUrl.endsWith(".3gp") ||
     decodedUrl.endsWith(".mkv")
@@ -785,7 +793,7 @@ const MessageForm: React.FC<{
             id="native-image-upload"
             ref={fileInputRef}
             type="file"
-            accept="image/*,video/*,application/pdf"
+            accept="image/*,video/*,application/pdf,.hevc,.h265,.mov,.mp4,.m4v,.qt,.quicktime"
             onChange={handleFileChange}
             style={{
               position: "absolute",
@@ -805,7 +813,7 @@ const MessageForm: React.FC<{
 
           {selectedImage ? (
             <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-200 bg-slate-900 flex items-center justify-center group">
-              {isPdfUrl(selectedImage) ? (
+              {(selectedFileObj && isPdfFile(selectedFileObj)) || isPdfUrl(selectedImage) ? (
                 <div className="flex flex-col items-center gap-2 p-6 text-center text-white h-full w-full bg-gradient-to-br from-slate-800 to-slate-950 justify-center">
                   <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500">
                     <FileText size={28} />
@@ -819,8 +827,8 @@ const MessageForm: React.FC<{
                     </span>
                   )}
                 </div>
-              ) : isVideoUrl(selectedImage) ? (
-                <video src={selectedImage} controls className="w-full h-full object-contain" />
+              ) : (selectedFileObj && isVideoFile(selectedFileObj)) || isVideoUrl(selectedImage) ? (
+                <video src={selectedImage} controls playsInline preload="metadata" className="w-full h-full object-contain" />
               ) : (
                 <img src={selectedImage} alt="Preview" className="w-full h-full object-contain" />
               )}
@@ -834,7 +842,7 @@ const MessageForm: React.FC<{
                 className="absolute top-3 right-3 px-3 py-1.5 bg-red-600/90 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-black uppercase tracking-widest backdrop-blur-sm cursor-pointer z-10"
               >
                 <X size={12} strokeWidth={3} />
-                Remover {isPdfUrl(selectedImage) ? "Documento" : isVideoUrl(selectedImage) ? "Vídeo" : "Imagem"}
+                Remover {(selectedFileObj && isPdfFile(selectedFileObj)) || isPdfUrl(selectedImage) ? "Documento" : (selectedFileObj && isVideoFile(selectedFileObj)) || isVideoUrl(selectedImage) ? "Vídeo" : "Imagem"}
               </button>
             </div>
           ) : (

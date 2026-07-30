@@ -139,7 +139,7 @@ export default function PatientSharePage({ token }: PatientSharePageProps) {
 
   const isVideoUrl = (url?: string | null) => {
     if (!url) return false;
-    return /\.(mp4|webm|ogg|mov|avi|m4v)(\?.*)?$/i.test(url) || url.includes("video");
+    return /\.(mp4|webm|ogg|mov|avi|m4v|hevc|h265|qt|quicktime|3gp|3gpp|mkv|ts)(\?.*)?$/i.test(url) || url.includes("video") || url.includes("hevc") || url.includes("h265");
   };
 
   const isPdfUrl = (url?: string | null) => {

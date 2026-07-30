@@ -2091,26 +2091,33 @@ app.post("/api/share/patient/verify", express.json(), async (req, res) => {
       Telefone: patient.phone || patient.telefone || ""
     };
 
-    report.familiares = contactsSnap.docs.map(d => ({
-      id: d.id,
-      nome: d.data().name || d.data().nome,
-      relacao: d.data().relationship || d.data().relacao,
-      fone: d.data().phone || d.data().fone
-    }));
+    report.familiares = contactsSnap.docs
+      .filter(d => d.data().status !== "removed" && !d.data().isDeleted && !d.data().deletedAt)
+      .map(d => ({
+        id: d.id,
+        nome: d.data().name || d.data().nome,
+        relacao: d.data().relationship || d.data().relacao,
+        fone: d.data().phone || d.data().fone
+      }));
 
-    report.audios = logsSnap.docs.map(d => ({
-      id: d.id,
-      conteudo: d.data().text || d.data().conteudo,
-      data: d.data().createdAt ? new Date(d.data().createdAt.toDate ? d.data().createdAt.toDate() : d.data().createdAt).toLocaleDateString("pt-BR") : ""
-    }));
+    report.audios = logsSnap.docs
+      .filter(d => d.data().status !== "removed" && !d.data().isDeleted && !d.data().deletedAt)
+      .map(d => ({
+        id: d.id,
+        conteudo: d.data().text || d.data().conteudo,
+        tipo: d.data().type || "texto",
+        data: d.data().createdAt ? new Date(d.data().createdAt.toDate ? d.data().createdAt.toDate() : d.data().createdAt).toLocaleDateString("pt-BR") : ""
+      }));
 
-    report.imagens = filesSnap.docs.map(d => ({
-      id: d.id,
-      descricao: d.data().description || d.data().descricao || "Imagem",
-      link: d.data().url || d.data().link,
-      data: d.data().timestamp ? new Date(d.data().timestamp.toDate ? d.data().timestamp.toDate() : d.data().timestamp).toLocaleDateString("pt-BR") : "",
-      aiAnalysis: d.data().aiAnalysis || d.data().aiResposta
-    }));
+    report.imagens = filesSnap.docs
+      .filter(d => d.data().status !== "removed" && !d.data().isDeleted && !d.data().deletedAt)
+      .map(d => ({
+        id: d.id,
+        descricao: d.data().description || d.data().descricao || "Imagem",
+        link: d.data().link || d.data().url || "",
+        data: d.data().timestamp ? new Date(d.data().timestamp.toDate ? d.data().timestamp.toDate() : d.data().timestamp).toLocaleDateString("pt-BR") : "",
+        aiAnalysis: d.data().aiAnalysis || d.data().aiResposta
+      }));
 
     return res.json({
       authorized: true,
@@ -2290,7 +2297,7 @@ app.get("/api/app/proxy-storage-file", async (req, res) => {
 // Upload image/document directly to Firebase Storage and link to Firestore
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+  limits: { fileSize: 200 * 1024 * 1024 } // 200MB for HEVC/HD videos
 });
 
 app.post("/api/app/upload-image", (req, res, next) => {
@@ -2303,7 +2310,7 @@ app.post("/api/app/upload-image", (req, res, next) => {
       next();
     });
   } else {
-    express.json({ limit: "100mb" })(req, res, next);
+    express.json({ limit: "200mb" })(req, res, next);
   }
 }, async (req, res) => {
   const isMultipart = (req.headers["content-type"] || "").includes("multipart/form-data");
@@ -3434,7 +3441,7 @@ app.get("/api/debug/storage-buckets", async (req, res) => {
 });
 
 // Generic Storage Upload (Original for Firebase Storage)
-app.post("/api/storage/upload", express.json({ limit: "100mb" }), async (req, res) => {
+app.post("/api/storage/upload", express.json({ limit: "200mb" }), async (req, res) => {
   const { name, mimeType, base64Data, storagePath, destination: reqDest, customMetadata } = req.body;
 
   if (!base64Data) {

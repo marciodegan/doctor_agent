@@ -154,6 +154,8 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
     cleanSrcPath.endsWith(".webm") || 
     cleanSrcPath.endsWith(".quicktime") || 
     cleanSrcPath.endsWith(".m4v") || 
+    cleanSrcPath.endsWith(".hevc") || 
+    cleanSrcPath.endsWith(".h265") || 
     cleanSrcPath.endsWith(".3gp") || 
     cleanSrcPath.endsWith(".3gpp") || 
     cleanSrcPath.endsWith(".mkv") || 
@@ -162,7 +164,7 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
     cleanSrcPath.endsWith(".flv") || 
     cleanSrcPath.endsWith(".qt") || 
     cleanSrcPath.endsWith(".ts");
-  const isVideo = actualContentType.startsWith("video/") || fallbackType === "video" || isVideoExtension;
+  const isVideo = actualContentType.startsWith("video/") || actualContentType.includes("hevc") || actualContentType.includes("h265") || fallbackType === "video" || isVideoExtension;
   const isPdf = actualContentType === "application/pdf" || fallbackType === "pdf" || cleanSrcPath.endsWith(".pdf");
 
   if (isPdf) {
@@ -187,6 +189,8 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
       <video 
         src={decryptedUrl} 
         controls={controls} 
+        playsInline
+        preload="metadata"
         className={`w-full h-full object-contain bg-slate-950 rounded-2xl ${className}`} 
       />
     );

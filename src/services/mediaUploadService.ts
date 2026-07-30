@@ -80,7 +80,7 @@ export const mediaUploadService = {
     const ext = name.split(".").pop() || "";
     
     const isImage = mime.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext);
-    const isVideo = mime.startsWith("video/") || ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
+    const isVideo = mime.startsWith("video/") || mime.includes("hevc") || mime.includes("h265") || ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "h265", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv", "ts"].includes(ext);
     const isPdf = mime === "application/pdf" || ext === "pdf";
 
     // Standard limits
@@ -119,7 +119,7 @@ export const mediaUploadService = {
     const ext = name.split(".").pop() || "";
 
     const isImage = mime.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext);
-    const isVideo = mime.startsWith("video/") || ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
+    const isVideo = mime.startsWith("video/") || mime.includes("hevc") || mime.includes("h265") || ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "h265", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv", "ts"].includes(ext);
     const isPdf = mime === "application/pdf" || ext === "pdf";
 
     let fileTypeResolved: "image" | "video" | "pdf" = "image";
@@ -131,11 +131,9 @@ export const mediaUploadService = {
 
     // Determine contentType
     let originalContentType = mime;
-    if (!originalContentType || originalContentType === "application/octet-stream" || originalContentType === "application/x-utext") {
+    if (!originalContentType || originalContentType === "application/octet-stream" || originalContentType === "application/x-utext" || originalContentType.includes("hevc") || originalContentType.includes("h265")) {
       if (ext === "mov" || ext === "qt" || ext === "quicktime") originalContentType = "video/quicktime";
-      else if (ext === "mp4") originalContentType = "video/mp4";
-      else if (ext === "m4v") originalContentType = "video/x-m4v";
-      else if (ext === "hevc") originalContentType = "video/hevc";
+      else if (ext === "mp4" || ext === "m4v" || ext === "hevc" || ext === "h265" || originalContentType.includes("hevc") || originalContentType.includes("h265")) originalContentType = "video/mp4";
       else if (ext === "webm") originalContentType = "video/webm";
       else if (ext === "avi") originalContentType = "video/x-msvideo";
       else if (ext === "wmv") originalContentType = "video/x-ms-wmv";
@@ -146,6 +144,7 @@ export const mediaUploadService = {
       else if (ext === "heic") originalContentType = "image/heic";
       else if (ext === "heif") originalContentType = "image/heif";
       else if (ext === "pdf") originalContentType = "application/pdf";
+      else if (isVideo) originalContentType = "video/mp4";
       else originalContentType = "application/octet-stream";
     }
 
