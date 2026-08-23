@@ -1,10 +1,10 @@
 {
-  "projectId": "parabolic-craft-277523",
-  "appId": "1:767503688274:web:c9ab2d03e5740e166eb58b",
-  "apiKey": "AIzaSyBto7FLKhGhQeBb7cIYKZaFjSWrVZzRhtE",
-  "authDomain": "parabolic-craft-277523.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-0c2aaf40-e57b-4ffc-b4a7-865c2402ef5e",
-  "storageBucket": "parabolic-craft-277523.firebasestorage.app",
-  "messagingSenderId": "767503688274",
+  "projectId": "role-ad8cd",
+  "appId": "1:972209870341:web:06c6fbfd51d82ead98ae6c",
+  "apiKey": "AIzaSyAW57e_YRV1JC9nYr160oLfd3UeBDns-Ug",
+  "authDomain": "role-ad8cd.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "role-ad8cd.appspot.com",
+  "messagingSenderId": "972209870341",
   "measurementId": ""
 }
