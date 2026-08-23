@@ -461,6 +461,18 @@ export async function getPatientReportData(
 ): Promise<any> {
   if (!patientId) throw new Error("ID do paciente é obrigatório.");
 
+  if (apiFetch) {
+    try {
+      const res = await apiFetch(`/api/app/patient-report/${patientId}`);
+      const data = await res.json();
+      if (data && !data.error) {
+        return data;
+      }
+    } catch (apiErr) {
+      console.warn("[patientService] apiFetch patient-report failed, falling back to client SDK:", apiErr);
+    }
+  }
+
   try {
     let pData: any = null;
     let patientDocId = patientId;
@@ -484,13 +496,6 @@ export async function getPatientReportData(
           patientDocId = s1.docs[0].id;
         }
       } catch (e) {}
-    }
-
-    if (!pData && apiFetch) {
-      const res = await apiFetch(`/api/app/patient-report/${patientId}`);
-      const data = await res.json();
-      if (data && !data.error) return data;
-      if (data?.error) throw new Error(data.error);
     }
 
     if (!pData) {
