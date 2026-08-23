@@ -2669,15 +2669,13 @@ ${aiPart}
       
       setIsLoading(true);
       try {
-        const pRes = await apiFetch(`/api/app/patient-report/${id}`);
-        const pData = await pRes.json();
-        if (pData.error) throw new Error(pData.error);
-        
-        const p = pData.cadastro;
+        const pRes = await apiFetch(`/api/app/patients/info/${id}`);
+        const p = await pRes.json();
+        if (p.error) throw new Error(p.error);
 
         // Resolve Names for Display
         const currentHospital = allHospitals.find(h => h.id === p.hospitalId || h.nome === p.hospital_nome);
-        const currentStatus = allStatuses.find(s => s.id === p.Status || s.nome === p.Status);
+        const currentStatus = allStatuses.find(s => s.id === p.statusId || s.nome === p.status);
         
         setMessages([{ 
           role: "model", 
@@ -2685,8 +2683,8 @@ ${aiPart}
           form: {
             title: "Atualizar Dados",
             fields: [
-              { label: "Nome", name: "nome", type: "text", defaultValue: p.Nome },
-              { label: "Idade", name: "idade", type: "number", defaultValue: p.Idade || "" },
+              { label: "Nome", name: "nome", type: "text", defaultValue: p.name || p.Nome || "" },
+              { label: "Idade", name: "idade", type: "number", defaultValue: p.age || p.Idade || "" },
               { 
                 label: "Hospital", 
                 name: "hospitalName", 
@@ -2711,7 +2709,7 @@ ${aiPart}
                 label: "Prioridade/Tipo", 
                 name: "surgery_type", 
                 type: "select", 
-                defaultValue: p.surgery_type,
+                defaultValue: p.surgery_type || "",
                 options: surgeryTypeOptions,
                 suggestions: surgeryTypeOptions.map(s => ({ label: s, value: s }))
               },

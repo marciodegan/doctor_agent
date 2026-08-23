@@ -1200,13 +1200,20 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       familiares: []
     };
 
-    const [contactsSnap, logsSnap, filesSnap, statusesSnap, activityLogsSnap, hospitalsSnap] = await Promise.all([
-      db.collection("patients_contacts").where("patientId", "==", id).get(),
-      db.collection("patient_logs").where("patientId", "==", id).get(),
-      db.collection("files").where("patientId", "==", id).get(),
-      db.collection("patient_statuses").where("groupId", "==", groupId).get(),
-      db.collection("logs").where("patientId", "==", id).get(),
-      db.collection("hospitals").where("groupId", "==", groupId).get()
+    let contactsSnap: any = { docs: [] };
+    let logsSnap: any = { docs: [] };
+    let filesSnap: any = { docs: [] };
+    let statusesSnap: any = { docs: [] };
+    let activityLogsSnap: any = { docs: [] };
+    let hospitalsSnap: any = { docs: [] };
+
+    await Promise.all([
+      db.collection("patients_contacts").where("patientId", "==", id).get().then(s => { contactsSnap = s; }).catch(e => console.warn("Error fetching contacts:", e)),
+      db.collection("patient_logs").where("patientId", "==", id).get().then(s => { logsSnap = s; }).catch(e => console.warn("Error fetching patient_logs:", e)),
+      db.collection("files").where("patientId", "==", id).get().then(s => { filesSnap = s; }).catch(e => console.warn("Error fetching files:", e)),
+      db.collection("patient_statuses").where("groupId", "==", groupId).get().then(s => { statusesSnap = s; }).catch(e => console.warn("Error fetching patient_statuses:", e)),
+      db.collection("logs").where("patientId", "==", id).get().then(s => { activityLogsSnap = s; }).catch(e => console.warn("Error fetching logs:", e)),
+      db.collection("hospitals").where("groupId", "==", groupId).get().then(s => { hospitalsSnap = s; }).catch(e => console.warn("Error fetching hospitals:", e))
     ]);
 
     const statusesMap = new Map();
