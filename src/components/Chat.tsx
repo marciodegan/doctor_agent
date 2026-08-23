@@ -1048,10 +1048,11 @@ const MessageForm: React.FC<{
 
 export const Chat: React.FC<{ 
   onNavigateToCalendar?: () => void,
+  onNavigateToTrello?: () => void,
   onViewLogs?: (patientId: string) => void,
   initialCommand?: string | null,
   onCommandExecuted?: () => void
-}> = ({ onNavigateToCalendar, onViewLogs, initialCommand, onCommandExecuted }) => {
+}> = ({ onNavigateToCalendar, onNavigateToTrello, onViewLogs, initialCommand, onCommandExecuted }) => {
   const { activeGroup, companyName, whatsappNumber, imageAnalysisPrompt, apiFetch, getGroupCryptoKey } = useGroup();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -1083,10 +1084,13 @@ export const Chat: React.FC<{
     
     // Afinidades
     const affinityRef = collection(db, "affinity");
-    const qAffinity = query(affinityRef, where("groupId", "==", gId), orderBy("name"));
+    const qAffinity = query(affinityRef, where("groupId", "==", gId));
     const unsubAffinity = onSnapshot(qAffinity, (snap) => {
       if (!isMounted) return;
-      setGroupAffinities(snap.docs.map(d => ({ id: d.id, name: d.data().name })));
+      const sorted = snap.docs
+        .map(d => ({ id: d.id, name: d.data().name || "" }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setGroupAffinities(sorted);
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "affinity");
@@ -1094,10 +1098,10 @@ export const Chat: React.FC<{
     
     // Statuses
     const statusRef = collection(db, "patient_statuses");
-    const qStatus = query(statusRef, where("groupId", "==", gId), orderBy("name"));
+    const qStatus = query(statusRef, where("groupId", "==", gId));
     const unsubStatus = onSnapshot(qStatus, (snap) => {
       if (!isMounted) return;
-      setGroupStatuses(snap.docs.map(d => {
+      const items = snap.docs.map(d => {
         const data = d.data();
         return {
           id: d.id,
@@ -1106,7 +1110,14 @@ export const Chat: React.FC<{
           status: data.status,
           sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : undefined
         };
-      }));
+      });
+      items.sort((a, b) => {
+        const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
+        const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.nome || "").localeCompare(b.nome || "");
+      });
+      setGroupStatuses(items);
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "patient_statuses");
@@ -1114,10 +1125,13 @@ export const Chat: React.FC<{
 
     // Hospitals
     const hospRef = collection(db, "hospitals");
-    const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
+    const qHosp = query(hospRef, where("groupId", "==", gId));
     const unsubHosp = onSnapshot(qHosp, (snap) => {
       if (!isMounted) return;
-      setGroupHospitals(snap.docs.map(d => ({ id: d.id, nome: d.data().name, active: d.data().active })));
+      const items = snap.docs
+        .map(d => ({ id: d.id, nome: d.data().name || d.data().nome || "", active: d.data().active }))
+        .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
+      setGroupHospitals(items);
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "hospitals");
@@ -1125,10 +1139,13 @@ export const Chat: React.FC<{
 
     // Procedures
     const procRef = collection(db, "procedureOptions");
-    const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
+    const qProc = query(procRef, where("groupId", "==", gId));
     const unsubProc = onSnapshot(qProc, (snap) => {
       if (!isMounted) return;
-      setGroupProcedures(snap.docs.map(d => ({ id: d.id, nome: d.data().nome, active: d.data().active })));
+      const items = snap.docs
+        .map(d => ({ id: d.id, nome: d.data().nome || d.data().name || "", active: d.data().active }))
+        .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
+      setGroupProcedures(items);
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "procedureOptions");
@@ -1136,10 +1153,13 @@ export const Chat: React.FC<{
 
     // Image Types
     const imageTypesRef = collection(db, "image_types");
-    const qImageTypes = query(imageTypesRef, where("groupId", "==", gId), orderBy("name"));
+    const qImageTypes = query(imageTypesRef, where("groupId", "==", gId));
     const unsubImageTypes = onSnapshot(qImageTypes, (snap) => {
       if (!isMounted) return;
-      setImageTypes(snap.docs.map(d => ({ id: d.id, name: d.data().name, active: d.data().active })));
+      const items = snap.docs
+        .map(d => ({ id: d.id, name: d.data().name || "", active: d.data().active }))
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      setImageTypes(items);
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "image_types");
@@ -1147,10 +1167,13 @@ export const Chat: React.FC<{
 
     // Surgery Types
     const surgeryTypesRef = collection(db, "surgery_types");
-    const qSurgeryTypes = query(surgeryTypesRef, where("groupId", "==", gId), orderBy("nome"));
+    const qSurgeryTypes = query(surgeryTypesRef, where("groupId", "==", gId));
     const unsubSurgeryTypes = onSnapshot(qSurgeryTypes, (snap) => {
       if (!isMounted) return;
-      setGroupSurgeryTypes(snap.docs.map(d => ({ id: d.id, nome: d.data().nome, active: d.data().active })));
+      const items = snap.docs
+        .map(d => ({ id: d.id, nome: d.data().nome || d.data().name || "", active: d.data().active }))
+        .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
+      setGroupSurgeryTypes(items);
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "surgery_types");
@@ -2861,6 +2884,13 @@ ${aiPart}
     if (cmd.startsWith("/open_calendar")) {
       if (onNavigateToCalendar) {
         onNavigateToCalendar();
+      }
+      return true;
+    }
+
+    if (cmd.startsWith("/trello") || cmd.startsWith("/kanban")) {
+      if (onNavigateToTrello) {
+        onNavigateToTrello();
       }
       return true;
     }

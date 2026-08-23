@@ -38,7 +38,8 @@ import {
   Loader2,
   Stethoscope,
   PowerOff,
-  ShoppingCart
+  ShoppingCart,
+  Trello
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -49,9 +50,10 @@ import { PersonalDocuments } from "./components/PersonalDocuments";
 import { PatientLogs } from "./components/PatientLogs";
 import { ShoppingList } from "./components/ShoppingList";
 import { PersonalNotes } from "./components/PersonalNotes";
+import { TrelloBoard } from "./components/TrelloBoard";
 import MedicationInventoryModule from "./components/medications/MedicationInventoryModule";
 
-type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes" | "medications";
+type NavView = "workspace" | "trello" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes" | "medications";
 
 export default function AppWorkspace() {
   const { isAuthenticated, user, login, logout } = useAuth();
@@ -406,6 +408,12 @@ export default function AppWorkspace() {
                   onClick={() => navigateAndAction("workspace")}
                 />
                 <NavItem
+                  icon={<Trello size={18} />}
+                  label="Trello"
+                  active={currentView === "trello"}
+                  onClick={() => navigateAndAction("trello")}
+                />
+                <NavItem
                   icon={<Calendar size={18} />}
                   label="Calendário"
                   active={currentView === "calendar"}
@@ -528,6 +536,12 @@ export default function AppWorkspace() {
             label={activeGroup?.groupType === "personal" ? "Documentos" : "Agent Dashboard"}
             active={currentView === "workspace"}
             onClick={() => navigateAndAction("workspace")}
+          />
+          <NavItem
+            icon={<Trello size={18} />}
+            label="Trello"
+            active={currentView === "trello"}
+            onClick={() => navigateAndAction("trello")}
           />
           <NavItem
             icon={<Users size={18} />}
@@ -752,6 +766,8 @@ export default function AppWorkspace() {
                     >
                       {currentView === "pricing" ? (
                         <Pricing onBack={() => navigateAndAction("workspace")} />
+                      ) : currentView === "trello" ? (
+                        <TrelloBoard onSelectPatient={(pid) => navigateAndAction("workspace", `/p ${pid}`)} />
                       ) : currentView === "calendar" ? (
                         <FirestoreCalendar
                           prefilledPatientName={activePatientName || undefined}
@@ -777,6 +793,7 @@ export default function AppWorkspace() {
                       ) : (
                         <Chat
                           onNavigateToCalendar={() => navigateAndAction("calendar")}
+                          onNavigateToTrello={() => navigateAndAction("trello")}
                           onViewLogs={(pid) => navigateAndAction("logs", undefined, pid)}
                           initialCommand={pendingCommand}
                           onCommandExecuted={() => setPendingCommand(null)}

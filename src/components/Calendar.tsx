@@ -143,30 +143,39 @@ export function Calendar({
 
     // Fetch Procedure Options
     const procRef = collection(db, "procedureOptions");
-    const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
+    const qProc = query(procRef, where("groupId", "==", gId));
     const unsubProc = onSnapshot(qProc, (snap) => {
       if (!isMounted) return;
-      setAllProcedures(snap.docs.map(d => ({ nome: d.data().nome, active: d.data().active })));
+      const items = snap.docs
+        .map(d => ({ nome: d.data().nome || d.data().name || "", active: d.data().active }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+      setAllProcedures(items);
     }, (err) => console.error("Error fetching procedures:", err));
 
     // Fetch Surgery Types
     const typeRef = collection(db, "surgery_types");
-    const qType = query(typeRef, where("groupId", "==", gId), orderBy("name"));
+    const qType = query(typeRef, where("groupId", "==", gId));
     const unsubType = onSnapshot(qType, (snap) => {
       if (!isMounted) return;
-      setAllSurgeryTypes(snap.docs.map(d => ({ name: d.data().name, active: d.data().active })));
+      const items = snap.docs
+        .map(d => ({ name: d.data().name || d.data().nome || "", active: d.data().active }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setAllSurgeryTypes(items);
     }, (err) => console.error("Error fetching surgery types:", err));
 
     // Fetch Hospitals
     const hospRef = collection(db, "hospitals");
-    const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
+    const qHosp = query(hospRef, where("groupId", "==", gId));
     const unsubHosp = onSnapshot(qHosp, (snap) => {
       if (!isMounted) return;
-      setAllHospitals(snap.docs.map(d => ({ 
-        id: d.id, 
-        nome: d.data().name,
-        active: d.data().active
-      })));
+      const items = snap.docs
+        .map(d => ({ 
+          id: d.id, 
+          nome: d.data().name || d.data().nome || "",
+          active: d.data().active
+        }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+      setAllHospitals(items);
     }, (err) => console.error("Error fetching hospitals:", err));
 
     return () => {
