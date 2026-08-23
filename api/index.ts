@@ -25,30 +25,52 @@ try {
   console.error("[Firebase] Failed to load config:", e);
 }
 
+let hasServiceAccountCredential = false;
+
+// Helper to safely parse service account from environment
+function parseServiceAccount(raw?: string): any {
+  if (!raw) return null;
+  let str = raw.trim();
+  if (str.startsWith('"') && str.endsWith('"')) {
+    str = str.slice(1, -1);
+  }
+  // If base64-encoded, decode it
+  if (!str.startsWith("{") && (str.startsWith("ey") || str.includes("="))) {
+    try {
+      str = Buffer.from(str, "base64").toString("utf8");
+    } catch (_) {}
+  }
+  try {
+    const parsed = JSON.parse(str);
+    if (parsed.private_key && typeof parsed.private_key === "string") {
+      // Fix escaped newlines in private key
+      parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
+    }
+    return parsed;
+  } catch (e) {
+    console.error("[Firebase] Error parsing FIREBASE_SERVICE_ACCOUNT:", e);
+    return null;
+  }
+}
+
 // Initialize Firebase Admin lazily or at module level but safely
 if (firebaseConfig.projectId && !admin.apps.length) {
   try {
-    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (serviceAccount) {
-      try {
-        const cert = JSON.parse(serviceAccount);
-        admin.initializeApp({
-          credential: admin.credential.cert(cert),
-          projectId: firebaseConfig.projectId,
-          storageBucket: firebaseConfig.storageBucket
-        });
-        console.log("[Firebase] Admin initialized with service account from env.");
-      } catch (jsonErr) {
-        console.error("[Firebase] FIREBASE_SERVICE_ACCOUNT parsing error:", jsonErr);
-        // Fallback to default
-        admin.initializeApp({ projectId: firebaseConfig.projectId });
-      }
+    const cert = parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT);
+    if (cert && cert.project_id && cert.private_key) {
+      admin.initializeApp({
+        credential: admin.credential.cert(cert),
+        projectId: firebaseConfig.projectId,
+        storageBucket: firebaseConfig.storageBucket
+      });
+      hasServiceAccountCredential = true;
+      console.log("[Firebase] Admin initialized with service account certificate.");
     } else {
       admin.initializeApp({
         projectId: firebaseConfig.projectId,
         storageBucket: firebaseConfig.storageBucket
       });
-      console.log("[Firebase] Admin initialized with projectId (ADC):", firebaseConfig.projectId);
+      console.log("[Firebase] Admin initialized with projectId (ADC / standard credentials):", firebaseConfig.projectId);
     }
   } catch (e) {
     console.error("[Firebase] Admin initialization error:", e);
@@ -702,52 +724,87 @@ app.get("/api/auth/firebase-token", async (req, res) => {
   const authClient = getAuthClient(req);
   if (!authClient) return res.status(401).json({ error: "Unauthorized" });
 
+  const withTimeout = <T>(promise: Promise<T>, timeoutMs = 7000, label = "Operation"): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs))
+    ]);
+  };
+
   try {
     const oauth2 = google.oauth2({ version: "v2", auth: authClient });
-    const userRes = await oauth2.userinfo.get();
+    const userRes = await withTimeout(oauth2.userinfo.get(), 6000, "Google OAuth userinfo");
     const { id, email, name, picture } = userRes.data;
 
     if (!id) throw new Error("No user ID found");
 
+    if (!hasServiceAccountCredential && !process.env.K_SERVICE && !process.env.GOOGLE_CLOUD_PROJECT) {
+      console.error("[Firebase] createCustomToken requested on external host without FIREBASE_SERVICE_ACCOUNT.");
+      return res.status(500).json({
+        error: "missing_service_account",
+        details: "The FIREBASE_SERVICE_ACCOUNT environment variable is required on Vercel to generate Firebase tokens. Please set it in Vercel project settings."
+      });
+    }
+
     // Ensure User exists in Firebase Auth with correct metadata
     try {
-      await admin.auth().updateUser(id, {
-        email: email || undefined,
-        displayName: name || undefined,
-        photoURL: picture || undefined,
-        emailVerified: true
-      });
-    } catch (e: any) {
-      if (e.code === 'auth/user-not-found') {
-        await admin.auth().createUser({
-          uid: id,
+      await withTimeout(
+        admin.auth().updateUser(id, {
           email: email || undefined,
           displayName: name || undefined,
           photoURL: picture || undefined,
           emailVerified: true
-        });
+        }),
+        4000,
+        "admin.auth().updateUser"
+      );
+    } catch (e: any) {
+      if (e.code === 'auth/user-not-found') {
+        await withTimeout(
+          admin.auth().createUser({
+            uid: id,
+            email: email || undefined,
+            displayName: name || undefined,
+            photoURL: picture || undefined,
+            emailVerified: true
+          }),
+          4000,
+          "admin.auth().createUser"
+        );
       }
     }
 
-    const customToken = await admin.auth().createCustomToken(id, { email, name });
+    const customToken = await withTimeout(
+      admin.auth().createCustomToken(id, { email, name }),
+      5000,
+      "admin.auth().createCustomToken"
+    );
     
-    // Also upsert user profile in Firestore
-    await db.collection("users").doc(id).set({
-      uid: id,
-      email: email || "",
-      name: name || "",
-      photoURL: picture || "",
-      lastSeen: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    // Also upsert user profile in Firestore (best effort)
+    try {
+      await withTimeout(
+        db.collection("users").doc(id).set({
+          uid: id,
+          email: email || "",
+          name: name || "",
+          photoURL: picture || "",
+          lastSeen: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true }),
+        3000,
+        "Firestore upsert user"
+      );
+    } catch (dbErr) {
+      console.warn("[Firebase] Could not upsert user document:", dbErr);
+    }
 
     res.json({ customToken });
   } catch (err: any) {
     console.error("[Firebase] Error in /api/auth/firebase-token:", err);
-    if (isInvalidGrantError(err)) {
+    if (isInvalidGrantError(err) || (err.message && err.message.includes("timed out"))) {
       clearAuthCookies(res);
       return res.status(401).json({
-        error: "invalid_grant",
-        message: "Sua sessão expirou ou o token de acesso foi revogado. Por favor, faça login novamente."
+        error: "session_expired",
+        message: "Sua sessão expirou ou não pôde ser validada. Por favor, faça login novamente."
       });
     }
     res.status(500).json({ 
