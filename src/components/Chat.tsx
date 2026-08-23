@@ -3373,10 +3373,13 @@ ${aiPart}
       const patId = cmdInput.split(" ")[1];
       if (!patId) return true;
 
-      if (groupStatuses.length === 0) {
-        setMessages(prev => [...prev, { role: "model", text: "⚠️ Configure os status do grupo no painel de gestão para usar esta função." }]);
-        return true;
-      }
+      const effectiveStatuses = groupStatuses.length > 0 ? groupStatuses : [
+        { id: "pre", nome: "Pré-operatório" },
+        { id: "cirurgia", nome: "Cirurgia Realizada" },
+        { id: "pos", nome: "Pós-operatório" },
+        { id: "alta", nome: "Alta" },
+        { id: "uti", nome: "UTI" }
+      ];
 
       setMessages([]); // NEW VIEW
       setIsLoading(true);
@@ -3392,9 +3395,9 @@ ${aiPart}
           actionGroups: [
             {
               title: "Selecione o Status",
-              actions: groupStatuses.map((s: any) => ({
-                label: s.nome,
-                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome}`
+              actions: effectiveStatuses.map((s: any) => ({
+                label: s.nome || s.name || s.status,
+                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome || s.name || s.status}`
               }))
             }
           ]
@@ -3408,9 +3411,9 @@ ${aiPart}
           actionGroups: [
             {
               title: "Selecione o Status",
-              actions: groupStatuses.map((s: any) => ({
-                label: s.nome,
-                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome}`
+              actions: effectiveStatuses.map((s: any) => ({
+                label: s.nome || s.name || s.status,
+                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome || s.name || s.status}`
               }))
             }
           ]

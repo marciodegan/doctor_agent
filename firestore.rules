@@ -187,21 +187,21 @@ service cloud.firestore {
     match /patients/{patientId} {
       allow read: if isMember(existing().groupId);
       allow create: if isMember(incoming().groupId);
-      allow update: if isMember(existing().groupId) && isMember(incoming().groupId);
+      allow update: if isMember(existing().groupId);
       allow delete: if isMember(existing().groupId);
     }
 
     match /hospitals/{hospitalId} {
       allow read: if isMember(existing().groupId);
       allow create: if isOwner(incoming().groupId);
-      allow update: if isOwner(existing().groupId) && isOwner(incoming().groupId);
+      allow update: if isOwner(existing().groupId);
       allow delete: if isOwner(existing().groupId);
     }
 
     match /settings/{settingId} {
       allow read: if isMember(existing().groupId);
       allow create: if isOwner(incoming().groupId);
-      allow update: if isOwner(existing().groupId) && isOwner(incoming().groupId);
+      allow update: if isOwner(existing().groupId);
     }
 
     // Sub-entities related to patients (relational sync)
