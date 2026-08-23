@@ -29,7 +29,14 @@ import { E2EMedia } from "./E2EMedia";
 import { mediaUploadService } from "../services/mediaUploadService";
 import { PatientProfileSheet } from "./PatientProfileSheet";
 import { generatePatientReport } from "../lib/patientReport";
-import { getGroupPatientsData } from "../lib/patientService";
+import { 
+  getGroupPatientsData, 
+  createPatient, 
+  updatePatientStatus, 
+  updatePatientInfo, 
+  removePatientRecord, 
+  getPatientReportData 
+} from "../lib/patientService";
 
 
 const sanitizeFileName = (fileName: string): string => {
@@ -294,14 +301,7 @@ const MessageForm: React.FC<{
     setIsRemovingPatient(true);
     setRemovalError(null);
     try {
-      const response = await apiFetch(`/api/app/patients/${patientId}/remove`, {
-        method: "POST"
-      });
-      const data = await response.json();
-      if (!response.ok || data.error) {
-        throw new Error(data.error || "Erro ao remover paciente.");
-      }
-      
+      await removePatientRecord(patientId, auth.currentUser?.uid, auth.currentUser?.email || undefined, apiFetch);
       setShowRemovePatientConfirm(false);
       onSubmit("/pacientes");
     } catch (err: any) {
@@ -2331,8 +2331,8 @@ ${aiPart}
 
       setIsLoading(true);
       try {
-        const res = await apiFetch(`/api/app/patient-report/${id}`);
-        const data = await res.json();
+        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
+        const data = await getPatientReportData(id, currentGroupId, apiFetch);
         if (data.error) throw new Error(data.error);
 
         const cad = data.cadastro;
@@ -2349,7 +2349,7 @@ ${aiPart}
             idade: cad.Idade ? cad.Idade.toString() : "N/A",
             status: cad.Status,
             hospitalId: cad.hospitalId,
-            hospitalNome: allHospitals.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome)?.nome || cad.hospital_nome || "Não informado",
+            hospitalNome: allHospitals.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome)?.nome || cad.hospital_nome || cad.hospitalName || "Não informado",
             roomNumber: cad.roomNumber || cad.room_number || "Sala ?",
             surgery_type: cad.surgery_type || "",
             procedure: cad.procedure || ""
@@ -2746,28 +2746,23 @@ ${aiPart}
         if (!id) throw new Error("ID não identificado.");
 
         // Resolve Names to IDs
-        const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName);
-        const resolvedHospitalId = selectedHospital ? selectedHospital.id : hospitalName;
+        const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName || h.id === hospitalName);
+        const resolvedHospitalId = selectedHospital ? selectedHospital.id : (hospitalName || "");
 
-        const selectedStatus = statusOptions.find(s => s.nome === status);
-        const resolvedStatusId = selectedStatus ? selectedStatus.id : status;
+        const selectedStatus = statusOptions.find(s => s.nome === status || s.id === status);
+        const resolvedStatusId = selectedStatus ? selectedStatus.id : (status || "");
 
-        const res = await apiFetch("/api/app/patients/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            id, 
-            nome, 
-            fone, 
-            idade, 
-            hospitalName: resolvedHospitalId, 
-            roomNumber,
-            status: resolvedStatusId,
-            surgery_type
-          })
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        await updatePatientInfo(id, {
+          nome,
+          fone,
+          idade,
+          hospitalId: resolvedHospitalId,
+          hospitalName: selectedHospital?.nome || hospitalName,
+          roomNumber,
+          statusId: resolvedStatusId,
+          status: selectedStatus?.nome || status,
+          surgery_type
+        }, apiFetch);
 
         // Clear screen and show updated report
         setMessages([]);
@@ -3067,32 +3062,30 @@ ${aiPart}
         if (!nome) throw new Error("O campo 'nome:' é obrigatório.");
 
         // Resolve Names to IDs
-        const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName);
+        const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName || h.id === hospitalName);
         const resolvedHospitalId = selectedHospital ? selectedHospital.id : (hospitalName || "");
 
         const selectedStatus = statusOptions.find(s => s.nome === status || s.id === status);
         const resolvedStatusId = selectedStatus ? selectedStatus.id : (status || "");
 
-        const res = await apiFetch("/api/app/patients", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            nome, 
-            fone, 
-            idade, 
-            cpf, 
-            hospitalName: resolvedHospitalId, 
-            roomNumber,
-            status: resolvedStatusId,
-            procedimento,
-            surgery_type
-          })
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
+
+        const result = await createPatient(currentGroupId, {
+          nome,
+          fone,
+          idade,
+          cpf,
+          hospitalId: resolvedHospitalId,
+          hospitalName: selectedHospital?.nome || hospitalName,
+          roomNumber,
+          statusId: resolvedStatusId,
+          status: selectedStatus?.nome || status,
+          procedimento,
+          surgery_type
+        }, apiFetch);
 
         setMessages([]);
-        await handleDirectCommand("/pacientes");
+        await handleDirectCommand(`/p ${result.id}`);
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro no cadastro: ${err.message}` }]);
       } finally {
@@ -3439,13 +3432,13 @@ ${aiPart}
 
       setIsLoading(true);
       try {
-        const res = await apiFetch("/api/app/patients/status", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ patientId: pacId, status: statusId, statusName: sname })
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        await updatePatientStatus(
+          pacId, 
+          statusId, 
+          sname, 
+          auth.currentUser?.displayName || auth.currentUser?.email || undefined, 
+          apiFetch
+        );
 
         setMessages([]); // Clear to refresh with report
         await handleDirectCommand(`/p ${pacId}`);
