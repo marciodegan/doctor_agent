@@ -571,7 +571,7 @@ export const PatientProfileSheet: React.FC<PatientProfileSheetProps> = ({
                 />
               )}
               <button
-                onClick={() => handleDirectCommand(`/status_alterar ${profileData?.id}`)}
+                onClick={() => handleDirectCommand(`/status_alterar ${profileData?.id || ""} | ${profileData?.nome || cad?.Nome || "Paciente"}`)}
                 className="w-full glass-button border-blue-100/40 h-11 rounded-2xl text-blue-600 text-xs font-bold uppercase tracking-wider flex items-center justify-center hover:bg-white/70 transition-all active:scale-95 shadow-sm"
               >
                 <span className="truncate px-1">

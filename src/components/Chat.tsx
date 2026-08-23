@@ -3370,7 +3370,11 @@ ${aiPart}
     }
 
     if (cmd.startsWith("/status_alterar")) {
-      const patId = cmdInput.split(" ")[1];
+      const rest = cmdInput.replace(/^\/status_alterar\s*/i, "");
+      const parts = rest.split("|").map(s => s.trim());
+      const patId = parts[0];
+      const patientName = parts[1] || "Paciente selecionado";
+
       if (!patId) return true;
 
       const effectiveStatuses = groupStatuses.length > 0 ? groupStatuses : [
@@ -3382,45 +3386,22 @@ ${aiPart}
       ];
 
       setMessages([]); // NEW VIEW
-      setIsLoading(true);
-      try {
-        const patientRes = await apiFetch(`/api/app/patients/info/${patId}`);
-        const patientData = await patientRes.json();
-        const patientName = patientData.nome || patientData.name || "Paciente selecionado";
+      setIsLoading(false);
 
-        setMessages([{
-          role: "model",
-          text: `🏷️ **Alterar Status**\n\n**Paciente:** ${patientName}\n\nEscolha o novo status para o paciente:`,
-          patientNameForStatus: patientName,
-          actionGroups: [
-            {
-              title: "Selecione o Status",
-              actions: effectiveStatuses.map((s: any) => ({
-                label: s.nome || s.name || s.status,
-                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome || s.name || s.status}`
-              }))
-            }
-          ]
-        }]);
-      } catch (err) {
-        console.error("Erro ao obter nome do paciente:", err);
-        setMessages([{
-          role: "model",
-          text: `🏷️ **Alterar Status**\n\n**Paciente:** Paciente selecionado\n\nEscolha o novo status para o paciente:`,
-          patientNameForStatus: "Paciente selecionado",
-          actionGroups: [
-            {
-              title: "Selecione o Status",
-              actions: effectiveStatuses.map((s: any) => ({
-                label: s.nome || s.name || s.status,
-                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome || s.name || s.status}`
-              }))
-            }
-          ]
-        }]);
-      } finally {
-        setIsLoading(false);
-      }
+      setMessages([{
+        role: "model",
+        text: `🏷️ **Alterar Status**\n\n**Paciente:** ${patientName}\n\nEscolha o novo status para o paciente:`,
+        patientNameForStatus: patientName,
+        actionGroups: [
+          {
+            title: "Selecione o Status",
+            actions: effectiveStatuses.map((s: any) => ({
+              label: s.nome || s.name || s.status,
+              cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome || s.name || s.status}`
+            }))
+          }
+        ]
+      }]);
       return true;
     }
 
