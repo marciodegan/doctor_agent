@@ -462,30 +462,104 @@ export async function getPatientReportData(
   if (!patientId) throw new Error("ID do paciente é obrigatório.");
 
   try {
-    const patientSnap = await getDoc(doc(db, "patients", patientId));
-    if (!patientSnap.exists()) {
+    let pData: any = null;
+    let patientDocId = patientId;
+
+    try {
+      const patientSnap = await getDoc(doc(db, "patients", patientId));
+      if (patientSnap.exists()) {
+        pData = patientSnap.data();
+        patientDocId = patientSnap.id;
+      }
+    } catch (e) {
+      console.warn("[patientService] Direct getDoc failed for patient:", patientId, e);
+    }
+
+    if (!pData && groupId) {
+      try {
+        const q1 = query(collection(db, "patients"), where("groupId", "==", groupId), where("id", "==", patientId));
+        const s1 = await getDocs(q1);
+        if (!s1.empty) {
+          pData = s1.docs[0].data();
+          patientDocId = s1.docs[0].id;
+        }
+      } catch (e) {}
+    }
+
+    if (!pData && apiFetch) {
+      const res = await apiFetch(`/api/app/patient-report/${patientId}`);
+      const data = await res.json();
+      if (data && !data.error) return data;
+      if (data?.error) throw new Error(data.error);
+    }
+
+    if (!pData) {
       throw new Error("Paciente não encontrado.");
     }
-    const pData = patientSnap.data();
+
     const effectiveGroupId = pData.groupId || groupId;
 
-    // Fetch related docs
-    const [contactsSnap, logsSnap, filesSnap, statusesSnap, hospitalsSnap] = await Promise.all([
-      getDocs(query(collection(db, "patients_contacts"), where("patientId", "==", patientId))),
-      getDocs(query(collection(db, "patient_logs"), where("patientId", "==", patientId))),
-      getDocs(query(collection(db, "files"), where("patientId", "==", patientId))),
-      getDocs(query(collection(db, "patient_statuses"), where("groupId", "==", effectiveGroupId))),
-      getDocs(query(collection(db, "hospitals"), where("groupId", "==", effectiveGroupId))),
+    let contactsDocs: any[] = [];
+    let logsDocs: any[] = [];
+    let filesDocs: any[] = [];
+    let statusesDocs: any[] = [];
+    let hospitalsDocs: any[] = [];
+
+    await Promise.all([
+      (async () => {
+        try {
+          const snap = await getDocs(query(collection(db, "patients_contacts"), where("patientId", "==", patientDocId)));
+          contactsDocs = snap.docs;
+        } catch (e) {
+          console.warn("[patientService] Error fetching patients_contacts:", e);
+        }
+      })(),
+      (async () => {
+        try {
+          const snap = await getDocs(query(collection(db, "patient_logs"), where("patientId", "==", patientDocId)));
+          logsDocs = snap.docs;
+        } catch (e) {
+          console.warn("[patientService] Error fetching patient_logs:", e);
+        }
+      })(),
+      (async () => {
+        try {
+          const snap = await getDocs(query(collection(db, "files"), where("patientId", "==", patientDocId)));
+          filesDocs = snap.docs;
+        } catch (e) {
+          console.warn("[patientService] Error fetching files:", e);
+        }
+      })(),
+      (async () => {
+        try {
+          if (effectiveGroupId) {
+            const snap = await getDocs(query(collection(db, "patient_statuses"), where("groupId", "==", effectiveGroupId)));
+            statusesDocs = snap.docs;
+          }
+        } catch (e) {
+          console.warn("[patientService] Error fetching patient_statuses:", e);
+        }
+      })(),
+      (async () => {
+        try {
+          if (effectiveGroupId) {
+            const snap = await getDocs(query(collection(db, "hospitals"), where("groupId", "==", effectiveGroupId)));
+            hospitalsDocs = snap.docs;
+          }
+        } catch (e) {
+          console.warn("[patientService] Error fetching hospitals:", e);
+        }
+      })(),
     ]);
 
     const statusesMap = new Map<string, string>();
-    statusesSnap.docs.forEach((d) => {
+    statusesDocs.forEach((d) => {
       const dData = d.data();
       statusesMap.set(d.id, dData.name || dData.nome || "");
     });
 
     const hospitalsMap = new Map<string, string>();
-    hospitalsSnap.docs.forEach((d) => {
+    hospitalsDocs.forEach((d) => {
       const dData = d.data();
       hospitalsMap.set(d.id, dData.name || dData.nome || "");
     });
@@ -519,7 +593,7 @@ export async function getPatientReportData(
       return cleanUrl.endsWith(".pdf");
     };
 
-    const files = filesSnap.docs
+    const files = filesDocs
       .filter((d) => d.data().status !== "removed")
       .map((d) => {
         const data = d.data();
@@ -549,7 +623,7 @@ export async function getPatientReportData(
         };
       });
 
-    const logs = logsSnap.docs
+    const logs = logsDocs
       .filter((d) => d.data().status !== "removed")
       .map((d) => {
         const data = d.data();
@@ -566,7 +640,7 @@ export async function getPatientReportData(
         };
       });
 
-    const contacts = contactsSnap.docs
+    const contacts = contactsDocs
       .filter((d) => d.data().status !== "removed")
       .map((d) => {
         const data = d.data();
@@ -580,7 +654,7 @@ export async function getPatientReportData(
 
     return {
       cadastro: {
-        ID: patientId,
+        ID: patientDocId,
         Nome: pData.name || pData.nome || "Sem Nome",
         Telefone: pData.phone || pData.fone || "",
         Idade: pData.age || pData.idade || "",

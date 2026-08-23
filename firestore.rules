@@ -211,22 +211,22 @@ service cloud.firestore {
 
     match /family_members/{memberId} {
       allow read, write: if isSignedIn() && (
-        (resource != null && canAccessPatient(existing().patientId)) ||
-        (request.resource != null && canAccessPatient(incoming().patientId))
+        (resource != null && (isMember(existing().groupId) || canAccessPatient(existing().patientId))) ||
+        (request.resource != null && (isMember(incoming().groupId) || canAccessPatient(incoming().patientId)))
       );
     }
 
     match /patients_contacts/{contactId} {
       allow read, write: if isSignedIn() && (
-        (resource != null && canAccessPatient(existing().patientId)) ||
-        (request.resource != null && canAccessPatient(incoming().patientId))
+        (resource != null && (isMember(existing().groupId) || canAccessPatient(existing().patientId))) ||
+        (request.resource != null && (isMember(incoming().groupId) || canAccessPatient(incoming().patientId)))
       );
     }
 
     match /patient_logs/{logId} {
       allow read, write: if isSignedIn() && (
-        (resource != null && canAccessPatient(existing().patientId)) ||
-        (request.resource != null && canAccessPatient(incoming().patientId))
+        (resource != null && (isMember(existing().groupId) || canAccessPatient(existing().patientId))) ||
+        (request.resource != null && (isMember(incoming().groupId) || canAccessPatient(incoming().patientId)))
       );
     }
 

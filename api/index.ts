@@ -1202,10 +1202,10 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
 
     const [contactsSnap, logsSnap, filesSnap, statusesSnap, activityLogsSnap, hospitalsSnap] = await Promise.all([
       db.collection("patients_contacts").where("patientId", "==", id).get(),
-      db.collection("patient_logs").where("patientId", "==", id).orderBy("createdAt", "desc").get(),
-      db.collection("files").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
+      db.collection("patient_logs").where("patientId", "==", id).get(),
+      db.collection("files").where("patientId", "==", id).get(),
       db.collection("patient_statuses").where("groupId", "==", groupId).get(),
-      db.collection("logs").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
+      db.collection("logs").where("patientId", "==", id).get(),
       db.collection("hospitals").where("groupId", "==", groupId).get()
     ]);
 
@@ -1495,7 +1495,6 @@ app.get("/api/app/patients/:id/logs", async (req, res) => {
     const logsSnap = await db.collection("logs")
       .where("patientId", "==", id)
       .where("groupId", "==", groupId)
-      .orderBy("timestamp", "desc")
       .get();
     
     const logs = logsSnap.docs.map(doc => {
@@ -2114,8 +2113,8 @@ app.post("/api/share/patient/verify", express.json(), async (req, res) => {
 
     const [contactsSnap, logsSnap, filesSnap, statusesSnap, hospitalsSnap] = await Promise.all([
       db.collection("patients_contacts").where("patientId", "==", patientId).get(),
-      db.collection("patient_logs").where("patientId", "==", patientId).orderBy("createdAt", "desc").get(),
-      db.collection("files").where("patientId", "==", patientId).orderBy("timestamp", "desc").get(),
+      db.collection("patient_logs").where("patientId", "==", patientId).get(),
+      db.collection("files").where("patientId", "==", patientId).get(),
       db.collection("patient_statuses").where("groupId", "==", groupId).get(),
       db.collection("hospitals").where("groupId", "==", groupId).get()
     ]);

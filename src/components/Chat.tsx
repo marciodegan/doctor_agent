@@ -2322,7 +2322,7 @@ ${aiPart}
     if (cmd.startsWith("/p ") || (/^\/p\d+/i).test(cmd)) {
       let id = "";
       if (cmd.startsWith("/p ")) {
-        id = cmdInput.split(" ")[1];
+        id = cmdInput.replace(/^\/p\s+/i, "").split(/\s+/)[0]?.trim();
       } else {
         id = cmd.match(/\/p(\d+)/i)?.[1] || "";
       }
@@ -2333,9 +2333,9 @@ ${aiPart}
       try {
         const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
         const data = await getPatientReportData(id, currentGroupId, apiFetch);
-        if (data.error) throw new Error(data.error);
+        if (data?.error) throw new Error(data.error);
 
-        const cad = data.cadastro;
+        const cad = data?.cadastro || {};
         const reportText = generatePatientReport(data);
 
         setMessages([{ 
@@ -2344,19 +2344,20 @@ ${aiPart}
           isProfile: true,
           reportData: data,
           profileData: {
-            id: cad.ID.toString(),
-            nome: cad.Nome,
-            idade: cad.Idade ? cad.Idade.toString() : "N/A",
-            status: cad.Status,
-            hospitalId: cad.hospitalId,
-            hospitalNome: allHospitals.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome)?.nome || cad.hospital_nome || cad.hospitalName || "Não informado",
-            roomNumber: cad.roomNumber || cad.room_number || "Sala ?",
+            id: (cad.ID || id || "").toString(),
+            nome: cad.Nome || cad.nome || cad.name || "Paciente",
+            idade: cad.Idade ? cad.Idade.toString() : (cad.idade ? cad.idade.toString() : "N/A"),
+            status: cad.Status || cad.status || "Sem Status",
+            hospitalId: cad.hospitalId || "",
+            hospitalNome: allHospitals.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome || h.nome === cad.hospitalName)?.nome || cad.hospital_nome || cad.hospitalName || "Não informado",
+            roomNumber: cad.roomNumber || cad.room_number || cad.quarto || "Sala ?",
             surgery_type: cad.surgery_type || "",
-            procedure: cad.procedure || ""
+            procedure: cad.procedure || cad.procedimento || ""
           }
         }]);
         setTimeout(scrollToTop, 0);
       } catch (err: any) {
+        console.error("Error loading patient report:", err);
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
       } finally {
         setIsLoading(false);
