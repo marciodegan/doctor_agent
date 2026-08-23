@@ -4775,13 +4775,15 @@ app.get("/api/app/audit-logs", async (req, res) => {
 
 async function startServer() {
   const distPath = path.join(process.cwd(), "dist");
+  const publicPath = path.join(process.cwd(), "public");
 
-  // Explicitly serve manifest.json with standard PWA content-type and safety in both dev and prod
+  // Explicitly serve manifest.json with standard PWA content-type and CORS in both dev and prod
   app.get("/manifest.json", (req, res) => {
     res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Access-Control-Allow-Origin", "*");
     const prodPath = path.join(distPath, "manifest.json");
-    const devPath = path.join(process.cwd(), "public", "manifest.json");
+    const devPath = path.join(publicPath, "manifest.json");
     if (fs.existsSync(prodPath)) {
       res.sendFile(prodPath);
     } else if (fs.existsSync(devPath)) {
@@ -4791,12 +4793,59 @@ async function startServer() {
     }
   });
 
+  // Explicitly serve icons with correct image/png headers, CORS, and caching
+  app.get("/icons/:iconName", (req, res) => {
+    const iconName = req.params.iconName;
+    const prodFile = path.join(distPath, "icons", iconName);
+    const pubFile = path.join(publicPath, "icons", iconName);
+
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+
+    if (fs.existsSync(prodFile)) {
+      return res.sendFile(prodFile);
+    } else if (fs.existsSync(pubFile)) {
+      return res.sendFile(pubFile);
+    } else {
+      return res.status(404).send("Icon not found");
+    }
+  });
+
+  // Explicitly serve apple-touch-icon.png and favicon.png
+  app.get(["/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"], (req, res) => {
+    const prodFile = path.join(distPath, "apple-touch-icon.png");
+    const pubFile = path.join(publicPath, "apple-touch-icon.png");
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (fs.existsSync(prodFile)) {
+      return res.sendFile(prodFile);
+    } else if (fs.existsSync(pubFile)) {
+      return res.sendFile(pubFile);
+    }
+    res.status(404).send("Not found");
+  });
+
+  app.get(["/favicon.png", "/favicon.ico"], (req, res) => {
+    const prodFile = path.join(distPath, "favicon.png");
+    const pubFile = path.join(publicPath, "favicon.png");
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (fs.existsSync(prodFile)) {
+      return res.sendFile(prodFile);
+    } else if (fs.existsSync(pubFile)) {
+      return res.sendFile(pubFile);
+    }
+    res.status(404).send("Not found");
+  });
+
   // Explicitly serve service-worker.js with correct Content-Type and no-cache in both dev and prod
   app.get("/service-worker.js", (req, res, next) => {
     const prodPath = path.join(distPath, "service-worker.js");
     if (fs.existsSync(prodPath)) {
       res.setHeader("Content-Type", "application/javascript; charset=utf-8");
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Access-Control-Allow-Origin", "*");
       res.sendFile(prodPath);
     } else {
       // Let Vite middleware compile dynamically in dev

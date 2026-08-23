@@ -1,6 +1,6 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from "workbox-precaching";
 
-const APP_VERSION = "1.0.7";
+const APP_VERSION = "1.0.8";
 const CACHE_NAME = `dr-agent-runtime-v${APP_VERSION}`;
 
 console.log("[PWA] Service worker initializing version:", APP_VERSION);
@@ -22,12 +22,12 @@ const manifestFilter = (self.__WB_MANIFEST || []).filter((entry) => {
 precacheAndRoute(manifestFilter);
 
 self.addEventListener("install", (event) => {
-  console.log("[PWA] Service Worker installing");
+  console.log("[PWA] Service Worker installing, skip waiting immediately");
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  console.log("[PWA] Service Worker activating");
+  console.log("[PWA] Service Worker activating - purging outdated caches");
 
   event.waitUntil(
     caches
@@ -35,14 +35,9 @@ self.addEventListener("activate", (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames
-            .filter((cacheName) => {
-              return (
-                cacheName !== CACHE_NAME &&
-                !cacheName.includes("workbox-precache")
-              );
-            })
+            .filter((cacheName) => cacheName !== CACHE_NAME)
             .map((cacheName) => {
-              console.log("[PWA] Removing old cache:", cacheName);
+              console.log("[PWA] Removing legacy/outdated cache:", cacheName);
               return caches.delete(cacheName);
             })
         );
@@ -74,14 +69,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // CRITICAL: NEVER intercept server API routes or static meta assets
+  // CRITICAL: NEVER intercept server API routes or static meta assets/icons
+  const pathname = requestUrl.pathname;
   if (
-    requestUrl.pathname.startsWith("/api/") ||
-    requestUrl.pathname.includes("manifest.json") ||
-    requestUrl.pathname.includes("/icons/") ||
-    requestUrl.pathname.includes("favicon") ||
-    requestUrl.pathname.includes("apple-touch-icon") ||
-    requestUrl.pathname.includes("service-worker.js")
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/icons/") ||
+    pathname.includes("manifest") ||
+    pathname.includes("favicon") ||
+    pathname.includes("apple-touch-icon") ||
+    pathname.includes("service-worker.js")
   ) {
     return;
   }
