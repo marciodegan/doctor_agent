@@ -49,6 +49,12 @@ service cloud.firestore {
              (data.get('addedBy', null) == null || data.addedBy is string);
     }
 
+    // Connection test probe
+    match /_connection_test_/{docId} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
     // Global app configuration
     match /app_config/{configId} {
       allow get: if true;

@@ -4825,6 +4825,7 @@ async function startServer() {
     });
   } else {
     app.use(express.static(distPath));
+    app.use(express.static(path.join(process.cwd(), "public")));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });

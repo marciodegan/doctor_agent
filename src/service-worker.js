@@ -1,6 +1,6 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from "workbox-precaching";
 
-const APP_VERSION = "1.0.6";
+const APP_VERSION = "1.0.7";
 const CACHE_NAME = `dr-agent-runtime-v${APP_VERSION}`;
 
 console.log("[PWA] Service worker initializing version:", APP_VERSION);
@@ -63,11 +63,20 @@ self.addEventListener("fetch", (event) => {
 
   const requestUrl = new URL(request.url);
 
+  // Ignore non-http protocols
   if (!requestUrl.protocol.startsWith("http")) {
     return;
   }
 
+  // CRITICAL: NEVER intercept cross-origin requests (e.g. firestore.googleapis.com, identitytoolkit.googleapis.com, googleapis.com)
+  // Let the browser handle external/Firebase/cloud services directly
+  if (requestUrl.origin !== self.location.origin) {
+    return;
+  }
+
+  // CRITICAL: NEVER intercept server API routes or static meta assets
   if (
+    requestUrl.pathname.startsWith("/api/") ||
     requestUrl.pathname.includes("manifest.json") ||
     requestUrl.pathname.includes("/icons/") ||
     requestUrl.pathname.includes("favicon") ||
