@@ -113,7 +113,7 @@ export function Calendar({
 
     let isMounted = true;
     const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
-    const q = query(eventsRef, orderBy("data"), orderBy("hora"));
+    const q = query(eventsRef);
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!isMounted) return;
@@ -121,6 +121,14 @@ export function Calendar({
         id: doc.id,
         ...doc.data()
       })) as CalendarEvent[];
+      fetchedEvents.sort((a, b) => {
+        const dateA = a.data || "";
+        const dateB = b.data || "";
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        const timeA = a.hora || "";
+        const timeB = b.hora || "";
+        return timeA.localeCompare(timeB);
+      });
       setEvents(fetchedEvents);
       setIsLoading(false);
     }, (error) => {
