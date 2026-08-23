@@ -29,6 +29,7 @@ import { E2EMedia } from "./E2EMedia";
 import { mediaUploadService } from "../services/mediaUploadService";
 import { PatientProfileSheet } from "./PatientProfileSheet";
 import { generatePatientReport } from "../lib/patientReport";
+import { getGroupPatientsData } from "../lib/patientService";
 
 
 const sanitizeFileName = (fileName: string): string => {
@@ -2086,9 +2087,16 @@ ${aiPart}
     if (cmd === "/iniciarrelat") {
       setIsLoading(true);
       try {
-        const res = await apiFetch("/api/app/patients");
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
+        let data: any[] = [];
+        if (currentGroupId) {
+          const groupData = await getGroupPatientsData(currentGroupId, apiFetch);
+          data = groupData.patients || [];
+        } else {
+          const res = await apiFetch("/api/app/patients");
+          data = await res.json();
+        }
+        if ((data as any).error) throw new Error((data as any).error);
         
         const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - \`/p ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
@@ -2114,9 +2122,16 @@ ${aiPart}
     if (cmd === "/iniciarlog") {
       setIsLoading(true);
       try {
-        const res = await apiFetch("/api/app/patients");
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
+        let data: any[] = [];
+        if (currentGroupId) {
+          const groupData = await getGroupPatientsData(currentGroupId, apiFetch);
+          data = groupData.patients || [];
+        } else {
+          const res = await apiFetch("/api/app/patients");
+          data = await res.json();
+        }
+        if ((data as any).error) throw new Error((data as any).error);
         
         const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - Digite \`/logpac ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
@@ -2134,9 +2149,16 @@ ${aiPart}
     if (cmd === "/iniciarfamiliar") {
       setIsLoading(true);
       try {
-        const res = await apiFetch("/api/app/patients");
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
+        let data: any[] = [];
+        if (currentGroupId) {
+          const groupData = await getGroupPatientsData(currentGroupId, apiFetch);
+          data = groupData.patients || [];
+        } else {
+          const res = await apiFetch("/api/app/patients");
+          data = await res.json();
+        }
+        if ((data as any).error) throw new Error((data as any).error);
         
         const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - \`/novo_familiar ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
@@ -2372,22 +2394,44 @@ ${aiPart}
         const hospitalFilter = getFilterValue('hospital');
         const statusFilter = getFilterValue('status');
 
-        let apiUrl = "/api/app/patients?full=true";
-        if (hospitalFilter !== undefined) {
-          apiUrl += `&hospitalId=${encodeURIComponent(hospitalFilter)}`;
-        }
-        if (statusFilter !== undefined) {
-          apiUrl += `&statusId=${encodeURIComponent(statusFilter)}`;
+        let data: any[] = [];
+        let masterHospitalsData: any[] = [];
+        let masterStatuses: any[] = [];
+
+        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
+        
+        if (currentGroupId) {
+          try {
+            const groupData = await getGroupPatientsData(currentGroupId, apiFetch);
+            data = groupData.patients || [];
+            masterHospitalsData = groupData.hospitals || [];
+            masterStatuses = groupData.statuses || [];
+          } catch (e) {
+            console.warn("[Chat] getGroupPatientsData failed:", e);
+          }
         }
 
-        const res = await apiFetch(apiUrl);
-        const json = await res.json();
-        
-        if (json.error) throw new Error(json.error);
-        
-        const data = json.patients || [];
-        const masterHospitalsData = json.hospitals || [];
-        const masterStatuses = json.statuses || [];
+        if (data.length === 0 && masterHospitalsData.length === 0) {
+          let apiUrl = "/api/app/patients?full=true";
+          if (hospitalFilter !== undefined) {
+            apiUrl += `&hospitalId=${encodeURIComponent(hospitalFilter)}`;
+          }
+          if (statusFilter !== undefined) {
+            apiUrl += `&statusId=${encodeURIComponent(statusFilter)}`;
+          }
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          const res = await apiFetch(apiUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          const json = await res.json();
+          
+          if (json.error) throw new Error(json.error);
+          
+          data = json.patients || [];
+          masterHospitalsData = json.hospitals || [];
+          masterStatuses = json.statuses || [];
+        }
 
         let page = 1;
         let sort = "id";
@@ -2546,10 +2590,17 @@ ${aiPart}
 
         if (!termo && cmdInput.includes("termo:")) throw new Error("Informe um nome para buscar.");
         
-        const apiUrl = termo ? `/api/app/patients?search=${encodeURIComponent(termo)}` : "/api/app/patients";
-        const res = await apiFetch(apiUrl);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
+        let data: any[] = [];
+        if (currentGroupId) {
+          const groupData = await getGroupPatientsData(currentGroupId, apiFetch);
+          data = groupData.patients || [];
+        } else {
+          const apiUrl = termo ? `/api/app/patients?search=${encodeURIComponent(termo)}` : "/api/app/patients";
+          const res = await apiFetch(apiUrl);
+          data = await res.json();
+        }
+        if ((data as any).error) throw new Error((data as any).error);
 
         let filtered = data;
         if (termo) {

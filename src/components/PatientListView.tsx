@@ -3,6 +3,7 @@ import { Building2, Bed, Activity, ArrowLeft, ArrowRight, Plus, MapPin, User, Fi
 import { useGroup } from "../contexts/GroupContext";
 import { collection, query, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { getGroupPatientsData } from "../lib/patientService";
 
 interface CalendarEvent {
   id: string;
@@ -200,6 +201,25 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
   const fetchPatients = async (searchVal: string) => {
     setLoading(true);
     try {
+      if (activeGroup?.id) {
+        const data = await getGroupPatientsData(activeGroup.id, apiFetch);
+        if (data && data.patients) {
+          let list = data.patients;
+          if (searchVal.trim()) {
+            const s = searchVal.trim().toLowerCase();
+            list = list.filter(p => (p.nome || "").toLowerCase().includes(s) || (p.id || "").toString().includes(s));
+          }
+          if (hospitalFilter && hospitalFilter !== "1" && hospitalFilter !== "all") {
+            list = list.filter(p => p.hospitalId === hospitalFilter);
+          }
+          if (statusFilter && statusFilter !== "1" && statusFilter !== "all") {
+            list = list.filter(p => p.statusId === statusFilter);
+          }
+          setLocalPatients(list);
+          return;
+        }
+      }
+
       let apiUrl = "/api/app/patients?full=true";
 
       if (searchVal.trim()) {
