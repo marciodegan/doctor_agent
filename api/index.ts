@@ -1424,7 +1424,16 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
 
 // Update patient information (Generic)
 app.post("/api/app/patients/update", express.json(), async (req, res) => {
-  const { id, nome, fone, idade, hospitalName, roomNumber, status, surgery_type } = req.body;
+  const { 
+    id, 
+    nome, name, 
+    fone, phone, 
+    idade, age, 
+    hospitalName, hospitalId, 
+    roomNumber, 
+    status, statusId, 
+    surgery_type 
+  } = req.body;
 
   if (!id) return res.status(400).json({ error: "ID do paciente é obrigatório." });
 
@@ -1436,12 +1445,36 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
     
-    if (nome) updateData.name = nome;
-    if (fone) updateData.phone = fone;
-    if (idade) updateData.age = idade;
-    if (hospitalName !== undefined) updateData.hospitalId = hospitalName.toString();
+    const finalName = nome !== undefined ? nome : name;
+    if (finalName !== undefined) {
+      updateData.name = finalName;
+      updateData.nome = finalName;
+    }
+
+    const finalPhone = fone !== undefined ? fone : phone;
+    if (finalPhone !== undefined) {
+      updateData.phone = finalPhone;
+    }
+
+    const finalAge = idade !== undefined ? idade : age;
+    if (finalAge !== undefined) {
+      updateData.age = finalAge;
+      updateData.idade = finalAge;
+    }
+
+    const finalHospital = hospitalId !== undefined ? hospitalId : hospitalName;
+    if (finalHospital !== undefined) {
+      updateData.hospitalId = finalHospital.toString();
+    }
+
     if (roomNumber !== undefined) updateData.roomNumber = roomNumber;
-    if (status !== undefined) updateData.statusId = status.toString();
+
+    const finalStatus = statusId !== undefined ? statusId : status;
+    if (finalStatus !== undefined) {
+      updateData.statusId = finalStatus.toString();
+      updateData.status = finalStatus.toString();
+    }
+
     if (surgery_type !== undefined) updateData.surgery_type = surgery_type;
 
     await patientRef.update(updateData);
@@ -1449,7 +1482,7 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
     // Record log of update
     await db.collection("logs").add({
       patientId: id,
-      patientName: patient.name,
+      patientName: patient.name || finalName || "Paciente",
       description: "Informações do perfil atualizadas.",
       groupId,
       timestamp: admin.firestore.FieldValue.serverTimestamp()

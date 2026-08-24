@@ -346,6 +346,25 @@ export async function updatePatientInfo(
 ): Promise<void> {
   if (!patientId) throw new Error("ID do paciente é obrigatório.");
 
+  if (apiFetch) {
+    try {
+      const res = await apiFetch("/api/app/patients/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: patientId, ...updates }),
+      });
+      const data = await res.json();
+      if (data && !data.error) {
+        return;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+    } catch (apiErr) {
+      console.warn("[patientService] apiFetch update failed, falling back to client SDK:", apiErr);
+    }
+  }
+
   try {
     const patientRef = doc(db, "patients", patientId);
     const docUpdates: Record<string, any> = {
@@ -361,7 +380,6 @@ export async function updatePatientInfo(
       docUpdates.nome = updates.name;
     }
     if (updates.fone !== undefined) {
-      docUpdates.phone = updates.fone;
       docUpdates.phone = updates.fone;
     }
     if (updates.phone !== undefined) {
@@ -402,19 +420,8 @@ export async function updatePatientInfo(
     }
 
     await updateDoc(patientRef, docUpdates);
-  } catch (firestoreErr) {
-    console.warn("[patientService] Direct updatePatientInfo failed, trying API fallback:", firestoreErr);
-    if (apiFetch) {
-      const res = await apiFetch("/api/app/patients/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: patientId, ...updates }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      return;
-    }
-    throw firestoreErr;
+  } catch (firestoreErr: any) {
+    throw new Error(firestoreErr.message || "Erro ao atualizar paciente.");
   }
 }
 
