@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  Trello,
   Building2,
   Activity,
   Search,
@@ -412,86 +411,60 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
   };
 
   return (
-    <div className="w-full flex flex-col h-full space-y-4">
+    <div className="w-full flex flex-col h-full space-y-3">
       {/* Top Header & Controls */}
-      <div className="bg-white/80 backdrop-blur-md rounded-3xl p-4 sm:p-5 border border-gray-200/60 shadow-sm flex flex-col gap-4">
-        {/* Row 1: Title and Total badge */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-md shadow-blue-500/20">
-              <Trello size={20} />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                Quadro Trello
-              </h1>
-              <p className="text-xs text-gray-500 font-medium">
-                Visualização Kanban de pacientes por status ou hospital
-              </p>
-            </div>
+      <div className="bg-white/80 backdrop-blur-md rounded-2xl px-4 py-3 border border-gray-200/60 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+        {/* Search Input Form */}
+        <div className="relative flex-1 w-full">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar paciente por nome, hospital, quarto..."
+            className="w-full rounded-xl glass-input pl-10 pr-4 py-2 text-xs sm:text-sm font-semibold text-gray-800 shadow-sm outline-none transition-all"
+          />
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+            <Search size={16} />
           </div>
-
-          {/* Grouping Toggle Switch */}
-          <div className="inline-flex p-1 bg-gray-100/90 rounded-2xl border border-gray-200/70 shadow-inner self-start sm:self-auto">
+          {searchTerm && (
             <button
-              onClick={() => setGroupingMode("status")}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                groupingMode === "status"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
+              onClick={() => setSearchTerm("")}
+              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs text-gray-400 hover:text-gray-600"
             >
-              <Activity size={14} />
-              <span>Por status</span>
+              Limpar
             </button>
-            <button
-              onClick={() => setGroupingMode("hospital")}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                groupingMode === "hospital"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              <Building2 size={14} />
-              <span>Por hospital</span>
-            </button>
-          </div>
+          )}
         </div>
 
-        {/* Row 2: Search Bar & Stats */}
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <div className="relative flex-1 w-full">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar paciente por nome, hospital, quarto..."
-              className="w-full rounded-2xl glass-input pl-10 pr-4 py-2.5 text-xs sm:text-sm font-semibold text-gray-800 shadow-sm outline-none transition-all"
-            />
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-              <Search size={16} />
-            </div>
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm("")}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs text-gray-400 hover:text-gray-600"
-              >
-                Limpar
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-            <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-2 rounded-xl border border-gray-200/60">
-              {filteredPatients.length}{" "}
-              {filteredPatients.length === 1 ? "paciente" : "pacientes"}
-            </span>
-          </div>
+        {/* Grouping Toggle Switch */}
+        <div className="inline-flex p-1 bg-gray-100/90 rounded-xl border border-gray-200/70 shadow-inner shrink-0 w-full sm:w-auto justify-center">
+          <button
+            onClick={() => setGroupingMode("status")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              groupingMode === "status"
+                ? "bg-white text-blue-700 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <Activity size={13} />
+            <span>Por status</span>
+          </button>
+          <button
+            onClick={() => setGroupingMode("hospital")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              groupingMode === "hospital"
+                ? "bg-white text-blue-700 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <Building2 size={13} />
+            <span>Por hospital</span>
+          </button>
         </div>
       </div>
 
       {/* Kanban Board Container (Horizontal scroll) */}
-      <div className="w-full flex-1 min-h-[calc(100vh-280px)] overflow-x-auto pb-6 pt-1 custom-scrollbar">
+      <div className="w-full flex-1 min-h-[calc(100vh-200px)] overflow-x-auto pb-6 pt-1 custom-scrollbar">
         {loading ? (
           <div className="flex items-center justify-center py-20 bg-white/50 rounded-3xl border border-dashed border-gray-200">
             <div className="flex flex-col items-center gap-3">
