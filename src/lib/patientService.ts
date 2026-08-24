@@ -210,6 +210,35 @@ export async function createPatient(
     throw new Error("Grupo ativo não selecionado.");
   }
 
+  if (apiFetch) {
+    try {
+      const res = await apiFetch("/api/app/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: input.nome,
+          fone: input.fone,
+          idade: input.idade,
+          cpf: input.cpf,
+          hospitalName: input.hospitalId || input.hospitalName,
+          roomNumber: input.roomNumber,
+          status: input.statusId || input.status,
+          procedimento: input.procedimento || input.procedure,
+          surgery_type: input.surgery_type,
+        }),
+      });
+      const data = await res.json();
+      if (data && !data.error && data.id) {
+        return { id: data.id };
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+    } catch (apiErr) {
+      console.warn("[patientService] apiFetch createPatient failed, falling back to client SDK:", apiErr);
+    }
+  }
+
   try {
     const patientDocRef = doc(collection(db, "patients"));
     const patientRecord = {
@@ -253,28 +282,7 @@ export async function createPatient(
 
     return { id: patientDocRef.id };
   } catch (firestoreErr: any) {
-    console.warn("[patientService] Direct Firestore createPatient failed, trying API fallback:", firestoreErr);
-    if (apiFetch) {
-      const res = await apiFetch("/api/app/patients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nome: input.nome,
-          fone: input.fone,
-          idade: input.idade,
-          cpf: input.cpf,
-          hospitalName: input.hospitalId || input.hospitalName,
-          roomNumber: input.roomNumber,
-          status: input.statusId || input.status,
-          procedimento: input.procedimento || input.procedure,
-          surgery_type: input.surgery_type,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      return { id: data.id };
-    }
-    throw firestoreErr;
+    throw new Error(firestoreErr.message || "Erro ao cadastrar paciente.");
   }
 }
 
