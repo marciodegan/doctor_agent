@@ -354,25 +354,9 @@ export async function updatePatientInfo(
 ): Promise<void> {
   if (!patientId) throw new Error("ID do paciente é obrigatório.");
 
-  if (apiFetch) {
-    try {
-      const res = await apiFetch("/api/app/patients/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: patientId, ...updates }),
-      });
-      const data = await res.json();
-      if (data && !data.error) {
-        return;
-      }
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-    } catch (apiErr) {
-      console.warn("[patientService] apiFetch update failed, falling back to client SDK:", apiErr);
-    }
-  }
+  let directUpdated = false;
 
+  // 1. Direct Firestore client SDK update (instant & reliable)
   try {
     const patientRef = doc(db, "patients", patientId);
     const docUpdates: Record<string, any> = {
@@ -428,9 +412,53 @@ export async function updatePatientInfo(
     }
 
     await updateDoc(patientRef, docUpdates);
-  } catch (firestoreErr: any) {
-    throw new Error(firestoreErr.message || "Erro ao atualizar paciente.");
+    directUpdated = true;
+  } catch (sdkErr) {
+    console.warn("[patientService] Direct Firestore updateDoc failed, trying API fallback:", sdkErr);
   }
+
+  // 2. If direct update succeeded and apiFetch is available, notify backend in background (with timeout)
+  if (directUpdated) {
+    if (apiFetch) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        apiFetch("/api/app/patients/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: patientId, ...updates }),
+          signal: controller.signal,
+        }).then(() => clearTimeout(timeoutId)).catch(() => clearTimeout(timeoutId));
+      } catch (_) {}
+    }
+    return;
+  }
+
+  // 3. Fallback to API if direct SDK update failed (e.g. permission issue)
+  if (apiFetch) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await apiFetch("/api/app/patients/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: patientId, ...updates }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      const data = await res.json();
+      if (data && !data.error) {
+        return;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+    } catch (apiErr: any) {
+      throw new Error(apiErr.message || "Erro ao atualizar paciente via API.");
+    }
+  }
+
+  throw new Error("Erro ao atualizar paciente.");
 }
 
 /**
@@ -476,18 +504,7 @@ export async function getPatientReportData(
 ): Promise<any> {
   if (!patientId) throw new Error("ID do paciente é obrigatório.");
 
-  if (apiFetch) {
-    try {
-      const res = await apiFetch(`/api/app/patient-report/${patientId}`);
-      const data = await res.json();
-      if (data && !data.error) {
-        return data;
-      }
-    } catch (apiErr) {
-      console.warn("[patientService] apiFetch patient-report failed, falling back to client SDK:", apiErr);
-    }
-  }
-
+  // 1. Direct Firestore client SDK first (instant and never 504s on serverless)
   try {
     let pData: any = null;
     let patientDocId = patientId;
@@ -513,191 +530,202 @@ export async function getPatientReportData(
       } catch (e) {}
     }
 
-    if (!pData) {
-      throw new Error("Paciente não encontrado.");
+    if (pData) {
+      const effectiveGroupId = pData.groupId || groupId;
+
+      let contactsDocs: any[] = [];
+      let logsDocs: any[] = [];
+      let filesDocs: any[] = [];
+      let statusesDocs: any[] = [];
+      let hospitalsDocs: any[] = [];
+
+      await Promise.all([
+        (async () => {
+          try {
+            const snap = await getDocs(query(collection(db, "patients_contacts"), where("patientId", "==", patientDocId)));
+            contactsDocs = snap.docs;
+          } catch (e) {
+            console.warn("[patientService] Error fetching patients_contacts:", e);
+          }
+        })(),
+        (async () => {
+          try {
+            const snap = await getDocs(query(collection(db, "patient_logs"), where("patientId", "==", patientDocId)));
+            logsDocs = snap.docs;
+          } catch (e) {
+            console.warn("[patientService] Error fetching patient_logs:", e);
+          }
+        })(),
+        (async () => {
+          try {
+            const snap = await getDocs(query(collection(db, "files"), where("patientId", "==", patientDocId)));
+            filesDocs = snap.docs;
+          } catch (e) {
+            console.warn("[patientService] Error fetching files:", e);
+          }
+        })(),
+        (async () => {
+          try {
+            if (effectiveGroupId) {
+              const snap = await getDocs(query(collection(db, "patient_statuses"), where("groupId", "==", effectiveGroupId)));
+              statusesDocs = snap.docs;
+            }
+          } catch (e) {
+            console.warn("[patientService] Error fetching patient_statuses:", e);
+          }
+        })(),
+        (async () => {
+          try {
+            if (effectiveGroupId) {
+              const snap = await getDocs(query(collection(db, "hospitals"), where("groupId", "==", effectiveGroupId)));
+              hospitalsDocs = snap.docs;
+            }
+          } catch (e) {
+            console.warn("[patientService] Error fetching hospitals:", e);
+          }
+        })(),
+      ]);
+
+      const statusesMap = new Map<string, string>();
+      statusesDocs.forEach((d) => {
+        const dData = d.data();
+        statusesMap.set(d.id, dData.name || dData.nome || "");
+      });
+
+      const hospitalsMap = new Map<string, string>();
+      hospitalsDocs.forEach((d) => {
+        const dData = d.data();
+        hospitalsMap.set(d.id, dData.name || dData.nome || "");
+      });
+
+      const hospName =
+        (pData.hospitalId && hospitalsMap.get(pData.hospitalId)) ||
+        pData.hospitalName ||
+        pData.hospital_nome ||
+        pData.hospitalId ||
+        "Sem Hospital";
+
+      const statName =
+        (pData.statusId && statusesMap.get(pData.statusId)) ||
+        pData.status ||
+        "Sem Status";
+
+      const isVideoUrl = (url: string) => {
+        if (!url) return false;
+        const cleanUrl = url.split("?")[0].toLowerCase();
+        return (
+          cleanUrl.endsWith(".mp4") ||
+          cleanUrl.endsWith(".mov") ||
+          cleanUrl.endsWith(".webm") ||
+          cleanUrl.endsWith(".quicktime") ||
+          cleanUrl.endsWith(".m4v")
+        );
+      };
+      const isPdfUrl = (url: string) => {
+        if (!url) return false;
+        const cleanUrl = url.split("?")[0].toLowerCase();
+        return cleanUrl.endsWith(".pdf");
+      };
+
+      const files = filesDocs
+        .filter((d) => d.data().status !== "removed")
+        .map((d) => {
+          const data = d.data();
+          const fileTypeResolved =
+            data.fileType ||
+            (isVideoUrl(data.link || "")
+              ? "video"
+              : isPdfUrl(data.link || "")
+              ? "pdf"
+              : "image");
+          return {
+            id: d.id,
+            data: data.timestamp
+              ? (typeof data.timestamp.toDate === "function" ? data.timestamp.toDate() : new Date(data.timestamp)).toLocaleString("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                })
+              : "Recente",
+            descricao: data.description || "Arquivo",
+            link: data.link,
+            aiResposta: data.aiAnalysis || "",
+            fileType: fileTypeResolved,
+            contentType: data.contentType || "",
+            size: data.size || 0,
+            originalName: data.originalName || data.description || "Arquivo",
+            uploadedByEmail: data.uploadedByEmail || "",
+            encryption: data.encryption || null,
+          };
+        });
+
+      const logs = logsDocs
+        .filter((d) => d.data().status !== "removed")
+        .map((d) => {
+          const data = d.data();
+          const dateObj = data.createdAt || data.timestamp;
+          return {
+            id: d.id,
+            conteudo: data.text || data.description || "",
+            tipo: data.type || "texto",
+            data: dateObj
+              ? (typeof dateObj.toDate === "function" ? dateObj.toDate() : new Date(dateObj)).toLocaleString("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                })
+              : "Recente",
+          };
+        });
+
+      const contacts = contactsDocs
+        .filter((d) => d.data().status !== "removed")
+        .map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            nome: data.name || data.nome || "",
+            relacao: data.relationship || data.relacao || "",
+            fone: data.phone || data.fone || "",
+          };
+        });
+
+      return {
+        cadastro: {
+          ID: patientDocId,
+          Nome: pData.name || pData.nome || "Sem Nome",
+          Telefone: pData.phone || pData.fone || "",
+          Idade: pData.age || pData.idade || "",
+          Status: statName,
+          statusId: pData.statusId || "",
+          hospitalName: hospName,
+          hospitalId: pData.hospitalId || "",
+          roomNumber: pData.roomNumber || pData.quarto || "",
+          surgery_type: pData.surgery_type || "",
+          procedure: pData.procedure || pData.procedimento || "",
+        },
+        audios: logs,
+        imagens: files,
+        familiares: contacts,
+      };
     }
-
-    const effectiveGroupId = pData.groupId || groupId;
-
-    let contactsDocs: any[] = [];
-    let logsDocs: any[] = [];
-    let filesDocs: any[] = [];
-    let statusesDocs: any[] = [];
-    let hospitalsDocs: any[] = [];
-
-    await Promise.all([
-      (async () => {
-        try {
-          const snap = await getDocs(query(collection(db, "patients_contacts"), where("patientId", "==", patientDocId)));
-          contactsDocs = snap.docs;
-        } catch (e) {
-          console.warn("[patientService] Error fetching patients_contacts:", e);
-        }
-      })(),
-      (async () => {
-        try {
-          const snap = await getDocs(query(collection(db, "patient_logs"), where("patientId", "==", patientDocId)));
-          logsDocs = snap.docs;
-        } catch (e) {
-          console.warn("[patientService] Error fetching patient_logs:", e);
-        }
-      })(),
-      (async () => {
-        try {
-          const snap = await getDocs(query(collection(db, "files"), where("patientId", "==", patientDocId)));
-          filesDocs = snap.docs;
-        } catch (e) {
-          console.warn("[patientService] Error fetching files:", e);
-        }
-      })(),
-      (async () => {
-        try {
-          if (effectiveGroupId) {
-            const snap = await getDocs(query(collection(db, "patient_statuses"), where("groupId", "==", effectiveGroupId)));
-            statusesDocs = snap.docs;
-          }
-        } catch (e) {
-          console.warn("[patientService] Error fetching patient_statuses:", e);
-        }
-      })(),
-      (async () => {
-        try {
-          if (effectiveGroupId) {
-            const snap = await getDocs(query(collection(db, "hospitals"), where("groupId", "==", effectiveGroupId)));
-            hospitalsDocs = snap.docs;
-          }
-        } catch (e) {
-          console.warn("[patientService] Error fetching hospitals:", e);
-        }
-      })(),
-    ]);
-
-    const statusesMap = new Map<string, string>();
-    statusesDocs.forEach((d) => {
-      const dData = d.data();
-      statusesMap.set(d.id, dData.name || dData.nome || "");
-    });
-
-    const hospitalsMap = new Map<string, string>();
-    hospitalsDocs.forEach((d) => {
-      const dData = d.data();
-      hospitalsMap.set(d.id, dData.name || dData.nome || "");
-    });
-
-    const hospName =
-      (pData.hospitalId && hospitalsMap.get(pData.hospitalId)) ||
-      pData.hospitalName ||
-      pData.hospital_nome ||
-      pData.hospitalId ||
-      "Sem Hospital";
-
-    const statName =
-      (pData.statusId && statusesMap.get(pData.statusId)) ||
-      pData.status ||
-      "Sem Status";
-
-    const isVideoUrl = (url: string) => {
-      if (!url) return false;
-      const cleanUrl = url.split("?")[0].toLowerCase();
-      return (
-        cleanUrl.endsWith(".mp4") ||
-        cleanUrl.endsWith(".mov") ||
-        cleanUrl.endsWith(".webm") ||
-        cleanUrl.endsWith(".quicktime") ||
-        cleanUrl.endsWith(".m4v")
-      );
-    };
-    const isPdfUrl = (url: string) => {
-      if (!url) return false;
-      const cleanUrl = url.split("?")[0].toLowerCase();
-      return cleanUrl.endsWith(".pdf");
-    };
-
-    const files = filesDocs
-      .filter((d) => d.data().status !== "removed")
-      .map((d) => {
-        const data = d.data();
-        const fileTypeResolved =
-          data.fileType ||
-          (isVideoUrl(data.link || "")
-            ? "video"
-            : isPdfUrl(data.link || "")
-            ? "pdf"
-            : "image");
-        return {
-          id: d.id,
-          data: data.timestamp
-            ? (typeof data.timestamp.toDate === "function" ? data.timestamp.toDate() : new Date(data.timestamp)).toLocaleString("pt-BR", {
-                timeZone: "America/Sao_Paulo",
-              })
-            : "Recente",
-          descricao: data.description || "Arquivo",
-          link: data.link,
-          aiResposta: data.aiAnalysis || "",
-          fileType: fileTypeResolved,
-          contentType: data.contentType || "",
-          size: data.size || 0,
-          originalName: data.originalName || data.description || "Arquivo",
-          uploadedByEmail: data.uploadedByEmail || "",
-          encryption: data.encryption || null,
-        };
-      });
-
-    const logs = logsDocs
-      .filter((d) => d.data().status !== "removed")
-      .map((d) => {
-        const data = d.data();
-        const dateObj = data.createdAt || data.timestamp;
-        return {
-          id: d.id,
-          conteudo: data.text || data.description || "",
-          tipo: data.type || "texto",
-          data: dateObj
-            ? (typeof dateObj.toDate === "function" ? dateObj.toDate() : new Date(dateObj)).toLocaleString("pt-BR", {
-                timeZone: "America/Sao_Paulo",
-              })
-            : "Recente",
-        };
-      });
-
-    const contacts = contactsDocs
-      .filter((d) => d.data().status !== "removed")
-      .map((d) => {
-        const data = d.data();
-        return {
-          id: d.id,
-          nome: data.name || data.nome || "",
-          relacao: data.relationship || data.relacao || "",
-          fone: data.phone || data.fone || "",
-        };
-      });
-
-    return {
-      cadastro: {
-        ID: patientDocId,
-        Nome: pData.name || pData.nome || "Sem Nome",
-        Telefone: pData.phone || pData.fone || "",
-        Idade: pData.age || pData.idade || "",
-        Status: statName,
-        statusId: pData.statusId || "",
-        hospitalName: hospName,
-        hospitalId: pData.hospitalId || "",
-        roomNumber: pData.roomNumber || pData.quarto || "",
-        surgery_type: pData.surgery_type || "",
-        procedure: pData.procedure || pData.procedimento || "",
-      },
-      audios: logs,
-      imagens: files,
-      familiares: contacts,
-    };
   } catch (firestoreErr) {
     console.warn("[patientService] Direct getPatientReportData failed, trying API fallback:", firestoreErr);
-    if (apiFetch) {
-      const res = await apiFetch(`/api/app/patient-report/${patientId}`);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      return data;
-    }
-    throw firestoreErr;
   }
+
+  // 2. API fallback with 4s timeout
+  if (apiFetch) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await apiFetch(`/api/app/patient-report/${patientId}`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && !data.error) {
+          return data;
+        }
+      }
+    } catch (apiErr) {
+      console.warn("[patientService] apiFetch patient-report fallback failed:", apiErr);
+    }
+  }
+
+  throw new Error("Paciente não encontrado ou indisponível.");
 }

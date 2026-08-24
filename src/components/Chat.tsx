@@ -2669,12 +2669,53 @@ ${aiPart}
       
       setIsLoading(true);
       try {
-        const pRes = await apiFetch(`/api/app/patients/info/${id}`);
-        const p = await pRes.json();
-        if (p.error) throw new Error(p.error);
+        let p: any = null;
+
+        // 1. Direct Firestore read (instant and never times out)
+        try {
+          const pSnap = await getDoc(doc(db, "patients", id));
+          if (pSnap.exists()) {
+            p = { id: pSnap.id, ...pSnap.data() };
+          }
+        } catch (sdkErr) {
+          console.warn("[/edit_name] Direct getDoc error:", sdkErr);
+        }
+
+        // 2. Fallback query by id in patients collection
+        if (!p && activeGroup?.id) {
+          try {
+            const q = query(collection(db, "patients"), where("groupId", "==", activeGroup.id), where("id", "==", id));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+              p = { id: snap.docs[0].id, ...snap.docs[0].data() };
+            }
+          } catch (qErr) {}
+        }
+
+        // 3. API fallback with 3.5s timeout
+        if (!p && apiFetch) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3500);
+            const pRes = await apiFetch(`/api/app/patients/info/${id}`, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (pRes.ok) {
+              const pData = await pRes.json();
+              if (pData && !pData.error) {
+                p = pData;
+              }
+            }
+          } catch (apiErr) {
+            console.warn("[/edit_name] apiFetch failed or timed out:", apiErr);
+          }
+        }
+
+        if (!p) {
+          throw new Error("Paciente não encontrado.");
+        }
 
         // Resolve Names for Display
-        const currentHospital = allHospitals.find(h => h.id === p.hospitalId || h.nome === p.hospital_nome);
+        const currentHospital = allHospitals.find(h => h.id === p.hospitalId || h.nome === p.hospital_nome || h.nome === p.hospitalName);
         const currentStatus = allStatuses.find(s => s.id === p.statusId || s.nome === p.status);
         
         setMessages([{ 
@@ -2683,13 +2724,13 @@ ${aiPart}
           form: {
             title: "Atualizar Dados",
             fields: [
-              { label: "Nome", name: "nome", type: "text", defaultValue: p.name || p.Nome || "" },
-              { label: "Idade", name: "idade", type: "number", defaultValue: p.age || p.Idade || "" },
+              { label: "Nome", name: "nome", type: "text", defaultValue: p.name || p.Nome || p.nome || "" },
+              { label: "Idade", name: "idade", type: "number", defaultValue: p.age || p.Idade || p.idade || "" },
               { 
                 label: "Hospital", 
                 name: "hospitalName", 
                 type: "text", 
-                defaultValue: p.hospitalId || currentHospital?.id || "",
+                defaultValue: p.hospitalId || currentHospital?.id || p.hospitalName || "",
                 // @ts-ignore
                 readOnly: true,
                 hideInput: true,
@@ -2699,7 +2740,7 @@ ${aiPart}
                 label: "Status", 
                 name: "status", 
                 type: "text", 
-                defaultValue: p.statusId || currentStatus?.id || "",
+                defaultValue: p.statusId || currentStatus?.id || p.status || "",
                 // @ts-ignore
                 readOnly: true,
                 hideInput: true,
@@ -2713,7 +2754,7 @@ ${aiPart}
                 options: surgeryTypeOptions,
                 suggestions: surgeryTypeOptions.map(s => ({ label: s, value: s }))
               },
-              { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.roomNumber || p.room_number || "" },
+              { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.roomNumber || p.room_number || p.quarto || "" },
             ],
             submitLabel: "Salvar Alterações",
             commandPrefix: `/update_patient id: ${id},`,

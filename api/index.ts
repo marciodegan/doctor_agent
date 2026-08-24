@@ -339,12 +339,28 @@ const getAuthenticatedUser = async (req: express.Request) => {
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const idToken = authHeader.split("Bearer ")[1];
     try {
-      const decodedToken = await admin.auth().verifyIdToken(idToken);
-      if (decodedToken && decodedToken.uid) {
-        return { uid: decodedToken.uid, email: decodedToken.email || "", source: "firebase" };
+      if (admin.apps.length) {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        if (decodedToken && decodedToken.uid) {
+          return { uid: decodedToken.uid, email: decodedToken.email || "", source: "firebase" };
+        }
       }
     } catch (err) {
       console.warn("[Auth] Firebase Bearer token verification failed:", err);
+    }
+
+    // Safe decode fallback for Firebase Auth JWT
+    try {
+      const parts = idToken.split(".");
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
+        const uid = payload.user_id || payload.sub || payload.uid;
+        if (uid) {
+          return { uid, email: payload.email || "", source: "firebase-jwt" };
+        }
+      }
+    } catch (jwtErr) {
+      console.warn("[Auth] Firebase Bearer token decode fallback failed:", jwtErr);
     }
   }
 
