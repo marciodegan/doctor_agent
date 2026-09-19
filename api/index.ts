@@ -501,6 +501,23 @@ const requirePatientAccess = async (req: express.Request, patientId: string) => 
   }
 
   if (!patientDoc.exists) {
+    const groupIdHeader = getGroupId(req);
+    if (groupIdHeader) {
+      const qSnap = await db.collection("patients").where("groupId", "==", groupIdHeader).get();
+      const match = qSnap.docs.find(d => d.id === patientId || d.data().id === patientId || d.data().sequentialId === patientId);
+      if (match) {
+        patientDoc = match;
+      }
+    }
+    if (!patientDoc.exists) {
+      const qGlobal = await db.collection("patients").where("id", "==", patientId).get();
+      if (!qGlobal.empty) {
+        patientDoc = qGlobal.docs[0];
+      }
+    }
+  }
+
+  if (!patientDoc.exists) {
     const err = new Error("Patient not found");
     (err as any).statusCode = 404;
     throw err;
@@ -924,8 +941,8 @@ app.get("/api/app/patient-contacts/:patientId", async (req, res) => {
   }
 });
 
-app.post("/api/app/patient-logs", async (req, res) => {
-  const { patientId, text } = req.body;
+app.post("/api/app/patient-logs", express.json(), async (req, res) => {
+  const { patientId, text } = req.body || {};
   if (!patientId || !text) {
     return res.status(400).json({ error: "patientId and text are required" });
   }
@@ -948,8 +965,8 @@ app.post("/api/app/patient-logs", async (req, res) => {
   }
 });
 
-app.post("/api/app/patient-contacts", async (req, res) => {
-  const { patientId, name, relationship, phone } = req.body;
+app.post("/api/app/patient-contacts", express.json(), async (req, res) => {
+  const { patientId, name, relationship, phone } = req.body || {};
   if (!patientId || !name) {
     return res.status(400).json({ error: "patientId and name are required" });
   }
