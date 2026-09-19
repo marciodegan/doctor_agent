@@ -79,30 +79,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAuthenticated(!!data.isAuthenticated);
 
       if (data.isAuthenticated && !fbAuth.currentUser) {
-        try {
-          const fbController = new AbortController();
-          const fbTimeoutId = setTimeout(() => fbController.abort(), 8000);
+        const syncFirebaseToken = async (attempts = 2) => {
+          for (let i = 1; i <= attempts; i++) {
+            try {
+              console.log(`[Auth] Requesting /api/auth/firebase-token (attempt ${i}/${attempts})...`);
+              const fbController = new AbortController();
+              const fbTimeoutId = setTimeout(() => fbController.abort(), 25000);
 
-          const fbRes = await fetch("/api/auth/firebase-token", { 
-            credentials: 'include',
-            signal: fbController.signal
-          });
-          clearTimeout(fbTimeoutId);
+              const fbRes = await fetch("/api/auth/firebase-token", { 
+                credentials: 'include',
+                signal: fbController.signal
+              });
+              clearTimeout(fbTimeoutId);
 
-          if (fbRes.ok) {
-            const { customToken } = await fbRes.json();
-            await signInWithCustomToken(fbAuth, customToken);
-            console.log("[Auth] Firebase authenticated successfully with customToken");
-          } else if (fbRes.status === 401) {
-            await logout();
-            return;
-          } else {
-            const errData = await fbRes.json().catch(() => ({}));
-            console.error("[Auth] Falha ao obter Firebase Custom Token (HTTP " + fbRes.status + "):", errData);
+              if (fbRes.ok) {
+                const { customToken } = await fbRes.json();
+                await signInWithCustomToken(fbAuth, customToken);
+                console.log("[Auth] Firebase authenticated successfully with customToken");
+                return;
+              } else if (fbRes.status === 401) {
+                await logout();
+                return;
+              } else {
+                const errData = await fbRes.json().catch(() => ({}));
+                console.error(`[Auth] Attempt ${i} failed (HTTP ${fbRes.status}):`, errData);
+              }
+            } catch (e: any) {
+              console.warn(`[Auth] Attempt ${i} token error:`, e?.message || e);
+            }
+            if (i < attempts) {
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+            }
           }
-        } catch (e) {
-          console.error("[Auth] Erro ao autenticar no Firebase com customToken:", e);
-        }
+        };
+
+        syncFirebaseToken();
       }
     } catch (error) {
       console.warn("[Auth] checkAuth error or timeout:", error);
