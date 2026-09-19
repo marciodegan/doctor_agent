@@ -504,7 +504,25 @@ export async function getPatientReportData(
 ): Promise<any> {
   if (!patientId) throw new Error("ID do paciente é obrigatório.");
 
-  // 1. Direct Firestore client SDK first (instant and never 504s on serverless)
+  // 1. Try server API first (Admin SDK, never hits client Firestore rules or permission issues)
+  if (apiFetch) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await apiFetch(`/api/app/patient-report/${patientId}`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && !data.error) {
+          return data;
+        }
+      }
+    } catch (apiErr) {
+      console.warn("[patientService] apiFetch patient-report failed, falling back to client SDK:", apiErr);
+    }
+  }
+
+  // 2. Direct Firestore client SDK fallback
   try {
     let pData: any = null;
     let patientDocId = patientId;
@@ -706,25 +724,7 @@ export async function getPatientReportData(
       };
     }
   } catch (firestoreErr) {
-    console.warn("[patientService] Direct getPatientReportData failed, trying API fallback:", firestoreErr);
-  }
-
-  // 2. API fallback with 4s timeout
-  if (apiFetch) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await apiFetch(`/api/app/patient-report/${patientId}`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && !data.error) {
-          return data;
-        }
-      }
-    } catch (apiErr) {
-      console.warn("[patientService] apiFetch patient-report fallback failed:", apiErr);
-    }
+    console.warn("[patientService] Direct getPatientReportData failed:", firestoreErr);
   }
 
   throw new Error("Paciente não encontrado ou indisponível.");

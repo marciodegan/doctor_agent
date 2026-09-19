@@ -21,22 +21,28 @@ service cloud.firestore {
     }
 
     function isMember(groupId) {
+      if (!(groupId is string) || groupId == "") {
+        return false;
+      }
       let memberDoc = /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
       let groupDoc = /databases/$(database)/documents/groups/$(groupId);
       return isSignedIn() && (
-        (exists(memberDoc) && (get(memberDoc).data.status == "active" || get(memberDoc).data.status == "conectado")) ||
-        (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid)
+        (exists(memberDoc) && (get(memberDoc).data.get('status', '') == "active" || get(memberDoc).data.get('status', '') == "conectado")) ||
+        (exists(groupDoc) && get(groupDoc).data.get('createdBy', '') == request.auth.uid)
       );
     }
     
     function isOwner(groupId) {
+      if (!(groupId is string) || groupId == "") {
+        return false;
+      }
       let memberDoc = /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
       let groupDoc = /databases/$(database)/documents/groups/$(groupId);
       return isSignedIn() && (
-        (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid) ||
+        (exists(groupDoc) && get(groupDoc).data.get('createdBy', '') == request.auth.uid) ||
         (exists(memberDoc) && 
-         (get(memberDoc).data.role == "owner" || get(memberDoc).data.role == "admin") &&
-         (get(memberDoc).data.status == "active" || get(memberDoc).data.status == "conectado"))
+         (get(memberDoc).data.get('role', '') == "owner" || get(memberDoc).data.get('role', '') == "admin") &&
+         (get(memberDoc).data.get('status', '') == "active" || get(memberDoc).data.get('status', '') == "conectado"))
       );
     }
 
@@ -214,57 +220,19 @@ service cloud.firestore {
     }
 
     match /family_members/{memberId} {
-      allow read, write: if isSignedIn() && (
-        (resource != null && (
-          (resource.data.get('groupId', '') != '' && isMember(resource.data.groupId)) ||
-          (resource.data.get('patientId', '') != '' && canAccessPatient(resource.data.patientId))
-        )) ||
-        (request.resource != null && (
-          (request.resource.data.get('groupId', '') != '' && isMember(request.resource.data.groupId)) ||
-          (request.resource.data.get('patientId', '') != '' && canAccessPatient(request.resource.data.patientId))
-        ))
-      );
+      allow read, write: if isSignedIn();
     }
 
     match /patients_contacts/{contactId} {
-      allow read, write: if isSignedIn() && (
-        (resource != null && (
-          (resource.data.get('groupId', '') != '' && isMember(resource.data.groupId)) ||
-          (resource.data.get('patientId', '') != '' && canAccessPatient(resource.data.patientId))
-        )) ||
-        (request.resource != null && (
-          (request.resource.data.get('groupId', '') != '' && isMember(request.resource.data.groupId)) ||
-          (request.resource.data.get('patientId', '') != '' && canAccessPatient(request.resource.data.patientId))
-        ))
-      );
+      allow read, write: if isSignedIn();
     }
 
     match /patient_logs/{logId} {
-      allow read, write: if isSignedIn() && (
-        (resource != null && (
-          (resource.data.get('groupId', '') != '' && isMember(resource.data.groupId)) ||
-          (resource.data.get('patientId', '') != '' && canAccessPatient(resource.data.patientId))
-        )) ||
-        (request.resource != null && (
-          (request.resource.data.get('groupId', '') != '' && isMember(request.resource.data.groupId)) ||
-          (request.resource.data.get('patientId', '') != '' && canAccessPatient(request.resource.data.patientId))
-        ))
-      );
+      allow read, write: if isSignedIn();
     }
 
     match /files/{fileId} {
-      allow read: if isSignedIn() && (
-        isMember(resource.data.groupId) || 
-        (resource.data.patientId != null && canAccessPatient(resource.data.patientId))
-      );
-      allow create: if isSignedIn() && (
-        isMember(incoming().groupId) || 
-        (incoming().patientId != null && canAccessPatient(incoming().patientId))
-      );
-      allow update: if isSignedIn() && (
-        isMember(existing().groupId) && isMember(incoming().groupId)
-      );
-      allow delete: if isSignedIn() && isMember(existing().groupId);
+      allow read, write: if isSignedIn();
     }
   }
 }
