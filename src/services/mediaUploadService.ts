@@ -15,64 +15,6 @@ export interface UploadOptions {
   onProgress?: (progress: number) => void;
 }
 
-async function uploadViaServerApi(
-  fileBlob: File | Blob,
-  fileName: string,
-  storagePath: string,
-  mimeType: string,
-  originalName: string,
-  onProgress?: (progress: number) => void
-): Promise<string> {
-  if (onProgress) onProgress(10);
-
-  const base64Data = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const res = reader.result as string;
-      if (!res) return reject(new Error("Falha ao converter arquivo para envio."));
-      const commaIdx = res.indexOf(",");
-      resolve(commaIdx !== -1 ? res.substring(commaIdx + 1) : res);
-    };
-    reader.onerror = (e) => reject(e);
-    reader.readAsDataURL(fileBlob);
-  });
-
-  if (onProgress) onProgress(40);
-
-  const res = await fetch("/api/storage/upload", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name: fileName,
-      mimeType: mimeType,
-      base64Data: base64Data,
-      storagePath: storagePath,
-      customMetadata: {
-        originalName: originalName,
-        contentType: mimeType,
-      },
-    }),
-  });
-
-  if (onProgress) onProgress(85);
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || `Erro no servidor de upload (${res.status}).`);
-  }
-
-  const data = await res.json();
-  const url = data.downloadURL || data.downloadUrl || data.webViewLink || data.webContentLink;
-  if (!url) {
-    throw new Error("O servidor não retornou um link de acesso válido para o arquivo.");
-  }
-
-  if (onProgress) onProgress(100);
-  return url;
-}
-
 export const mediaUploadService = {
   validateFile(file: File): { isValid: boolean; error?: string } {
     const mime = (file.type || "").toLowerCase();
@@ -80,7 +22,7 @@ export const mediaUploadService = {
     const ext = name.split(".").pop() || "";
     
     const isImage = mime.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext);
-    const isVideo = mime.startsWith("video/") || mime.includes("hevc") || mime.includes("h265") || ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "h265", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv", "ts"].includes(ext);
+    const isVideo = mime.startsWith("video/") || ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
     const isPdf = mime === "application/pdf" || ext === "pdf";
 
     // Standard limits
@@ -119,7 +61,7 @@ export const mediaUploadService = {
     const ext = name.split(".").pop() || "";
 
     const isImage = mime.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext);
-    const isVideo = mime.startsWith("video/") || mime.includes("hevc") || mime.includes("h265") || ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "h265", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv", "ts"].includes(ext);
+    const isVideo = mime.startsWith("video/") || ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
     const isPdf = mime === "application/pdf" || ext === "pdf";
 
     let fileTypeResolved: "image" | "video" | "pdf" = "image";
@@ -131,9 +73,11 @@ export const mediaUploadService = {
 
     // Determine contentType
     let originalContentType = mime;
-    if (!originalContentType || originalContentType === "application/octet-stream" || originalContentType === "application/x-utext" || originalContentType.includes("hevc") || originalContentType.includes("h265")) {
+    if (!originalContentType || originalContentType === "application/octet-stream" || originalContentType === "application/x-utext") {
       if (ext === "mov" || ext === "qt" || ext === "quicktime") originalContentType = "video/quicktime";
-      else if (ext === "mp4" || ext === "m4v" || ext === "hevc" || ext === "h265" || originalContentType.includes("hevc") || originalContentType.includes("h265")) originalContentType = "video/mp4";
+      else if (ext === "mp4") originalContentType = "video/mp4";
+      else if (ext === "m4v") originalContentType = "video/x-m4v";
+      else if (ext === "hevc") originalContentType = "video/hevc";
       else if (ext === "webm") originalContentType = "video/webm";
       else if (ext === "avi") originalContentType = "video/x-msvideo";
       else if (ext === "wmv") originalContentType = "video/x-ms-wmv";
@@ -144,7 +88,6 @@ export const mediaUploadService = {
       else if (ext === "heic") originalContentType = "image/heic";
       else if (ext === "heif") originalContentType = "image/heif";
       else if (ext === "pdf") originalContentType = "application/pdf";
-      else if (isVideo) originalContentType = "video/mp4";
       else originalContentType = "application/octet-stream";
     }
 
@@ -189,55 +132,42 @@ export const mediaUploadService = {
       storagePath = `groups/${groupId}/patients/${patientId}/files/${timestamp}-${safeFileName}`;
     }
 
-    let downloadURL = "";
-    try {
-      console.log("[mediaUploadService] Starting direct Firebase Storage upload...");
-      console.log("- file.name:", file.name);
-      console.log("- storage path:", storagePath);
+    console.log("[mediaUploadService] Starting direct Firebase Storage upload...");
+    console.log("- file.name:", file.name);
+    console.log("- storage path:", storagePath);
 
-      // Initiate upload
-      const storageRef = ref(storage, storagePath);
-      const metadata = {
-        contentType: isEncrypted ? "application/octet-stream" : originalContentType,
-        customMetadata: {
-          originalName: file.name,
-          contentType: originalContentType,
+    // Initiate upload
+    const storageRef = ref(storage, storagePath);
+    const metadata = {
+      contentType: isEncrypted ? "application/octet-stream" : originalContentType,
+      customMetadata: {
+        originalName: file.name,
+        contentType: originalContentType,
+      },
+    };
+
+    const uploadTask = uploadBytesResumable(storageRef, fileToUpload, metadata);
+
+    const downloadURL = await new Promise<string>((resolve, reject) => {
+      uploadTask.on(
+        "state_changed",
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          if (onProgress) onProgress(progress);
         },
-      };
-
-      const uploadTask = uploadBytesResumable(storageRef, fileToUpload, metadata);
-
-      downloadURL = await new Promise<string>((resolve, reject) => {
-        uploadTask.on(
-          "state_changed",
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            if (onProgress) onProgress(progress);
-          },
-          (error) => {
-            reject(error);
-          },
-          async () => {
-            try {
-              const url = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve(url);
-            } catch (err) {
-              reject(err);
-            }
+        (error) => {
+          reject(error);
+        },
+        async () => {
+          try {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(url);
+          } catch (err) {
+            reject(err);
           }
-        );
-      });
-    } catch (clientUploadErr: any) {
-      console.warn("[mediaUploadService] Direct client upload failed/unauthorized. Falling back to backend server upload API...", clientUploadErr);
-      downloadURL = await uploadViaServerApi(
-        fileToUpload,
-        safeFileName,
-        storagePath,
-        isEncrypted ? "application/octet-stream" : originalContentType,
-        file.name,
-        onProgress
+        }
       );
-    }
+    });
 
     console.log("[mediaUploadService] Upload successful. downloadURL:", downloadURL);
 

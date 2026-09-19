@@ -113,7 +113,7 @@ export function Calendar({
 
     let isMounted = true;
     const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
-    const q = query(eventsRef);
+    const q = query(eventsRef, orderBy("data"), orderBy("hora"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!isMounted) return;
@@ -121,14 +121,6 @@ export function Calendar({
         id: doc.id,
         ...doc.data()
       })) as CalendarEvent[];
-      fetchedEvents.sort((a, b) => {
-        const dateA = a.data || "";
-        const dateB = b.data || "";
-        if (dateA !== dateB) return dateA.localeCompare(dateB);
-        const timeA = a.hora || "";
-        const timeB = b.hora || "";
-        return timeA.localeCompare(timeB);
-      });
       setEvents(fetchedEvents);
       setIsLoading(false);
     }, (error) => {
@@ -151,39 +143,30 @@ export function Calendar({
 
     // Fetch Procedure Options
     const procRef = collection(db, "procedureOptions");
-    const qProc = query(procRef, where("groupId", "==", gId));
+    const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
     const unsubProc = onSnapshot(qProc, (snap) => {
       if (!isMounted) return;
-      const items = snap.docs
-        .map(d => ({ nome: d.data().nome || d.data().name || "", active: d.data().active }))
-        .sort((a, b) => a.nome.localeCompare(b.nome));
-      setAllProcedures(items);
+      setAllProcedures(snap.docs.map(d => ({ nome: d.data().nome, active: d.data().active })));
     }, (err) => console.error("Error fetching procedures:", err));
 
     // Fetch Surgery Types
     const typeRef = collection(db, "surgery_types");
-    const qType = query(typeRef, where("groupId", "==", gId));
+    const qType = query(typeRef, where("groupId", "==", gId), orderBy("name"));
     const unsubType = onSnapshot(qType, (snap) => {
       if (!isMounted) return;
-      const items = snap.docs
-        .map(d => ({ name: d.data().name || d.data().nome || "", active: d.data().active }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setAllSurgeryTypes(items);
+      setAllSurgeryTypes(snap.docs.map(d => ({ name: d.data().name, active: d.data().active })));
     }, (err) => console.error("Error fetching surgery types:", err));
 
     // Fetch Hospitals
     const hospRef = collection(db, "hospitals");
-    const qHosp = query(hospRef, where("groupId", "==", gId));
+    const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
     const unsubHosp = onSnapshot(qHosp, (snap) => {
       if (!isMounted) return;
-      const items = snap.docs
-        .map(d => ({ 
-          id: d.id, 
-          nome: d.data().name || d.data().nome || "",
-          active: d.data().active
-        }))
-        .sort((a, b) => a.nome.localeCompare(b.nome));
-      setAllHospitals(items);
+      setAllHospitals(snap.docs.map(d => ({ 
+        id: d.id, 
+        nome: d.data().name,
+        active: d.data().active
+      })));
     }, (err) => console.error("Error fetching hospitals:", err));
 
     return () => {

@@ -8,7 +8,6 @@ import {
   FileText,
   ShoppingCart,
   StickyNote,
-  Trello,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGroup } from "../contexts/GroupContext";
@@ -50,22 +49,10 @@ export function BottomNav({
       prompt: isPersonal ? "/drive" : "/pacientes",
     },
     {
-      id: "trello",
-      label: "Trello",
-      icon: <Trello size={20} />,
-      prompt: "/trello",
-    },
-    {
       id: "calendar",
       label: "Calendário",
       icon: <Calendar size={20} />,
       prompt: "/open_calendar",
-    },
-    {
-      id: "medications",
-      label: "Medicações",
-      icon: <ShoppingCart size={20} />,
-      prompt: "/medications",
     },
     {
       id: "notes",

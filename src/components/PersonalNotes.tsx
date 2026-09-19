@@ -55,7 +55,8 @@ export const PersonalNotes: React.FC<PersonalNotesProps> = ({ onNavigateToShoppi
 
     const q = query(
       collection(db, "user_notes"),
-      where("userId", "==", user.uid)
+      where("userId", "==", user.uid),
+      orderBy("createdAt", "desc")
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -64,12 +65,6 @@ export const PersonalNotes: React.FC<PersonalNotesProps> = ({ onNavigateToShoppi
         ...doc.data()
       })) as Note[];
       
-      fetchedNotes.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt || 0);
-        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt || 0);
-        return timeB - timeA;
-      });
-
       setNotes(fetchedNotes);
       setIsLoading(false);
     }, (error) => {

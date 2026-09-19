@@ -222,12 +222,8 @@ export async function decryptFile(
     );
 
     console.log("[Crypto] File decrypted successfully");
-    let effectiveType = originalContentType || "application/octet-stream";
-    if (effectiveType.includes("hevc") || effectiveType.includes("h265")) {
-      effectiveType = "video/mp4";
-    }
     const decryptedBlob = new Blob([decryptedBuffer], {
-      type: effectiveType,
+      type: originalContentType,
     });
 
     return URL.createObjectURL(decryptedBlob);

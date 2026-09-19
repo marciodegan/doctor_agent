@@ -16,12 +16,8 @@ export async function fetchLatestVersion(): Promise<VersionConfig | null> {
     if (docSnap.exists()) {
       return docSnap.data() as VersionConfig;
     }
-  } catch (error: any) {
-    if (error?.message?.includes("offline")) {
-      console.warn("[VersionCheck] App is running in offline mode or network is unreachable.");
-    } else {
-      console.error("Error fetching latest app version from Firestore:", error);
-    }
+  } catch (error) {
+    console.error("Error fetching latest app version from Firestore:", error);
   }
   return null;
 }

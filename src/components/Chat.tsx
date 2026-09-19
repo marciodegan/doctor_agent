@@ -27,16 +27,6 @@ import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 import { PatientListView } from "./PatientListView";
 import { E2EMedia } from "./E2EMedia";
 import { mediaUploadService } from "../services/mediaUploadService";
-import { PatientProfileSheet } from "./PatientProfileSheet";
-import { generatePatientReport } from "../lib/patientReport";
-import { 
-  getGroupPatientsData, 
-  createPatient, 
-  updatePatientStatus, 
-  updatePatientInfo, 
-  removePatientRecord, 
-  getPatientReportData 
-} from "../lib/patientService";
 
 
 const sanitizeFileName = (fileName: string): string => {
@@ -169,9 +159,9 @@ const isImageFile = (file: File): boolean => {
 
 const isVideoFile = (file: File): boolean => {
   const mime = (file.type || "").toLowerCase();
-  if (mime.startsWith("video/") || mime.includes("hevc") || mime.includes("h265")) return true;
+  if (mime.startsWith("video/")) return true;
   const ext = (file.name || "").toLowerCase().split(".").pop() || "";
-  return ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "h265", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv", "ts"].includes(ext);
+  return ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
 };
 
 const isPdfFile = (file: File): boolean => {
@@ -191,10 +181,6 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     cleanUrl.endsWith(".mov") ||
     cleanUrl.endsWith(".webm") ||
     cleanUrl.endsWith(".m4v") ||
-    cleanUrl.endsWith(".hevc") ||
-    cleanUrl.endsWith(".h265") ||
-    cleanUrl.endsWith(".qt") ||
-    cleanUrl.endsWith(".quicktime") ||
     cleanUrl.endsWith(".avi") ||
     cleanUrl.endsWith(".3gp") ||
     cleanUrl.endsWith(".mkv") ||
@@ -202,10 +188,6 @@ const isVideoUrl = (url: string | null | undefined): boolean => {
     decodedUrl.endsWith(".mov") ||
     decodedUrl.endsWith(".webm") ||
     decodedUrl.endsWith(".m4v") ||
-    decodedUrl.endsWith(".hevc") ||
-    decodedUrl.endsWith(".h265") ||
-    decodedUrl.endsWith(".qt") ||
-    decodedUrl.endsWith(".quicktime") ||
     decodedUrl.endsWith(".avi") ||
     decodedUrl.endsWith(".3gp") ||
     decodedUrl.endsWith(".mkv")
@@ -301,7 +283,14 @@ const MessageForm: React.FC<{
     setIsRemovingPatient(true);
     setRemovalError(null);
     try {
-      await removePatientRecord(patientId, auth.currentUser?.uid, auth.currentUser?.email || undefined, apiFetch);
+      const response = await apiFetch(`/api/app/patients/${patientId}/remove`, {
+        method: "POST"
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Erro ao remover paciente.");
+      }
+      
       setShowRemovePatientConfirm(false);
       onSubmit("/pacientes");
     } catch (err: any) {
@@ -794,7 +783,7 @@ const MessageForm: React.FC<{
             id="native-image-upload"
             ref={fileInputRef}
             type="file"
-            accept="image/*,video/*,application/pdf,.hevc,.h265,.mov,.mp4,.m4v,.qt,.quicktime"
+            accept="image/*,video/*,application/pdf"
             onChange={handleFileChange}
             style={{
               position: "absolute",
@@ -814,7 +803,7 @@ const MessageForm: React.FC<{
 
           {selectedImage ? (
             <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-200 bg-slate-900 flex items-center justify-center group">
-              {(selectedFileObj && isPdfFile(selectedFileObj)) || isPdfUrl(selectedImage) ? (
+              {isPdfUrl(selectedImage) ? (
                 <div className="flex flex-col items-center gap-2 p-6 text-center text-white h-full w-full bg-gradient-to-br from-slate-800 to-slate-950 justify-center">
                   <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500">
                     <FileText size={28} />
@@ -828,8 +817,8 @@ const MessageForm: React.FC<{
                     </span>
                   )}
                 </div>
-              ) : (selectedFileObj && isVideoFile(selectedFileObj)) || isVideoUrl(selectedImage) ? (
-                <video src={selectedImage} controls playsInline preload="metadata" className="w-full h-full object-contain" />
+              ) : isVideoUrl(selectedImage) ? (
+                <video src={selectedImage} controls className="w-full h-full object-contain" />
               ) : (
                 <img src={selectedImage} alt="Preview" className="w-full h-full object-contain" />
               )}
@@ -843,7 +832,7 @@ const MessageForm: React.FC<{
                 className="absolute top-3 right-3 px-3 py-1.5 bg-red-600/90 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-1.5 active:scale-95 text-[10px] font-black uppercase tracking-widest backdrop-blur-sm cursor-pointer z-10"
               >
                 <X size={12} strokeWidth={3} />
-                Remover {(selectedFileObj && isPdfFile(selectedFileObj)) || isPdfUrl(selectedImage) ? "Documento" : (selectedFileObj && isVideoFile(selectedFileObj)) || isVideoUrl(selectedImage) ? "Vídeo" : "Imagem"}
+                Remover {isPdfUrl(selectedImage) ? "Documento" : isVideoUrl(selectedImage) ? "Vídeo" : "Imagem"}
               </button>
             </div>
           ) : (
@@ -1049,11 +1038,10 @@ const MessageForm: React.FC<{
 
 export const Chat: React.FC<{ 
   onNavigateToCalendar?: () => void,
-  onNavigateToTrello?: () => void,
   onViewLogs?: (patientId: string) => void,
   initialCommand?: string | null,
   onCommandExecuted?: () => void
-}> = ({ onNavigateToCalendar, onNavigateToTrello, onViewLogs, initialCommand, onCommandExecuted }) => {
+}> = ({ onNavigateToCalendar, onViewLogs, initialCommand, onCommandExecuted }) => {
   const { activeGroup, companyName, whatsappNumber, imageAnalysisPrompt, apiFetch, getGroupCryptoKey } = useGroup();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -1085,13 +1073,10 @@ export const Chat: React.FC<{
     
     // Afinidades
     const affinityRef = collection(db, "affinity");
-    const qAffinity = query(affinityRef, where("groupId", "==", gId));
+    const qAffinity = query(affinityRef, where("groupId", "==", gId), orderBy("name"));
     const unsubAffinity = onSnapshot(qAffinity, (snap) => {
       if (!isMounted) return;
-      const sorted = snap.docs
-        .map(d => ({ id: d.id, name: d.data().name || "" }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setGroupAffinities(sorted);
+      setGroupAffinities(snap.docs.map(d => ({ id: d.id, name: d.data().name })));
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "affinity");
@@ -1099,10 +1084,10 @@ export const Chat: React.FC<{
     
     // Statuses
     const statusRef = collection(db, "patient_statuses");
-    const qStatus = query(statusRef, where("groupId", "==", gId));
+    const qStatus = query(statusRef, where("groupId", "==", gId), orderBy("name"));
     const unsubStatus = onSnapshot(qStatus, (snap) => {
       if (!isMounted) return;
-      const items = snap.docs.map(d => {
+      setGroupStatuses(snap.docs.map(d => {
         const data = d.data();
         return {
           id: d.id,
@@ -1111,14 +1096,7 @@ export const Chat: React.FC<{
           status: data.status,
           sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : undefined
         };
-      });
-      items.sort((a, b) => {
-        const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
-        const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
-        if (orderA !== orderB) return orderA - orderB;
-        return (a.nome || "").localeCompare(b.nome || "");
-      });
-      setGroupStatuses(items);
+      }));
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "patient_statuses");
@@ -1126,13 +1104,10 @@ export const Chat: React.FC<{
 
     // Hospitals
     const hospRef = collection(db, "hospitals");
-    const qHosp = query(hospRef, where("groupId", "==", gId));
+    const qHosp = query(hospRef, where("groupId", "==", gId), orderBy("name"));
     const unsubHosp = onSnapshot(qHosp, (snap) => {
       if (!isMounted) return;
-      const items = snap.docs
-        .map(d => ({ id: d.id, nome: d.data().name || d.data().nome || "", active: d.data().active }))
-        .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
-      setGroupHospitals(items);
+      setGroupHospitals(snap.docs.map(d => ({ id: d.id, nome: d.data().name, active: d.data().active })));
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "hospitals");
@@ -1140,13 +1115,10 @@ export const Chat: React.FC<{
 
     // Procedures
     const procRef = collection(db, "procedureOptions");
-    const qProc = query(procRef, where("groupId", "==", gId));
+    const qProc = query(procRef, where("groupId", "==", gId), orderBy("nome"));
     const unsubProc = onSnapshot(qProc, (snap) => {
       if (!isMounted) return;
-      const items = snap.docs
-        .map(d => ({ id: d.id, nome: d.data().nome || d.data().name || "", active: d.data().active }))
-        .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
-      setGroupProcedures(items);
+      setGroupProcedures(snap.docs.map(d => ({ id: d.id, nome: d.data().nome, active: d.data().active })));
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "procedureOptions");
@@ -1154,13 +1126,10 @@ export const Chat: React.FC<{
 
     // Image Types
     const imageTypesRef = collection(db, "image_types");
-    const qImageTypes = query(imageTypesRef, where("groupId", "==", gId));
+    const qImageTypes = query(imageTypesRef, where("groupId", "==", gId), orderBy("name"));
     const unsubImageTypes = onSnapshot(qImageTypes, (snap) => {
       if (!isMounted) return;
-      const items = snap.docs
-        .map(d => ({ id: d.id, name: d.data().name || "", active: d.data().active }))
-        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-      setImageTypes(items);
+      setImageTypes(snap.docs.map(d => ({ id: d.id, name: d.data().name, active: d.data().active })));
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "image_types");
@@ -1168,13 +1137,10 @@ export const Chat: React.FC<{
 
     // Surgery Types
     const surgeryTypesRef = collection(db, "surgery_types");
-    const qSurgeryTypes = query(surgeryTypesRef, where("groupId", "==", gId));
+    const qSurgeryTypes = query(surgeryTypesRef, where("groupId", "==", gId), orderBy("nome"));
     const unsubSurgeryTypes = onSnapshot(qSurgeryTypes, (snap) => {
       if (!isMounted) return;
-      const items = snap.docs
-        .map(d => ({ id: d.id, nome: d.data().nome || d.data().name || "", active: d.data().active }))
-        .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
-      setGroupSurgeryTypes(items);
+      setGroupSurgeryTypes(snap.docs.map(d => ({ id: d.id, nome: d.data().nome, active: d.data().active })));
     }, (err) => {
       if (!isMounted) return;
       handleFirestoreError(err, OperationType.LIST, "surgery_types");
@@ -2087,16 +2053,9 @@ ${aiPart}
     if (cmd === "/iniciarrelat") {
       setIsLoading(true);
       try {
-        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
-        let data: any[] = [];
-        if (currentGroupId) {
-          const groupData = await getGroupPatientsData(currentGroupId, apiFetch);
-          data = groupData.patients || [];
-        } else {
-          const res = await apiFetch("/api/app/patients");
-          data = await res.json();
-        }
-        if ((data as any).error) throw new Error((data as any).error);
+        const res = await apiFetch("/api/app/patients");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
         
         const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - \`/p ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
@@ -2122,16 +2081,9 @@ ${aiPart}
     if (cmd === "/iniciarlog") {
       setIsLoading(true);
       try {
-        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
-        let data: any[] = [];
-        if (currentGroupId) {
-          const groupData = await getGroupPatientsData(currentGroupId, apiFetch);
-          data = groupData.patients || [];
-        } else {
-          const res = await apiFetch("/api/app/patients");
-          data = await res.json();
-        }
-        if ((data as any).error) throw new Error((data as any).error);
+        const res = await apiFetch("/api/app/patients");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
         
         const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - Digite \`/logpac ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
@@ -2149,16 +2101,9 @@ ${aiPart}
     if (cmd === "/iniciarfamiliar") {
       setIsLoading(true);
       try {
-        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
-        let data: any[] = [];
-        if (currentGroupId) {
-          const groupData = await getGroupPatientsData(currentGroupId, apiFetch);
-          data = groupData.patients || [];
-        } else {
-          const res = await apiFetch("/api/app/patients");
-          data = await res.json();
-        }
-        if ((data as any).error) throw new Error((data as any).error);
+        const res = await apiFetch("/api/app/patients");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
         
         const list = data.map((p: any) => `• **${p.nome}** (ID: ${p.id}) - \`/novo_familiar ${p.id}\``).join("\n\n");
         setMessages(prev => [...prev, { 
@@ -2322,7 +2267,7 @@ ${aiPart}
     if (cmd.startsWith("/p ") || (/^\/p\d+/i).test(cmd)) {
       let id = "";
       if (cmd.startsWith("/p ")) {
-        id = cmdInput.replace(/^\/p\s+/i, "").split(/\s+/)[0]?.trim();
+        id = cmdInput.split(" ")[1];
       } else {
         id = cmd.match(/\/p(\d+)/i)?.[1] || "";
       }
@@ -2331,11 +2276,11 @@ ${aiPart}
 
       setIsLoading(true);
       try {
-        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
-        const data = await getPatientReportData(id, currentGroupId, apiFetch);
-        if (data?.error) throw new Error(data.error);
+        const res = await apiFetch(`/api/app/patient-report/${id}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
 
-        const cad = data?.cadastro || {};
+        const cad = data.cadastro;
         const reportText = generatePatientReport(data);
 
         setMessages([{ 
@@ -2344,20 +2289,19 @@ ${aiPart}
           isProfile: true,
           reportData: data,
           profileData: {
-            id: (cad.ID || id || "").toString(),
-            nome: cad.Nome || cad.nome || cad.name || "Paciente",
-            idade: cad.Idade ? cad.Idade.toString() : (cad.idade ? cad.idade.toString() : "N/A"),
-            status: cad.Status || cad.status || "Sem Status",
-            hospitalId: cad.hospitalId || "",
-            hospitalNome: allHospitals.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome || h.nome === cad.hospitalName)?.nome || cad.hospital_nome || cad.hospitalName || "Não informado",
-            roomNumber: cad.roomNumber || cad.room_number || cad.quarto || "Sala ?",
+            id: cad.ID.toString(),
+            nome: cad.Nome,
+            idade: cad.Idade ? cad.Idade.toString() : "N/A",
+            status: cad.Status,
+            hospitalId: cad.hospitalId,
+            hospitalNome: allHospitals.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome)?.nome || cad.hospital_nome || "Não informado",
+            roomNumber: cad.roomNumber || cad.room_number || "Sala ?",
             surgery_type: cad.surgery_type || "",
-            procedure: cad.procedure || cad.procedimento || ""
+            procedure: cad.procedure || ""
           }
         }]);
         setTimeout(scrollToTop, 0);
       } catch (err: any) {
-        console.error("Error loading patient report:", err);
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro: ${err.message}` }]);
       } finally {
         setIsLoading(false);
@@ -2395,44 +2339,22 @@ ${aiPart}
         const hospitalFilter = getFilterValue('hospital');
         const statusFilter = getFilterValue('status');
 
-        let data: any[] = [];
-        let masterHospitalsData: any[] = [];
-        let masterStatuses: any[] = [];
+        let apiUrl = "/api/app/patients?full=true";
+        if (hospitalFilter !== undefined) {
+          apiUrl += `&hospitalId=${encodeURIComponent(hospitalFilter)}`;
+        }
+        if (statusFilter !== undefined) {
+          apiUrl += `&statusId=${encodeURIComponent(statusFilter)}`;
+        }
 
-        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
+        const res = await apiFetch(apiUrl);
+        const json = await res.json();
         
-        if (currentGroupId) {
-          try {
-            const groupData = await getGroupPatientsData(currentGroupId, apiFetch);
-            data = groupData.patients || [];
-            masterHospitalsData = groupData.hospitals || [];
-            masterStatuses = groupData.statuses || [];
-          } catch (e) {
-            console.warn("[Chat] getGroupPatientsData failed:", e);
-          }
-        }
-
-        if (data.length === 0 && masterHospitalsData.length === 0) {
-          let apiUrl = "/api/app/patients?full=true";
-          if (hospitalFilter !== undefined) {
-            apiUrl += `&hospitalId=${encodeURIComponent(hospitalFilter)}`;
-          }
-          if (statusFilter !== undefined) {
-            apiUrl += `&statusId=${encodeURIComponent(statusFilter)}`;
-          }
-
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          const res = await apiFetch(apiUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
-          const json = await res.json();
-          
-          if (json.error) throw new Error(json.error);
-          
-          data = json.patients || [];
-          masterHospitalsData = json.hospitals || [];
-          masterStatuses = json.statuses || [];
-        }
+        if (json.error) throw new Error(json.error);
+        
+        const data = json.patients || [];
+        const masterHospitalsData = json.hospitals || [];
+        const masterStatuses = json.statuses || [];
 
         let page = 1;
         let sort = "id";
@@ -2591,17 +2513,10 @@ ${aiPart}
 
         if (!termo && cmdInput.includes("termo:")) throw new Error("Informe um nome para buscar.");
         
-        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
-        let data: any[] = [];
-        if (currentGroupId) {
-          const groupData = await getGroupPatientsData(currentGroupId, apiFetch);
-          data = groupData.patients || [];
-        } else {
-          const apiUrl = termo ? `/api/app/patients?search=${encodeURIComponent(termo)}` : "/api/app/patients";
-          const res = await apiFetch(apiUrl);
-          data = await res.json();
-        }
-        if ((data as any).error) throw new Error((data as any).error);
+        const apiUrl = termo ? `/api/app/patients?search=${encodeURIComponent(termo)}` : "/api/app/patients";
+        const res = await apiFetch(apiUrl);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
 
         let filtered = data;
         if (termo) {
@@ -2669,54 +2584,15 @@ ${aiPart}
       
       setIsLoading(true);
       try {
-        let p: any = null;
-
-        // 1. Direct Firestore read (instant and never times out)
-        try {
-          const pSnap = await getDoc(doc(db, "patients", id));
-          if (pSnap.exists()) {
-            p = { id: pSnap.id, ...pSnap.data() };
-          }
-        } catch (sdkErr) {
-          console.warn("[/edit_name] Direct getDoc error:", sdkErr);
-        }
-
-        // 2. Fallback query by id in patients collection
-        if (!p && activeGroup?.id) {
-          try {
-            const q = query(collection(db, "patients"), where("groupId", "==", activeGroup.id), where("id", "==", id));
-            const snap = await getDocs(q);
-            if (!snap.empty) {
-              p = { id: snap.docs[0].id, ...snap.docs[0].data() };
-            }
-          } catch (qErr) {}
-        }
-
-        // 3. API fallback with 3.5s timeout
-        if (!p && apiFetch) {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3500);
-            const pRes = await apiFetch(`/api/app/patients/info/${id}`, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (pRes.ok) {
-              const pData = await pRes.json();
-              if (pData && !pData.error) {
-                p = pData;
-              }
-            }
-          } catch (apiErr) {
-            console.warn("[/edit_name] apiFetch failed or timed out:", apiErr);
-          }
-        }
-
-        if (!p) {
-          throw new Error("Paciente não encontrado.");
-        }
+        const pRes = await apiFetch(`/api/app/patient-report/${id}`);
+        const pData = await pRes.json();
+        if (pData.error) throw new Error(pData.error);
+        
+        const p = pData.cadastro;
 
         // Resolve Names for Display
-        const currentHospital = allHospitals.find(h => h.id === p.hospitalId || h.nome === p.hospital_nome || h.nome === p.hospitalName);
-        const currentStatus = allStatuses.find(s => s.id === p.statusId || s.nome === p.status);
+        const currentHospital = allHospitals.find(h => h.id === p.hospitalId || h.nome === p.hospital_nome);
+        const currentStatus = allStatuses.find(s => s.id === p.Status || s.nome === p.Status);
         
         setMessages([{ 
           role: "model", 
@@ -2724,13 +2600,13 @@ ${aiPart}
           form: {
             title: "Atualizar Dados",
             fields: [
-              { label: "Nome", name: "nome", type: "text", defaultValue: p.name || p.Nome || p.nome || "" },
-              { label: "Idade", name: "idade", type: "number", defaultValue: p.age || p.Idade || p.idade || "" },
+              { label: "Nome", name: "nome", type: "text", defaultValue: p.Nome },
+              { label: "Idade", name: "idade", type: "number", defaultValue: p.Idade || "" },
               { 
                 label: "Hospital", 
                 name: "hospitalName", 
                 type: "text", 
-                defaultValue: p.hospitalId || currentHospital?.id || p.hospitalName || "",
+                defaultValue: p.hospitalId || currentHospital?.id || "",
                 // @ts-ignore
                 readOnly: true,
                 hideInput: true,
@@ -2740,7 +2616,7 @@ ${aiPart}
                 label: "Status", 
                 name: "status", 
                 type: "text", 
-                defaultValue: p.statusId || currentStatus?.id || p.status || "",
+                defaultValue: p.statusId || currentStatus?.id || "",
                 // @ts-ignore
                 readOnly: true,
                 hideInput: true,
@@ -2750,11 +2626,11 @@ ${aiPart}
                 label: "Prioridade/Tipo", 
                 name: "surgery_type", 
                 type: "select", 
-                defaultValue: p.surgery_type || "",
+                defaultValue: p.surgery_type,
                 options: surgeryTypeOptions,
                 suggestions: surgeryTypeOptions.map(s => ({ label: s, value: s }))
               },
-              { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.roomNumber || p.room_number || p.quarto || "" },
+              { label: "Quarto/Leito", name: "roomNumber", type: "text", defaultValue: p.roomNumber || p.room_number || "" },
             ],
             submitLabel: "Salvar Alterações",
             commandPrefix: `/update_patient id: ${id},`,
@@ -2786,23 +2662,28 @@ ${aiPart}
         if (!id) throw new Error("ID não identificado.");
 
         // Resolve Names to IDs
-        const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName || h.id === hospitalName);
-        const resolvedHospitalId = selectedHospital ? selectedHospital.id : (hospitalName || "");
+        const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName);
+        const resolvedHospitalId = selectedHospital ? selectedHospital.id : hospitalName;
 
-        const selectedStatus = statusOptions.find(s => s.nome === status || s.id === status);
-        const resolvedStatusId = selectedStatus ? selectedStatus.id : (status || "");
+        const selectedStatus = statusOptions.find(s => s.nome === status);
+        const resolvedStatusId = selectedStatus ? selectedStatus.id : status;
 
-        await updatePatientInfo(id, {
-          nome,
-          fone,
-          idade,
-          hospitalId: resolvedHospitalId,
-          hospitalName: selectedHospital?.nome || hospitalName,
-          roomNumber,
-          statusId: resolvedStatusId,
-          status: selectedStatus?.nome || status,
-          surgery_type
-        }, apiFetch);
+        const res = await apiFetch("/api/app/patients/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            id, 
+            nome, 
+            fone, 
+            idade, 
+            hospitalName: resolvedHospitalId, 
+            roomNumber,
+            status: resolvedStatusId,
+            surgery_type
+          })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
 
         // Clear screen and show updated report
         setMessages([]);
@@ -2974,13 +2855,6 @@ ${aiPart}
       return true;
     }
 
-    if (cmd.startsWith("/trello") || cmd.startsWith("/kanban")) {
-      if (onNavigateToTrello) {
-        onNavigateToTrello();
-      }
-      return true;
-    }
-
     if (cmd.startsWith("/img")) {
       setIsLoading(true);
       setUploadProgress(0);
@@ -3102,30 +2976,32 @@ ${aiPart}
         if (!nome) throw new Error("O campo 'nome:' é obrigatório.");
 
         // Resolve Names to IDs
-        const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName || h.id === hospitalName);
+        const selectedHospital = hospitalOptions.find(h => h.nome === hospitalName);
         const resolvedHospitalId = selectedHospital ? selectedHospital.id : (hospitalName || "");
 
         const selectedStatus = statusOptions.find(s => s.nome === status || s.id === status);
         const resolvedStatusId = selectedStatus ? selectedStatus.id : (status || "");
 
-        const currentGroupId = activeGroup?.id || (typeof window !== "undefined" ? localStorage.getItem("activeGroupId") : "") || "";
-
-        const result = await createPatient(currentGroupId, {
-          nome,
-          fone,
-          idade,
-          cpf,
-          hospitalId: resolvedHospitalId,
-          hospitalName: selectedHospital?.nome || hospitalName,
-          roomNumber,
-          statusId: resolvedStatusId,
-          status: selectedStatus?.nome || status,
-          procedimento,
-          surgery_type
-        }, apiFetch);
+        const res = await apiFetch("/api/app/patients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            nome, 
+            fone, 
+            idade, 
+            cpf, 
+            hospitalName: resolvedHospitalId, 
+            roomNumber,
+            status: resolvedStatusId,
+            procedimento,
+            surgery_type
+          })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
 
         setMessages([]);
-        await handleDirectCommand(`/p ${result.id}`);
+        await handleDirectCommand("/pacientes");
       } catch (err: any) {
         setMessages(prev => [...prev, { role: "model", text: `❌ Erro no cadastro: ${err.message}` }]);
       } finally {
@@ -3409,38 +3285,54 @@ ${aiPart}
     }
 
     if (cmd.startsWith("/status_alterar")) {
-      const rest = cmdInput.replace(/^\/status_alterar\s*/i, "");
-      const parts = rest.split("|").map(s => s.trim());
-      const patId = parts[0];
-      const patientName = parts[1] || "Paciente selecionado";
-
+      const patId = cmdInput.split(" ")[1];
       if (!patId) return true;
 
-      const effectiveStatuses = groupStatuses.length > 0 ? groupStatuses : [
-        { id: "pre", nome: "Pré-operatório" },
-        { id: "cirurgia", nome: "Cirurgia Realizada" },
-        { id: "pos", nome: "Pós-operatório" },
-        { id: "alta", nome: "Alta" },
-        { id: "uti", nome: "UTI" }
-      ];
+      if (groupStatuses.length === 0) {
+        setMessages(prev => [...prev, { role: "model", text: "⚠️ Configure os status do grupo no painel de gestão para usar esta função." }]);
+        return true;
+      }
 
       setMessages([]); // NEW VIEW
-      setIsLoading(false);
+      setIsLoading(true);
+      try {
+        const patientRes = await apiFetch(`/api/app/patients/info/${patId}`);
+        const patientData = await patientRes.json();
+        const patientName = patientData.nome || patientData.name || "Paciente selecionado";
 
-      setMessages([{
-        role: "model",
-        text: `🏷️ **Alterar Status**\n\n**Paciente:** ${patientName}\n\nEscolha o novo status para o paciente:`,
-        patientNameForStatus: patientName,
-        actionGroups: [
-          {
-            title: "Selecione o Status",
-            actions: effectiveStatuses.map((s: any) => ({
-              label: s.nome || s.name || s.status,
-              cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome || s.name || s.status}`
-            }))
-          }
-        ]
-      }]);
+        setMessages([{
+          role: "model",
+          text: `🏷️ **Alterar Status**\n\n**Paciente:** ${patientName}\n\nEscolha o novo status para o paciente:`,
+          patientNameForStatus: patientName,
+          actionGroups: [
+            {
+              title: "Selecione o Status",
+              actions: groupStatuses.map((s: any) => ({
+                label: s.nome,
+                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome}`
+              }))
+            }
+          ]
+        }]);
+      } catch (err) {
+        console.error("Erro ao obter nome do paciente:", err);
+        setMessages([{
+          role: "model",
+          text: `🏷️ **Alterar Status**\n\n**Paciente:** Paciente selecionado\n\nEscolha o novo status para o paciente:`,
+          patientNameForStatus: "Paciente selecionado",
+          actionGroups: [
+            {
+              title: "Selecione o Status",
+              actions: groupStatuses.map((s: any) => ({
+                label: s.nome,
+                cmd: `/status_apply pac: ${patId}, sid: ${s.id}, sname: ${s.nome}`
+              }))
+            }
+          ]
+        }]);
+      } finally {
+        setIsLoading(false);
+      }
       return true;
     }
 
@@ -3456,13 +3348,13 @@ ${aiPart}
 
       setIsLoading(true);
       try {
-        await updatePatientStatus(
-          pacId, 
-          statusId, 
-          sname, 
-          auth.currentUser?.displayName || auth.currentUser?.email || undefined, 
-          apiFetch
-        );
+        const res = await apiFetch("/api/app/patients/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patientId: pacId, status: statusId, statusName: sname })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
 
         setMessages([]); // Clear to refresh with report
         await handleDirectCommand(`/p ${pacId}`);
@@ -3689,7 +3581,63 @@ ${aiPart}
                       </button>
                     </div>
                   )}
-                  {/* Patient profile sheet is rendered below in message body */}
+                  {msg.isProfile && msg.profileData && (
+                    <>
+                      {/* Patient header card */}
+                      <div className="glass-card rounded-3xl p-5 flex flex-row items-center justify-between gap-4 relative overflow-hidden shadow-sm">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
+                        
+                        {/* Coluna da Esquerda: Nome, Idade e Botão Editar */}
+                        <div className="flex flex-col items-start relative z-10 min-w-0 flex-1">
+                          <h3 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight leading-tight truncate w-full mb-1.5">
+                            {msg.profileData.nome}
+                          </h3>
+                          <div className="flex flex-row items-center gap-2 mt-0.5">
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg shrink-0 uppercase tracking-wider">
+                              {(msg.profileData.idade && msg.profileData.idade !== "N/A" && msg.profileData.idade !== "") 
+                                ? `${msg.profileData.idade} ${Number(msg.profileData.idade) === 1 ? "ANO" : "ANOS"}`
+                                : "Idade N/A"}
+                            </span>
+                            <button 
+                              onClick={() => handleDirectCommand(`/edit_name ${msg.profileData?.id}`)}
+                              className="text-[9px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50/50 px-2.5 py-1 rounded-lg hover:bg-blue-100/75 transition-all shrink-0 font-sans"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Coluna da Direita: Hospital e Quarto */}
+                        <div className="flex flex-col items-end gap-1 relative z-10 shrink-0 text-right min-w-[100px] max-w-[150px] sm:max-w-[220px]">
+                          <div className="text-xs font-bold text-blue-500 tracking-tight truncate w-full uppercase" title={msg.profileData?.hospitalNome || "Sem Hospital"}>
+                            {msg.profileData?.hospitalNome || "Sem Hospital"}
+                          </div>
+                          <div className="text-[11px] font-medium text-slate-400 truncate w-full">
+                            Quarto: {msg.profileData?.roomNumber || "Não inf."}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status and schedule actions */}
+                      <div className="flex flex-row items-center justify-between gap-3">
+                        <button 
+                          onClick={() => handleDirectCommand(`/status_alterar ${msg.profileData?.id}`)}
+                          className="w-1/2 glass-button border-blue-100/40 h-11 rounded-2xl text-blue-600 text-xs font-bold uppercase tracking-wider flex items-center justify-center hover:bg-white/70 transition-all active:scale-95 shadow-sm"
+                        >
+                          <span className="max-w-[125px] sm:max-w-none truncate px-1">
+                            {allStatuses.find(s => s.id === msg.profileData?.status)?.nome || (msg.profileData?.status && msg.profileData?.status !== "Não informado" ? msg.profileData?.status : "Sem Status")}
+                          </span>
+                        </button>
+                        <button 
+                          onClick={() => handleDirectCommand(`/calendario_form pid: ${msg.profileData?.id}, paciente: ${msg.profileData?.nome}, hospId: ${msg.profileData?.hospitalId}, room: ${msg.profileData?.roomNumber}, type: ${msg.profileData?.surgery_type}, procedure: ${msg.profileData?.procedure || ""}`)}
+                          className="w-1/2 bg-emerald-600 text-white h-11 rounded-2xl shadow-lg shadow-emerald-500/10 hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] text-xs font-bold uppercase tracking-wider"
+                        >
+                          <CalendarPlus size={16} className="text-emerald-100 shrink-0" />
+                          <span className="truncate px-1 font-bold">Agendar Novo</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
                   {msg.image && (
                     <div className="max-w-full rounded-lg mb-2 shadow-sm overflow-hidden bg-slate-100 flex items-center justify-center">
                       <E2EMedia
@@ -3708,18 +3656,7 @@ ${aiPart}
                     <div className="whitespace-pre-wrap">{msg.text}</div>
                   ) : (
                     <>
-                      {msg.isProfile ? (
-                        <PatientProfileSheet
-                          msg={msg}
-                          allStatuses={allStatuses}
-                          allHospitals={allHospitals}
-                          handleSend={handleSend}
-                          handleDirectCommand={handleDirectCommand}
-                          setConfirmCommand={setConfirmCommand}
-                          isVideoUrl={isVideoUrl}
-                          isPdfUrl={isPdfUrl}
-                        />
-                      ) : msg.isPatientListing && msg.patientListData ? (
+                      {msg.isPatientListing && msg.patientListData ? (
                         <PatientListView
                           patients={msg.patientListData.patients}
                           statuses={msg.patientListData.statuses}
@@ -3733,6 +3670,11 @@ ${aiPart}
                       ) : (
                         (() => {
                           const text = msg.text || "";
+                          const idxContatos = text.indexOf("`/novofamiliar");
+                          const idxInformacoes = text.indexOf("`/logpac");
+                          const idxImagens = text.indexOf("`/prep_img");
+
+                          const isSplitNeeded = msg.isProfile && idxContatos !== -1 && idxInformacoes !== -1 && idxImagens !== -1;
 
                           const mdComponents = {
                             a({ children, ...props }: any) {
@@ -3913,6 +3855,451 @@ ${aiPart}
                               return <img src={src} alt={alt} {...props} referrerPolicy="no-referrer" />;
                             }
                           };
+
+                          if (isSplitNeeded) {
+                            const headerPart = text.substring(0, idxContatos);
+                            const contatosPart = text.substring(idxContatos, idxInformacoes);
+                            const informacoesPart = text.substring(idxInformacoes, idxImagens);
+                            const imagensPart = text.substring(idxImagens);
+
+                            // Helper parsers:
+                            const parseSectionPart = (partText: string) => {
+                              const firstBacktick = partText.indexOf('`');
+                              if (firstBacktick === -1) return null;
+                              const secondBacktick = partText.indexOf('`', firstBacktick + 1);
+                              if (secondBacktick === -1) return null;
+
+                              const command = partText.substring(firstBacktick + 1, secondBacktick).trim();
+                              
+                              const afterBacktick = partText.substring(secondBacktick + 1);
+                              const titleMatch = afterBacktick.match(/\*\*([^*]+)\*\*/);
+                              const title = titleMatch ? titleMatch[1].replace(":", "").trim() : "Seção";
+
+                              let content = afterBacktick;
+                              if (titleMatch) {
+                                const titleIndex = afterBacktick.indexOf(titleMatch[0]);
+                                content = afterBacktick.substring(titleIndex + titleMatch[0].length);
+                              }
+
+                              return {
+                                command,
+                                title,
+                                content: content.trim()
+                              };
+                            };
+
+                            const parseContatos = (contText: string) => {
+                              const lines = contText.split('\n').map(l => l.trim()).filter(Boolean);
+                              const items: { name: string; phoneLinkText: string; waUrl: string; editCmd?: string; trashCmd?: string }[] = [];
+                              
+                              let currentItem: any = null;
+
+                              for (let i = 0; i < lines.length; i++) {
+                                const line = lines[i];
+                                if (line.toLowerCase().includes("nenhum registro")) {
+                                  continue;
+                                }
+
+                                const waMatchSimple = line.match(/\*\*([^*]+)\*\*(?:\s+\(([^)]+)\))?\s*(?:\[📞\s*\*\*([^*]+)\*\*\]\(([^)]+)\)|📞\s*(Sem\s+telefone))/i);
+
+                                if (waMatchSimple) {
+                                  if (currentItem) {
+                                    items.push(currentItem);
+                                  }
+                                  const rawName = waMatchSimple[1].trim();
+                                  const relation = waMatchSimple[2]?.trim() || "";
+                                  const phoneVal = waMatchSimple[3]?.trim() || waMatchSimple[5]?.trim() || "";
+                                  const urlVal = waMatchSimple[4]?.trim() || "";
+                                  
+                                  const fullName = relation ? `${rawName} (${relation})` : rawName;
+
+                                  currentItem = {
+                                    name: fullName,
+                                    phoneLinkText: phoneVal,
+                                    waUrl: urlVal,
+                                  };
+                                } else if (line.includes("/editar_familiar") || line.includes("/remover_familiar")) {
+                                  if (currentItem) {
+                                    const editMatch = line.match(/`(\/editar_familiar[^`]+)`/);
+                                    const trashMatch = line.match(/`(\/remover_familiar[^`]+)`/);
+                                    if (editMatch) currentItem.editCmd = editMatch[1];
+                                    if (trashMatch) currentItem.trashCmd = trashMatch[1];
+                                  }
+                                }
+                              }
+
+                              if (currentItem) {
+                                items.push(currentItem);
+                              }
+
+                              return items;
+                            };
+
+                            const parseInformacoes = (infText: string) => {
+                              const lines = infText.split('\n').map(l => l.trim()).filter(Boolean);
+                              const items: { content: string; date: string; editCmd?: string; trashCmd?: string }[] = [];
+                              
+                              let currentItem: any = null;
+
+                              for (let i = 0; i < lines.length; i++) {
+                                const line = lines[i];
+                                if (line.toLowerCase().includes("nenhum registro")) {
+                                  continue;
+                                }
+
+                                const contentMatch = line.match(/^\*\*([^*]+)\*\*$/);
+                                const dateMatch = line.match(/^_([^_]+)_$/);
+
+                                if (contentMatch) {
+                                  if (currentItem) {
+                                    items.push(currentItem);
+                                  }
+                                  currentItem = {
+                                    content: contentMatch[1].trim(),
+                                    date: "",
+                                  };
+                                } else if (dateMatch && currentItem) {
+                                  currentItem.date = dateMatch[1].trim();
+                                } else if (line.includes("/editar_log") || line.includes("/remover_informacao")) {
+                                  if (currentItem) {
+                                    const editMatch = line.match(/`(\/editar_log[^`]+)`/);
+                                    const trashMatch = line.match(/`(\/remover_informacao[^`]+)`/);
+                                    if (editMatch) currentItem.editCmd = editMatch[1];
+                                    if (trashMatch) currentItem.trashCmd = trashMatch[1];
+                                  }
+                                }
+                              }
+
+                              if (currentItem) {
+                                items.push(currentItem);
+                              }
+
+                              return items;
+                            };
+
+                            const parseImagens = (imgText: string) => {
+                              const blocks = imgText.split('---').map(b => b.trim()).filter(Boolean);
+                              const items: { src: string; alt: string; date: string; trashCmd?: string; aiAnalysis?: string }[] = [];
+
+                              blocks.forEach(block => {
+                                if (block.toLowerCase().includes("nenhum registro")) {
+                                  return;
+                                }
+                                const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+                                let src = "";
+                                let alt = "";
+                                let date = "";
+                                let trashCmd = "";
+                                let aiAnalysis = "";
+
+                                const imgMatch = block.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+                                if (imgMatch) {
+                                  alt = imgMatch[1];
+                                  src = imgMatch[2];
+                                }
+
+                                const descMatch = block.match(/\*\*([^*]+)\*\*/);
+                                if (descMatch) {
+                                  const parsedDesc = descMatch[1].trim();
+                                  if (!alt && parsedDesc) alt = parsedDesc;
+                                }
+
+                                const dateMatch = block.match(/_([^_~]+)_/);
+                                if (dateMatch) {
+                                  date = dateMatch[1].trim();
+                                }
+
+                                const trashMatch = block.match(/`(\/remover_imagem[^`]+)`/);
+                                if (trashMatch) {
+                                  trashCmd = trashMatch[1];
+                                }
+
+                                const aiLines = lines.filter(l => l.startsWith(">"));
+                                if (aiLines.length > 0) {
+                                  aiAnalysis = aiLines
+                                    .map(l => l.replace(/^>\s*/, "").replace(/🤖\s*\*\*Análise Inteligente:\*\*/, "").trim())
+                                    .filter(Boolean)
+                                    .join("\n");
+                                }
+
+                                if (src || alt) {
+                                  items.push({ src, alt, date, trashCmd, aiAnalysis });
+                                }
+                              });
+
+                              return items;
+                            };
+
+                            const contatosData = parseSectionPart(contatosPart);
+                            const informacoesData = parseSectionPart(informacoesPart);
+                            const imagensData = parseSectionPart(imagensPart);
+
+                            const contatosItems = contatosData ? parseContatos(contatosData.content) : [];
+                            const informacoesItems = informacoesData ? parseInformacoes(informacoesData.content) : [];
+                            const imagensItems = imagensData ? parseImagens(imagensData.content) : [];
+
+                            return (
+                              <div className="flex flex-col gap-6">
+                                {headerPart.trim() && (
+                                  <div 
+                                    className="markdown-body prose prose-sm max-w-none [&_p]:mb-1.5 last:[&_p]:mb-0 bg-white rounded-3xl border border-gray-100 shadow-sm p-4"
+                                  >
+                                    <ReactMarkdown rehypePlugins={[rehypeRaw]} components={mdComponents}>
+                                      {headerPart}
+                                    </ReactMarkdown>
+                                  </div>
+                                )}
+
+                                {/* --- SECTION CARD: CONTATOS --- */}
+                                {contatosData && (
+                                  <div className="bg-white rounded-[1.25rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                                    {/* Section Header */}
+                                    <div className="bg-blue-50/50 px-5 py-3.5 border-b border-blue-100/50 flex items-center gap-3">
+                                      <button
+                                        onClick={() => {
+                                          handleSend(undefined, contatosData.command, false);
+                                        }}
+                                        className="bg-blue-600 text-white w-7 h-7 flex items-center justify-center rounded-full hover:bg-blue-700 transition-all font-bold shadow-md shadow-blue-500/20 shrink-0"
+                                      >
+                                        <Plus size={14} strokeWidth={3} />
+                                      </button>
+                                      <span className="text-sm font-bold text-blue-900 uppercase tracking-wider font-sans">
+                                        {contatosData.title}
+                                      </span>
+                                    </div>
+
+                                    {/* Section Content */}
+                                    <div className="p-5 flex flex-col gap-4">
+                                      {contatosItems.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic font-medium">Nenhum registro</p>
+                                      ) : (
+                                        contatosItems.map((c, idx) => (
+                                          <div key={idx} className="flex flex-col gap-2 pb-4 last:pb-0 border-b border-gray-50 last:border-0">
+                                            <div className="flex flex-row items-center justify-between gap-4">
+                                              <div className="flex flex-col min-w-0 flex-1">
+                                                <span className="font-semibold text-slate-800 text-sm leading-snug">
+                                                  {c.name}
+                                                </span>
+                                                {c.phoneLinkText && (
+                                                  c.waUrl ? (
+                                                    <a 
+                                                      href={c.waUrl}
+                                                      onClick={(e) => {
+                                                        e.preventDefault();
+                                                        window.location.href = c.waUrl;
+                                                      }}
+                                                      className="text-xs font-medium text-blue-600 hover:underline inline-flex items-center gap-1 mt-0.5"
+                                                    >
+                                                      📞 {c.phoneLinkText}
+                                                    </a>
+                                                  ) : (
+                                                    <span className="text-xs text-slate-400 mt-0.5">
+                                                      {c.phoneLinkText}
+                                                    </span>
+                                                  )
+                                                )}
+                                              </div>
+
+                                              {/* Action Buttons */}
+                                              <div className="flex items-center gap-1.5 shrink-0">
+                                                {c.editCmd && (
+                                                  <button
+                                                    onClick={() => handleDirectCommand(c.editCmd!)}
+                                                    className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100/70 transition-all font-sans text-xs active:scale-90"
+                                                    title="Editar Familiar"
+                                                  >
+                                                    ✏️
+                                                  </button>
+                                                )}
+                                                {c.trashCmd && (
+                                                  <button
+                                                    onClick={() => {
+                                                      setConfirmCommand({
+                                                        title: "Remover este contato do histórico?",
+                                                        cmd: c.trashCmd!,
+                                                        shouldClear: false
+                                                      });
+                                                    }}
+                                                    className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100/70 transition-all font-sans text-xs active:scale-90"
+                                                    title="Remover Familiar"
+                                                  >
+                                                    🗑️
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* --- SECTION CARD: INFORMAÇÕES --- */}
+                                {informacoesData && (
+                                  <div className="bg-white rounded-[1.25rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                                    {/* Section Header */}
+                                    <div className="bg-blue-50/50 px-5 py-3.5 border-b border-blue-100/50 flex items-center gap-3">
+                                      <button
+                                        onClick={() => {
+                                          handleSend(undefined, informacoesData.command, false);
+                                        }}
+                                        className="bg-blue-600 text-white w-7 h-7 flex items-center justify-center rounded-full hover:bg-blue-700 transition-all font-bold shadow-md shadow-blue-500/20 shrink-0"
+                                      >
+                                        <Plus size={14} strokeWidth={3} />
+                                      </button>
+                                      <span className="text-sm font-bold text-blue-900 uppercase tracking-wider font-sans">
+                                        {informacoesData.title}
+                                      </span>
+                                    </div>
+
+                                    {/* Section Content */}
+                                    <div className="p-5 flex flex-col gap-4">
+                                      {informacoesItems.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic font-medium">Nenhum registro</p>
+                                      ) : (
+                                        informacoesItems.map((inf, idx) => (
+                                          <div key={idx} className="flex flex-col gap-2 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
+                                            <div className="flex flex-row items-start justify-between gap-4">
+                                              <div className="flex flex-col min-w-0 flex-1">
+                                                <p className="text-sm text-slate-700 font-medium leading-relaxed break-words whitespace-pre-wrap">
+                                                  {inf.content}
+                                                </p>
+                                                {inf.date && (
+                                                  <span className="text-[11px] font-medium text-slate-400 mt-1">
+                                                    {inf.date}
+                                                  </span>
+                                                )}
+                                              </div>
+
+                                              {/* Action Buttons */}
+                                              <div className="flex items-center gap-1.5 shrink-0">
+                                                {inf.editCmd && (
+                                                  <button
+                                                    onClick={() => handleDirectCommand(inf.editCmd!)}
+                                                    className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100/70 transition-all font-sans text-xs active:scale-90"
+                                                    title="Editar Informação"
+                                                  >
+                                                    ✏️
+                                                  </button>
+                                                )}
+                                                {inf.trashCmd && (
+                                                  <button
+                                                    onClick={() => {
+                                                      setConfirmCommand({
+                                                        title: "Remover esta informação do histórico?",
+                                                        cmd: inf.trashCmd!,
+                                                        shouldClear: false
+                                                      });
+                                                    }}
+                                                    className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100/70 transition-all font-sans text-xs active:scale-90"
+                                                    title="Remover Informação"
+                                                  >
+                                                    🗑️
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* --- SECTION CARD: IMAGENS --- */}
+                                {imagensData && (
+                                  <div className="bg-white rounded-[1.25rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                                    {/* Section Header */}
+                                    <div className="bg-blue-50/50 px-5 py-3.5 border-b border-blue-100/50 flex items-center gap-3">
+                                      <button
+                                        onClick={() => {
+                                          handleSend(undefined, imagensData.command, false);
+                                        }}
+                                        className="bg-blue-600 text-white w-7 h-7 flex items-center justify-center rounded-full hover:bg-blue-700 transition-all font-bold shadow-md shadow-blue-500/20 shrink-0"
+                                      >
+                                        <Plus size={14} strokeWidth={3} />
+                                      </button>
+                                      <span className="text-sm font-bold text-blue-900 uppercase tracking-wider font-sans">
+                                        {imagensData.title}
+                                      </span>
+                                    </div>
+
+                                    {/* Section Content */}
+                                    <div className="p-5 flex flex-col gap-5">
+                                      {imagensItems.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic font-medium">Nenhum registro</p>
+                                      ) : (
+                                        imagensItems.map((img, idx) => {
+                                          const originalRecord = msg.reportData?.imagens?.find((item: any) => item.link === img.src);
+                                          const encryptionMeta = originalRecord?.encryption;
+
+                                          return (
+                                            <div key={idx} className="flex flex-col gap-3 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
+                                              {img.src && (
+                                                <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-slate-100">
+                                                  <E2EMedia
+                                                    src={img.src}
+                                                    encryption={encryptionMeta}
+                                                    fallbackType={isPdfUrl(img.src) ? "pdf" : isVideoUrl(img.src) ? "video" : "image"}
+                                                    alt={img.alt || "Imagem de exame"}
+                                                    className="w-full h-full object-cover animate-fade-in"
+                                                  />
+                                                </div>
+                                              )}
+                                              
+                                              <div className="flex flex-row items-center justify-between gap-4">
+                                                <div className="flex flex-col min-w-0 flex-1">
+                                                  <span className="font-semibold text-slate-800 text-sm leading-snug">
+                                                    {img.alt || "Sem descrição"}
+                                                  </span>
+                                                  {img.date && (
+                                                    <span className="text-[11px] font-medium text-slate-400 mt-1">
+                                                      {img.date}
+                                                    </span>
+                                                  )}
+                                                </div>
+
+                                                {/* Action Buttons */}
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                  {img.trashCmd && (
+                                                    <button
+                                                      onClick={() => {
+                                                        setConfirmCommand({
+                                                          title: "Remover esta imagem?",
+                                                          cmd: img.trashCmd!,
+                                                          shouldClear: false
+                                                        });
+                                                      }}
+                                                      className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100/70 transition-all font-sans text-xs active:scale-90"
+                                                      title="Remover Imagem"
+                                                    >
+                                                      🗑️
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              </div>
+
+                                              {img.aiAnalysis && (
+                                                <div className="bg-blue-50/10 border border-blue-50/50 rounded-2xl p-3.5 text-xs text-slate-600 mt-1 flex flex-col gap-1.5">
+                                                  <span className="font-bold text-blue-800 flex items-center gap-1">
+                                                    🤖 Análise Inteligente:
+                                                  </span>
+                                                  <p className="whitespace-pre-wrap leading-relaxed">
+                                                    {img.aiAnalysis}
+                                                  </p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
 
                           if (msg.patientNameForStatus) {
                             return (

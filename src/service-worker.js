@@ -1,6 +1,6 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from "workbox-precaching";
 
-const APP_VERSION = "1.0.8";
+const APP_VERSION = "1.0.6";
 const CACHE_NAME = `dr-agent-runtime-v${APP_VERSION}`;
 
 console.log("[PWA] Service worker initializing version:", APP_VERSION);
@@ -22,12 +22,12 @@ const manifestFilter = (self.__WB_MANIFEST || []).filter((entry) => {
 precacheAndRoute(manifestFilter);
 
 self.addEventListener("install", (event) => {
-  console.log("[PWA] Service Worker installing, skip waiting immediately");
+  console.log("[PWA] Service Worker installing");
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  console.log("[PWA] Service Worker activating - purging outdated caches");
+  console.log("[PWA] Service Worker activating");
 
   event.waitUntil(
     caches
@@ -35,9 +35,14 @@ self.addEventListener("activate", (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames
-            .filter((cacheName) => cacheName !== CACHE_NAME)
+            .filter((cacheName) => {
+              return (
+                cacheName !== CACHE_NAME &&
+                !cacheName.includes("workbox-precache")
+              );
+            })
             .map((cacheName) => {
-              console.log("[PWA] Removing legacy/outdated cache:", cacheName);
+              console.log("[PWA] Removing old cache:", cacheName);
               return caches.delete(cacheName);
             })
         );
@@ -58,26 +63,16 @@ self.addEventListener("fetch", (event) => {
 
   const requestUrl = new URL(request.url);
 
-  // Ignore non-http protocols
   if (!requestUrl.protocol.startsWith("http")) {
     return;
   }
 
-  // CRITICAL: NEVER intercept cross-origin requests (e.g. firestore.googleapis.com, identitytoolkit.googleapis.com, googleapis.com)
-  // Let the browser handle external/Firebase/cloud services directly
-  if (requestUrl.origin !== self.location.origin) {
-    return;
-  }
-
-  // CRITICAL: NEVER intercept server API routes or static meta assets/icons
-  const pathname = requestUrl.pathname;
   if (
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/icons/") ||
-    pathname.includes("manifest") ||
-    pathname.includes("favicon") ||
-    pathname.includes("apple-touch-icon") ||
-    pathname.includes("service-worker.js")
+    requestUrl.pathname.includes("manifest.json") ||
+    requestUrl.pathname.includes("/icons/") ||
+    requestUrl.pathname.includes("favicon") ||
+    requestUrl.pathname.includes("apple-touch-icon") ||
+    requestUrl.pathname.includes("service-worker.js")
   ) {
     return;
   }

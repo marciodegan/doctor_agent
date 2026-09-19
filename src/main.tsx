@@ -56,9 +56,6 @@ if (typeof window !== 'undefined') {
         });
         console.log("[PWA] Service Worker registered", registration);
 
-        // Force check for newest service worker update
-        registration.update().catch(() => {});
-
         await navigator.serviceWorker.ready;
         console.log("[PWA] Service Worker ready");
       } catch (error) {

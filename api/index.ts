@@ -25,52 +25,30 @@ try {
   console.error("[Firebase] Failed to load config:", e);
 }
 
-let hasServiceAccountCredential = false;
-
-// Helper to safely parse service account from environment
-function parseServiceAccount(raw?: string): any {
-  if (!raw) return null;
-  let str = raw.trim();
-  if (str.startsWith('"') && str.endsWith('"')) {
-    str = str.slice(1, -1);
-  }
-  // If base64-encoded, decode it
-  if (!str.startsWith("{") && (str.startsWith("ey") || str.includes("="))) {
-    try {
-      str = Buffer.from(str, "base64").toString("utf8");
-    } catch (_) {}
-  }
-  try {
-    const parsed = JSON.parse(str);
-    if (parsed.private_key && typeof parsed.private_key === "string") {
-      // Fix escaped newlines in private key
-      parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
-    }
-    return parsed;
-  } catch (e) {
-    console.error("[Firebase] Error parsing FIREBASE_SERVICE_ACCOUNT:", e);
-    return null;
-  }
-}
-
 // Initialize Firebase Admin lazily or at module level but safely
 if (firebaseConfig.projectId && !admin.apps.length) {
   try {
-    const cert = parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT);
-    if (cert && cert.project_id && cert.private_key) {
-      admin.initializeApp({
-        credential: admin.credential.cert(cert),
-        projectId: firebaseConfig.projectId,
-        storageBucket: firebaseConfig.storageBucket
-      });
-      hasServiceAccountCredential = true;
-      console.log("[Firebase] Admin initialized with service account certificate.");
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (serviceAccount) {
+      try {
+        const cert = JSON.parse(serviceAccount);
+        admin.initializeApp({
+          credential: admin.credential.cert(cert),
+          projectId: firebaseConfig.projectId,
+          storageBucket: firebaseConfig.storageBucket
+        });
+        console.log("[Firebase] Admin initialized with service account from env.");
+      } catch (jsonErr) {
+        console.error("[Firebase] FIREBASE_SERVICE_ACCOUNT parsing error:", jsonErr);
+        // Fallback to default
+        admin.initializeApp({ projectId: firebaseConfig.projectId });
+      }
     } else {
       admin.initializeApp({
         projectId: firebaseConfig.projectId,
         storageBucket: firebaseConfig.storageBucket
       });
-      console.log("[Firebase] Admin initialized with projectId (ADC / standard credentials):", firebaseConfig.projectId);
+      console.log("[Firebase] Admin initialized with projectId (ADC):", firebaseConfig.projectId);
     }
   } catch (e) {
     console.error("[Firebase] Admin initialization error:", e);
@@ -339,28 +317,12 @@ const getAuthenticatedUser = async (req: express.Request) => {
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const idToken = authHeader.split("Bearer ")[1];
     try {
-      if (admin.apps.length) {
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-        if (decodedToken && decodedToken.uid) {
-          return { uid: decodedToken.uid, email: decodedToken.email || "", source: "firebase" };
-        }
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      if (decodedToken && decodedToken.uid) {
+        return { uid: decodedToken.uid, email: decodedToken.email || "", source: "firebase" };
       }
     } catch (err) {
       console.warn("[Auth] Firebase Bearer token verification failed:", err);
-    }
-
-    // Safe decode fallback for Firebase Auth JWT
-    try {
-      const parts = idToken.split(".");
-      if (parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
-        const uid = payload.user_id || payload.sub || payload.uid;
-        if (uid) {
-          return { uid, email: payload.email || "", source: "firebase-jwt" };
-        }
-      }
-    } catch (jwtErr) {
-      console.warn("[Auth] Firebase Bearer token decode fallback failed:", jwtErr);
     }
   }
 
@@ -498,23 +460,6 @@ const requirePatientAccess = async (req: express.Request, patientId: string) => 
       recordStatus: "active"
     });
     patientDoc = await db.collection("patients").doc(patientId).get();
-  }
-
-  if (!patientDoc.exists) {
-    const groupIdHeader = getGroupId(req);
-    if (groupIdHeader) {
-      const qSnap = await db.collection("patients").where("groupId", "==", groupIdHeader).get();
-      const match = qSnap.docs.find(d => d.id === patientId || d.data().id === patientId || d.data().sequentialId === patientId);
-      if (match) {
-        patientDoc = match;
-      }
-    }
-    if (!patientDoc.exists) {
-      const qGlobal = await db.collection("patients").where("id", "==", patientId).get();
-      if (!qGlobal.empty) {
-        patientDoc = qGlobal.docs[0];
-      }
-    }
   }
 
   if (!patientDoc.exists) {
@@ -757,87 +702,52 @@ app.get("/api/auth/firebase-token", async (req, res) => {
   const authClient = getAuthClient(req);
   if (!authClient) return res.status(401).json({ error: "Unauthorized" });
 
-  const withTimeout = <T>(promise: Promise<T>, timeoutMs = 7000, label = "Operation"): Promise<T> => {
-    return Promise.race([
-      promise,
-      new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs))
-    ]);
-  };
-
   try {
     const oauth2 = google.oauth2({ version: "v2", auth: authClient });
-    const userRes = await withTimeout(oauth2.userinfo.get(), 6000, "Google OAuth userinfo");
+    const userRes = await oauth2.userinfo.get();
     const { id, email, name, picture } = userRes.data;
 
     if (!id) throw new Error("No user ID found");
 
-    if (!hasServiceAccountCredential && !process.env.K_SERVICE && !process.env.GOOGLE_CLOUD_PROJECT) {
-      console.error("[Firebase] createCustomToken requested on external host without FIREBASE_SERVICE_ACCOUNT.");
-      return res.status(500).json({
-        error: "missing_service_account",
-        details: "The FIREBASE_SERVICE_ACCOUNT environment variable is required on Vercel to generate Firebase tokens. Please set it in Vercel project settings."
-      });
-    }
-
     // Ensure User exists in Firebase Auth with correct metadata
     try {
-      await withTimeout(
-        admin.auth().updateUser(id, {
+      await admin.auth().updateUser(id, {
+        email: email || undefined,
+        displayName: name || undefined,
+        photoURL: picture || undefined,
+        emailVerified: true
+      });
+    } catch (e: any) {
+      if (e.code === 'auth/user-not-found') {
+        await admin.auth().createUser({
+          uid: id,
           email: email || undefined,
           displayName: name || undefined,
           photoURL: picture || undefined,
           emailVerified: true
-        }),
-        4000,
-        "admin.auth().updateUser"
-      );
-    } catch (e: any) {
-      if (e.code === 'auth/user-not-found') {
-        await withTimeout(
-          admin.auth().createUser({
-            uid: id,
-            email: email || undefined,
-            displayName: name || undefined,
-            photoURL: picture || undefined,
-            emailVerified: true
-          }),
-          4000,
-          "admin.auth().createUser"
-        );
+        });
       }
     }
 
-    const customToken = await withTimeout(
-      admin.auth().createCustomToken(id, { email, name }),
-      5000,
-      "admin.auth().createCustomToken"
-    );
+    const customToken = await admin.auth().createCustomToken(id, { email, name });
     
-    // Also upsert user profile in Firestore (best effort)
-    try {
-      await withTimeout(
-        db.collection("users").doc(id).set({
-          uid: id,
-          email: email || "",
-          name: name || "",
-          photoURL: picture || "",
-          lastSeen: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true }),
-        3000,
-        "Firestore upsert user"
-      );
-    } catch (dbErr) {
-      console.warn("[Firebase] Could not upsert user document:", dbErr);
-    }
+    // Also upsert user profile in Firestore
+    await db.collection("users").doc(id).set({
+      uid: id,
+      email: email || "",
+      name: name || "",
+      photoURL: picture || "",
+      lastSeen: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
 
     res.json({ customToken });
   } catch (err: any) {
     console.error("[Firebase] Error in /api/auth/firebase-token:", err);
-    if (isInvalidGrantError(err) || (err.message && err.message.includes("timed out"))) {
+    if (isInvalidGrantError(err)) {
       clearAuthCookies(res);
       return res.status(401).json({
-        error: "session_expired",
-        message: "Sua sessão expirou ou não pôde ser validada. Por favor, faça login novamente."
+        error: "invalid_grant",
+        message: "Sua sessão expirou ou o token de acesso foi revogado. Por favor, faça login novamente."
       });
     }
     res.status(500).json({ 
@@ -941,8 +851,8 @@ app.get("/api/app/patient-contacts/:patientId", async (req, res) => {
   }
 });
 
-app.post("/api/app/patient-logs", express.json(), async (req, res) => {
-  const { patientId, text } = req.body || {};
+app.post("/api/app/patient-logs", async (req, res) => {
+  const { patientId, text } = req.body;
   if (!patientId || !text) {
     return res.status(400).json({ error: "patientId and text are required" });
   }
@@ -965,8 +875,8 @@ app.post("/api/app/patient-logs", express.json(), async (req, res) => {
   }
 });
 
-app.post("/api/app/patient-contacts", express.json(), async (req, res) => {
-  const { patientId, name, relationship, phone } = req.body || {};
+app.post("/api/app/patient-contacts", async (req, res) => {
+  const { patientId, name, relationship, phone } = req.body;
   if (!patientId || !name) {
     return res.status(400).json({ error: "patientId and name are required" });
   }
@@ -1233,20 +1143,13 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       familiares: []
     };
 
-    let contactsSnap: any = { docs: [] };
-    let logsSnap: any = { docs: [] };
-    let filesSnap: any = { docs: [] };
-    let statusesSnap: any = { docs: [] };
-    let activityLogsSnap: any = { docs: [] };
-    let hospitalsSnap: any = { docs: [] };
-
-    await Promise.all([
-      db.collection("patients_contacts").where("patientId", "==", id).get().then(s => { contactsSnap = s; }).catch(e => console.warn("Error fetching contacts:", e)),
-      db.collection("patient_logs").where("patientId", "==", id).get().then(s => { logsSnap = s; }).catch(e => console.warn("Error fetching patient_logs:", e)),
-      db.collection("files").where("patientId", "==", id).get().then(s => { filesSnap = s; }).catch(e => console.warn("Error fetching files:", e)),
-      db.collection("patient_statuses").where("groupId", "==", groupId).get().then(s => { statusesSnap = s; }).catch(e => console.warn("Error fetching patient_statuses:", e)),
-      db.collection("logs").where("patientId", "==", id).get().then(s => { activityLogsSnap = s; }).catch(e => console.warn("Error fetching logs:", e)),
-      db.collection("hospitals").where("groupId", "==", groupId).get().then(s => { hospitalsSnap = s; }).catch(e => console.warn("Error fetching hospitals:", e))
+    const [contactsSnap, logsSnap, filesSnap, statusesSnap, activityLogsSnap, hospitalsSnap] = await Promise.all([
+      db.collection("patients_contacts").where("patientId", "==", id).get(),
+      db.collection("patient_logs").where("patientId", "==", id).orderBy("createdAt", "desc").get(),
+      db.collection("files").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
+      db.collection("patient_statuses").where("groupId", "==", groupId).get(),
+      db.collection("logs").where("patientId", "==", id).orderBy("timestamp", "desc").get(),
+      db.collection("hospitals").where("groupId", "==", groupId).get()
     ]);
 
     const statusesMap = new Map();
@@ -1457,16 +1360,7 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
 
 // Update patient information (Generic)
 app.post("/api/app/patients/update", express.json(), async (req, res) => {
-  const { 
-    id, 
-    nome, name, 
-    fone, phone, 
-    idade, age, 
-    hospitalName, hospitalId, 
-    roomNumber, 
-    status, statusId, 
-    surgery_type 
-  } = req.body;
+  const { id, nome, fone, idade, hospitalName, roomNumber, status, surgery_type } = req.body;
 
   if (!id) return res.status(400).json({ error: "ID do paciente é obrigatório." });
 
@@ -1478,36 +1372,12 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
     
-    const finalName = nome !== undefined ? nome : name;
-    if (finalName !== undefined) {
-      updateData.name = finalName;
-      updateData.nome = finalName;
-    }
-
-    const finalPhone = fone !== undefined ? fone : phone;
-    if (finalPhone !== undefined) {
-      updateData.phone = finalPhone;
-    }
-
-    const finalAge = idade !== undefined ? idade : age;
-    if (finalAge !== undefined) {
-      updateData.age = finalAge;
-      updateData.idade = finalAge;
-    }
-
-    const finalHospital = hospitalId !== undefined ? hospitalId : hospitalName;
-    if (finalHospital !== undefined) {
-      updateData.hospitalId = finalHospital.toString();
-    }
-
+    if (nome) updateData.name = nome;
+    if (fone) updateData.phone = fone;
+    if (idade) updateData.age = idade;
+    if (hospitalName !== undefined) updateData.hospitalId = hospitalName.toString();
     if (roomNumber !== undefined) updateData.roomNumber = roomNumber;
-
-    const finalStatus = statusId !== undefined ? statusId : status;
-    if (finalStatus !== undefined) {
-      updateData.statusId = finalStatus.toString();
-      updateData.status = finalStatus.toString();
-    }
-
+    if (status !== undefined) updateData.statusId = status.toString();
     if (surgery_type !== undefined) updateData.surgery_type = surgery_type;
 
     await patientRef.update(updateData);
@@ -1515,7 +1385,7 @@ app.post("/api/app/patients/update", express.json(), async (req, res) => {
     // Record log of update
     await db.collection("logs").add({
       patientId: id,
-      patientName: patient.name || finalName || "Paciente",
+      patientName: patient.name,
       description: "Informações do perfil atualizadas.",
       groupId,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
@@ -1568,6 +1438,7 @@ app.get("/api/app/patients/:id/logs", async (req, res) => {
     const logsSnap = await db.collection("logs")
       .where("patientId", "==", id)
       .where("groupId", "==", groupId)
+      .orderBy("timestamp", "desc")
       .get();
     
     const logs = logsSnap.docs.map(doc => {
@@ -1922,461 +1793,6 @@ const getSafeContentType = (fileName: string, fileMime?: string): string => {
   return "application/octet-stream";
 };
 
-// Secure Image Sharing Endpoints
-app.post("/api/share/create", express.json(), async (req, res) => {
-  try {
-    const user = await getAuthenticatedUser(req);
-    let { url, groupId, patientName, alt } = req.body || {};
-    if (!url || typeof url !== "string") {
-      return res.status(400).json({ error: "URL é obrigatória" });
-    }
-
-    // Extract raw storage URL if wrapped in proxy
-    if (url.includes("proxy-storage-file?url=")) {
-      try {
-        const idx = url.indexOf("proxy-storage-file?url=");
-        const param = url.substring(idx + "proxy-storage-file?url=".length);
-        const decoded = decodeURIComponent(param);
-        if (decoded.startsWith("http")) {
-          url = decoded;
-        }
-      } catch (e) {}
-    }
-
-    const token = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-
-    const shareRecord = {
-      token,
-      groupId: groupId || "",
-      fileUrl: url,
-      patientName: patientName || "",
-      alt: alt || "Imagem",
-      createdBy: user?.uid || "",
-      createdAt: new Date().toISOString()
-    };
-
-    await db.collection("share_tokens").doc(token).set(shareRecord);
-
-    const host = req.get("x-forwarded-host") || req.get("host") || "";
-    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-    const shareUrl = `${protocol}://${host}/share/${token}`;
-
-    return res.json({ token, shareUrl, shortUrl: shareUrl });
-  } catch (err: any) {
-    console.error("[Share] Error creating token:", err);
-    return res.status(500).json({ error: err.message || "Erro ao gerar link de compartilhamento" });
-  }
-});
-
-app.post("/api/shorten-url", express.json(), async (req, res, next) => {
-  // Direct internal forwarding for backwards compatibility
-  try {
-    const user = await getAuthenticatedUser(req);
-    let { url, groupId, patientName, alt } = req.body || {};
-    if (!url || typeof url !== "string") {
-      return res.status(400).json({ error: "URL é obrigatória" });
-    }
-
-    if (url.includes("proxy-storage-file?url=")) {
-      try {
-        const idx = url.indexOf("proxy-storage-file?url=");
-        const param = url.substring(idx + "proxy-storage-file?url=".length);
-        const decoded = decodeURIComponent(param);
-        if (decoded.startsWith("http")) {
-          url = decoded;
-        }
-      } catch (e) {}
-    }
-
-    const token = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-
-    await db.collection("share_tokens").doc(token).set({
-      token,
-      groupId: groupId || "",
-      fileUrl: url,
-      patientName: patientName || "",
-      alt: alt || "Imagem",
-      createdBy: user?.uid || "",
-      createdAt: new Date().toISOString()
-    });
-
-    const host = req.get("x-forwarded-host") || req.get("host") || "";
-    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-    const shareUrl = `${protocol}://${host}/share/${token}`;
-
-    return res.json({ token, shareUrl, shortUrl: shareUrl, code: token });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/api/share/verify", express.json(), async (req, res) => {
-  try {
-    const { token } = req.body || {};
-    if (!token || typeof token !== "string") {
-      return res.status(400).json({ error: "Token é obrigatório" });
-    }
-
-    // 1. Authenticated user check
-    const user = await getAuthenticatedUser(req);
-    if (!user) {
-      return res.status(401).json({
-        error: "unauthenticated",
-        message: "Você precisa estar autenticado para visualizar esta imagem."
-      });
-    }
-
-    // 2. Fetch share token doc
-    let doc = await db.collection("share_tokens").doc(token).get();
-    let tokenData = doc.exists ? doc.data() : null;
-
-    if (!tokenData) {
-      const legacyDoc = await db.collection("short_urls").doc(token).get();
-      if (legacyDoc.exists) {
-        const leg = legacyDoc.data();
-        tokenData = {
-          token,
-          fileUrl: leg?.url || "",
-          groupId: leg?.groupId || "",
-          patientName: leg?.patientName || "",
-          alt: leg?.alt || "Imagem"
-        };
-      }
-    }
-
-    if (!tokenData) {
-      return res.status(404).json({
-        error: "not_found",
-        message: "O link de imagem compartilhado é inválido ou expirou."
-      });
-    }
-
-    const { groupId, patientName, alt } = tokenData;
-
-    // 3. Group membership check (if groupId is set)
-    if (groupId) {
-      try {
-        await requireGroupMember(req, groupId);
-      } catch (membershipErr: any) {
-        console.warn(`[Share] User ${user.email || user.uid} denied access to group ${groupId}:`, membershipErr.message);
-        return res.status(403).json({
-          error: "access_denied",
-          message: `Acesso Negado: Sua conta (${user.email || "conectada"}) não pertence ao grupo responsável por esta imagem.`
-        });
-      }
-    }
-
-    return res.json({
-      authorized: true,
-      token,
-      groupId: groupId || "",
-      patientName: patientName || "Ficha de Paciente",
-      alt: alt || "Imagem",
-      mediaUrl: `/api/share/media/${token}`
-    });
-  } catch (err: any) {
-    console.error("[Share] Error verifying token:", err);
-    return res.status(500).json({ error: "Erro interno ao validar compartilhamento." });
-  }
-});
-
-// Secure Patient Profile Sharing Endpoints
-app.post("/api/share/patient/create", express.json(), async (req, res) => {
-  try {
-    const user = await getAuthenticatedUser(req);
-    if (!user) {
-      return res.status(401).json({ error: "Você precisa estar autenticado." });
-    }
-
-    const { patientId } = req.body || {};
-    if (!patientId || typeof patientId !== "string") {
-      return res.status(400).json({ error: "patientId é obrigatório" });
-    }
-
-    const { groupId, patient } = await requirePatientAccess(req, patientId);
-
-    const existingSnap = await db.collection("patient_share_tokens")
-      .where("patientId", "==", patientId)
-      .limit(1)
-      .get();
-
-    let token = "";
-    if (!existingSnap.empty) {
-      token = existingSnap.docs[0].id;
-    } else {
-      token = "p_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-      await db.collection("patient_share_tokens").doc(token).set({
-        token,
-        type: "patient",
-        patientId,
-        groupId,
-        patientName: patient.name || "Paciente",
-        createdBy: user.uid,
-        createdAt: new Date().toISOString()
-      });
-    }
-
-    const host = req.get("x-forwarded-host") || req.get("host") || "";
-    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-    const shareUrl = `${protocol}://${host}/patient/${token}`;
-
-    return res.json({ token, shareUrl, patientId, patientName: patient.name });
-  } catch (err: any) {
-    console.error("[SharePatient] Error creating patient share token:", err);
-    return res.status(err.statusCode || 500).json({ error: err.message || "Erro ao gerar link do paciente" });
-  }
-});
-
-app.post("/api/share/patient/verify", express.json(), async (req, res) => {
-  try {
-    const { token } = req.body || {};
-    if (!token || typeof token !== "string") {
-      return res.status(400).json({ error: "Token é obrigatório" });
-    }
-
-    // 1. Authenticated user check
-    const user = await getAuthenticatedUser(req);
-    if (!user) {
-      return res.status(401).json({
-        error: "unauthenticated",
-        message: "Você precisa estar autenticado para acessar a página deste paciente."
-      });
-    }
-
-    // 2. Fetch token doc
-    const doc = await db.collection("patient_share_tokens").doc(token).get();
-    if (!doc.exists) {
-      return res.status(404).json({
-        error: "not_found",
-        message: "O link de compartilhamento deste paciente é inválido ou expirou."
-      });
-    }
-
-    const tokenData = doc.data();
-    const { patientId } = tokenData || {};
-
-    if (!patientId) {
-      return res.status(404).json({
-        error: "not_found",
-        message: "Paciente não encontrado para este link."
-      });
-    }
-
-    // 3. Group membership check via requirePatientAccess
-    let access;
-    try {
-      access = await requirePatientAccess(req, patientId);
-    } catch (accessErr: any) {
-      console.warn(`[SharePatient] Access denied to patient ${patientId} for user ${user.email || user.uid}:`, accessErr.message);
-      return res.status(403).json({
-        error: "access_denied",
-        message: `Acesso Negado: Sua conta (${user.email || "conectada"}) não pertence ao grupo responsável por este paciente.`
-      });
-    }
-
-    const { groupId, patient } = access;
-
-    // 4. Build full patient report data
-    const report: any = {
-      cadastro: null,
-      audios: [],
-      imagens: [],
-      familiares: []
-    };
-
-    const [contactsSnap, logsSnap, filesSnap, statusesSnap, hospitalsSnap] = await Promise.all([
-      db.collection("patients_contacts").where("patientId", "==", patientId).get(),
-      db.collection("patient_logs").where("patientId", "==", patientId).get(),
-      db.collection("files").where("patientId", "==", patientId).get(),
-      db.collection("patient_statuses").where("groupId", "==", groupId).get(),
-      db.collection("hospitals").where("groupId", "==", groupId).get()
-    ]);
-
-    const statusesMap = new Map();
-    statusesSnap.docs.forEach(d => {
-      const data = d.data();
-      statusesMap.set(d.id, data.name || data.nome);
-    });
-
-    const hospitalsMap = new Map();
-    hospitalsSnap.docs.forEach(d => {
-      const data = d.data();
-      hospitalsMap.set(d.id, data.name || data.nome);
-    });
-
-    const allStatuses = statusesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const allHospitals = hospitalsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    report.cadastro = {
-      ID: patientId,
-      Nome: patient.name,
-      Idade: patient.age || null,
-      Status: patient.status || null,
-      hospitalId: patient.hospitalId || null,
-      hospital_nome: hospitalsMap.get(patient.hospitalId) || patient.hospital_nome || "Não informado",
-      roomNumber: patient.roomNumber || patient.room_number || "Sala ?",
-      procedure: patient.procedure || "",
-      surgery_type: patient.surgery_type || "",
-      Telefone: patient.phone || patient.telefone || ""
-    };
-
-    report.familiares = contactsSnap.docs
-      .filter(d => d.data().status !== "removed" && !d.data().isDeleted && !d.data().deletedAt)
-      .map(d => ({
-        id: d.id,
-        nome: d.data().name || d.data().nome,
-        relacao: d.data().relationship || d.data().relacao,
-        fone: d.data().phone || d.data().fone
-      }));
-
-    report.audios = logsSnap.docs
-      .filter(d => d.data().status !== "removed" && !d.data().isDeleted && !d.data().deletedAt)
-      .map(d => ({
-        id: d.id,
-        conteudo: d.data().text || d.data().conteudo,
-        tipo: d.data().type || "texto",
-        data: d.data().createdAt ? new Date(d.data().createdAt.toDate ? d.data().createdAt.toDate() : d.data().createdAt).toLocaleDateString("pt-BR") : ""
-      }));
-
-    report.imagens = filesSnap.docs
-      .filter(d => d.data().status !== "removed" && !d.data().isDeleted && !d.data().deletedAt)
-      .map(d => ({
-        id: d.id,
-        descricao: d.data().description || d.data().descricao || "Imagem",
-        link: d.data().link || d.data().url || "",
-        data: d.data().timestamp ? new Date(d.data().timestamp.toDate ? d.data().timestamp.toDate() : d.data().timestamp).toLocaleDateString("pt-BR") : "",
-        aiAnalysis: d.data().aiAnalysis || d.data().aiResposta
-      }));
-
-    return res.json({
-      authorized: true,
-      token,
-      patientId,
-      groupId,
-      patientName: patient.name || "Ficha do Paciente",
-      reportData: report,
-      allStatuses,
-      allHospitals,
-      profileData: {
-        id: patientId,
-        nome: patient.name,
-        idade: patient.age ? patient.age.toString() : "N/A",
-        status: patient.status || "",
-        hospitalId: patient.hospitalId || "",
-        hospitalNome: hospitalsMap.get(patient.hospitalId) || patient.hospital_nome || "Não informado",
-        roomNumber: patient.roomNumber || patient.room_number || "Sala ?",
-        surgery_type: patient.surgery_type || "",
-        procedure: patient.procedure || ""
-      }
-    });
-  } catch (err: any) {
-    console.error("[SharePatient] Error verifying patient token:", err);
-    return res.status(500).json({ error: "Erro interno ao validar acesso ao paciente." });
-  }
-});
-
-app.get("/api/share/media/:token", async (req, res) => {
-  try {
-    const token = req.params.token;
-
-    // 1. Authenticated user check
-    const user = await getAuthenticatedUser(req);
-    if (!user) {
-      return res.status(401).send("Acesso restrito: Faça login para visualizar.");
-    }
-
-    // 2. Fetch share token doc
-    let doc = await db.collection("share_tokens").doc(token).get();
-    let tokenData = doc.exists ? doc.data() : null;
-
-    if (!tokenData) {
-      const legacyDoc = await db.collection("short_urls").doc(token).get();
-      if (legacyDoc.exists) {
-        tokenData = legacyDoc.data();
-      }
-    }
-
-    if (!tokenData) {
-      return res.status(404).send("Imagem não encontrada.");
-    }
-
-    const { groupId, fileUrl } = tokenData;
-
-    // 3. Group membership check
-    if (groupId) {
-      try {
-        await requireGroupMember(req, groupId);
-      } catch (e) {
-        return res.status(403).send("Acesso negado: Sua conta não pertence ao grupo responsável por esta imagem.");
-      }
-    }
-
-    if (!fileUrl) {
-      return res.status(404).send("Arquivo indisponível.");
-    }
-
-    // 4. Stream file bytes directly without exposing Storage URL
-    let bucketName = "";
-    let filePath = "";
-
-    if (fileUrl.includes("storage.googleapis.com/") || fileUrl.includes("firebasestorage.googleapis.com/")) {
-      try {
-        const parsed = new URL(fileUrl);
-        if (parsed.hostname === "storage.googleapis.com") {
-          const parts = parsed.pathname.substring(1).split("/");
-          bucketName = parts[0];
-          filePath = decodeURIComponent(parts.slice(1).join("/"));
-        } else if (parsed.hostname.includes("firebasestorage.googleapis.com")) {
-          const match = parsed.pathname.match(/\/v0\/b\/([^/]+)\/o\/(.+)/);
-          if (match) {
-            bucketName = match[1];
-            filePath = decodeURIComponent(match[2].split("?")[0]);
-          }
-        }
-      } catch (e) {}
-    }
-
-    if (bucketName && filePath) {
-      try {
-        const targetBucket = getStorage().bucket(bucketName);
-        const fileRef = targetBucket.file(filePath);
-        const [exists] = await fileRef.exists();
-        if (exists) {
-          const [metadata] = await fileRef.getMetadata();
-          const [buffer] = await fileRef.download();
-          const contentType = metadata.contentType || "image/jpeg";
-          res.setHeader("Content-Type", contentType);
-          res.setHeader("Cache-Control", "private, max-age=86400");
-          return res.send(buffer);
-        }
-      } catch (err) {
-        console.warn("[ShareMedia] Admin SDK read error:", err);
-      }
-    }
-
-    // Fallback: server fetch directly and stream
-    if (fileUrl.startsWith("http")) {
-      const r = await fetch(fileUrl);
-      if (r.ok) {
-        const contentType = r.headers.get("content-type") || "image/jpeg";
-        res.setHeader("Content-Type", contentType);
-        res.setHeader("Cache-Control", "private, max-age=86400");
-        const arrayBuf = await r.arrayBuffer();
-        return res.send(Buffer.from(arrayBuf));
-      }
-    }
-
-    return res.status(404).send("Não foi possível carregar a imagem.");
-  } catch (err: any) {
-    console.error("[ShareMedia] Error:", err);
-    return res.status(500).send("Erro interno ao carregar a imagem.");
-  }
-});
-
-app.get("/s/:code", (req, res) => {
-  res.redirect(301, `/share/${req.params.code}`);
-});
-
 // Secure proxy for Firebase Storage files to bypass browser CORS restrictions during decryption
 app.get("/api/app/proxy-storage-file", async (req, res) => {
   const fileUrl = req.query.url as string;
@@ -2426,7 +1842,7 @@ app.get("/api/app/proxy-storage-file", async (req, res) => {
 // Upload image/document directly to Firebase Storage and link to Firestore
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 200 * 1024 * 1024 } // 200MB for HEVC/HD videos
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
 });
 
 app.post("/api/app/upload-image", (req, res, next) => {
@@ -2439,7 +1855,7 @@ app.post("/api/app/upload-image", (req, res, next) => {
       next();
     });
   } else {
-    express.json({ limit: "200mb" })(req, res, next);
+    express.json({ limit: "100mb" })(req, res, next);
   }
 }, async (req, res) => {
   const isMultipart = (req.headers["content-type"] || "").includes("multipart/form-data");
@@ -3570,8 +2986,8 @@ app.get("/api/debug/storage-buckets", async (req, res) => {
 });
 
 // Generic Storage Upload (Original for Firebase Storage)
-app.post("/api/storage/upload", express.json({ limit: "200mb" }), async (req, res) => {
-  const { name, mimeType, base64Data, storagePath, destination: reqDest, customMetadata } = req.body;
+app.post("/api/storage/upload", express.json({ limit: "25mb" }), async (req, res) => {
+  const { name, mimeType, base64Data } = req.body;
 
   if (!base64Data) {
     return res.status(400).json({ error: "Missing base64Data" });
@@ -3580,7 +2996,7 @@ app.post("/api/storage/upload", express.json({ limit: "200mb" }), async (req, re
   try {
     const buffer = Buffer.from(base64Data, "base64");
     const filename = name || `Upload_${Date.now()}.jpg`;
-    const destination = storagePath || reqDest || `uploads/${filename}`;
+    const destination = `uploads/${filename}`;
     
     // We'll try a few common bucket names if the primary one fails
     const projectId = firebaseConfig.projectId;
@@ -3601,15 +3017,12 @@ app.post("/api/storage/upload", express.json({ limit: "200mb" }), async (req, re
       if (!bucketName || bucketName === "") continue;
       attemptedBuckets.push(bucketName);
       try {
-        console.log(`[Upload] Attempting bucket: ${bucketName} for path: ${destination}`);
+        console.log(`[Upload] Attempting bucket: ${bucketName}`);
         const currentBucket = getStorage().bucket(bucketName);
         const currentFile = currentBucket.file(destination);
         
         await currentFile.save(buffer, {
-          metadata: {
-            contentType: mimeType || "image/jpeg",
-            customMetadata: customMetadata || {}
-          },
+          metadata: { contentType: mimeType || "image/jpeg" },
           resumable: false
         });
         
@@ -3639,10 +3052,7 @@ app.post("/api/storage/upload", express.json({ limit: "200mb" }), async (req, re
               const currentBucket = getStorage().bucket(bName);
               const currentFile = currentBucket.file(destination);
               await currentFile.save(buffer, {
-                metadata: {
-                  contentType: mimeType || "image/jpeg",
-                  customMetadata: customMetadata || {}
-                },
+                metadata: { contentType: mimeType || "image/jpeg" },
                 resumable: false
               });
               fileObj = currentFile;
@@ -3683,8 +3093,6 @@ app.post("/api/storage/upload", express.json({ limit: "200mb" }), async (req, re
     res.json({
       id: fileObj.name,
       name: fileObj.name,
-      downloadURL: publicUrl,
-      downloadUrl: publicUrl,
       webViewLink: publicUrl,
       webContentLink: publicUrl
     });
@@ -3862,1057 +3270,15 @@ app.get("/api/stripe/status", async (req, res) => {
   }
 });
 
-// ============================================================================
-// --- Medicações e Estoque Cirúrgico APIs ---
-// ============================================================================
-
-async function logAudit(groupId: string, userId: string, userName: string, action: string, entityType: string, entityId: string, details: string) {
-  try {
-    const auditRef = db.collection("groups").doc(groupId).collection("auditLogs").doc();
-    await auditRef.set({
-      id: auditRef.id,
-      groupId,
-      userId,
-      userName,
-      action,
-      entityType,
-      entityId,
-      details,
-      timestamp: new Date().toISOString()
-    });
-  } catch (e) {
-    console.error("Failed to log audit:", e);
-  }
-}
-
-// 1. Medications Catalog
-app.get("/api/app/medications", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    await requireGroupMember(req, groupId);
-    const snap = await db.collection("groups").doc(groupId).collection("medications").get();
-    const list = snap.docs.map(doc => doc.data());
-    res.json(list);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/app/medications", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const medData = req.body;
-    const medRef = db.collection("groups").doc(groupId).collection("medications").doc();
-    
-    const medication = {
-      id: medRef.id,
-      groupId,
-      genericName: medData.genericName || "",
-      commercialName: medData.commercialName || "",
-      category: medData.category || "Anestésico",
-      activeIngredient: medData.activeIngredient || "",
-      concentration: parseFloat(medData.concentration) || 0,
-      concentrationUnit: medData.concentrationUnit || "mg",
-      dosageForm: medData.dosageForm || "Injetável",
-      presentation: medData.presentation || "Ampola",
-      volumePerUnit: parseFloat(medData.volumePerUnit) || 1,
-      stockUnit: medData.stockUnit || "Ampola",
-      routeOfAdministration: medData.routeOfAdministration || "EV",
-      manufacturer: medData.manufacturer || "",
-      highVigilance: !!medData.highVigilance,
-      controlled: !!medData.controlled,
-      requiresDoubleCheck: !!medData.requiresDoubleCheck,
-      allowsFractioning: !!medData.allowsFractioning,
-      roundingRule: medData.roundingRule || "exact",
-      minStock: parseFloat(medData.minStock) || 0,
-      reorderPoint: parseFloat(medData.reorderPoint) || 0,
-      idealStock: parseFloat(medData.idealStock) || 0,
-      storageCondition: medData.storageCondition || "",
-      observations: medData.observations || "",
-      status: medData.status || "active",
-      createdAt: new Date().toISOString(),
-      createdBy: user.uid,
-      updatedAt: new Date().toISOString(),
-      updatedBy: user.uid
-    };
-
-    await medRef.set(medication);
-    await logAudit(groupId, user.uid, user.email || "Usuário", "CREATE_MED", "medication", medRef.id, `Cadastrou medicamento: ${medication.genericName}`);
-    res.json(medication);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.put("/api/app/medications/:id", async (req, res) => {
-  const groupId = getGroupId(req);
-  const { id } = req.params;
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const medData = req.body;
-    const medRef = db.collection("groups").doc(groupId).collection("medications").doc(id);
-    
-    const update = {
-      ...medData,
-      updatedAt: new Date().toISOString(),
-      updatedBy: user.uid
-    };
-    delete update.id;
-    delete update.groupId;
-    delete update.createdAt;
-    delete update.createdBy;
-
-    await medRef.update(update);
-    await logAudit(groupId, user.uid, user.email || "Usuário", "UPDATE_MED", "medication", id, `Atualizou dados do medicamento`);
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 2. Protocols
-app.get("/api/app/protocols", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    await requireGroupMember(req, groupId);
-    const snap = await db.collection("groups").doc(groupId).collection("protocols").get();
-    const list = snap.docs.map(doc => doc.data());
-    res.json(list);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/app/protocols", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const pData = req.body;
-    const pRef = db.collection("groups").doc(groupId).collection("protocols").doc();
-    
-    const protocol = {
-      id: pRef.id,
-      groupId,
-      name: pData.name || "",
-      description: pData.description || "",
-      procedureType: pData.procedureType || "",
-      specialty: pData.specialty || "",
-      minAge: pData.minAge ? parseInt(pData.minAge) : null,
-      maxAge: pData.maxAge ? parseInt(pData.maxAge) : null,
-      minWeight: pData.minWeight ? parseFloat(pData.minWeight) : null,
-      maxWeight: pData.maxWeight ? parseFloat(pData.maxWeight) : null,
-      applicationConditions: pData.applicationConditions || "",
-      exclusionCriteria: pData.exclusionCriteria || "",
-      version: 1,
-      effectiveDate: new Date().toISOString().split("T")[0],
-      status: pData.status || "draft",
-      createdBy: user.uid,
-      createdAt: new Date().toISOString(),
-      medications: pData.medications || []
-    };
-
-    await pRef.set(protocol);
-    await logAudit(groupId, user.uid, user.email || "Usuário", "CREATE_PROTOCOL", "protocol", pRef.id, `Criou protocolo: ${protocol.name}`);
-    res.json(protocol);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.put("/api/app/protocols/:id", async (req, res) => {
-  const groupId = getGroupId(req);
-  const { id } = req.params;
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const pData = req.body;
-    const pRef = db.collection("groups").doc(groupId).collection("protocols").doc(id);
-    
-    const currentSnap = await pRef.get();
-    if (!currentSnap.exists) {
-      return res.status(404).json({ error: "Protocolo não encontrado." });
-    }
-    const current = currentSnap.data() || {};
-    
-    // Versioning logic: If modifying an already published protocol, create a new version
-    let updatedVersion = current.version || 1;
-    if (current.status === "published" && pData.status === "published") {
-      updatedVersion += 1;
-      // Save history of previous version
-      await db.collection("groups").doc(groupId).collection("protocolVersions").doc(`${id}_v${current.version}`).set({
-        ...current,
-        archivedAt: new Date().toISOString()
-      });
-    }
-
-    const update: any = {
-      ...pData,
-      version: updatedVersion,
-      updatedAt: new Date().toISOString()
-    };
-    
-    if (pData.status === "published") {
-      update.publishedBy = user.uid;
-      update.publishedAt = new Date().toISOString();
-    } else if (pData.status === "approved") {
-      update.approvedBy = user.uid;
-      update.approvedAt = new Date().toISOString();
-    }
-
-    delete update.id;
-    delete update.groupId;
-    delete update.createdAt;
-    delete update.createdBy;
-
-    await pRef.update(update);
-    await logAudit(groupId, user.uid, user.email || "Usuário", "UPDATE_PROTOCOL", "protocol", id, `Atualizou protocolo para versão ${updatedVersion}`);
-    res.json({ success: true, version: updatedVersion });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 3. Inventory Locations
-app.get("/api/app/inventory-locations", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    await requireGroupMember(req, groupId);
-    const snap = await db.collection("groups").doc(groupId).collection("inventoryLocations").get();
-    let list = snap.docs.map(doc => doc.data());
-    
-    // Pre-populate if empty
-    if (list.length === 0) {
-      const defaults = [
-        { name: "Almoxarifado Central", type: "central", description: "Estoque principal" },
-        { name: "Maleta de Anestesia A", type: "bag", description: "Maleta móvel" },
-        { name: "Farmácia Centro Cirúrgico", type: "surgery_center", description: "Medicamentos de pronto uso" }
-      ];
-      const batch = db.batch();
-      for (const d of defaults) {
-        const ref = db.collection("groups").doc(groupId).collection("inventoryLocations").doc();
-        const loc = { id: ref.id, groupId, status: "active", ...d };
-        batch.set(ref, loc);
-        list.push(loc);
-      }
-      await batch.commit();
-    }
-    res.json(list);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/app/inventory-locations", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const lData = req.body;
-    const lRef = db.collection("groups").doc(groupId).collection("inventoryLocations").doc();
-    
-    const location = {
-      id: lRef.id,
-      groupId,
-      name: lData.name || "",
-      type: lData.type || "central",
-      description: lData.description || "",
-      status: "active"
-    };
-
-    await lRef.set(location);
-    await logAudit(groupId, user.uid, user.email || "Usuário", "CREATE_LOCATION", "inventoryLocation", lRef.id, `Criou local de estoque: ${location.name}`);
-    res.json(location);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 4. Inventory Batches
-app.get("/api/app/inventory-batches", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    await requireGroupMember(req, groupId);
-    const snap = await db.collection("groups").doc(groupId).collection("inventoryBatches").get();
-    const list = snap.docs.map(doc => doc.data());
-    res.json(list);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/app/inventory-batches", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const bData = req.body;
-    
-    const medDoc = await db.collection("groups").doc(groupId).collection("medications").doc(bData.medicationId).get();
-    if (!medDoc.exists) return res.status(404).json({ error: "Medicamento não encontrado" });
-    const medName = medDoc.data()?.genericName || "Medicamento";
-
-    const bRef = db.collection("groups").doc(groupId).collection("inventoryBatches").doc();
-    
-    const qty = parseFloat(bData.initialQuantity) || 0;
-    
-    const batch = {
-      id: bRef.id,
-      groupId,
-      medicationId: bData.medicationId,
-      genericName: medName,
-      batchNumber: bData.batchNumber || "LOT-NEW",
-      expiryDate: bData.expiryDate || "",
-      initialQuantity: qty,
-      quantityAvailable: qty,
-      quantityReserved: 0,
-      quantityUnavailable: 0,
-      locationId: bData.locationId || "",
-      locationName: bData.locationName || "Almoxarifado",
-      supplier: bData.supplier || "",
-      entryDate: new Date().toISOString(),
-      createdBy: user.uid
-    };
-
-    const batchOps = db.batch();
-    batchOps.set(bRef, batch);
-
-    // Track movement
-    const movRef = db.collection("groups").doc(groupId).collection("stockMovements").doc();
-    batchOps.set(movRef, {
-      id: movRef.id,
-      groupId,
-      batchId: bRef.id,
-      medicationId: batch.medicationId,
-      genericName: batch.genericName,
-      type: "entry",
-      quantity: qty,
-      locationId: batch.locationId,
-      userId: user.uid,
-      userName: user.email || "Estoquista",
-      description: `Entrada inicial de estoque - Lote ${batch.batchNumber}`,
-      timestamp: new Date().toISOString()
-    });
-
-    await batchOps.commit();
-    await logAudit(groupId, user.uid, user.email || "Usuário", "ENTRY_BATCH", "inventoryBatch", bRef.id, `Cadastrou lote ${batch.batchNumber} de ${batch.genericName}`);
-    res.json(batch);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Adjust stock / inventory audit
-app.post("/api/app/inventory-batches/adjust", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const { batchId, newQuantity, justification } = req.body;
-    
-    if (!justification) return res.status(400).json({ error: "Justificativa obrigatória para ajustes manuais." });
-
-    const bRef = db.collection("groups").doc(groupId).collection("inventoryBatches").doc(batchId);
-    const bSnap = await bRef.get();
-    if (!bSnap.exists) return res.status(404).json({ error: "Lote não encontrado" });
-    
-    const current = bSnap.data() || {};
-    const oldQty = current.quantityAvailable || 0;
-    const diff = parseFloat(newQuantity) - oldQty;
-    
-    const batchOps = db.batch();
-    batchOps.update(bRef, {
-      quantityAvailable: parseFloat(newQuantity)
-    });
-
-    // Track movement
-    const movRef = db.collection("groups").doc(groupId).collection("stockMovements").doc();
-    batchOps.set(movRef, {
-      id: movRef.id,
-      groupId,
-      batchId,
-      medicationId: current.medicationId,
-      genericName: current.genericName,
-      type: "inventory_adjustment",
-      quantity: diff,
-      locationId: current.locationId,
-      userId: user.uid,
-      userName: user.email || "Estoquista",
-      description: `Ajuste manual de estoque. Motivo: ${justification}`,
-      timestamp: new Date().toISOString()
-    });
-
-    await batchOps.commit();
-    await logAudit(groupId, user.uid, user.email || "Usuário", "ADJUST_STOCK", "inventoryBatch", batchId, `Ajustou saldo de estoque de ${current.genericName}. De ${oldQty} para ${newQuantity}.`);
-    res.json({ success: true, newQuantity });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 5. Medication Plans (Surgical Planning)
-app.get("/api/app/medication-plans", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    await requireGroupMember(req, groupId);
-    const snap = await db.collection("groups").doc(groupId).collection("medicationPlans").get();
-    const list = snap.docs.map(doc => doc.data());
-    res.json(list);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/api/app/medication-plans/:surgeryId", async (req, res) => {
-  const groupId = getGroupId(req);
-  const { surgeryId } = req.params;
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    await requireGroupMember(req, groupId);
-    const doc = await db.collection("groups").doc(groupId).collection("medicationPlans").doc(surgeryId).get();
-    if (doc.exists) {
-      res.json(doc.data());
-    } else {
-      res.status(404).json({ error: "Planejamento não encontrado." });
-    }
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/app/medication-plans/calculate", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  
-  try {
-    await requireGroupMember(req, groupId);
-    const { protocolId, patientWeight, patientAge, patientAllergies = [], patientRestrictions = "" } = req.body;
-    
-    if (!protocolId) return res.status(400).json({ error: "Protocol ID is required" });
-    const weightNum = parseFloat(patientWeight);
-    const ageNum = parseInt(patientAge);
-    
-    if (isNaN(weightNum) || weightNum <= 0) {
-      return res.status(400).json({ error: "Peso do paciente válido é obrigatório." });
-    }
-    
-    const protocolDoc = await db.collection("groups").doc(groupId).collection("protocols").doc(protocolId).get();
-    if (!protocolDoc.exists) {
-      return res.status(404).json({ error: "Protocolo não encontrado ou inativo." });
-    }
-    
-    const protocol = protocolDoc.data();
-    if (protocol?.status !== "published" && protocol?.status !== "approved") {
-      return res.status(400).json({ error: "Não existe um protocolo aprovado para este cálculo. Cadastre ou selecione um protocolo antes de continuar." });
-    }
-    
-    const items: any[] = [];
-    
-    // Check patient's age and weight limits
-    if (protocol.minWeight && weightNum < protocol.minWeight) {
-      return res.status(400).json({ error: `Peso do paciente está abaixo do mínimo exigido pelo protocolo (${protocol.minWeight} kg).` });
-    }
-    if (protocol.maxWeight && weightNum > protocol.maxWeight) {
-      return res.status(400).json({ error: `Peso do paciente está acima do máximo exigido pelo protocolo (${protocol.maxWeight} kg).` });
-    }
-    if (protocol.minAge && ageNum < protocol.minAge) {
-      return res.status(400).json({ error: `Idade do paciente está abaixo do mínimo exigido pelo protocolo (${protocol.minAge} anos).` });
-    }
-    if (protocol.maxAge && ageNum > protocol.maxAge) {
-      return res.status(400).json({ error: `Idade do paciente está acima do máximo exigido pelo protocolo (${protocol.maxAge} anos).` });
-    }
-    
-    for (const pMed of (protocol.medications || [])) {
-      const medDoc = await db.collection("groups").doc(groupId).collection("medications").doc(pMed.medicationId).get();
-      if (!medDoc.exists) {
-        return res.status(404).json({ error: `Medicamento ${pMed.genericName} não encontrado no catálogo.` });
-      }
-      
-      const medication = medDoc.data();
-      if (medication?.status === "inactive") {
-        return res.status(400).json({ error: `Medicamento ${pMed.genericName} está inativo.` });
-      }
-      
-      // Check concentration compatibilities
-      const medUnit = (medication?.concentrationUnit || "").toLowerCase().trim();
-      const resUnit = (pMed.resultUnit || "").toLowerCase().trim();
-      
-      // Enforce specific incompatibility warning
-      if (medUnit !== resUnit) {
-        return res.status(400).json({
-          error: "Não foi possível calcular porque as unidades informadas são incompatíveis. Revise a concentração e a fórmula do protocolo."
-        });
-      }
-      
-      let calculatedDose = 0;
-      if (pMed.formulaType === "fixed") {
-        calculatedDose = pMed.formulaValue;
-      } else if (pMed.formulaType === "dose_per_weight" || pMed.formulaType === "dose_per_weight_time") {
-        calculatedDose = pMed.formulaValue * weightNum;
-      } else if (pMed.formulaType === "dose_per_bsa") {
-        const bsa = Math.sqrt((weightNum * 170) / 3600); // Mosteller assuming 170cm height
-        calculatedDose = pMed.formulaValue * bsa;
-      }
-      
-      // Limits Check
-      const warnings: string[] = [];
-      if (pMed.minDose && calculatedDose < pMed.minDose) {
-        warnings.push(`Dose calculada (${calculatedDose.toFixed(2)} ${resUnit}) está abaixo da dose mínima recomendada (${pMed.minDose} ${resUnit}).`);
-      }
-      if (pMed.maxDose && calculatedDose > pMed.maxDose) {
-        warnings.push(`Dose calculada (${calculatedDose.toFixed(2)} ${resUnit}) ultrapassa a dose máxima de segurança recomendada (${pMed.maxDose} ${resUnit}).`);
-      }
-      
-      // Check allergy warning
-      const matchesAllergy = patientAllergies.some((allg: string) => 
-        pMed.genericName.toLowerCase().includes(allg.toLowerCase()) || 
-        allg.toLowerCase().includes(pMed.genericName.toLowerCase())
-      );
-      if (matchesAllergy) {
-        warnings.push(`ALERTA CRÍTICO: O paciente possui alergia registrada compatível com ${pMed.genericName}.`);
-      }
-      
-      // Calculation of volume: dose / concentration
-      let calculatedVolume = medication?.concentration ? (calculatedDose / medication.concentration) : 0;
-      
-      // Rounding rules
-      const roundRule = pMed.roundingRule || medication?.roundingRule || "exact";
-      if (roundRule === "ceil") {
-        calculatedVolume = Math.ceil(calculatedVolume);
-      } else if (roundRule === "floor") {
-        calculatedVolume = Math.floor(calculatedVolume);
-      } else if (roundRule === "nearest") {
-        calculatedVolume = Math.round(calculatedVolume);
-      }
-      
-      // Redo dose based on rounded volume
-      const finalDose = medication?.concentration ? (calculatedVolume * medication.concentration) : calculatedDose;
-      
-      items.push({
-        medicationId: pMed.medicationId,
-        genericName: pMed.genericName,
-        formulaType: pMed.formulaType,
-        formulaValue: pMed.formulaValue,
-        calculatedDose: finalDose,
-        calculatedVolume,
-        doseUnit: pMed.resultUnit,
-        adjustedDose: finalDose,
-        adjustedVolume: calculatedVolume,
-        isAdjusted: false,
-        warnings,
-        highVigilance: !!medication?.highVigilance,
-        requiresDoubleCheck: !!medication?.requiresDoubleCheck,
-        doubleChecked: false,
-        status: "pending",
-        quantitySeparated: 0,
-        quantityAdministered: 0,
-        quantityReturned: 0,
-        quantityWasted: 0,
-        quantityLost: 0
-      });
-    }
-    
-    res.json({
-      protocolId,
-      protocolName: protocol.name,
-      protocolVersion: protocol.version,
-      patientWeight: weightNum,
-      patientAge: ageNum,
-      patientAllergies,
-      patientRestrictions,
-      items
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/app/medication-plans/confirm", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const { surgeryId, patientName, protocolId, protocolName, protocolVersion, patientWeight, patientAge, patientAllergies = [], patientRestrictions = "", items, justifications = {} } = req.body;
-    
-    if (!surgeryId) return res.status(400).json({ error: "Surgery ID is required" });
-    
-    const dbRef = db.collection("groups").doc(groupId);
-    
-    // Double Check constraint: check if any high vigilance item requires double check but hasn't been signed off
-    for (const item of items) {
-      if (item.requiresDoubleCheck && !item.doubleChecked) {
-        return res.status(400).json({ error: `O medicamento de alta vigilância ${item.genericName} exige dupla conferência por outro profissional antes da confirmação.` });
-      }
-    }
-    
-    const batchOps = db.batch();
-    
-    // Process stock reservation FEFO
-    for (const item of items) {
-      const batchesSnap = await dbRef.collection("inventoryBatches")
-        .where("medicationId", "==", item.medicationId)
-        .get();
-        
-      const batches = batchesSnap.docs.map(d => d.data())
-        .filter(b => b.quantityAvailable > 0 && new Date(b.expiryDate) >= new Date())
-        .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
-        
-      let needed = Math.ceil(item.adjustedVolume);
-      let reservedAmount = 0;
-      
-      for (const batch of batches) {
-        if (needed <= 0) break;
-        const take = Math.min(batch.quantityAvailable, needed);
-        
-        // Update batch available / reserved
-        const bRef = dbRef.collection("inventoryBatches").doc(batch.id);
-        batchOps.update(bRef, {
-          quantityAvailable: admin.firestore.FieldValue.increment(-take),
-          quantityReserved: admin.firestore.FieldValue.increment(take)
-        });
-        
-        // Add individual stock reservation
-        const itemResRef = dbRef.collection("stockReservations").doc();
-        batchOps.set(itemResRef, {
-          id: itemResRef.id,
-          groupId,
-          surgeryId,
-          medicationId: item.medicationId,
-          batchId: batch.id,
-          batchNumber: batch.batchNumber,
-          quantity: take,
-          status: "active"
-        });
-        
-        // Log movement
-        const movRef = dbRef.collection("stockMovements").doc();
-        batchOps.set(movRef, {
-          id: movRef.id,
-          groupId,
-          batchId: batch.id,
-          medicationId: item.medicationId,
-          genericName: item.genericName,
-          type: "reservation",
-          quantity: take,
-          locationId: batch.locationId,
-          surgeryId,
-          patientName,
-          userId: user.uid,
-          userName: user.email || "Médico",
-          description: `Reserva para cirurgia de ${patientName}`,
-          timestamp: new Date().toISOString()
-        });
-        
-        needed -= take;
-        reservedAmount += take;
-        
-        item.batchId = batch.id;
-        item.batchNumber = batch.batchNumber;
-      }
-    }
-    
-    // Save medication plan
-    const planRef = dbRef.collection("medicationPlans").doc(surgeryId);
-    const planData = {
-      id: surgeryId,
-      groupId,
-      surgeryId,
-      patientName,
-      protocolId,
-      protocolName,
-      protocolVersion,
-      status: "confirmed",
-      patientWeight,
-      patientAge,
-      patientAllergies,
-      patientRestrictions,
-      calculatedBy: user.uid,
-      calculatedAt: new Date().toISOString(),
-      confirmedBy: user.uid,
-      confirmedAt: new Date().toISOString(),
-      items,
-      justifications,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    
-    batchOps.set(planRef, planData);
-    
-    // Also update surgery status in calendario
-    const surgRef = dbRef.collection("calendario").doc(surgeryId);
-    batchOps.update(surgRef, {
-      medicationStatus: "confirmed"
-    });
-    
-    await batchOps.commit();
-    await logAudit(groupId, user.uid, user.email || "Médico", "CONFIRM_PLAN", "medicationPlan", surgeryId, `Confirmado planejamento de medicação para ${patientName}`);
-    
-    res.json({ success: true, plan: planData });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Create/Approve double checks
-app.post("/api/app/medication-plans/double-check", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const { surgeryId, medicationId, witnessEmail } = req.body;
-
-    const dbRef = db.collection("groups").doc(groupId);
-    
-    // Validate witness is another member in the group
-    const membersSnap = await dbRef.collection("members")
-      .where("userEmail", "==", witnessEmail.trim().toLowerCase())
-      .get();
-      
-    if (membersSnap.empty && user.email?.trim().toLowerCase() === witnessEmail.trim().toLowerCase()) {
-      return res.status(400).json({ error: "A dupla conferência exige um segundo profissional diferente da conta atual." });
-    }
-
-    const witnessName = !membersSnap.empty ? (membersSnap.docs[0].data().displayName || witnessEmail) : witnessEmail;
-
-    const checkRef = dbRef.collection("doubleChecks").doc();
-    const checkData = {
-      id: checkRef.id,
-      groupId,
-      surgeryId,
-      medicationId,
-      witnessUserId: !membersSnap.empty ? membersSnap.docs[0].id : "external",
-      witnessName,
-      witnessEmail,
-      timestamp: new Date().toISOString(),
-      status: "approved"
-    };
-
-    await checkRef.set(checkData);
-    res.json(checkData);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/app/medication-plans/separate", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const { surgeryId, items } = req.body;
-
-    const dbRef = db.collection("groups").doc(groupId);
-    const planRef = dbRef.collection("medicationPlans").doc(surgeryId);
-    
-    const planSnap = await planRef.get();
-    if (!planSnap.exists) return res.status(404).json({ error: "Planejamento não encontrado" });
-    const plan = planSnap.data();
-
-    const batchOps = db.batch();
-    const updatedItems = (plan?.items || []).map((pItem: any) => {
-      const match = items.find((i: any) => i.medicationId === pItem.medicationId);
-      if (match) {
-        return {
-          ...pItem,
-          status: "separated",
-          quantitySeparated: match.quantitySeparated || pItem.adjustedVolume,
-          batchId: match.batchId || pItem.batchId,
-          batchNumber: match.batchNumber || pItem.batchNumber
-        };
-      }
-      return pItem;
-    });
-
-    batchOps.update(planRef, {
-      items: updatedItems,
-      status: "separated",
-      updatedAt: new Date().toISOString()
-    });
-
-    // Also update surgery status in calendario
-    const surgRef = dbRef.collection("calendario").doc(surgeryId);
-    batchOps.update(surgRef, {
-      medicationStatus: "separated"
-    });
-
-    // Log separation movements
-    for (const item of updatedItems) {
-      if (item.status === "separated") {
-        const movRef = dbRef.collection("stockMovements").doc();
-        batchOps.set(movRef, {
-          id: movRef.id,
-          groupId,
-          batchId: item.batchId || "unknown",
-          medicationId: item.medicationId,
-          genericName: item.genericName,
-          type: "separation",
-          quantity: item.quantitySeparated,
-          surgeryId,
-          patientName: plan?.patientName,
-          userId: user.uid,
-          userName: user.email || "Enfermagem",
-          description: `Separação de kit cirúrgico para ${plan?.patientName}`,
-          timestamp: new Date().toISOString()
-        });
-      }
-    }
-
-    await batchOps.commit();
-    await logAudit(groupId, user.uid, user.email || "Enfermagem", "SEPARATE_KIT", "medicationPlan", surgeryId, `Kit cirúrgico separado para ${plan?.patientName}`);
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/app/medication-plans/close", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const { surgeryId, items } = req.body; // Array of item details containing final quantities: administered, returned, wasted, lost
-
-    const dbRef = db.collection("groups").doc(groupId);
-    const planRef = dbRef.collection("medicationPlans").doc(surgeryId);
-    
-    const planSnap = await planRef.get();
-    if (!planSnap.exists) return res.status(404).json({ error: "Planejamento não encontrado" });
-    const plan = planSnap.data();
-
-    const batchOps = db.batch();
-    const updatedItems = (plan?.items || []).map((pItem: any) => {
-      const match = items.find((i: any) => i.medicationId === pItem.medicationId);
-      if (match) {
-        const separated = pItem.quantitySeparated || pItem.adjustedVolume || 0;
-        const adminQty = parseFloat(match.quantityAdministered) || 0;
-        const retQty = parseFloat(match.quantityReturned) || 0;
-        const wasteQty = parseFloat(match.quantityWasted) || 0;
-        const lostQty = parseFloat(match.quantityLost) || 0;
-
-        // Core Formula Verification: separated = administered + returned + wasted + lost
-        const sum = adminQty + retQty + wasteQty + lostQty;
-        if (Math.abs(separated - sum) > 0.001) {
-          throw new Error(`Divergência na conferência de ${pItem.genericName}: Separado (${separated}) deve ser igual à soma de Administrado (${adminQty}) + Devolvido (${retQty}) + Desperdiçado (${wasteQty}) + Perdido (${lostQty}).`);
-        }
-
-        return {
-          ...pItem,
-          status: "finished",
-          quantityAdministered: adminQty,
-          quantityReturned: retQty,
-          quantityWasted: wasteQty,
-          quantityLost: lostQty
-        };
-      }
-      return pItem;
-    });
-
-    batchOps.update(planRef, {
-      items: updatedItems,
-      status: "finished",
-      updatedAt: new Date().toISOString()
-    });
-
-    // Also update surgery status in calendario
-    const surgRef = dbRef.collection("calendario").doc(surgeryId);
-    batchOps.update(surgRef, {
-      medicationStatus: "finished"
-    });
-
-    // Resolve reservations & stock updates
-    for (const item of updatedItems) {
-      if (item.batchId) {
-        const bRef = dbRef.collection("inventoryBatches").doc(item.batchId);
-        
-        // Remove from reserved amount (as reservation is fulfilled/closed)
-        const totalReservedToDeduct = item.quantitySeparated || item.adjustedVolume || 0;
-        
-        // Add back returned quantity to available stock
-        const returnAmount = item.quantityReturned || 0;
-        
-        // Deduct wasted/administered/lost from total pool (they were already subtracted from available when reserved,
-        // so we only need to deduct them from the quantityReserved, and add back the returned quantity to available!)
-        batchOps.update(bRef, {
-          quantityReserved: admin.firestore.FieldValue.increment(-totalReservedToDeduct),
-          quantityAvailable: admin.firestore.FieldValue.increment(returnAmount)
-        });
-
-        // Record movements for consumed/administered
-        if (item.quantityAdministered > 0) {
-          const movRef = dbRef.collection("stockMovements").doc();
-          batchOps.set(movRef, {
-            id: movRef.id,
-            groupId,
-            batchId: item.batchId,
-            medicationId: item.medicationId,
-            genericName: item.genericName,
-            type: "administration",
-            quantity: item.quantityAdministered,
-            surgeryId,
-            patientName: plan?.patientName,
-            userId: user.uid,
-            userName: user.email || "Enfermagem",
-            description: `Administração cirúrgica para ${plan?.patientName}`,
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        // Record movements for returned
-        if (item.quantityReturned > 0) {
-          const movRef = dbRef.collection("stockMovements").doc();
-          batchOps.set(movRef, {
-            id: movRef.id,
-            groupId,
-            batchId: item.batchId,
-            medicationId: item.medicationId,
-            genericName: item.genericName,
-            type: "return",
-            quantity: item.quantityReturned,
-            surgeryId,
-            patientName: plan?.patientName,
-            userId: user.uid,
-            userName: user.email || "Enfermagem",
-            description: `Retorno ao estoque para ${plan?.patientName}`,
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        // Record movements for waste
-        if (item.quantityWasted > 0) {
-          const movRef = dbRef.collection("stockMovements").doc();
-          batchOps.set(movRef, {
-            id: movRef.id,
-            groupId,
-            batchId: item.batchId,
-            medicationId: item.medicationId,
-            genericName: item.genericName,
-            type: "waste",
-            quantity: item.quantityWasted,
-            surgeryId,
-            patientName: plan?.patientName,
-            userId: user.uid,
-            userName: user.email || "Enfermagem",
-            description: `Desperdício justificado de medicação - ${plan?.patientName}`,
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        // Record movements for loss
-        if (item.quantityLost > 0) {
-          const movRef = dbRef.collection("stockMovements").doc();
-          batchOps.set(movRef, {
-            id: movRef.id,
-            groupId,
-            batchId: item.batchId,
-            medicationId: item.medicationId,
-            genericName: item.genericName,
-            type: "loss",
-            quantity: item.quantityLost,
-            surgeryId,
-            patientName: plan?.patientName,
-            userId: user.uid,
-            userName: user.email || "Enfermagem",
-            description: `Perda registrada de medicação - ${plan?.patientName}`,
-            timestamp: new Date().toISOString()
-          });
-        }
-      }
-    }
-
-    await batchOps.commit();
-    await logAudit(groupId, user.uid, user.email || "Enfermagem", "CLOSE_PLAN", "medicationPlan", surgeryId, `Finalizado fechamento de consumo para ${plan?.patientName}`);
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-app.post("/api/app/medication-plans/cancel", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    const { user } = await requireGroupMember(req, groupId);
-    const { surgeryId } = req.body;
-
-    const dbRef = db.collection("groups").doc(groupId);
-    const planRef = dbRef.collection("medicationPlans").doc(surgeryId);
-    
-    const planSnap = await planRef.get();
-    if (!planSnap.exists) return res.status(404).json({ error: "Planejamento não encontrado" });
-    const plan = planSnap.data();
-
-    // Release stock reservations
-    const reservationsSnap = await dbRef.collection("stockReservations")
-      .where("surgeryId", "==", surgeryId)
-      .get();
-
-    const batchOps = db.batch();
-    
-    for (const d of reservationsSnap.docs) {
-      const resData = d.data();
-      // Add back to batch available, decrement reserved
-      const bRef = dbRef.collection("inventoryBatches").doc(resData.batchId);
-      batchOps.update(bRef, {
-        quantityAvailable: admin.firestore.FieldValue.increment(resData.quantity),
-        quantityReserved: admin.firestore.FieldValue.increment(-resData.quantity)
-      });
-      // Delete reservation
-      batchOps.delete(d.ref);
-    }
-
-    batchOps.update(planRef, {
-      status: "cancelled",
-      updatedAt: new Date().toISOString()
-    });
-
-    // Also update surgery status in calendario
-    const surgRef = dbRef.collection("calendario").doc(surgeryId);
-    batchOps.update(surgRef, {
-      medicationStatus: "cancelled"
-    });
-
-    await batchOps.commit();
-    await logAudit(groupId, user.uid, user.email || "Médico", "CANCEL_PLAN", "medicationPlan", surgeryId, `Planejamento de medicamentos cancelado para ${plan?.patientName}`);
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 6. Audit Logs
-app.get("/api/app/audit-logs", async (req, res) => {
-  const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  try {
-    await requireGroupMember(req, groupId);
-    const snap = await db.collection("groups").doc(groupId).collection("auditLogs").orderBy("timestamp", "desc").limit(100).get();
-    const list = snap.docs.map(doc => doc.data());
-    res.json(list);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 async function startServer() {
   const distPath = path.join(process.cwd(), "dist");
-  const publicPath = path.join(process.cwd(), "public");
 
-  // Explicitly serve manifest.json with standard PWA content-type and CORS in both dev and prod
+  // Explicitly serve manifest.json with standard PWA content-type and safety in both dev and prod
   app.get("/manifest.json", (req, res) => {
     res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.setHeader("Access-Control-Allow-Origin", "*");
     const prodPath = path.join(distPath, "manifest.json");
-    const devPath = path.join(publicPath, "manifest.json");
+    const devPath = path.join(process.cwd(), "public", "manifest.json");
     if (fs.existsSync(prodPath)) {
       res.sendFile(prodPath);
     } else if (fs.existsSync(devPath)) {
@@ -4922,59 +3288,12 @@ async function startServer() {
     }
   });
 
-  // Explicitly serve icons with correct image/png headers, CORS, and caching
-  app.get("/icons/:iconName", (req, res) => {
-    const iconName = req.params.iconName;
-    const prodFile = path.join(distPath, "icons", iconName);
-    const pubFile = path.join(publicPath, "icons", iconName);
-
-    res.setHeader("Content-Type", "image/png");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Cache-Control", "public, max-age=86400");
-
-    if (fs.existsSync(prodFile)) {
-      return res.sendFile(prodFile);
-    } else if (fs.existsSync(pubFile)) {
-      return res.sendFile(pubFile);
-    } else {
-      return res.status(404).send("Icon not found");
-    }
-  });
-
-  // Explicitly serve apple-touch-icon.png and favicon.png
-  app.get(["/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"], (req, res) => {
-    const prodFile = path.join(distPath, "apple-touch-icon.png");
-    const pubFile = path.join(publicPath, "apple-touch-icon.png");
-    res.setHeader("Content-Type", "image/png");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    if (fs.existsSync(prodFile)) {
-      return res.sendFile(prodFile);
-    } else if (fs.existsSync(pubFile)) {
-      return res.sendFile(pubFile);
-    }
-    res.status(404).send("Not found");
-  });
-
-  app.get(["/favicon.png", "/favicon.ico"], (req, res) => {
-    const prodFile = path.join(distPath, "favicon.png");
-    const pubFile = path.join(publicPath, "favicon.png");
-    res.setHeader("Content-Type", "image/png");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    if (fs.existsSync(prodFile)) {
-      return res.sendFile(prodFile);
-    } else if (fs.existsSync(pubFile)) {
-      return res.sendFile(pubFile);
-    }
-    res.status(404).send("Not found");
-  });
-
   // Explicitly serve service-worker.js with correct Content-Type and no-cache in both dev and prod
   app.get("/service-worker.js", (req, res, next) => {
     const prodPath = path.join(distPath, "service-worker.js");
     if (fs.existsSync(prodPath)) {
       res.setHeader("Content-Type", "application/javascript; charset=utf-8");
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Access-Control-Allow-Origin", "*");
       res.sendFile(prodPath);
     } else {
       // Let Vite middleware compile dynamically in dev
@@ -5003,7 +3322,6 @@ async function startServer() {
     });
   } else {
     app.use(express.static(distPath));
-    app.use(express.static(path.join(process.cwd(), "public")));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
