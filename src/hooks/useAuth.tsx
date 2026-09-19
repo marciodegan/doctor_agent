@@ -61,30 +61,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const res = await fetch("/api/auth/status", { credentials: 'include' });
+      console.log("[Auth] Checking authentication status at /api/auth/status...");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const res = await fetch("/api/auth/status", { 
+        credentials: 'include',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
+      console.log("[Auth] /api/auth/status response:", data);
       
+      // Immediately set authentication state to unblock UI render
+      setIsAuthenticated(!!data.isAuthenticated);
+
       if (data.isAuthenticated && !fbAuth.currentUser) {
         try {
-          const fbRes = await fetch("/api/auth/firebase-token", { credentials: 'include' });
+          const fbController = new AbortController();
+          const fbTimeoutId = setTimeout(() => fbController.abort(), 8000);
+
+          const fbRes = await fetch("/api/auth/firebase-token", { 
+            credentials: 'include',
+            signal: fbController.signal
+          });
+          clearTimeout(fbTimeoutId);
+
           if (fbRes.ok) {
             const { customToken } = await fbRes.json();
             await signInWithCustomToken(fbAuth, customToken);
+            console.log("[Auth] Firebase authenticated successfully with customToken");
           } else if (fbRes.status === 401) {
             await logout();
             return;
+          } else {
+            const errData = await fbRes.json().catch(() => ({}));
+            console.error("[Auth] Falha ao obter Firebase Custom Token (HTTP " + fbRes.status + "):", errData);
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error("[Auth] Erro ao autenticar no Firebase com customToken:", e);
+        }
       }
-      setIsAuthenticated(data.isAuthenticated);
     } catch (error) {
+      console.warn("[Auth] checkAuth error or timeout:", error);
       setIsAuthenticated(false);
     }
   };
 
   useEffect(() => {
     checkAuth();
+
+    // Safety timeout: Never leave UI hanging in 'null' (initializing) state indefinitely
+    const safetyTimer = setTimeout(() => {
+      setIsAuthenticated((prev) => {
+        if (prev === null) {
+          console.warn("[Auth] Safety timeout reached, forcing isAuthenticated = false");
+          return false;
+        }
+        return prev;
+      });
+    }, 4500);
+
     const processAuthSuccess = async (tokens: any) => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);

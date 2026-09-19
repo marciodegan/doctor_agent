@@ -1,6 +1,6 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from "workbox-precaching";
 
-const APP_VERSION = "1.0.6";
+const APP_VERSION = "1.0.7";
 const CACHE_NAME = `dr-agent-runtime-v${APP_VERSION}`;
 
 console.log("[PWA] Service worker initializing version:", APP_VERSION);
@@ -67,7 +67,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Never intercept API routes or cross-origin requests
   if (
+    requestUrl.origin !== self.location.origin ||
+    requestUrl.pathname.startsWith("/api/") ||
     requestUrl.pathname.includes("manifest.json") ||
     requestUrl.pathname.includes("/icons/") ||
     requestUrl.pathname.includes("favicon") ||
