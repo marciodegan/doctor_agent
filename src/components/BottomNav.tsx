@@ -8,6 +8,7 @@ import {
   FileText,
   ShoppingCart,
   StickyNote,
+  Kanban,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGroup } from "../contexts/GroupContext";
@@ -47,6 +48,12 @@ export function BottomNav({
       label: isPersonal ? "Doc" : "Pacientes",
       icon: isPersonal ? <FileText size={20} /> : <Users size={20} />,
       prompt: isPersonal ? "/drive" : "/pacientes",
+    },
+    {
+      id: "trello",
+      label: "Trello",
+      icon: <Kanban size={20} />,
+      prompt: "/trello",
     },
     {
       id: "calendar",
@@ -102,7 +109,7 @@ export function BottomNav({
           return (
             <button
               key={tab.id}
-              id={tab.id === "management" ? "equipe-nav-button" : undefined}
+              id={tab.id === "management" ? "equipe-nav-button" : `nav-btn-${tab.id}`}
               onClick={() => {
                 const mainElement = document.querySelector("main");
                 if (mainElement) {

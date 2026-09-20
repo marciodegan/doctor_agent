@@ -38,7 +38,8 @@ import {
   Loader2,
   Stethoscope,
   PowerOff,
-  ExternalLink
+  ExternalLink,
+  Kanban
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -49,8 +50,9 @@ import { PersonalDocuments } from "./components/PersonalDocuments";
 import { PatientLogs } from "./components/PatientLogs";
 import { ShoppingList } from "./components/ShoppingList";
 import { PersonalNotes } from "./components/PersonalNotes";
+import { TrelloBoard } from "./components/TrelloBoard";
 
-type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes";
+type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes" | "trello";
 
 export default function AppWorkspace() {
   const { isAuthenticated, user, login, logout, isDemoMode, enableDemoMode, disableDemoMode } = useAuth();
@@ -405,6 +407,12 @@ export default function AppWorkspace() {
                   onClick={() => navigateAndAction("workspace")}
                 />
                 <NavItem
+                  icon={<Kanban size={18} />}
+                  label="Trello"
+                  active={currentView === "trello"}
+                  onClick={() => navigateAndAction("trello")}
+                />
+                <NavItem
                   icon={<Calendar size={18} />}
                   label="Calendário"
                   active={currentView === "calendar"}
@@ -521,6 +529,12 @@ export default function AppWorkspace() {
             label={activeGroup?.groupType === "personal" ? "Documentos" : "Agent Dashboard"}
             active={currentView === "workspace"}
             onClick={() => navigateAndAction("workspace")}
+          />
+          <NavItem
+            icon={<Kanban size={18} />}
+            label="Trello"
+            active={currentView === "trello"}
+            onClick={() => navigateAndAction("trello")}
           />
           <NavItem
             icon={<Users size={18} />}
@@ -802,6 +816,12 @@ export default function AppWorkspace() {
                           patientId={activePatientId}
                           onBack={() => navigateAndAction("workspace")}
                           onSchedule={(name, proc, hospId) => navigateAndAction("calendar", undefined, activePatientId!, name, proc, hospId)}
+                        />
+                      ) : currentView === "trello" ? (
+                        <TrelloBoard
+                          onSelectPatient={(patientId, patientName) =>
+                            navigateAndAction("workspace", `/p ${patientId}`, patientId, patientName)
+                          }
                         />
                       ) : currentView === "notes" ? (
                         <PersonalNotes onNavigateToShoppingList={() => navigateAndAction("shopping_list")} />
