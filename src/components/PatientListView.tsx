@@ -355,27 +355,104 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
     ? statuses.find((s: any) => s.id.toString() === statusFilter) 
     : null;
 
+  const countPre = patients.filter(p => normalizeString(p.status || "").includes("pre") || normalizeString(p.status || "").includes("pré")).length;
+  const countPos = patients.filter(p => normalizeString(p.status || "").includes("pos") || normalizeString(p.status || "").includes("pós")).length;
+  const countAcomp = patients.filter(p => normalizeString(p.status || "").includes("acompanhamento")).length;
+  const countAlta = patients.filter(p => normalizeString(p.status || "").includes("alta")).length;
+
+  const currentDateFormatted = new Date().toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long"
+  });
+
   return (
-    <div className="space-y-6 w-full text-gray-800">
-      {/* Action Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2">
+    <div className="space-y-6 w-full text-gray-800 pb-12">
+      {/* Modern Top Header */}
+      <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 font-black text-lg">
+            Dr
+          </div>
+          <div>
+            <h1 className="text-lg font-extrabold text-gray-900 tracking-tight leading-none">Dr. Agent</h1>
+            <p className="text-xs text-gray-500 font-medium mt-0.5">Seu dia, mais organizado</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs shadow-sm">
+            DA
+          </div>
+        </div>
+      </div>
+
+      {/* Greeting & Date Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gradient-to-r from-blue-50/60 to-indigo-50/30 p-5 rounded-3xl border border-blue-100/60">
+        <div>
+          <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">Bom dia, Doutor(a)!</h2>
+          <p className="text-xs text-gray-600 font-medium mt-0.5">Aqui está o resumo dos seus pacientes atualizados.</p>
+        </div>
+        <div className="inline-flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-blue-100/80 shadow-sm self-start sm:self-auto text-xs font-bold text-blue-700">
+          <CalendarIcon size={14} className="text-blue-500" />
+          <span className="capitalize">{currentDateFormatted}</span>
+        </div>
+      </div>
+
+      {/* Patient Summary Statistics Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white p-4 rounded-2xl border border-blue-100/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
+          <div className="flex items-center justify-between text-blue-600 mb-2">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-blue-800">Pré-operatório</span>
+            <span className="text-lg">🔵</span>
+          </div>
+          <div className="text-2xl font-black text-gray-900">{countPre} <span className="text-xs font-semibold text-gray-500">pacientes</span></div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-emerald-100/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
+          <div className="flex items-center justify-between text-emerald-600 mb-2">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-800">Pós-operatório</span>
+            <span className="text-lg">🟢</span>
+          </div>
+          <div className="text-2xl font-black text-gray-900">{countPos} <span className="text-xs font-semibold text-gray-500">pacientes</span></div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-amber-100/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
+          <div className="flex items-center justify-between text-amber-600 mb-2">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-amber-800">Acompanhamento</span>
+            <span className="text-lg">🟡</span>
+          </div>
+          <div className="text-2xl font-black text-gray-900">{countAcomp} <span className="text-xs font-semibold text-gray-500">pacientes</span></div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-purple-100/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
+          <div className="flex items-center justify-between text-purple-600 mb-2">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-purple-800">Alta prevista</span>
+            <span className="text-lg">🟣</span>
+          </div>
+          <div className="text-2xl font-black text-gray-900">{countAlta} <span className="text-xs font-semibold text-gray-500">pacientes</span></div>
+        </div>
+      </div>
+
+      {/* Action Header with Modern New Patient Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2">
         <button 
           onClick={() => onCommand("/iniciarcadastro", true)}
-          className="self-start inline-flex items-center gap-2 font-bold text-sm bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full shadow-md shadow-blue-500/10 hover:shadow-lg hover:shadow-blue-500/20 active:scale-[0.98] transition-all"
+          className="self-start inline-flex items-center gap-2 font-bold text-sm bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 active:scale-[0.98] transition-all"
         >
-          <Plus size={16} />
-          Novo Paciente
+          <Plus size={18} />
+          + Novo Paciente
         </button>
       </div>
 
-      {/* Buscar field */}
+      {/* Modern Search Field */}
       <div className="relative">
         <input
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar paciente..."
-          className="w-full rounded-2xl glass-input pl-11 pr-4 py-3 text-sm font-semibold text-gray-800 shadow-sm outline-none transition-all font-sans"
+          placeholder="Buscar paciente, hospital, leito..."
+          className="w-full rounded-2xl bg-white border border-gray-200/80 pl-11 pr-4 py-3.5 text-sm font-semibold text-gray-800 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all font-sans"
         />
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
           <Search size={18} />
@@ -409,23 +486,23 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
       )}
 
       {loading ? (
-        <div className="text-center py-12 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
-          <Activity size={32} className="mx-auto text-blue-500 mb-2 animate-spin text-blue-500" />
+        <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-gray-200 shadow-sm">
+          <Activity size={32} className="mx-auto text-blue-500 mb-2 animate-spin" />
           <p className="text-gray-500 text-sm font-medium">Buscando pacientes...</p>
         </div>
       ) : patients.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
+        <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-gray-200 shadow-sm">
           <Activity size={32} className="mx-auto text-gray-400 mb-2 animate-pulse" />
           <p className="text-gray-500 text-sm font-medium">Nenhum paciente encontrado.</p>
           <p className="text-gray-400 text-xs mt-1">Tente ajustar seus filtros de pesquisa acima.</p>
         </div>
       ) : searchedPatients.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
+        <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-gray-200 shadow-sm">
           <Activity size={32} className="mx-auto text-gray-400 mb-2 animate-pulse" />
           <p className="text-gray-500 text-sm font-medium">Nenhum paciente encontrado para esta busca.</p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {isStatusFiltered && !isHospFiltered ? (
             // Group by Hospital
             (() => {
@@ -442,39 +519,55 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
               const sortedHospitals = Object.values(hospitalGrouped).sort((a, b) => a.name.localeCompare(b.name));
 
               return sortedHospitals.map(({ name: hName, list: groupedPatients }, hIdx) => (
-                <div key={hIdx} className="space-y-3">
+                <div key={hIdx} className="space-y-4">
                   {/* Hospital Group Header */}
-                  <div className="flex items-center justify-between text-blue-900 bg-blue-50/50 px-4 py-3 rounded-xl border-l-4 border-blue-500 select-none">
-                    <div className="flex items-center gap-2 font-black text-sm uppercase tracking-wide">
-                      <span>🏥</span>
+                  <div className="flex items-center justify-between text-blue-900 bg-blue-50/80 px-5 py-3.5 rounded-2xl border-l-4 border-blue-600 select-none shadow-sm">
+                    <div className="flex items-center gap-2.5 font-black text-sm uppercase tracking-wide">
+                      <span className="text-base">🏥</span>
                       <span>{hName}</span>
                     </div>
-                    <span className="text-[10px] bg-blue-100/80 text-blue-800 px-2.5 py-1 rounded-full font-extrabold tracking-wider">
+                    <span className="text-[11px] bg-white text-blue-800 px-3 py-1 rounded-full font-extrabold tracking-wider border border-blue-100 shadow-sm">
                       {groupedPatients.length} {groupedPatients.length === 1 ? "PACIENTE" : "PACIENTES"}
                     </span>
                   </div>
 
                   {/* Patient Cards in Hospital Group */}
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="grid grid-cols-1 gap-4">
                     {groupedPatients.map((p) => {
+                      const initials = p.nome ? p.nome.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase() : "PA";
                       return (
                         <div 
                           key={p.id}
                           onClick={() => onCommand(`/p ${p.id}`, true)}
-                          className="group glass-card rounded-2xl shadow-sm px-4 py-3 hover:border-blue-200/50 hover:shadow-md transition-all duration-200 cursor-pointer text-left"
+                          className="group bg-white rounded-[20px] shadow-sm hover:shadow-md border border-gray-100 p-5 transition-all duration-200 cursor-pointer text-left relative overflow-hidden"
                         >
-                          <div className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                            {p.nome}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3.5">
+                              <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-700 font-black text-xs flex items-center justify-center shrink-0 border border-blue-100 shadow-sm">
+                                {initials}
+                              </div>
+                              <div>
+                                <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors tracking-tight">
+                                  {p.nome}
+                                </h3>
+                                <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-bold text-gray-700 uppercase tracking-tight">
+                                    {p.hospitalName || "Sem Hospital"}
+                                  </span>
+                                  <span className="text-xs text-gray-300">•</span>
+                                  <span className="text-xs font-medium text-gray-500">
+                                    {p.roomNumber ? `Leito ${p.roomNumber}` : "Sem leito"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            {p.status && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100/80">
+                                {p.status}
+                              </span>
+                            )}
                           </div>
-                          <div className="mt-1 flex items-center gap-1 flex-wrap">
-                            <span className="text-xs font-bold text-gray-700 uppercase">
-                              {p.hospitalName || "Sem Hospital"}
-                            </span>
-                            <span className="text-xs text-gray-400">·</span>
-                            <span className="text-xs text-gray-500">
-                              {p.roomNumber ? `Leito ${p.roomNumber}` : "Sem leito"}
-                            </span>
-                          </div>
+
                           {(() => {
                             const pEvents = getPatientEvents(p);
                             if (pEvents.length === 0) return null;
@@ -487,14 +580,14 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                                   e.stopPropagation();
                                   onCommand("/open_calendar", true);
                                 }}
-                                className="mt-2 inline-flex items-center gap-1.5 bg-blue-50/70 hover:bg-blue-100/70 px-2.5 py-1 rounded-full text-[11px] font-bold text-blue-700 transition-all select-none border border-blue-100 max-w-full"
+                                className="mt-4 inline-flex items-center gap-2 bg-blue-50/50 hover:bg-blue-100/60 px-3.5 py-1.5 rounded-xl text-xs font-bold text-blue-700 transition-all select-none border border-blue-100/80 max-w-full"
                               >
-                                <CalendarIcon size={12} className="shrink-0 text-blue-500" />
+                                <CalendarIcon size={14} className="shrink-0 text-blue-500" />
                                 <span className="truncate">
                                   {timeFormatted} · {nextEvent.evento}
                                 </span>
                                 {additionalCount > 0 && (
-                                  <span className="shrink-0 text-[9px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-black uppercase tracking-tight ml-0.5">
+                                  <span className="shrink-0 text-[10px] bg-blue-200/70 text-blue-900 px-2 py-0.5 rounded-full font-black uppercase tracking-tight ml-1">
                                     +{additionalCount} {additionalCount === 1 ? "evento" : "eventos"}
                                   </span>
                                 )}
@@ -532,40 +625,55 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
               });
 
               return sortedStatuses.map(({ name: sName, list: groupedPatients }, statusIdx) => {
+                const config = getStatusStyles(sName);
                 return (
-                  <div key={statusIdx} className="space-y-3">
+                  <div key={statusIdx} className="space-y-4">
                     {/* Status Group Header */}
-                    <div className="flex items-center justify-between rounded-2xl border border-blue-200/40 bg-blue-50/70 backdrop-blur-sm px-4 py-3 select-none">
-                      <span className="text-[11px] font-black uppercase tracking-widest text-blue-700">
-                        {sName}
-                      </span>
-                      <span className="rounded-full bg-white border border-blue-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                    <div className={`flex items-center justify-between rounded-2xl px-5 py-3.5 select-none shadow-sm ${config.headerClass}`}>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base">{config.emoji}</span>
+                        <span className="text-xs font-black uppercase tracking-widest">
+                          {sName}
+                        </span>
+                      </div>
+                      <span className="rounded-full bg-white/80 backdrop-blur-sm px-3.5 py-1 text-xs font-extrabold uppercase tracking-wide shadow-sm">
                         {groupedPatients.length} {groupedPatients.length === 1 ? "paciente" : "pacientes"}
                       </span>
                     </div>
 
                     {/* Patient Cards in Status Group */}
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-1 gap-4">
                       {groupedPatients.map((p) => {
                         const hDisplay = p.hospitalName || "Sem Hospital";
+                        const initials = p.nome ? p.nome.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase() : "PA";
                         return (
                           <div 
                             key={p.id}
                             onClick={() => onCommand(`/p ${p.id}`, true)}
-                            className="group glass-card rounded-2xl shadow-sm px-4 py-3 hover:border-blue-200/50 hover:shadow-md transition-all duration-200 cursor-pointer text-left"
+                            className="group bg-white rounded-[20px] shadow-sm hover:shadow-md border border-gray-100 p-5 transition-all duration-200 cursor-pointer text-left relative overflow-hidden"
                           >
-                            <div className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                              {p.nome}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-3.5">
+                                <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-700 font-black text-xs flex items-center justify-center shrink-0 border border-blue-100 shadow-sm">
+                                  {initials}
+                                </div>
+                                <div>
+                                  <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors tracking-tight">
+                                    {p.nome}
+                                  </h3>
+                                  <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs font-bold text-gray-700 uppercase tracking-tight">
+                                      {hDisplay}
+                                    </span>
+                                    <span className="text-xs text-gray-300">•</span>
+                                    <span className="text-xs font-medium text-gray-500">
+                                      {p.roomNumber ? `Leito ${p.roomNumber}` : "Sem leito"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <div className="mt-1 flex items-center gap-1 flex-wrap">
-                              <span className="text-xs font-bold text-gray-700 uppercase">
-                                {hDisplay}
-                              </span>
-                              <span className="text-xs text-gray-400">·</span>
-                              <span className="text-xs text-gray-500">
-                                {p.roomNumber ? `Leito ${p.roomNumber}` : "Sem leito"}
-                              </span>
-                            </div>
+
                             {(() => {
                               const pEvents = getPatientEvents(p);
                               if (pEvents.length === 0) return null;
@@ -578,14 +686,14 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                                     e.stopPropagation();
                                     onCommand("/open_calendar", true);
                                   }}
-                                  className="mt-2 inline-flex items-center gap-1.5 bg-blue-50/70 hover:bg-blue-100/70 px-2.5 py-1 rounded-full text-[11px] font-bold text-blue-700 transition-all select-none border border-blue-100 max-w-full"
+                                  className="mt-4 inline-flex items-center gap-2 bg-blue-50/50 hover:bg-blue-100/60 px-3.5 py-1.5 rounded-xl text-xs font-bold text-blue-700 transition-all select-none border border-blue-100/80 max-w-full"
                                 >
-                                  <CalendarIcon size={12} className="shrink-0 text-blue-500" />
+                                  <CalendarIcon size={14} className="shrink-0 text-blue-500" />
                                   <span className="truncate">
                                     {timeFormatted} · {nextEvent.evento}
                                   </span>
                                   {additionalCount > 0 && (
-                                    <span className="shrink-0 text-[9px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-black uppercase tracking-tight ml-0.5">
+                                    <span className="shrink-0 text-[10px] bg-blue-200/70 text-blue-900 px-2 py-0.5 rounded-full font-black uppercase tracking-tight ml-1">
                                       +{additionalCount} {additionalCount === 1 ? "evento" : "eventos"}
                                     </span>
                                   )}
@@ -604,18 +712,18 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
         </div>
       )}
 
-      {/* Modern JSX-based Pagination */}
+      {/* Modern Pagination */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-4 pt-6 border-t border-gray-100 mt-6">
+        <div className="flex items-center justify-center gap-4 pt-6 border-t border-gray-100 mt-8">
           <button
             disabled={pagination.page <= 1}
             onClick={() => {
               const prevPage = pagination.page - 1;
               onCommand(`/pacientes hospital:${pagination.hospitalFilter || ""} status:${pagination.statusFilter || ""} pag:${prevPage} sort:${pagination.sort}`, true);
             }}
-            className="p-2 sm:px-4 sm:py-2 text-xs font-bold text-gray-700 hover:text-blue-600 bg-gray-50 hover:bg-blue-100/50 disabled:opacity-40 disabled:hover:bg-gray-50 disabled:hover:text-gray-700 rounded-xl transition-all border border-gray-200/50 flex items-center gap-1.5"
+            className="p-2.5 sm:px-5 sm:py-2.5 text-xs font-bold text-gray-700 hover:text-blue-600 bg-white hover:bg-blue-50 disabled:opacity-40 rounded-2xl transition-all border border-gray-200/80 shadow-sm flex items-center gap-2"
           >
-            <ArrowLeft size={14} />
+            <ArrowLeft size={16} />
             <span className="hidden sm:inline">Anterior</span>
           </button>
 
@@ -629,10 +737,10 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
               const nextPage = pagination.page + 1;
               onCommand(`/pacientes hospital:${pagination.hospitalFilter || ""} status:${pagination.statusFilter || ""} pag:${nextPage} sort:${pagination.sort}`, true);
             }}
-            className="p-2 sm:px-4 sm:py-2 text-xs font-bold text-gray-700 hover:text-blue-600 bg-gray-50 hover:bg-blue-100/50 disabled:opacity-40 disabled:hover:bg-gray-50 disabled:hover:text-gray-700 rounded-xl transition-all border border-gray-200/50 flex items-center gap-1.5"
+            className="p-2.5 sm:px-5 sm:py-2.5 text-xs font-bold text-gray-700 hover:text-blue-600 bg-white hover:bg-blue-50 disabled:opacity-40 rounded-2xl transition-all border border-gray-200/80 shadow-sm flex items-center gap-2"
           >
             <span className="hidden sm:inline">Próxima</span>
-            <ArrowRight size={14} />
+            <ArrowRight size={16} />
           </button>
         </div>
       )}
