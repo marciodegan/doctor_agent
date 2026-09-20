@@ -11,19 +11,34 @@ import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 
-import defaultFirebaseConfig from "../firebase-applet-config.json";
-
 dotenv.config();
 
-let firebaseConfig: any = { ...defaultFirebaseConfig };
+const DEFAULT_FIREBASE_CONFIG = {
+  projectId: "parabolic-craft-277523",
+  appId: "1:767503688274:web:c9ab2d03e5740e166eb58b",
+  apiKey: "AIzaSyBto7FLKhGhQeBb7cIYKZaFjSWrVZzRhtE",
+  authDomain: "parabolic-craft-277523.firebaseapp.com",
+  firestoreDatabaseId: "ai-studio-0c2aaf40-e57b-4ffc-b4a7-865c2402ef5e",
+  storageBucket: "parabolic-craft-277523.firebasestorage.app",
+  messagingSenderId: "767503688274",
+  measurementId: ""
+};
+
+let firebaseConfig: any = { ...DEFAULT_FIREBASE_CONFIG };
 try {
-  const firebaseConfigPath = path.resolve(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(firebaseConfigPath)) {
-    const loaded = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf8"));
-    firebaseConfig = { ...firebaseConfig, ...loaded };
+  const possiblePaths = [
+    path.resolve(process.cwd(), "firebase-applet-config.json"),
+    path.resolve(process.cwd(), "..", "firebase-applet-config.json")
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      const loaded = JSON.parse(fs.readFileSync(p, "utf8"));
+      firebaseConfig = { ...firebaseConfig, ...loaded };
+      break;
+    }
   }
 } catch (e) {
-  console.warn("[Firebase] Could not read config file from disk, using imported config:", e);
+  console.warn("[Firebase] Could not read config file from disk, using fallback config:", e);
 }
 
 // Extract Service Account Certificate if configured in environment
@@ -113,6 +128,16 @@ const PORT = 3000;
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
+
+// Normalize URL for Vercel serverless functions:
+// If request arrives at Vercel function without /api prefix (e.g. rewritten from /auth/...),
+// ensure req.url starts with /api so all registered express routes match correctly.
+app.use((req, res, next) => {
+  if (req.url && !req.url.startsWith("/api") && (req.url.startsWith("/auth") || req.url.startsWith("/app/") || req.url.startsWith("/gemini") || req.url.startsWith("/admin") || req.url.startsWith("/patients") || req.url.startsWith("/hospitals") || req.url.startsWith("/statuses"))) {
+    req.url = `/api${req.url.startsWith("/") ? "" : "/"}${req.url}`;
+  }
+  next();
+});
 
 // Quota usage middleware
 app.use(async (req, res, next) => {
@@ -331,8 +356,21 @@ const verifyMembership = async (req: express.Request, res: express.Response, nex
 };
 
 const getAuthenticatedUser = async (req: express.Request) => {
-  // 1. Try Firebase Bearer Token
+  // 0. Demo Mode support for AI Studio preview
   const authHeader = req.headers.authorization;
+  if (
+    authHeader === "Bearer demo-token" ||
+    req.headers["x-demo-mode"] === "true" ||
+    getGroupId(req) === "demo-group-hospital"
+  ) {
+    return {
+      uid: "demo-doctor-preview",
+      email: "demo@doctor-agent.online",
+      source: "demo"
+    };
+  }
+
+  // 1. Try Firebase Bearer Token
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const idToken = authHeader.split("Bearer ")[1];
     try {
@@ -389,6 +427,14 @@ const getRequestGroupId = (req: express.Request) => {
 };
 
 const requireGroupMember = async (req: express.Request, groupId: string | null) => {
+  if (groupId === "demo-group-hospital") {
+    return {
+      user: { uid: "demo-doctor-preview", email: "demo@doctor-agent.online", source: "demo" },
+      group: { id: "demo-group-hospital", name: "Equipe Médica - Plantão Geral", createdBy: "demo-doctor-preview", groupType: "professional", status: "active" },
+      member: { userId: "demo-doctor-preview", role: "admin", status: "active" }
+    };
+  }
+
   const user = await requireAuth(req);
   if (!groupId) {
     const err = new Error("Active Group ID is required");
@@ -952,6 +998,69 @@ app.get("/api/app/patients", async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
+  if (groupId === "demo-group-hospital") {
+    const demoPatients = [
+      {
+        id: "demo-pat-1",
+        groupId: "demo-group-hospital",
+        name: "Maria Silva",
+        nome: "Maria Silva",
+        hospitalId: "demo-hosp-1",
+        statusId: "demo-stat-1",
+        status: "UTI / Crítico",
+        hospital: "Hospital Central & UTI",
+        bed: "Leito 302 - UTI Adulto",
+        age: "58 anos",
+        diagnosis: "Pneumonia Comunitária Grave em desmame ventilatório",
+        allergies: "Penicilina, Dipirona",
+        currentCondition: "Paciente lúcida, afebril há 48h, tolerando desmame de O2 via cateter nasal (2L/min). Diurese preservada.",
+        diet: "Oral branda com espessante",
+        access: "CVC subclávia D (D4)",
+        pendingActions: "Checar hemograma de controle e Rx de tórax matinal",
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: "demo-pat-2",
+        groupId: "demo-group-hospital",
+        name: "Carlos Eduardo Santos",
+        nome: "Carlos Eduardo Santos",
+        hospitalId: "demo-hosp-1",
+        statusId: "demo-stat-2",
+        status: "Estável / Enfermaria",
+        hospital: "Hospital Central & UTI",
+        bed: "Leito 105 - Enfermaria Clínica",
+        age: "42 anos",
+        diagnosis: "Apendicectomia laparoscópica (PO D1)",
+        allergies: "Nenhuma conhecida",
+        currentCondition: "Bom estado geral, eupneico, dor em FO controlada com analgésicos simples. RHA presentes, aceitou dieta leve.",
+        diet: "Líquida restrita evoluindo para branda",
+        access: "AVP MSD salinizado",
+        pendingActions: "Troca de curativo cirúrgico e previsão de alta amanhã",
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: "demo-pat-3",
+        groupId: "demo-group-hospital",
+        name: "Ana Beatriz Oliveira",
+        nome: "Ana Beatriz Oliveira",
+        hospitalId: "demo-hosp-2",
+        statusId: "demo-stat-3",
+        status: "Observação / Cirúrgico",
+        hospital: "Hospital Santa Clara",
+        bed: "Leito 210 - Bloco Cirúrgico / Recuperação",
+        age: "31 anos",
+        diagnosis: "Colecistectomia Eletiva",
+        allergies: "Iodo (relato de urticária prévia)",
+        currentCondition: "Estável hemodinamicamente, acordada, sem náuseas.",
+        diet: "Jejum para procedimento vespertino",
+        access: "AVP MSE com hidratação venosa",
+        pendingActions: "Aguardando liberação de leito em enfermaria pós-RPA",
+        updatedAt: new Date().toISOString()
+      }
+    ];
+    return res.json(demoPatients);
+  }
+
   try {
     // Verify membership using centralised check
     await requireGroupMember(req, groupId);
@@ -1057,6 +1166,14 @@ app.get("/api/app/settings", async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
+  if (groupId === "demo-group-hospital") {
+    return res.json({
+      companyName: "Dr. Agent - Plantão Geral",
+      whatsappNumber: "+55 11 99999-9999",
+      imageAnalysisPrompt: "Aja como um médico experiente e descreva os achados clínicos e conduta recomendada."
+    });
+  }
+
   try {
     const doc = await db.collection("settings").doc(groupId).get();
     const data = doc.data() || {};
@@ -1117,6 +1234,13 @@ app.post("/api/app/settings", async (req, res) => {
 app.get("/api/app/hospitals", async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  if (groupId === "demo-group-hospital") {
+    return res.json([
+      { id: "demo-hosp-1", name: "Hospital Central & UTI", nome: "Hospital Central & UTI", fone: "(11) 3456-7890" },
+      { id: "demo-hosp-2", name: "Hospital Santa Clara", nome: "Hospital Santa Clara", fone: "(11) 3344-5566" }
+    ]);
+  }
 
   try {
     const snap = await db.collection("hospitals").where("groupId", "==", groupId).get();
@@ -1535,6 +1659,14 @@ app.get("/api/app/patients/info/:id", async (req, res) => {
 app.get("/api/app/statuses", async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  if (groupId === "demo-group-hospital") {
+    return res.json([
+      { id: "demo-stat-1", name: "UTI / Crítico", nome: "UTI / Crítico", color: "#EF4444", sortOrder: 1 },
+      { id: "demo-stat-2", name: "Estável / Enfermaria", nome: "Estável / Enfermaria", color: "#10B981", sortOrder: 2 },
+      { id: "demo-stat-3", name: "Observação / Cirúrgico", nome: "Observação / Cirúrgico", color: "#F59E0B", sortOrder: 3 }
+    ]);
+  }
   
   try {
     const statusesSnap = await db.collection("patient_statuses")
@@ -3310,8 +3442,33 @@ app.get("/api/stripe/status", async (req, res) => {
   }
 });
 
+// Global Express Error Handler: Always output JSON to avoid HTML error crashes
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("[API Unhandled Error]:", err);
+  if (!res.headersSent) {
+    res.status(500).json({
+      error: err?.message || "Internal Server Error",
+      code: err?.code || "INTERNAL_ERROR"
+    });
+  }
+});
+
 async function startServer() {
   const distPath = path.join(process.cwd(), "dist");
+  const publicPath = path.join(process.cwd(), "public");
+
+  // Explicitly serve /icons with correct caching and mime types
+  if (fs.existsSync(path.join(publicPath, "icons"))) {
+    app.use("/icons", express.static(path.join(publicPath, "icons"), {
+      maxAge: "1d",
+      immutable: true
+    }));
+  }
+
+  // Serve public static assets (favicons, etc)
+  if (fs.existsSync(publicPath)) {
+    app.use(express.static(publicPath));
+  }
 
   // Explicitly serve manifest.json with standard PWA content-type and safety in both dev and prod
   app.get("/manifest.json", (req, res) => {

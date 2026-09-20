@@ -109,7 +109,68 @@ export function Calendar({
 
   useEffect(() => {
     const GROUP_ID = activeGroup?.id;
-    if (!GROUP_ID || !auth.currentUser) return;
+    if (!GROUP_ID) return;
+
+    if (GROUP_ID === "demo-group-hospital") {
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const demoEvents: CalendarEvent[] = [
+        {
+          id: "demo-cal-1",
+          nomePaciente: "Maria Silva",
+          patientId: "demo-pat-1",
+          evento: "Passagem de Plantão - UTI",
+          data: todayStr,
+          hora: "07:00",
+          descricao: "Passagem de plantão geral dos leitos da UTI.",
+          tipo: "URGÊNCIA",
+          sala: "SALA 1",
+          hospitalId: "demo-hosp-1",
+          groupId: "demo-group-hospital",
+          createdBy: "demo-doctor-preview",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          id: "demo-cal-2",
+          nomePaciente: "Carlos Eduardo Santos",
+          patientId: "demo-pat-2",
+          evento: "Visita Médica Multidisciplinar",
+          data: todayStr,
+          hora: "10:30",
+          descricao: "Round clínico de enfermaria com equipe multidisciplinar.",
+          tipo: "ELETIVA",
+          sala: "SALA 2",
+          hospitalId: "demo-hosp-1",
+          groupId: "demo-group-hospital",
+          createdBy: "demo-doctor-preview",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          id: "demo-cal-3",
+          nomePaciente: "Ana Beatriz Oliveira",
+          patientId: "demo-pat-3",
+          evento: "Colecistectomia Videolaparoscópica",
+          data: todayStr,
+          hora: "14:00",
+          descricao: "Procedimento eletivo agendado.",
+          tipo: "ELETIVA",
+          sala: "SALA 1",
+          hospitalId: "demo-hosp-2",
+          groupId: "demo-group-hospital",
+          createdBy: "demo-doctor-preview",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ];
+      setEvents(demoEvents);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!auth.currentUser) return;
 
     let isMounted = true;
     const eventsRef = collection(db, "groups", GROUP_ID, "calendario");
@@ -138,6 +199,24 @@ export function Calendar({
   useEffect(() => {
     const gId = activeGroup?.id;
     if (!gId) return;
+
+    if (gId === "demo-group-hospital") {
+      setAllProcedures([
+        { nome: "Passagem de Plantão", active: true },
+        { nome: "Visita Médica Multidisciplinar", active: true },
+        { nome: "Colecistectomia Videolaparoscópica", active: true },
+        { nome: "Apendicectomia", active: true }
+      ]);
+      setAllSurgeryTypes([
+        { name: "ELETIVA", active: true },
+        { name: "URGÊNCIA", active: true }
+      ]);
+      setAllHospitals([
+        { id: "demo-hosp-1", nome: "Hospital Central & UTI", active: true },
+        { id: "demo-hosp-2", nome: "Hospital Santa Clara", active: true }
+      ]);
+      return;
+    }
 
     let isMounted = true;
 

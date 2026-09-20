@@ -129,7 +129,7 @@ export const tools = [
 ];
 
 export const createAgent = (agentName: string = "Dr. Agent") => ai.chats.create({
-  model: "gemini-3-flash-preview", 
+  model: "gemini-2.5-flash", 
   config: {
     systemInstruction: `You are ${agentName}, a highly professional medical workspace assistant. 
     You have access to the user's Google Calendar and the Patient Database (Firestore) through provided tools. 

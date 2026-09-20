@@ -5,11 +5,15 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/(api|auth)(.*)",
+      "source": "/api/(.*)",
       "destination": "/api/index.ts"
     },
     {
-      "source": "/(.*)",
+      "source": "/auth/(.*)",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/((?!api/|auth/|.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/index.html"
     }
   ]

@@ -392,6 +392,40 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Fast-path for Demo Doctor Preview Mode
+    if (user.uid === "demo-doctor-preview") {
+      const demoGroup: Group = {
+        id: "demo-group-hospital",
+        name: "Equipe Médica - Plantão Geral",
+        createdBy: "demo-doctor-preview",
+        groupType: "professional",
+        status: "active",
+        active: true,
+        role: "admin",
+        encryptionEnabled: false,
+      };
+      setGroups([demoGroup]);
+      setActiveGroup(demoGroup);
+      setActiveGroupMembers([
+        {
+          userId: "demo-doctor-preview",
+          userEmail: "demo@doctor-agent.online",
+          displayName: "Dr. Roberto Santos",
+          role: "admin",
+          status: "active",
+        },
+        {
+          userId: "demo-nurse-1",
+          userEmail: "enfermaria@hospital.com",
+          displayName: "Enfª. Juliana Mendes",
+          role: "member",
+          status: "active",
+        }
+      ]);
+      setLoading(false);
+      return;
+    }
+
     let isMounted = true;
     setLoading(true);
 

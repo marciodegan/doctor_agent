@@ -9,15 +9,69 @@ interface AuthContextType {
   login: () => Promise<void>;
   logout: () => Promise<void>;
   userKeys: { publicKeyJwk: JsonWebKey; privateKeyJwk: JsonWebKey } | null;
+  isDemoMode: boolean;
+  enableDemoMode: () => void;
+  disableDemoMode: () => void;
 }
+
+const DEMO_USER = {
+  uid: "demo-doctor-preview",
+  email: "demo@doctor-agent.online",
+  displayName: "Dr. Roberto Santos (Demonstração)",
+  photoURL: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80",
+  emailVerified: true,
+  isAnonymous: false,
+  metadata: {},
+  providerData: [],
+  refreshToken: "demo-token",
+  tenantId: null,
+  delete: async () => {},
+  getIdToken: async () => "demo-token",
+  getIdTokenResult: async () => ({} as any),
+  reload: async () => {},
+  toJSON: () => ({}),
+  phoneNumber: null,
+  providerId: "google.com",
+} as unknown as User;
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [user, setUser] = useState<User | null>(fbAuth.currentUser);
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(() => {
+    return typeof window !== "undefined" && localStorage.getItem("dr_agent_demo_mode") === "true";
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("dr_agent_demo_mode") === "true") {
+      return true;
+    }
+    return null;
+  });
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("dr_agent_demo_mode") === "true") {
+      return DEMO_USER;
+    }
+    return fbAuth.currentUser;
+  });
   const [userKeys, setUserKeys] = useState<{ publicKeyJwk: JsonWebKey; privateKeyJwk: JsonWebKey } | null>(null);
   const pollIntervalRef = useRef<number | null>(null);
+
+  const enableDemoMode = () => {
+    localStorage.setItem("dr_agent_demo_mode", "true");
+    setIsDemoMode(true);
+    setIsAuthenticated(true);
+    setUser(DEMO_USER);
+    if (typeof window !== "undefined" && window.location.pathname !== "/app") {
+      window.history.pushState(null, "", "/app");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }
+  };
+
+  const disableDemoMode = () => {
+    localStorage.removeItem("dr_agent_demo_mode");
+    setIsDemoMode(false);
+    setIsAuthenticated(false);
+    setUser(null);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(fbAuth, (u) => {
@@ -60,6 +114,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const checkAuth = async () => {
+    // If in demo mode, preserve authenticated demo state immediately
+    if (typeof window !== "undefined" && localStorage.getItem("dr_agent_demo_mode") === "true") {
+      setIsDemoMode(true);
+      setIsAuthenticated(true);
+      setUser(DEMO_USER);
+      return;
+    }
+
     try {
       console.log("[Auth] Checking authentication status at /api/auth/status...");
       const controller = new AbortController();
@@ -240,9 +302,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("[Auth] Starting login flow...");
       const res = await fetch("/api/auth/url?returnTo=/app", { credentials: 'include' });
-      const data = await res.json();
-      if (!res.ok) {
-        console.error("[Auth] Failed to generate auth URL:", data);
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        console.warn("[Auth] Non-JSON response received from /api/auth/url:", jsonErr);
+      }
+
+      if (!res.ok || !data?.url) {
+        const errorMsg = data?.error || data?.details || `HTTP error ${res.status}`;
+        console.error("[Auth] Failed to generate auth URL:", errorMsg);
+        alert(`Não foi possível iniciar o login do Google: ${errorMsg}\n\nCaso esteja implantado na Vercel, certifique-se de adicionar GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no painel de Environment Variables.`);
         return;
       }
       const { url, state } = data;
@@ -303,13 +373,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    localStorage.removeItem("dr_agent_demo_mode");
+    setIsDemoMode(false);
+    setUser(null);
     await fetch("/api/auth/logout", { method: "POST", credentials: 'include' });
     try { await fbSignOut(fbAuth); } catch (e) {}
     setIsAuthenticated(false);
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, userKeys }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, userKeys, isDemoMode, enableDemoMode, disableDemoMode }}>
       {children}
     </AuthContext.Provider>
   );

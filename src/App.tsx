@@ -5,6 +5,7 @@ import Eula from "./pages/Eula";
 import { fetchLatestVersion, APP_VERSION, VersionConfig } from "./lib/versionCheck";
 import { VersionUpdateModal } from "./components/VersionUpdateModal";
 import { useAuth } from "./hooks/useAuth";
+import { StudioPreviewHelper } from "./components/StudioPreviewHelper";
 
 // Lazy-load AppWorkspace
 const AppWorkspace = lazy(() => import("./AppWorkspace"));
@@ -109,6 +110,7 @@ export default function App() {
         />
       )}
       {renderPage()}
+      <StudioPreviewHelper />
     </>
   );
 }

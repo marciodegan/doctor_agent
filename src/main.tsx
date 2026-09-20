@@ -45,9 +45,12 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 if (typeof window !== 'undefined') {
   console.log("[PWA] Manifest linked");
 
-  if ("serviceWorker" in navigator) {
+  const isInIframe = window.self !== window.top;
+  const isDev = (import.meta as any).env?.DEV;
+
+  // Only register Service Worker when in top-level production window
+  if (!isInIframe && !isDev && "serviceWorker" in navigator) {
     console.log("[PWA] Service Worker supported");
-    console.log("[PWA] Controller", navigator.serviceWorker.controller);
     
     window.addEventListener("load", async () => {
       try {
@@ -59,9 +62,11 @@ if (typeof window !== 'undefined') {
         await navigator.serviceWorker.ready;
         console.log("[PWA] Service Worker ready");
       } catch (error) {
-        console.error("[PWA] Service Worker registration failed", error);
+        console.warn("[PWA] Service Worker registration skipped or failed:", error);
       }
     });
+  } else if (isInIframe) {
+    console.log("[Preview] Running in preview iframe; Service Worker registration safely bypassed.");
   }
 
   // Catch the install prompt event globally to avoid timing issues on Android Chrome
