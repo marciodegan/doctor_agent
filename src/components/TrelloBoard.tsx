@@ -593,7 +593,7 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
             ref={carouselRef}
             onScroll={handleScroll}
             id="trello-kanban-carousel"
-            className="flex gap-5 overflow-x-auto pb-6 pt-2 px-1 scroll-smooth snap-x snap-mandatory custom-scrollbar"
+            className="flex gap-4 sm:gap-6 overflow-x-auto pb-6 pt-2 px-5 sm:px-8 scroll-smooth snap-x snap-mandatory custom-scrollbar"
             style={{
               WebkitOverflowScrolling: "touch",
               scrollbarWidth: "thin",
@@ -604,7 +604,7 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
               return (
                 <div
                   key={column.id || colIdx}
-                  className="flex flex-col shrink-0 w-[86vw] sm:w-[350px] md:w-[360px] max-w-[380px] bg-slate-100/70 border border-slate-200/90 rounded-[28px] shadow-sm hover:shadow-md overflow-hidden snap-center flex-1 min-h-[540px] transition-all"
+                  className="flex flex-col shrink-0 w-[84vw] sm:w-[350px] md:w-[360px] bg-slate-100/70 border border-slate-200/90 rounded-[28px] shadow-sm hover:shadow-md overflow-hidden snap-center min-h-[540px] transition-all"
                 >
                   {/* Column Header */}
                   <div className="p-4 bg-white/95 border-b border-slate-200/80 flex items-center justify-between gap-2 select-none sticky top-0 z-10 backdrop-blur-sm">
