@@ -1082,7 +1082,9 @@ app.get("/api/app/patients", async (req, res) => {
       }
     }
 
-    if (sFilter && sFilter !== "all" && sFilter !== "" && sFilter !== "1") {
+    const searchParam = req.query.search?.toString() || req.query.q?.toString() || "";
+
+    if (sFilter && sFilter !== "all" && sFilter !== "" && sFilter !== "1" && !searchParam) {
       const numericS = parseInt(sFilter);
       if (!isNaN(numericS)) {
         // If we already have an 'in' filter from hospital, we can't add another.

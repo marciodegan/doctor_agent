@@ -250,8 +250,8 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
 
   let processedPatients = [...localPatients].filter(p => (p as any).recordStatus !== "removed");
   
-  // 1. Filter out 'Alta' unless explicitly filtering by 'Alta'
-  if (!isFilteringAlta) {
+  // 1. Filter out 'Alta' unless explicitly filtering by 'Alta' or searching
+  if (!isFilteringAlta && !searchTerm.trim()) {
     processedPatients = processedPatients.filter(p => {
       const sName = (p.status || "").toLowerCase();
       return sName !== "alta";
