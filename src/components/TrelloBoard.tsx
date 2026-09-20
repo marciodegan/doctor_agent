@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Kanban,
   Building2,
@@ -9,6 +9,7 @@ import {
   Activity,
   Layers,
   Sparkles,
+  ChevronLeft,
   ChevronRight,
   Filter,
   CheckCircle2,
@@ -89,6 +90,9 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
   // Grouping mode: "status" or "hospital"
   const [groupBy, setGroupBy] = useState<"status" | "hospital">("status");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [activeColumnIndex, setActiveColumnIndex] = useState<number>(0);
+
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   const loadData = async (isManualRefresh = false) => {
     if (isManualRefresh) {
@@ -124,7 +128,6 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
         }
       }
 
-      // If hospitals or statuses were not bundled in full response, fetch them individually
       if (hospitalList.length === 0) {
         try {
           const hRes = await apiFetch("/api/app/hospitals");
@@ -217,12 +220,9 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
   // Build Kanban columns based on groupBy
   const columns = useMemo((): KanbanColumn[] => {
     if (groupBy === "hospital") {
-      // Group by Hospital
-      // 1. Collect all known hospitals from API and from patients
       const hospitalMap = new Map<string, KanbanColumn>();
 
-      // Pre-populate with registered hospitals
-      hospitals.forEach((h, idx) => {
+      hospitals.forEach((h) => {
         const name = h.nome || h.name || "Hospital";
         hospitalMap.set(h.id.toString(), {
           id: h.id.toString(),
@@ -232,7 +232,6 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
         });
       });
 
-      // Also collect unassigned or extra hospitals from patient records
       filteredPatients.forEach((p) => {
         const hId = p.hospitalId ? p.hospitalId.toString() : "";
         const hName = getHospitalName(p);
@@ -240,7 +239,6 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
         if (hId && hospitalMap.has(hId)) {
           hospitalMap.get(hId)!.patients.push(p);
         } else {
-          // Find by name or create
           let existingKey: string | null = null;
           for (const [key, val] of hospitalMap.entries()) {
             if (normalizeText(val.name) === normalizeText(hName)) {
@@ -263,41 +261,31 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
         }
       });
 
-      // Convert to array and filter out empty registered hospitals if there are no patients,
-      // but keep at least the ones that exist or have patients
-      const result = Array.from(hospitalMap.values());
-      return result;
+      return Array.from(hospitalMap.values());
     } else {
-      // Group by Status
-      // Requirement: Initial structure must be:
-      // "Pré-operatório" and "Pós-operatório"
-      // Plus any other statuses dynamically obtained
       const statusMap = new Map<string, KanbanColumn>();
 
-      // 1. Ensure "Pré-operatório" and "Pós-operatório" are always the first columns
       const defaultStatus1 = "Pré-operatório";
       const defaultStatus2 = "Pós-operatório";
 
       statusMap.set("col-pre-op", {
         id: "pre-op",
         name: defaultStatus1,
-        color: "#3B82F6", // Blue
+        color: "#3B82F6",
         patients: []
       });
 
       statusMap.set("col-pos-op", {
         id: "pos-op",
         name: defaultStatus2,
-        color: "#10B981", // Emerald green
+        color: "#10B981",
         patients: []
       });
 
-      // 2. Add other registered statuses from the DB/API if any
       statuses.forEach((s) => {
         const sName = s.nome || s.name || "";
         const norm = normalizeText(sName);
 
-        // Check if it's already pre-op or pos-op
         const isPreOp =
           norm.includes("pre-op") ||
           norm.includes("preop") ||
@@ -330,13 +318,11 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
         }
       });
 
-      // 3. Distribute patients to their matching status column
       filteredPatients.forEach((p) => {
         const pStatusRaw = p.status || "";
         const pStatusId = p.statusId ? p.statusId.toString() : "";
         const norm = normalizeText(pStatusRaw);
 
-        // Check if matches pre-op
         const isPre =
           norm.includes("pre-op") ||
           norm.includes("preop") ||
@@ -344,7 +330,6 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
           norm.includes("pre-operatorio") ||
           pStatusId === statusMap.get("col-pre-op")?.id;
 
-        // Check if matches pos-op
         const isPos =
           norm.includes("pos-op") ||
           norm.includes("posop") ||
@@ -362,7 +347,6 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
           return;
         }
 
-        // Try matching with other registered status columns by ID or Name
         let matchedKey: string | null = null;
         for (const [key, val] of statusMap.entries()) {
           if (key === "col-pre-op" || key === "col-pos-op") continue;
@@ -379,7 +363,6 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
         if (matchedKey) {
           statusMap.get(matchedKey)!.patients.push(p);
         } else {
-          // If patient has a distinct status name not yet in map, create a column for it
           if (pStatusRaw) {
             const dynKey = `status-dyn-${norm}`;
             if (!statusMap.has(dynKey)) {
@@ -392,7 +375,6 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
             }
             statusMap.get(dynKey)!.patients.push(p);
           } else {
-            // Patient has no status at all -> Put in pre-op or add "Sem Status"
             const unassignedKey = "col-unassigned";
             if (!statusMap.has(unassignedKey)) {
               statusMap.set(unassignedKey, {
@@ -411,39 +393,79 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
     }
   }, [groupBy, patients, filteredPatients, statuses, hospitals]);
 
+  // Carousel scroll controls
+  const scrollCarousel = (direction: "left" | "right") => {
+    if (!carouselRef.current) return;
+    const container = carouselRef.current;
+    const cardWidth = container.querySelector(":scope > div")?.clientWidth || 340;
+    const scrollAmount = cardWidth + 16; // card width + gap
+    container.scrollBy({
+      left: direction === "left" ? -scrollAmount : scrollAmount,
+      behavior: "smooth"
+    });
+  };
+
+  const scrollToColumn = (index: number) => {
+    if (!carouselRef.current) return;
+    const container = carouselRef.current;
+    const children = container.querySelectorAll(":scope > div");
+    if (children[index]) {
+      children[index].scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest"
+      });
+      setActiveColumnIndex(index);
+    }
+  };
+
+  const handleScroll = () => {
+    if (!carouselRef.current) return;
+    const container = carouselRef.current;
+    const scrollLeft = container.scrollLeft;
+    const cardWidth = container.querySelector(":scope > div")?.clientWidth || 340;
+    const newIndex = Math.round(scrollLeft / (cardWidth + 16));
+    if (newIndex >= 0 && newIndex < columns.length) {
+      setActiveColumnIndex(newIndex);
+    }
+  };
+
   return (
-    <div className="w-full flex flex-col space-y-4 text-slate-800 animate-fadeIn">
+    <div className="w-full flex flex-col space-y-5 text-slate-800 animate-fadeIn pb-16">
       {/* Top Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/80 backdrop-blur-md p-4 rounded-3xl border border-slate-200/80 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-            <Kanban size={20} />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/90 backdrop-blur-md p-5 rounded-3xl border border-slate-200/80 shadow-sm">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+            <Kanban size={22} />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-black text-slate-900 tracking-tight">
                 Quadro Trello
               </h1>
-              <span className="text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200/60">
-                Kanban
+              <span className="text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200/60">
+                Carrossel Kanban
               </span>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
               {filteredPatients.length}{" "}
               {filteredPatients.length === 1 ? "paciente" : "pacientes"}{" "}
-              organizados no quadro
+              organizados no quadro interativo
             </p>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           {/* Segmented Switch: Por status / Por hospital */}
           <div className="inline-flex p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner">
             <button
               id="trello-group-status-btn"
-              onClick={() => setGroupBy("status")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              onClick={() => {
+                setGroupBy("status");
+                setActiveColumnIndex(0);
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
                 groupBy === "status"
                   ? "bg-white text-blue-600 shadow-sm"
                   : "text-slate-600 hover:text-slate-900"
@@ -454,8 +476,11 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
             </button>
             <button
               id="trello-group-hospital-btn"
-              onClick={() => setGroupBy("hospital")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              onClick={() => {
+                setGroupBy("hospital");
+                setActiveColumnIndex(0);
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
                 groupBy === "hospital"
                   ? "bg-white text-blue-600 shadow-sm"
                   : "text-slate-600 hover:text-slate-900"
@@ -467,18 +492,18 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
           </div>
 
           {/* Quick Search */}
-          <div className="relative flex-1 sm:w-56">
+          <div className="relative flex-1 sm:w-60">
             <Search
               size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
               id="trello-search-input"
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar paciente..."
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 placeholder-slate-400 transition"
+              placeholder="Buscar paciente, hospital, leito..."
+              className="w-full pl-10 pr-3.5 py-2 text-xs bg-slate-50/80 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 text-slate-800 placeholder-slate-400 font-medium transition"
             />
           </div>
 
@@ -488,7 +513,7 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
             onClick={() => loadData(true)}
             disabled={refreshing || loading}
             title="Recarregar pacientes"
-            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition border border-slate-200/60 disabled:opacity-50"
+            className="p-2.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-2xl transition border border-slate-200/60 disabled:opacity-50 shadow-sm"
           >
             <RefreshCw
               size={16}
@@ -500,36 +525,75 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
 
       {/* Loading state */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 bg-white/60 rounded-3xl border border-slate-200/60">
+        <div className="flex items-center justify-center py-24 bg-white/80 rounded-3xl border border-slate-200/80 shadow-sm">
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-              Carregando quadro Trello...
+              Carregando carrossel Trello...
             </p>
           </div>
         </div>
       ) : error ? (
-        <div className="p-8 text-center bg-red-50/80 rounded-3xl border border-red-200 text-red-700 space-y-3">
+        <div className="p-8 text-center bg-red-50/80 rounded-3xl border border-red-200 text-red-700 space-y-3 shadow-sm">
           <p className="text-sm font-semibold">{error}</p>
           <button
             onClick={() => loadData()}
-            className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-red-700 transition"
+            className="px-5 py-2.5 bg-red-600 text-white rounded-2xl text-xs font-bold shadow-md hover:bg-red-700 transition"
           >
             Tentar novamente
           </button>
         </div>
       ) : (
-        /* Horizontal Kanban Board Container */
-        <div className="w-full relative">
-          {/* Subtle scroll indicator for mobile */}
-          <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium px-2 pb-1.5 md:hidden">
-            <span>Deslize horizontalmente para ver outras colunas</span>
-            <span>← →</span>
+        /* Modern Carousel Board Container with Navigation Controls */
+        <div className="w-full relative flex flex-col space-y-4">
+          {/* Carousel Header Controls & Pagination Dots */}
+          <div className="flex items-center justify-between px-2">
+            {/* Dots Indicator */}
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-[70vw] sm:max-w-none custom-scrollbar">
+              {columns.map((col, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => scrollToColumn(idx)}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    activeColumnIndex === idx
+                      ? "w-8 bg-blue-600 shadow-sm shadow-blue-500/30"
+                      : "w-2 bg-slate-300 hover:bg-slate-400"
+                  }`}
+                  title={col.name}
+                />
+              ))}
+              <span className="text-xs font-bold text-slate-500 ml-2 hidden sm:inline">
+                Coluna {activeColumnIndex + 1} de {columns.length} ({columns[activeColumnIndex]?.name || ""})
+              </span>
+            </div>
+
+            {/* Navigation Arrows */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => scrollCarousel("left")}
+                disabled={activeColumnIndex === 0}
+                className="w-9 h-9 rounded-2xl bg-white border border-slate-200/80 text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-700 flex items-center justify-center transition-all shadow-sm"
+                title="Coluna anterior"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                onClick={() => scrollCarousel("right")}
+                disabled={activeColumnIndex === columns.length - 1}
+                className="w-9 h-9 rounded-2xl bg-white border border-slate-200/80 text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-700 flex items-center justify-center transition-all shadow-sm"
+                title="Próxima coluna"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
 
+          {/* Carousel Track */}
           <div
-            id="trello-kanban-container"
-            className="flex gap-4 overflow-x-auto pb-6 pt-1 px-1 scroll-smooth snap-x snap-mandatory md:snap-none custom-scrollbar"
+            ref={carouselRef}
+            onScroll={handleScroll}
+            id="trello-kanban-carousel"
+            className="flex gap-5 overflow-x-auto pb-6 pt-2 px-1 scroll-smooth snap-x snap-mandatory custom-scrollbar"
             style={{
               WebkitOverflowScrolling: "touch",
               scrollbarWidth: "thin",
@@ -540,13 +604,13 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
               return (
                 <div
                   key={column.id || colIdx}
-                  className="flex flex-col shrink-0 w-[84vw] sm:w-[320px] md:w-[340px] max-w-[360px] bg-slate-100/80 border border-slate-200/90 rounded-3xl shadow-sm overflow-hidden snap-center flex-1 min-h-[500px]"
+                  className="flex flex-col shrink-0 w-[86vw] sm:w-[350px] md:w-[360px] max-w-[380px] bg-slate-100/70 border border-slate-200/90 rounded-[28px] shadow-sm hover:shadow-md overflow-hidden snap-center flex-1 min-h-[540px] transition-all"
                 >
                   {/* Column Header */}
-                  <div className="p-3.5 bg-white/95 border-b border-slate-200/80 flex items-center justify-between gap-2 select-none sticky top-0 z-10">
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div className="p-4 bg-white/95 border-b border-slate-200/80 flex items-center justify-between gap-2 select-none sticky top-0 z-10 backdrop-blur-sm">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <div
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        className="w-3 h-3 rounded-full shrink-0 shadow-sm"
                         style={{
                           backgroundColor:
                             column.color ||
@@ -554,32 +618,32 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
                         }}
                       />
                       <h2
-                        className="text-xs font-black uppercase tracking-wider text-slate-800 truncate"
+                        className="text-xs font-black uppercase tracking-wider text-slate-900 truncate"
                         title={column.name}
                       >
                         {column.name}
                       </h2>
                     </div>
 
-                    <span className="shrink-0 text-[11px] font-black px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                      {count}
+                    <span className="shrink-0 text-xs font-black px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100 shadow-sm">
+                      {count} {count === 1 ? "paciente" : "pacientes"}
                     </span>
                   </div>
 
                   {/* Column Body: Vertical Cards List */}
                   <div
-                    className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar max-h-[calc(100vh-280px)]"
+                    className="flex-1 overflow-y-auto p-3.5 space-y-3.5 custom-scrollbar max-h-[calc(100vh-320px)]"
                     style={{ scrollbarWidth: "thin" }}
                   >
                     {count === 0 ? (
-                      <div className="h-40 border-2 border-dashed border-slate-200/80 rounded-2xl flex flex-col items-center justify-center text-center p-4 text-slate-400">
-                        <div className="w-8 h-8 rounded-full bg-slate-200/50 flex items-center justify-center mb-1.5 text-slate-400">
-                          <CheckCircle2 size={16} />
+                      <div className="h-44 border-2 border-dashed border-slate-200/80 rounded-2xl flex flex-col items-center justify-center text-center p-4 text-slate-400 bg-white/50">
+                        <div className="w-9 h-9 rounded-2xl bg-slate-100 flex items-center justify-center mb-2 text-slate-400 shadow-sm">
+                          <CheckCircle2 size={18} />
                         </div>
-                        <p className="text-xs font-bold text-slate-500">
+                        <p className="text-xs font-bold text-slate-600">
                           Nenhum paciente
                         </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
+                        <p className="text-[11px] text-slate-400 mt-0.5">
                           {groupBy === "status"
                             ? "Nenhum paciente com este status"
                             : "Nenhum paciente neste hospital"}
@@ -606,12 +670,12 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
                             onClick={() =>
                               onSelectPatient(patient.id, patientName)
                             }
-                            className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-blue-300 transition-all duration-150 cursor-pointer flex flex-col gap-2.5 text-left group"
+                            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md hover:border-blue-300 transition-all duration-200 cursor-pointer flex flex-col gap-3 text-left group"
                           >
                             {/* Patient Photo & Info Row */}
-                            <div className="flex items-start gap-3">
+                            <div className="flex items-start gap-3.5">
                               {/* Photo / Avatar */}
-                              <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center shadow-inner relative">
+                              <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center shadow-inner relative">
                                 {photoSource ? (
                                   <img
                                     src={photoSource}
@@ -619,13 +683,12 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
                                     referrerPolicy="no-referrer"
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
-                                      // Fallback to avatar if image fails to load
                                       (e.target as HTMLElement).style.display =
                                         "none";
                                     }}
                                   />
                                 ) : (
-                                  <div className="w-full h-full flex items-center justify-center bg-blue-50 text-blue-600 font-bold text-sm">
+                                  <div className="w-full h-full flex items-center justify-center bg-blue-50 text-blue-700 font-bold text-sm">
                                     {patientName.charAt(0).toUpperCase()}
                                   </div>
                                 )}
@@ -633,17 +696,17 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
 
                               {/* Patient Name & Location */}
                               <div className="flex-1 min-w-0">
-                                <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+                                <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate tracking-tight">
                                   {patientName}
                                 </h3>
 
                                 <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 truncate">
                                   <Building2
-                                    size={12}
+                                    size={13}
                                     className="text-slate-400 shrink-0"
                                   />
                                   <span
-                                    className="truncate font-medium text-[11px]"
+                                    className="truncate font-semibold text-[11px] uppercase tracking-tight"
                                     title={patientHospital}
                                   >
                                     {patientHospital}
@@ -652,10 +715,10 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
 
                                 <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 truncate">
                                   <Bed
-                                    size={12}
+                                    size={13}
                                     className="text-slate-400 shrink-0"
                                   />
-                                  <span className="font-semibold text-slate-700 text-[11px]">
+                                  <span className="font-medium text-slate-700 text-[11px]">
                                     {patientRoom}
                                   </span>
                                 </div>
@@ -671,8 +734,8 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
                             {(patient.procedure ||
                               patient.diagnosis ||
                               patient.surgery_type) && (
-                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
-                                <span className="truncate max-w-[220px] bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 font-medium">
+                              <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                                <span className="truncate max-w-[260px] bg-slate-50/80 px-2.5 py-1 rounded-xl border border-slate-100 font-medium text-slate-600">
                                   {patient.procedure ||
                                     patient.diagnosis ||
                                     patient.surgery_type}
