@@ -431,67 +431,45 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
   };
 
   return (
-    <div className="w-full flex flex-col space-y-5 text-slate-800 animate-fadeIn pb-16">
-      {/* Top Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/90 backdrop-blur-md p-5 rounded-3xl border border-slate-200/80 shadow-sm">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-            <Kanban size={22} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-black text-slate-900 tracking-tight">
-                Quadro Trello
-              </h1>
-              <span className="text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200/60">
-                Carrossel Kanban
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              {filteredPatients.length}{" "}
-              {filteredPatients.length === 1 ? "paciente" : "pacientes"}{" "}
-              organizados no quadro interativo
-            </p>
-          </div>
+    <div className="w-full flex flex-col space-y-3 text-slate-800 animate-fadeIn pb-16">
+      {/* Top Filter & Search Controls (Without Trello title card) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/90 backdrop-blur-md px-4 py-3 rounded-2xl border border-slate-200/80 shadow-sm">
+        {/* Segmented Switch: Por status / Por hospital */}
+        <div className="inline-flex p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner w-full sm:w-auto">
+          <button
+            id="trello-group-status-btn"
+            onClick={() => {
+              setGroupBy("status");
+              setActiveColumnIndex(0);
+            }}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              groupBy === "status"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Activity size={14} />
+            <span>Por status</span>
+          </button>
+          <button
+            id="trello-group-hospital-btn"
+            onClick={() => {
+              setGroupBy("hospital");
+              setActiveColumnIndex(0);
+            }}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              groupBy === "hospital"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Building2 size={14} />
+            <span>Por hospital</span>
+          </button>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-          {/* Segmented Switch: Por status / Por hospital */}
-          <div className="inline-flex p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner">
-            <button
-              id="trello-group-status-btn"
-              onClick={() => {
-                setGroupBy("status");
-                setActiveColumnIndex(0);
-              }}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                groupBy === "status"
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Activity size={14} />
-              <span>Por status</span>
-            </button>
-            <button
-              id="trello-group-hospital-btn"
-              onClick={() => {
-                setGroupBy("hospital");
-                setActiveColumnIndex(0);
-              }}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                groupBy === "hospital"
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Building2 size={14} />
-              <span>Por hospital</span>
-            </button>
-          </div>
-
-          {/* Quick Search */}
+        {/* Action Controls & Search */}
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-60">
             <Search
               size={15}
@@ -502,21 +480,20 @@ export const TrelloBoard: React.FC<TrelloBoardProps> = ({ onSelectPatient }) => 
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar paciente, hospital, leito..."
+              placeholder="Buscar paciente, hospital..."
               className="w-full pl-10 pr-3.5 py-2 text-xs bg-slate-50/80 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 text-slate-800 placeholder-slate-400 font-medium transition"
             />
           </div>
 
-          {/* Refresh button */}
           <button
             id="trello-refresh-btn"
             onClick={() => loadData(true)}
             disabled={refreshing || loading}
             title="Recarregar pacientes"
-            className="p-2.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-2xl transition border border-slate-200/60 disabled:opacity-50 shadow-sm"
+            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-2xl transition border border-slate-200/60 disabled:opacity-50 shadow-sm shrink-0"
           >
             <RefreshCw
-              size={16}
+              size={15}
               className={refreshing ? "animate-spin text-blue-600" : ""}
             />
           </button>
