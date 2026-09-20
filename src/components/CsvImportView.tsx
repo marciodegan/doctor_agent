@@ -101,12 +101,20 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
     return { headers: rawHeaders, rows };
   };
 
+  const normalizeHeader = (str: string): string => {
+    return str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  };
+
   const findHeaderKey = (headers: string[], targetNames: string[]): string | null => {
     for (const h of headers) {
-      const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const cleanH = normalizeHeader(h);
       for (const t of targetNames) {
-        const cleanT = t.toLowerCase().replace(/[^a-z0-9]/g, "");
-        if (cleanH === cleanT || cleanH.includes(cleanT)) {
+        const cleanT = normalizeHeader(t);
+        if (cleanH === cleanT || cleanH.includes(cleanT) || cleanT.includes(cleanH)) {
           return h;
         }
       }
@@ -126,8 +134,8 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
       const text = await file.text();
       const { headers, rows } = parseCsvText(text);
 
-      // Find required columns
-      const codeKey = findHeaderKey(headers, ["codigo do usuario", "codigodousuario", "codusuario", "codigo usuario", "cod. usuario"]);
+      // Find required columns with flexible target names and accent normalization
+      const codeKey = findHeaderKey(headers, ["codigo do usuario", "codigodousuario", "codusuario", "codigo usuario", "cod. usuario", "codigo", "cod"]);
       const nameKey = findHeaderKey(headers, ["nome do usuario", "nomedousuario", "nome usuario", "nome", "paciente"]);
 
       if (!codeKey) {
