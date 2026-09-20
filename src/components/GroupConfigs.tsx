@@ -44,8 +44,9 @@ import { useAuth } from "../hooks/useAuth";
 import { motion, AnimatePresence } from "motion/react";
 import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 import { GroupIconBlue } from "./icons/GroupIcon";
+import { CsvImportView } from "./CsvImportView";
 
-type ConfigType = "hospitals" | "patient_statuses" | "procedureOptions" | "surgery_types" | "affinity" | "members" | "general" | "document_categories" | "image_types";
+type ConfigType = "hospitals" | "patient_statuses" | "procedureOptions" | "surgery_types" | "affinity" | "members" | "general" | "document_categories" | "image_types" | "import_csv";
 
 interface ConfigItem {
   id: string;
@@ -481,8 +482,13 @@ export function GroupConfigs() {
     { id: "image_types", label: "Tipos de Imagem", icon: <Image size={24} />, color: "text-blue-600", bg: "bg-blue-50", description: "Categorias de anexos de imagem" },
     { id: "document_categories", label: "Categorias de Documento", icon: <FolderOpen size={24} />, color: "text-red-600", bg: "bg-red-50", description: "Organize seus documentos pessoais", hidden: activeGroup?.groupType !== "personal" },
     { id: "affinity", label: activeGroup?.groupType === "personal" ? "Parentesco" : "Afinidades", icon: <Heart size={24} />, color: "text-pink-600", bg: "bg-pink-50", description: "Graus de parentesco" },
+    { id: "import_csv", label: "Importar pacientes via CSV", icon: <Upload size={24} />, color: "text-blue-600", bg: "bg-blue-50", description: "Importar e sincronizar pacientes via arquivo CSV" },
     { id: "general", label: "Ajustes Gerais", icon: <Settings size={24} />, color: "text-indigo-600", bg: "bg-indigo-50", description: "Dados gerais e WhatsApp" },
   ].filter(item => !item.hidden);
+
+  if (activeTab === "import_csv") {
+    return <CsvImportView onBack={() => setActiveTab(null)} />;
+  }
 
   if (activeTab === "general") {
     return (

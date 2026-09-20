@@ -1469,6 +1469,145 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   }
 });
 
+// Import patients via CSV
+app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  const { patients } = req.body;
+  if (!Array.isArray(patients)) {
+    return res.status(400).json({ error: "Lista de pacientes inválida." });
+  }
+
+  try {
+    await requireGroupOwner(req, groupId).catch(() => requireGroupMember(req, groupId));
+
+    let newPatients = 0;
+    let updatedPatients = 0;
+    let proceduresImported = 0;
+    let errorsCount = 0;
+    const errorDetails: string[] = [];
+
+    const existingSnap = await db.collection("patients").where("groupId", "==", groupId).get();
+    const existingByCode = new Map<string, { id: string; data: any }>();
+    existingSnap.docs.forEach(docSnap => {
+      const dData = docSnap.data();
+      if (dData.codigoUsuario) {
+        existingByCode.set(dData.codigoUsuario.toString().trim(), { id: docSnap.id, data: dData });
+      }
+    });
+
+    const parseNum = (val: any) => {
+      if (!val) return 0;
+      const clean = val.toString().replace(/[^\d.,]/g, "").replace(/\./g, "").replace(",", ".");
+      const num = parseFloat(clean);
+      return isNaN(num) ? 0 : num;
+    };
+
+    for (const patData of patients) {
+      try {
+        const codigoUsuario = (patData.codigoUsuario || "").toString().trim();
+        if (!codigoUsuario) {
+          errorsCount++;
+          continue;
+        }
+
+        const nome = (patData.nome || "Sem Nome").toString().trim();
+        const documento = (patData.documento || "").toString().trim();
+        const prestador = (patData.prestador || "").toString().trim();
+        const rows = Array.isArray(patData.rows) ? patData.rows : [];
+
+        let patientId = "";
+        const existing = existingByCode.get(codigoUsuario);
+
+        if (existing) {
+          patientId = existing.id;
+          updatedPatients++;
+          const updateFields: any = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+          if (documento && !existing.data.cpf) updateFields.cpf = documento;
+          if (prestador && !existing.data.hospitalId) updateFields.hospitalId = prestador;
+          if (Object.keys(updateFields).length > 1) {
+            await db.collection("patients").doc(patientId).update(updateFields);
+          }
+        } else {
+          const newRef = db.collection("patients").doc();
+          patientId = newRef.id;
+          await newRef.set({
+            name: nome,
+            codigoUsuario: codigoUsuario,
+            cpf: documento,
+            hospitalId: prestador,
+            statusId: "Sem Status",
+            groupId,
+            recordStatus: "active",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          newPatients++;
+          existingByCode.set(codigoUsuario, { id: patientId, data: { name: nome, codigoUsuario } });
+        }
+
+        const procColRef = db.collection("patients").doc(patientId).collection("procedimentos");
+        
+        for (const row of rows) {
+          const codigoAmb = (row["Código AMB"] || row["codigoAmb"] || "").toString().trim();
+          const descricao = (row["Descrição"] || row["descricao"] || "").toString().trim();
+          const vlrHon = parseNum(row["Vlr.Hon."] || row["vlrHon"] || "0");
+          const dataProc = (row["Data"] || row["data"] || "").toString().trim();
+          const relacaoNr = (row["Relação Nr"] || row["relacaoNr"] || "").toString().trim();
+          const notaFiscal = (row["NOTA FISCAL"] || row["notaFiscal"] || "").toString().trim();
+          const periodo = (row["PERIODO"] || row["periodo"] || "").toString().trim();
+          const prestadorExecutante = (row["Prestador Executante"] || "").toString().trim();
+          const prestadorPagamento = (row["Prestador Pagamento"] || "").toString().trim();
+          const prestadorProtocolo = (row["Prestador Protocolo"] || "").toString().trim();
+          const vlrOper = parseNum(row["Vlr.Oper."] || "0");
+          const vlrFilme = parseNum(row["Vlr.Filme"] || "0");
+          const vlrTxAdm = parseNum(row["Vlr Tx Adm"] || "0");
+
+          const deterministicKey = `${codigoUsuario}_${codigoAmb}_${dataProc}_${relacaoNr}_${notaFiscal}`.replace(/[^a-zA-Z0-9_]/g, "_");
+          const procDocRef = procColRef.doc(deterministicKey);
+
+          await procDocRef.set({
+            codigoAmb,
+            descricao,
+            valorHonorarios: vlrHon,
+            data: dataProc,
+            relacaoNr,
+            notaFiscal,
+            periodo,
+            prestadorExecutante,
+            prestadorPagamento,
+            prestadorProtocolo,
+            vlrOper,
+            vlrFilme,
+            vlrTxAdm,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          proceduresImported++;
+        }
+      } catch (itemErr: any) {
+        errorsCount++;
+        if (errorDetails.length < 20) {
+          errorDetails.push(`Paciente ${patData.codigoUsuario || "desconhecido"}: ${itemErr.message}`);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      newPatients,
+      updatedPatients,
+      totalProcessed: newPatients + updatedPatients,
+      proceduresImported,
+      errorsCount,
+      errorDetails
+    });
+  } catch (error) {
+    handleApiError(res, error, "Importing CSV patients");
+  }
+});
+
 // Update patient status (Zero LLM)
 app.post("/api/app/patients/status", express.json(), async (req, res) => {
   const { patientId, status, statusName } = req.body;
