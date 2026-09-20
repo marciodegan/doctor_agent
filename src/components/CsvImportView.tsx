@@ -55,7 +55,9 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
 
   // Robust CSV parser supporting commas, semicolons, and quotes
   const parseCsvText = (text: string): { headers: string[]; rows: ParsedRow[] } => {
-    const lines = text.split(/\r\n|\n/);
+    // Remove BOM if present
+    const cleanText = text.replace(/^\uFEFF/, "");
+    const lines = cleanText.split(/\r\n|\n/);
     if (lines.length === 0) return { headers: [], rows: [] };
 
     // Determine delimiter (comma or semicolon) based on first line
@@ -82,7 +84,7 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
     };
 
     const rawHeaders = parseLine(lines[0]);
-    const headers = rawHeaders.filter(h => h.length > 0);
+    console.log("CSV Parsed Raw Headers:", rawHeaders);
 
     const rows: ParsedRow[] = [];
     for (let i = 1; i < lines.length; i++) {
@@ -102,6 +104,7 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
   };
 
   const normalizeHeader = (str: string): string => {
+    if (!str) return "";
     return str
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -109,16 +112,50 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
       .replace(/[^a-z0-9]/g, "");
   };
 
-  const findHeaderKey = (headers: string[], targetNames: string[]): string | null => {
+  const findHeaderKey = (headers: string[], targetKeywords: string[]): string | null => {
+    // First try exact or normalized match
     for (const h of headers) {
+      if (!h) continue;
       const cleanH = normalizeHeader(h);
-      for (const t of targetNames) {
+      if (!cleanH) continue;
+      for (const t of targetKeywords) {
         const cleanT = normalizeHeader(t);
         if (cleanH === cleanT || cleanH.includes(cleanT) || cleanT.includes(cleanH)) {
           return h;
         }
       }
     }
+
+    // Second try: combined keywords (e.g. must contain both "codigo" and "usuario")
+    if (targetKeywords.some(t => t.includes("codigo") || t.includes("cod"))) {
+      for (const h of headers) {
+        if (!h) continue;
+        const cleanH = normalizeHeader(h);
+        if (cleanH.includes("codigo") && cleanH.includes("usuario")) {
+          return h;
+        }
+        if (cleanH.includes("cod") && cleanH.includes("usuario")) {
+          return h;
+        }
+      }
+    }
+
+    if (targetKeywords.some(t => t.includes("nome"))) {
+      for (const h of headers) {
+        if (!h) continue;
+        const cleanH = normalizeHeader(h);
+        if (cleanH.includes("nome") && cleanH.includes("usuario")) {
+          return h;
+        }
+        if (cleanH.includes("nome") && cleanH.includes("paciente")) {
+          return h;
+        }
+        if (cleanH === "nome") {
+          return h;
+        }
+      }
+    }
+
     return null;
   };
 
