@@ -15,8 +15,8 @@ dotenv.config();
 
 const DEFAULT_FIREBASE_CONFIG = {
   projectId: "parabolic-craft-277523",
-  appId: "1:767503688274:web:c9ab2d03e5740e166eb58b",
-  apiKey: "AIzaSyBto7FLKhGhQeBb7cIYKZaFjSWrVZzRhtE",
+  appId: "1:767503688274:web:25ee5c64401e12706eb58b",
+  apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || "AIzaSyBWfqUJbXXNdgS_zgAPIuG8cCDz1ogQHIo",
   authDomain: "parabolic-craft-277523.firebaseapp.com",
   firestoreDatabaseId: "ai-studio-0c2aaf40-e57b-4ffc-b4a7-865c2402ef5e",
   storageBucket: "parabolic-craft-277523.firebasestorage.app",
