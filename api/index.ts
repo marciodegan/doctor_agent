@@ -11,44 +11,51 @@ import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 
+import defaultFirebaseConfig from "../firebase-applet-config.json";
+
 dotenv.config();
 
-let firebaseConfig: any = {};
+let firebaseConfig: any = { ...defaultFirebaseConfig };
 try {
   const firebaseConfigPath = path.resolve(process.cwd(), "firebase-applet-config.json");
   if (fs.existsSync(firebaseConfigPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf8"));
-  } else {
-    console.warn("[Firebase] Config file not found at:", firebaseConfigPath);
+    const loaded = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf8"));
+    firebaseConfig = { ...firebaseConfig, ...loaded };
   }
 } catch (e) {
-  console.error("[Firebase] Failed to load config:", e);
+  console.warn("[Firebase] Could not read config file from disk, using imported config:", e);
 }
 
-// Initialize Firebase Admin lazily or at module level but safely
-if (firebaseConfig.projectId && !admin.apps.length) {
+// Extract Service Account Certificate if configured in environment
+let serviceAccountCert: any = null;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
   try {
-    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (serviceAccount) {
-      try {
-        const cert = JSON.parse(serviceAccount);
-        admin.initializeApp({
-          credential: admin.credential.cert(cert),
-          projectId: firebaseConfig.projectId,
-          storageBucket: firebaseConfig.storageBucket
-        });
-        console.log("[Firebase] Admin initialized with service account from env.");
-      } catch (jsonErr) {
-        console.error("[Firebase] FIREBASE_SERVICE_ACCOUNT parsing error:", jsonErr);
-        // Fallback to default
-        admin.initializeApp({ projectId: firebaseConfig.projectId });
-      }
+    serviceAccountCert = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    console.log("[Firebase] Successfully parsed FIREBASE_SERVICE_ACCOUNT credentials.");
+  } catch (jsonErr) {
+    console.error("[Firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:", jsonErr);
+  }
+}
+
+const targetProjectId = firebaseConfig.projectId || serviceAccountCert?.project_id || "parabolic-craft-277523";
+const targetStorageBucket = firebaseConfig.storageBucket || `${targetProjectId}.firebasestorage.app`;
+
+// Initialize Firebase Admin lazily or at module level but safely
+if (!admin.apps.length) {
+  try {
+    if (serviceAccountCert) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccountCert),
+        projectId: targetProjectId,
+        storageBucket: targetStorageBucket
+      });
+      console.log("[Firebase] Admin initialized with service account from env.");
     } else {
       admin.initializeApp({
-        projectId: firebaseConfig.projectId,
-        storageBucket: firebaseConfig.storageBucket
+        projectId: targetProjectId,
+        storageBucket: targetStorageBucket
       });
-      console.log("[Firebase] Admin initialized with projectId (ADC):", firebaseConfig.projectId);
+      console.log("[Firebase] Admin initialized with projectId (ADC):", targetProjectId);
     }
   } catch (e) {
     console.error("[Firebase] Admin initialization error:", e);
@@ -59,7 +66,7 @@ const _getDb = () => {
   if (!admin.apps.length) {
     throw new Error("Firebase Admin not initialized. Ensure firebase-applet-config.json exists or FIREBASE_SERVICE_ACCOUNT is set in environment.");
   }
-  const dbId = firebaseConfig.firestoreDatabaseId || "(default)";
+  const dbId = firebaseConfig.firestoreDatabaseId || "ai-studio-0c2aaf40-e57b-4ffc-b4a7-865c2402ef5e" || "(default)";
   return getFirestore(dbId);
 };
 
@@ -750,9 +757,13 @@ app.get("/api/auth/firebase-token", async (req, res) => {
         message: "Sua sessão expirou ou o token de acesso foi revogado. Por favor, faça login novamente."
       });
     }
+    const hasServiceAccount = !!process.env.FIREBASE_SERVICE_ACCOUNT;
     res.status(500).json({ 
       error: err.message, 
-      details: "This error usually means the Firebase Admin SDK is not correctly initialized with a Service Account which is required for createCustomToken on external platforms like Vercel."
+      hasServiceAccount,
+      details: !hasServiceAccount
+        ? "Variável FIREBASE_SERVICE_ACCOUNT não encontrada no ambiente. Ela é obrigatória na Vercel para emitir custom tokens do Firebase."
+        : "Erro interno no Firebase Admin: " + err.message
     });
   }
 });

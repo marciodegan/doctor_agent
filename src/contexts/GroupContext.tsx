@@ -780,16 +780,17 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     name: string,
     type: "professional" | "personal" = "professional",
   ) => {
-    if (!user) throw new Error("Must be logged in");
+    const activeUser = user || auth.currentUser;
+    if (!activeUser) throw new Error("Aguardando sincronização com o banco de dados. Por favor, tente novamente em alguns segundos.");
 
     try {
-      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const userSnap = await getDoc(doc(db, "users", activeUser.uid));
       const profile = userSnap.exists() ? userSnap.data() : {};
 
       const groupRef = await addDoc(collection(db, "groups"), {
         name,
         groupType: type,
-        createdBy: user.uid,
+        createdBy: activeUser.uid,
         createdAt: serverTimestamp(),
         status: "active",
         active: true,
@@ -801,9 +802,9 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
       await setDoc(groupRef, { id: groupId }, { merge: true });
 
       // Add self as member
-      await setDoc(doc(db, `groups/${groupId}/members`, user.uid), {
-        userId: user.uid,
-        userEmail: user.email || "",
+      await setDoc(doc(db, `groups/${groupId}/members`, activeUser.uid), {
+        userId: activeUser.uid,
+        userEmail: activeUser.email || "",
         displayName: profile.displayName || "",
         photoURL: profile.photoURL || "",
         whatsapp: profile.whatsapp || "",
