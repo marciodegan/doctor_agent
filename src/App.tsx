@@ -4,6 +4,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Eula from "./pages/Eula";
 import { fetchLatestVersion, APP_VERSION, VersionConfig } from "./lib/versionCheck";
 import { VersionUpdateModal } from "./components/VersionUpdateModal";
+import { useAuth } from "./hooks/useAuth";
 
 // Lazy-load AppWorkspace
 const AppWorkspace = lazy(() => import("./AppWorkspace"));
@@ -12,18 +13,19 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname.toLowerCase());
   const [updateConfig, setUpdateConfig] = useState<VersionConfig | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     // If we've started with ?source=pwa or are in standalone mode on the root path /,
-    // automatically and transparently redirect to /app.
+    // or if the user is already authenticated, automatically and transparently redirect to /app.
     const params = new URLSearchParams(window.location.search);
     const isPWA = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
-    if ((isPWA || params.get('source') === 'pwa') && window.location.pathname === '/') {
-      console.log("[PWA] Standalone/PWA startup detected, redirecting to /app");
+    if ((isPWA || params.get('source') === 'pwa' || isAuthenticated === true) && window.location.pathname === '/') {
+      console.log("[App] Auto-navigating to /app workspace");
       window.history.replaceState(null, "", "/app");
       setCurrentPath("/app");
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const handleLocationChange = () => {

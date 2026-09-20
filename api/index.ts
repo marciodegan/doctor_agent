@@ -216,6 +216,8 @@ const setAuthCookies = (res: express.Response, tokens: any) => {
   res.cookie(COOKIE_NAME, tokens, cookieOptions);
   // Also set legacy for compatibility or debug
   res.cookie(LEGACY_COOKIE_NAME, tokens, { ...cookieOptions, partitioned: false });
+  // Set sameSite: "lax" cookie for top-level direct browser visits on custom domains (avoids 3P cookie restrictions)
+  res.cookie("n_session_u", tokens, { httpOnly: true, secure: true, sameSite: "lax", maxAge: 30 * 24 * 60 * 60 * 1000, path: '/' });
   // Set a visible breadcrumb for client-side visibility checks
   res.cookie("n_active", "1", { ...cookieOptions, httpOnly: false, partitioned: false });
 };
@@ -226,7 +228,9 @@ const clearAuthCookies = (res: express.Response) => {
   res.clearCookie(LEGACY_COOKIE_NAME, options);
   res.clearCookie("n_session_p", { ...options, partitioned: true });
   res.clearCookie("n_session_u", options);
+  res.clearCookie("n_session_u", { ...options, sameSite: "lax" as const });
   res.clearCookie("google_token", options);
+  res.clearCookie("n_active", { path: "/" });
 };
 
 const isInvalidGrantError = (err: any) => {
@@ -249,11 +253,19 @@ const isInvalidGrantError = (err: any) => {
 
 // Helper to get auth client from cookie
 const getAuthClient = (req: express.Request) => {
-  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
-  if (!token) return null;
+  const rawToken = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
+  if (!rawToken) return null;
   
   const client = getOAuth2Client(req);
   if (!client) return null;
+  
+  let token = rawToken;
+  if (typeof token === "string") {
+    try {
+      if (token.startsWith("j:")) token = token.slice(2);
+      token = JSON.parse(token);
+    } catch(e) {}
+  }
   
   client.setCredentials(token);
   return client;
@@ -547,7 +559,7 @@ app.get("/api/auth/url", (req, res) => {
       });
     }
 
-    const returnTo = req.query.returnTo?.toString() || "";
+    const returnTo = req.query.returnTo?.toString() || "/app";
 
     const randomState = Math.random().toString(36).substring(2) + Date.now().toString(36);
     const state = randomState + (returnTo ? "___returnTo___" + encodeURIComponent(returnTo) : "");
@@ -591,7 +603,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
 
     const stateStr = (state as string) || "";
     const returnToMatch = stateStr.match(/___returnTo___(.*)$/);
-    const returnTo = returnToMatch ? decodeURIComponent(returnToMatch[1]) : "";
+    const returnTo = returnToMatch ? decodeURIComponent(returnToMatch[1]) : "/app";
 
     // Store for polling
     if (state) {
@@ -603,63 +615,80 @@ app.get("/api/auth/google/callback", async (req, res) => {
     setAuthCookies(res, essentialTokens);
 
     res.send(`
-      <html>
+      <!DOCTYPE html>
+      <html lang="pt-BR">
         <head>
-          <title>Autenticando...</title>
+          <title>Autenticado - Dr. Agent</title>
+          <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #0f172a; }
-            .card { text-align: center; padding: 2rem; background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); max-width: 90%; width: 360px; }
-            .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top: 3px solid #10b981; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1rem; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #0f172a; }
+            .card { text-align: center; padding: 2.5rem 2rem; background: white; border-radius: 1.25rem; box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.1); max-width: 90%; width: 380px; }
+            .spinner { width: 44px; height: 44px; border: 4px solid #e2e8f0; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1.25rem; }
             @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
             h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: #1e293b; }
-            p { color: #64748b; font-size: 0.875rem; margin: 0; }
+            p { color: #64748b; font-size: 0.875rem; margin: 0 0 1.5rem; line-height: 1.5; }
+            .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1.5rem; background: #2563eb; color: white; border-radius: 0.75rem; text-decoration: none; font-size: 0.875rem; font-weight: 700; border: none; cursor: pointer; transition: background 0.15s; width: 100%; box-sizing: border-box; }
+            .btn:hover { background: #1d4ed8; }
           </style>
         </head>
         <body>
           <div class="card">
             <div class="spinner"></div>
-            <h2>Conectando conta...</h2>
-            <p>Por favor, aguarde um instante.</p>
- 
+            <h2>Conta Conectada!</h2>
+            <p>Redirecionando para o seu espaço de trabalho...</p>
+            <a id="btn-open-app" href="${returnTo}" class="btn">Abrir Dr. Agent &rarr;</a>
+
             <script>
               const tokens = ${JSON.stringify(essentialTokens)};
               const payload = { type: 'OAUTH_AUTH_SUCCESS', tokens, timestamp: Date.now() };
- 
-              function notify() {
+              const targetUrl = '${returnTo}';
+
+              function notifyAll() {
                 try {
                   const channel = new BroadcastChannel('doctor_pro_auth_channel');
                   channel.postMessage(payload);
                 } catch (e) {}
                 try {
-                  if (window.opener) window.opener.postMessage(payload, '*');
+                  if (window.opener && !window.opener.closed) {
+                    window.opener.postMessage(payload, '*');
+                  }
                 } catch (e) {}
                 try {
                   localStorage.setItem('doctor_pro_auth_success', JSON.stringify(payload));
+                  localStorage.setItem('doctor_pro_auth_tokens', JSON.stringify(tokens));
+                  localStorage.setItem('doctor_pro_auth_timestamp', String(Date.now()));
                 } catch (e) {}
               }
- 
-              // Send notification immediately
-              notify();
-              
-              // Do it multiple times quickly to ensure reception
-              let tries = 0;
+
+              // Send notifications immediately and repeatedly
+              notifyAll();
+              let count = 0;
               const interval = setInterval(() => {
-                notify();
-                tries++;
-                if (tries >= 10) {
-                  clearInterval(interval);
-                }
+                notifyAll();
+                count++;
+                if (count >= 10) clearInterval(interval);
               }, 100);
 
-              // Close or redirect automatically after 600ms
-              setTimeout(() => {
-                if (window.opener) {
-                  window.close();
-                } else {
-                  window.location.href = '${returnTo || "/"}';
-                }
-              }, 600);
+              function tryCloseOrRedirect() {
+                notifyAll();
+                try {
+                  if (window.opener) {
+                    window.close();
+                  }
+                } catch (e) {}
+                // If window wasn't closed or window.close was blocked, navigate directly
+                setTimeout(() => {
+                  window.location.replace(targetUrl);
+                }, 350);
+              }
+
+              document.getElementById('btn-open-app').addEventListener('click', function() {
+                notifyAll();
+                tryCloseOrRedirect();
+              });
+
+              setTimeout(tryCloseOrRedirect, 650);
             </script>
           </div>
         </body>

@@ -136,10 +136,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, 4500);
 
     const processAuthSuccess = async (tokens: any) => {
+      console.log("[Auth] Processing authentication success event...");
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
+      setIsAuthenticated(true);
+
+      // Auto-navigate to /app if currently on landing or other page
+      if (typeof window !== "undefined" && window.location.pathname !== "/app") {
+        window.history.pushState(null, "", "/app");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      }
+
       if (tokens) {
         try {
           await fetch("/api/auth/session", {
@@ -152,35 +161,145 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (fbRes.ok) {
             const { customToken } = await fbRes.json();
             await signInWithCustomToken(fbAuth, customToken);
+            console.log("[Auth] Firebase authenticated successfully with customToken");
           } else if (fbRes.status === 401) {
             await logout();
             return;
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn("[Auth] Firebase token sync warning:", e);
+        }
       }
-      setTimeout(() => checkAuth(), 500); 
+      await checkAuth(); 
     };
 
+    // Channel 1: Window postMessage (standard popup communication)
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === "OAUTH_AUTH_SUCCESS") processAuthSuccess(event.data.tokens);
+      if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
+        console.log("[Auth] Received OAUTH_AUTH_SUCCESS via window postMessage");
+        processAuthSuccess(event.data.tokens);
+      }
     };
-
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
+
+    // Channel 2: BroadcastChannel (cross-window/cross-origin opener severed support)
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel("doctor_pro_auth_channel");
+      channel.onmessage = (event) => {
+        if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
+          console.log("[Auth] Received OAUTH_AUTH_SUCCESS via BroadcastChannel");
+          processAuthSuccess(event.data.tokens);
+        }
+      };
+    } catch (e) {}
+
+    // Channel 3: Storage event listener (syncs across tabs/popups)
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "doctor_pro_auth_tokens" || e.key === "doctor_pro_auth_success") {
+        try {
+          const data = JSON.parse(e.newValue || "{}");
+          const tokens = data.tokens || data;
+          if (tokens) {
+            console.log("[Auth] Received auth tokens via storage event");
+            processAuthSuccess(tokens);
+          }
+        } catch (err) {}
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
+    // Check if tokens were recently written to localStorage (within last 2 minutes)
+    try {
+      const storedTokensStr = localStorage.getItem("doctor_pro_auth_tokens");
+      const storedTimeStr = localStorage.getItem("doctor_pro_auth_timestamp");
+      if (storedTokensStr && storedTimeStr) {
+        const age = Date.now() - parseInt(storedTimeStr, 10);
+        if (age < 2 * 60 * 1000) {
+          localStorage.removeItem("doctor_pro_auth_tokens");
+          localStorage.removeItem("doctor_pro_auth_timestamp");
+          console.log("[Auth] Found recent tokens in localStorage on mount");
+          processAuthSuccess(JSON.parse(storedTokensStr));
+        }
+      }
+    } catch (e) {}
+
+    return () => {
+      clearTimeout(safetyTimer);
+      window.removeEventListener("message", handleMessage);
+      window.removeEventListener("storage", handleStorage);
+      if (channel) channel.close();
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
   }, []);
 
   const login = async () => {
     try {
-      const res = await fetch("/api/auth/url", { credentials: 'include' });
+      console.log("[Auth] Starting login flow...");
+      const res = await fetch("/api/auth/url?returnTo=/app", { credentials: 'include' });
       const data = await res.json();
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.error("[Auth] Failed to generate auth URL:", data);
+        return;
+      }
       const { url, state } = data;
       const popup = window.open(url, "google_oauth", "width=600,height=700");
       if (!popup) {
+        // Fallback to top-level navigation if popup blocked
         window.location.href = url;
         return;
       }
-    } catch (error: any) {}
+
+      // Start active poll on /api/auth/poll/:state
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+      let pollCount = 0;
+      pollIntervalRef.current = window.setInterval(async () => {
+        pollCount++;
+
+        // Detect popup closed
+        if (popup.closed) {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          console.log("[Auth] Popup closed by user or script, checking auth status...");
+          setTimeout(() => checkAuth(), 400);
+          return;
+        }
+
+        if (pollCount > 60) { // 90 seconds timeout
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          return;
+        }
+
+        try {
+          const pollRes = await fetch(`/api/auth/poll/${encodeURIComponent(state)}`, { credentials: 'include' });
+          if (pollRes.ok) {
+            const pollData = await pollRes.json();
+            if (pollData.tokens) {
+              console.log("[Auth] Active poll resolved tokens successfully!");
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+              }
+              try { popup.close(); } catch (e) {}
+              await checkAuth();
+            }
+          }
+        } catch (err) {}
+      }, 1500);
+
+    } catch (error: any) {
+      console.error("[Auth] Login error:", error);
+    }
   };
 
   const logout = async () => {
