@@ -77,14 +77,14 @@ export default function AppWorkspace() {
   const [installPrompt, setInstallPrompt] = useState<any>(() => {
     return (typeof window !== "undefined" && (window as any).deferredInstallPrompt) || null;
   });
-  const [currentView, setCurrentView] = useState<NavView | null>("calendar");
+  const [currentView, setCurrentView] = useState<NavView | null>("workspace");
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
   const [activePatientName, setActivePatientName] = useState<string | null>(null);
   const [activePatientProcedure, setActivePatientProcedure] = useState<string | null>(null);
   const [activePatientHospitalId, setActivePatientHospitalId] = useState<string | null>(null);
   const [activePatientType, setActivePatientType] = useState<string | null>(null);
   const [activePatientSala, setActivePatientSala] = useState<string | null>(null);
-  const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+  const [pendingCommand, setPendingCommand] = useState<string | null>("/pacientes");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileGroupsOpen, setIsMobileGroupsOpen] = useState(false);
 
@@ -341,28 +341,19 @@ export default function AppWorkspace() {
           <div className="absolute left-4 flex items-center lg:hidden">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
+              className="p-2 text-slate-700 hover:text-blue-600 transition-colors"
+              aria-label="Abrir menu"
             >
               <Menu size={24} />
             </button>
           </div>
 
           {/* Centered Logo */}
-          <div className="flex items-center gap-2 pointer-events-none">
-            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
-              <Stethoscope size={14} />
+          <div className="flex items-center gap-2.5 pointer-events-none">
+            <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+              <Stethoscope size={16} />
             </div>
             <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">{headerName}</span>
-          </div>
-
-          <div className="absolute right-4 flex items-center gap-2">
-            <button
-              onClick={() => setIsMobileGroupsOpen(true)}
-              className="p-2 text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1"
-            >
-              <Users size={20} />
-              {activeGroup && <div className="w-1.5 h-1.5 bg-blue-50 rounded-full"></div>}
-            </button>
           </div>
         </div>
       </header>

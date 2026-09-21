@@ -3568,7 +3568,7 @@ ${aiPart}
               className="flex justify-start"
             >
               <div className="flex gap-3 w-full">
-                <div className={(msg.isProfile || msg.patientNameForStatus || msg.form?.commandPrefix?.includes("/calendario_add")) ? "text-sm w-full overflow-y-auto space-y-6" : `p-4 rounded-2xl text-sm glass-subcard text-gray-800 shadow-sm w-full overflow-y-auto`}>
+                <div className={(msg.isProfile || msg.isPatientListing || msg.patientNameForStatus || msg.form?.commandPrefix?.includes("/calendario_add")) ? "text-sm w-full space-y-4" : `p-4 rounded-2xl text-sm glass-subcard text-gray-800 shadow-sm w-full overflow-y-auto`}>
                   {msg.isListing && msg.listingTitle && (
                     <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
                       <h3 className="text-base font-extrabold text-gray-800 tracking-tight">{msg.listingTitle}</h3>
