@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Building2, Bed, Activity, ArrowLeft, ArrowRight, Plus, MapPin, User, FileText, ChevronRight, Search, Calendar as CalendarIcon } from "lucide-react";
+import { Building2, Bed, Activity, ArrowLeft, ArrowRight, Plus, MapPin, User, FileText, ChevronRight, ChevronDown, Search, Calendar as CalendarIcon } from "lucide-react";
 import { useGroup } from "../contexts/GroupContext";
 import { collection, query, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -71,6 +71,22 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [collapsedStatuses, setCollapsedStatuses] = useState<Record<string, boolean>>({});
+  const [collapsedHospitals, setCollapsedHospitals] = useState<Record<string, boolean>>({});
+
+  const toggleStatusCollapse = (key: string) => {
+    setCollapsedStatuses(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const toggleHospitalCollapse = (key: string) => {
+    setCollapsedHospitals(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
 
   useEffect(() => {
     if (!activeGroup?.id) {
@@ -504,85 +520,114 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
 
               const sortedHospitals = Object.values(hospitalGrouped).sort((a, b) => a.name.localeCompare(b.name));
 
-              return sortedHospitals.map(({ name: hName, list: groupedPatients }, hIdx) => (
-                <div key={hIdx} className="space-y-3 bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-2xs">
-                  {/* Hospital Group Header */}
-                  <div className="flex items-center justify-between text-slate-900 px-1 py-0.5 select-none">
-                    <div className="flex items-center gap-2 font-black text-xs sm:text-sm uppercase tracking-wider text-slate-800">
-                      <span className="text-base">🏥</span>
-                      <span>{hName}</span>
-                    </div>
-                    <span className="text-[11px] bg-slate-100 text-slate-600 px-3 py-1 rounded-full font-bold">
-                      {groupedPatients.length} {groupedPatients.length === 1 ? "paciente" : "pacientes"}
-                    </span>
-                  </div>
+              return sortedHospitals.map(({ id: hId, name: hName, list: groupedPatients }, hIdx) => {
+                const isHospCollapsed = Boolean(collapsedHospitals[hId || hName]);
 
-                  {/* Patient Cards in Hospital Group */}
-                  <div className="grid grid-cols-1 gap-2.5 pt-0.5">
-                    {groupedPatients.map((p) => {
-                      const initials = p.nome ? p.nome.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase() : "PA";
-                      const pEvents = getPatientEvents(p);
-                      const nextEvent = pEvents[0];
-                      const statusStyle = getStatusStyles(p.status || "");
-                      return (
-                        <div 
-                          key={p.id}
-                          onClick={() => onCommand(`/p ${p.id}`, true)}
-                          className="group bg-white rounded-2xl shadow-2xs hover:shadow-xs border border-slate-100 hover:border-blue-200/80 p-3 sm:p-3.5 transition-all duration-150 cursor-pointer text-left relative"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-blue-50 text-blue-600 font-bold text-xs sm:text-sm flex items-center justify-center shrink-0 border border-blue-100/70">
-                                {initials}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate">
-                                  {p.nome}
-                                </h4>
-                                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium truncate mt-0.5">
-                                  <span className="font-semibold text-slate-700 uppercase tracking-tight truncate">
-                                    {p.hospitalName || "Sem Hospital"}
-                                  </span>
-                                  <span>•</span>
-                                  <span className="shrink-0">{p.roomNumber ? `Leito ${p.roomNumber}` : "Sem leito"}</span>
-                                </div>
-                                {nextEvent ? (
-                                  <div className="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
-                                    <span>{formatEventTime(nextEvent.startDateTime)}</span>
-                                    {(p.procedure || p.surgery_type) && (
-                                      <>
-                                        <span>•</span>
-                                        <span className="truncate">{p.procedure || p.surgery_type}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                ) : (p.procedure || p.surgery_type) ? (
-                                  <div className="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">
-                                    {p.procedure || p.surgery_type}
-                                  </div>
-                                ) : null}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button 
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onCommand(`/p ${p.id}`, true);
-                                }}
-                                className="p-1 text-slate-400 hover:text-slate-600 text-base font-bold leading-none cursor-pointer"
-                                title="Opções do paciente"
-                              >
-                                ⋮
-                              </button>
-                            </div>
-                          </div>
+                return (
+                  <div 
+                    key={hId || hIdx} 
+                    className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-2xs overflow-hidden transition-all duration-200"
+                  >
+                    {/* Hospital Group Header */}
+                    <button
+                      type="button"
+                      onClick={() => toggleHospitalCollapse(hId || hName)}
+                      aria-expanded={!isHospCollapsed}
+                      className={`w-full bg-[#A9CCF5] px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between text-left transition-colors hover:bg-[#9ec5f1] active:bg-[#92bcee] select-none cursor-pointer focus:outline-none rounded-t-2xl sm:rounded-t-3xl ${
+                        isHospCollapsed ? "rounded-b-2xl sm:rounded-b-3xl" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-base shrink-0 bg-white/70 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-2xs">
+                          🏥
+                        </span>
+                        <div className="min-w-0">
+                          <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-[#0F2942] leading-tight truncate">
+                            {hName}
+                          </h3>
+                          <p className="text-[11px] sm:text-xs text-[#1E3A5F]/85 font-medium mt-0.5">
+                            {groupedPatients.length} {groupedPatients.length === 1 ? "paciente" : "pacientes"}
+                          </p>
                         </div>
-                      );
-                    })}
+                      </div>
+
+                      <div className="text-[#0F2942] p-1 shrink-0 flex items-center justify-center">
+                        <ChevronDown
+                          size={20}
+                          strokeWidth={2.5}
+                          className={`text-[#0F2942] transition-transform duration-200 ${isHospCollapsed ? "" : "rotate-180"}`}
+                        />
+                      </div>
+                    </button>
+
+                    {/* Patient Cards in Hospital Group */}
+                    {!isHospCollapsed && (
+                      <div className="p-3 sm:p-4 bg-slate-50/50 space-y-2.5">
+                        {groupedPatients.map((p) => {
+                          const initials = p.nome ? p.nome.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase() : "PA";
+                          const pEvents = getPatientEvents(p);
+                          const nextEvent = pEvents[0];
+                          return (
+                            <div 
+                              key={p.id}
+                              onClick={() => onCommand(`/p ${p.id}`, true)}
+                              className="group bg-white rounded-2xl shadow-2xs hover:shadow-xs border border-slate-100 hover:border-blue-200/80 p-3 sm:p-3.5 transition-all duration-150 cursor-pointer text-left relative"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-blue-50 text-blue-600 font-bold text-xs sm:text-sm flex items-center justify-center shrink-0 border border-blue-100/70">
+                                    {initials}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate">
+                                      {p.nome}
+                                    </h4>
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium truncate mt-0.5">
+                                      <span className="font-semibold text-slate-700 uppercase tracking-tight truncate">
+                                        {p.hospitalName || "Sem Hospital"}
+                                      </span>
+                                      <span>•</span>
+                                      <span className="shrink-0">{p.roomNumber ? `Leito ${p.roomNumber}` : "Sem leito"}</span>
+                                    </div>
+                                    {nextEvent ? (
+                                      <div className="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
+                                        <span>{formatEventTime(nextEvent.startDateTime)}</span>
+                                        {(p.procedure || p.surgery_type) && (
+                                          <>
+                                            <span>•</span>
+                                            <span className="truncate">{p.procedure || p.surgery_type}</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    ) : (p.procedure || p.surgery_type) ? (
+                                      <div className="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">
+                                        {p.procedure || p.surgery_type}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button 
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onCommand(`/p ${p.id}`, true);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-slate-600 text-base font-bold leading-none cursor-pointer"
+                                    title="Opções do paciente"
+                                  >
+                                    ⋮
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ));
+                );
+              });
             })()
           ) : (
             // Group by Status (Default view)
@@ -607,90 +652,111 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                 return a.name.localeCompare(b.name);
               });
 
-              return sortedStatuses.map(({ name: sName, list: groupedPatients }, statusIdx) => {
+              return sortedStatuses.map(({ id: sId, name: sName, list: groupedPatients }, statusIdx) => {
                 const config = getStatusStyles(sName);
+                const isCollapsed = Boolean(collapsedStatuses[sId || sName]);
+
                 return (
-                  <div key={statusIdx} className="space-y-3 bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-2xs">
+                  <div 
+                    key={sId || statusIdx} 
+                    className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-2xs overflow-hidden transition-all duration-200"
+                  >
                     {/* Status Group Header */}
-                    <div className="flex items-center justify-between select-none px-1">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-3.5 h-3.5 rounded-full ${config.dot} shrink-0`} />
-                        <div>
-                          <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900">
+                    <button
+                      type="button"
+                      onClick={() => toggleStatusCollapse(sId || sName)}
+                      aria-expanded={!isCollapsed}
+                      className={`w-full bg-[#A9CCF5] px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between text-left transition-colors hover:bg-[#9ec5f1] active:bg-[#92bcee] select-none cursor-pointer focus:outline-none rounded-t-2xl sm:rounded-t-3xl ${
+                        isCollapsed ? "rounded-b-2xl sm:rounded-b-3xl" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ${config.dot} shrink-0 ring-2 ring-white/80 shadow-2xs`} />
+                        <div className="min-w-0">
+                          <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-[#0F2942] leading-tight truncate">
                             {sName}
                           </h3>
-                          <p className="text-[11px] text-slate-500 font-medium">
+                          <p className="text-[11px] sm:text-xs text-[#1E3A5F]/85 font-medium mt-0.5">
                             {groupedPatients.length} {groupedPatients.length === 1 ? "paciente" : "pacientes"}
                           </p>
                         </div>
                       </div>
-                    </div>
+
+                      <div className="text-[#0F2942] p-1 shrink-0 flex items-center justify-center">
+                        <ChevronDown
+                          size={20}
+                          strokeWidth={2.5}
+                          className={`text-[#0F2942] transition-transform duration-200 ${isCollapsed ? "" : "rotate-180"}`}
+                        />
+                      </div>
+                    </button>
 
                     {/* Patient Cards in Status Group */}
-                    <div className="grid grid-cols-1 gap-2.5 pt-0.5">
-                      {groupedPatients.map((p) => {
-                        const hDisplay = p.hospitalName || "Sem Hospital";
-                        const initials = p.nome ? p.nome.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase() : "PA";
-                        const pEvents = getPatientEvents(p);
-                        const nextEvent = pEvents[0];
-                        const statusStyle = getStatusStyles(p.status || sName);
-                        return (
-                          <div 
-                            key={p.id}
-                            onClick={() => onCommand(`/p ${p.id}`, true)}
-                            className="group bg-white rounded-2xl shadow-2xs hover:shadow-xs border border-slate-100 hover:border-blue-200/80 p-3 sm:p-3.5 transition-all duration-150 cursor-pointer text-left relative"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-blue-50 text-blue-600 font-bold text-xs sm:text-sm flex items-center justify-center shrink-0 border border-blue-100/70">
-                                  {initials}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate">
-                                    {p.nome}
-                                  </h4>
-                                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium truncate mt-0.5">
-                                    <span className="font-semibold text-slate-700 uppercase tracking-tight truncate">
-                                      {hDisplay}
-                                    </span>
-                                    <span>•</span>
-                                    <span className="shrink-0">{p.roomNumber ? `Leito ${p.roomNumber}` : "Sem leito"}</span>
+                    {!isCollapsed && (
+                      <div className="p-3 sm:p-4 bg-slate-50/50 space-y-2.5">
+                        {groupedPatients.map((p) => {
+                          const hDisplay = p.hospitalName || "Sem Hospital";
+                          const initials = p.nome ? p.nome.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase() : "PA";
+                          const pEvents = getPatientEvents(p);
+                          const nextEvent = pEvents[0];
+                          return (
+                            <div 
+                              key={p.id}
+                              onClick={() => onCommand(`/p ${p.id}`, true)}
+                              className="group bg-white rounded-2xl shadow-2xs hover:shadow-xs border border-slate-100 hover:border-blue-200/80 p-3 sm:p-3.5 transition-all duration-150 cursor-pointer text-left relative"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-blue-50 text-blue-600 font-bold text-xs sm:text-sm flex items-center justify-center shrink-0 border border-blue-100/70">
+                                    {initials}
                                   </div>
-                                  {nextEvent ? (
-                                    <div className="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
-                                      <span>{formatEventTime(nextEvent.startDateTime)}</span>
-                                      {(p.procedure || p.surgery_type) && (
-                                        <>
-                                          <span>•</span>
-                                          <span className="truncate">{p.procedure || p.surgery_type}</span>
-                                        </>
-                                      )}
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate">
+                                      {p.nome}
+                                    </h4>
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium truncate mt-0.5">
+                                      <span className="font-semibold text-slate-700 uppercase tracking-tight truncate">
+                                        {hDisplay}
+                                      </span>
+                                      <span>•</span>
+                                      <span className="shrink-0">{p.roomNumber ? `Leito ${p.roomNumber}` : "Sem leito"}</span>
                                     </div>
-                                  ) : (p.procedure || p.surgery_type) ? (
-                                    <div className="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">
-                                      {p.procedure || p.surgery_type}
-                                    </div>
-                                  ) : null}
+                                    {nextEvent ? (
+                                      <div className="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
+                                        <span>{formatEventTime(nextEvent.startDateTime)}</span>
+                                        {(p.procedure || p.surgery_type) && (
+                                          <>
+                                            <span>•</span>
+                                            <span className="truncate">{p.procedure || p.surgery_type}</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    ) : (p.procedure || p.surgery_type) ? (
+                                      <div className="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">
+                                        {p.procedure || p.surgery_type}
+                                      </div>
+                                    ) : null}
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <button 
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onCommand(`/p ${p.id}`, true);
-                                  }}
-                                  className="p-1 text-slate-400 hover:text-slate-600 text-base font-bold leading-none cursor-pointer"
-                                  title="Opções do paciente"
-                                >
-                                  ⋮
-                                </button>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button 
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onCommand(`/p ${p.id}`, true);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-slate-600 text-base font-bold leading-none cursor-pointer"
+                                    title="Opções do paciente"
+                                  >
+                                    ⋮
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               });
