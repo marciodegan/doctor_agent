@@ -1596,6 +1596,23 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
       }
     });
 
+    const [hospitalsSnap, statusesSnap] = await Promise.all([
+      db.collection("hospitals").where("groupId", "==", groupId).get(),
+      db.collection("patient_statuses").where("groupId", "==", groupId).get()
+    ]);
+
+    const hospitalNameToId = new Map<string, string>();
+    hospitalsSnap.docs.forEach(d => {
+      const data = d.data();
+      if (data.name) hospitalNameToId.set(data.name.toString().trim().toLowerCase(), d.id);
+    });
+
+    const statusNameToId = new Map<string, string>();
+    statusesSnap.docs.forEach(d => {
+      const data = d.data();
+      if (data.name) statusNameToId.set(data.name.toString().trim().toLowerCase(), d.id);
+    });
+
     const parseNum = (val: any): number => {
       if (val === null || val === undefined) return 0;
       if (typeof val === "number") return isNaN(val) ? 0 : val;
@@ -1633,7 +1650,49 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
         const nome = (patData.nome || "Sem Nome").toString().trim();
         const documento = (patData.documento || "").toString().trim();
         const prestador = (patData.prestador || "").toString().trim();
+        const hospitalCsv = (patData.hospital || "").toString().trim();
+        const statusCsv = (patData.status || "").toString().trim();
         const rows = Array.isArray(patData.rows) ? patData.rows : [];
+
+        let resolvedHospitalId = prestador;
+        if (hospitalCsv) {
+          const hKey = hospitalCsv.toLowerCase();
+          if (hospitalNameToId.has(hKey)) {
+            resolvedHospitalId = hospitalNameToId.get(hKey)!;
+          } else {
+            const newHRef = db.collection("hospitals").doc();
+            await newHRef.set({
+              name: hospitalCsv,
+              groupId,
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            hospitalNameToId.set(hKey, newHRef.id);
+            resolvedHospitalId = newHRef.id;
+          }
+        } else if (prestador) {
+          const pKey = prestador.toLowerCase();
+          if (hospitalNameToId.has(pKey)) {
+            resolvedHospitalId = hospitalNameToId.get(pKey)!;
+          }
+        }
+
+        let resolvedStatusId = "";
+        if (statusCsv) {
+          const sKey = statusCsv.toLowerCase();
+          if (statusNameToId.has(sKey)) {
+            resolvedStatusId = statusNameToId.get(sKey)!;
+          } else {
+            const newSRef = db.collection("patient_statuses").doc();
+            await newSRef.set({
+              name: statusCsv,
+              groupId,
+              sortOrder: statusesSnap.size + 1,
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            statusNameToId.set(sKey, newSRef.id);
+            resolvedStatusId = newSRef.id;
+          }
+        }
 
         let patientId = "";
         const existing = existingByCode.get(codigoUsuario);
@@ -1646,7 +1705,12 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             updateFields.cpf = documento;
             updateFields.documento = documento;
           }
-          if (prestador && !existing.data.hospitalId) updateFields.hospitalId = prestador;
+          if (resolvedHospitalId && (!existing.data.hospitalId || existing.data.hospitalId === "Sem Hospital")) {
+            updateFields.hospitalId = resolvedHospitalId;
+          }
+          if (resolvedStatusId && (!existing.data.statusId || existing.data.statusId === "Sem Status")) {
+            updateFields.statusId = resolvedStatusId;
+          }
           if (!existing.data.codigoUsuario) updateFields.codigoUsuario = codigoUsuario;
           if (Object.keys(updateFields).length > 1) {
             await db.collection("patients").doc(patientId).update(updateFields);
@@ -1659,8 +1723,8 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             codigoUsuario: codigoUsuario,
             cpf: documento,
             documento: documento,
-            hospitalId: prestador,
-            statusId: "Sem Status",
+            hospitalId: resolvedHospitalId || prestador || "Sem Hospital",
+            statusId: resolvedStatusId || "Sem Status",
             groupId,
             recordStatus: "active",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1691,6 +1755,8 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           const prestadorExecutante = (row["Prestador Executante"] || row["prestadorExecutante"] || "").toString().trim();
           const prestadorPagamento = (row["Prestador Pagamento"] || row["prestadorPagamento"] || "").toString().trim();
           const prestadorProtocolo = (row["Prestador Protocolo"] || row["prestadorProtocolo"] || "").toString().trim();
+          const rowHospital = (row["HOSPITAL"] || row["Hospital"] || row["hospital"] || hospitalCsv || "").toString().trim();
+          const rowStatus = (row["status"] || row["Status"] || row["STATUS"] || statusCsv || "").toString().trim();
 
           // Compound key strategy for deduplication:
           // Código do Usuário + Relação Nr + Documento + Código AMB + Data + occurrence index within batch
@@ -1727,6 +1793,8 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             prestadorExecutante: prestadorExecutante,
             prestadorPagamento: prestadorPagamento,
             prestadorProtocolo: prestadorProtocolo,
+            hospital: rowHospital || prestador,
+            status: rowStatus || "Sem Status",
 
             dadosOriginais: row,
             updatedAt: admin.firestore.FieldValue.serverTimestamp()

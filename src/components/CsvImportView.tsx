@@ -25,6 +25,8 @@ interface PreviewStats {
     nome: string;
     documento: string;
     prestador: string;
+    hospital: string;
+    status: string;
     rows: ParsedRow[];
   }>;
 }
@@ -205,7 +207,7 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
         }
       }
 
-      const grouped = new Map<string, { nome: string; documento: string; prestador: string; rows: ParsedRow[] }>();
+      const grouped = new Map<string, { nome: string; documento: string; prestador: string; hospital: string; status: string; rows: ParsedRow[] }>();
       let invalidCount = 0;
       const errorsList: string[] = [];
 
@@ -232,15 +234,28 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
         const prestadorKey = findHeaderKey(headers, ["prestador executante", "prestador", "hospital"]);
         const prestadorVal = prestadorKey ? row[prestadorKey] || "" : "";
 
+        // Find hospital column
+        const hospitalKey = findHeaderKey(headers, ["hospital", "hosp"]);
+        const hospitalVal = hospitalKey ? row[hospitalKey] || "" : "";
+
+        // Find status column
+        const statusKey = findHeaderKey(headers, ["status", "situacao", "estado"]);
+        const statusVal = statusKey ? row[statusKey] || "" : "";
+
         if (!grouped.has(codigoUsuario)) {
           grouped.set(codigoUsuario, {
             nome: nomeUsuario,
             documento: docVal,
             prestador: prestadorVal,
+            hospital: hospitalVal,
+            status: statusVal,
             rows: []
           });
+        } else {
+          const existing = grouped.get(codigoUsuario)!;
+          if (!existing.hospital && hospitalVal) existing.hospital = hospitalVal;
+          if (!existing.status && statusVal) existing.status = statusVal;
         }
-        grouped.get(codigoUsuario)?.rows.push(row);
       });
 
       let newCount = 0;
@@ -291,6 +306,8 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
           nome: val.nome,
           documento: val.documento,
           prestador: val.prestador,
+          hospital: val.hospital,
+          status: val.status,
           rows: val.rows
         });
       });
