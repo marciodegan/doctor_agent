@@ -2470,8 +2470,7 @@ ${aiPart}
               statusFilter: statusFilter || undefined,
               sort: sort
             } : undefined
-          },
-          actionGroups
+          }
         }]);
         setTimeout(scrollToTop, 0);
       } catch (err: any) {
@@ -4402,7 +4401,7 @@ ${aiPart}
                         })()
                       )}
 
-                      {msg.actionGroups && !msg.patientNameForStatus && (
+                      {msg.actionGroups && !msg.patientNameForStatus && !msg.isPatientListing && (
                         <div className="mt-6 pt-6 -mx-3 -mb-3 p-4 bg-gray-50/70 border-t border-gray-100 space-y-4">
                           {msg.actionGroups.map((group, gi) => (
                             <div key={gi} className="space-y-2">

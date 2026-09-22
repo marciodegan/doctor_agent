@@ -241,11 +241,19 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
     return () => clearTimeout(timer);
   }, [searchTerm, activeGroup?.id, hospitalFilter, statusFilter]);
 
-  const isHospFiltered = hospitalFilter && hospitalFilter !== "1" && hospitalFilter !== "all" && hospitalFilter !== "";
-  const isStatusFiltered = statusFilter && statusFilter !== "1" && statusFilter !== "all" && statusFilter !== "";
+  const isHospFiltered = Boolean(hospitalFilter && hospitalFilter !== "all" && hospitalFilter !== "");
+  const isStatusFiltered = Boolean(statusFilter && statusFilter !== "all" && statusFilter !== "");
+
+  const selectedHospitalObj = isHospFiltered 
+    ? hospitals.find((h: any) => h.id.toString() === hospitalFilter) 
+    : null;
+
+  const selectedStatusObj = isStatusFiltered 
+    ? statuses.find((s: any) => s.id.toString() === statusFilter) 
+    : null;
 
   // Compute final filtered patients set safely starting from localPatients
-  const selectedStatus = statuses.find((s: any) => s.id.toString() === statusFilter);
+  const selectedStatus = selectedStatusObj;
   const isFilteringAlta = selectedStatus && (selectedStatus.nome || "").toLowerCase() === "alta";
 
   let processedPatients = [...localPatients].filter(p => (p as any).recordStatus !== "removed");
@@ -347,18 +355,23 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
     };
   };
 
-  const selectedHospitalObj = isHospFiltered 
-    ? hospitals.find((h: any) => h.id.toString() === hospitalFilter) 
-    : null;
+  const sortedHospitals = [...hospitals].sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
 
-  const selectedStatusObj = isStatusFiltered 
-    ? statuses.find((s: any) => s.id.toString() === statusFilter) 
-    : null;
+  const sortedMasterStatuses = [...statuses].sort((a, b) => {
+    const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
+    const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
+    if (orderA !== orderB) return orderA - orderB;
+    const nameA = (a.nome || "").toLowerCase();
+    const nameB = (b.nome || "").toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  const hasActiveFilter = Boolean(isHospFiltered || isStatusFiltered || searchTerm.trim());
 
   return (
     <div className="space-y-4 w-full text-slate-800 pb-20">
       {/* Search & Filters Card */}
-      <div className="bg-white rounded-3xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs space-y-3">
+      <div className="bg-white rounded-3xl p-3.5 sm:p-4 border border-slate-100 shadow-2xs space-y-3.5">
         {/* Modern Search Bar */}
         <div className="relative">
           <input
@@ -373,61 +386,85 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
           </div>
         </div>
 
-        {/* Filters Row */}
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-          {/* Hospital Filter Chip */}
-          <div className="relative">
-            <select
-              value={hospitalFilter || ""}
-              onChange={(e) => {
-                const val = e.target.value;
-                onCommand(`/pacientes hospital:${val} status:${statusFilter || ""} sort:${sort}`, true);
-              }}
-              aria-label="Filtrar por hospital"
-              className="w-full appearance-none bg-blue-50/80 hover:bg-blue-100/70 border border-blue-200/80 text-blue-700 text-xs sm:text-sm font-bold px-3.5 py-2.5 rounded-2xl shadow-2xs pr-8 truncate cursor-pointer outline-none transition"
-            >
-              <option value="">🏥 Todos os hospitais</option>
-              {hospitals.map((h) => (
-                <option key={h.id} value={h.id}>
-                  🏥 {h.nome}
-                </option>
-              ))}
-            </select>
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-blue-600 text-[10px]">▼</span>
+        {/* Hospital Filter Buttons */}
+        {sortedHospitals.length > 0 && (
+          <div className="space-y-1.5 pt-0.5">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+              Filtrar por Hospital
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {sortedHospitals.map((h) => {
+                const hId = h.id.toString();
+                const isActive = hospitalFilter === hId;
+                return (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => {
+                      const cmd = isActive
+                        ? `/pacientes${statusFilter ? ` status:${statusFilter}` : ""} sort:${sort || "status"}`
+                        : `/pacientes hospital:${hId}${statusFilter ? ` status:${statusFilter}` : ""} sort:${sort || "status"}`;
+                      onCommand(cmd, true);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all border shadow-sm ${
+                      isActive 
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-blue-100' 
+                        : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'
+                    }`}
+                  >
+                    {h.nome}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+        )}
 
-          {/* Status Filter Chip */}
-          <div className="relative">
-            <select
-              value={statusFilter || ""}
-              onChange={(e) => {
-                const val = e.target.value;
-                onCommand(`/pacientes hospital:${hospitalFilter || ""} status:${val} sort:${sort}`, true);
-              }}
-              aria-label="Filtrar por status"
-              className="w-full appearance-none bg-blue-50/80 hover:bg-blue-100/70 border border-blue-200/80 text-blue-700 text-xs sm:text-sm font-bold px-3.5 py-2.5 rounded-2xl shadow-2xs pr-8 truncate cursor-pointer outline-none transition"
-            >
-              <option value="">⚙️ Todos os status</option>
-              {statuses.map((s) => (
-                <option key={s.id} value={s.id}>
-                  ⚙️ {s.nome}
-                </option>
-              ))}
-            </select>
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-blue-600 text-[10px]">▼</span>
+        {/* Status Filter Buttons */}
+        {sortedMasterStatuses.length > 0 && (
+          <div className="space-y-1.5 pt-0.5">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+              Filtrar por Status
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {sortedMasterStatuses.map((s) => {
+                const sId = typeof s === 'string' ? s : s.id.toString();
+                const sLabel = typeof s === 'string' ? s : s.nome;
+                const isActive = statusFilter === sId;
+                return (
+                  <button
+                    key={sId}
+                    type="button"
+                    onClick={() => {
+                      const cmd = isActive
+                        ? `/pacientes${hospitalFilter ? ` hospital:${hospitalFilter}` : ""} sort:${sort || "status"}`
+                        : `/pacientes status:${sId}${hospitalFilter ? ` hospital:${hospitalFilter}` : ""} sort:${sort || "status"}`;
+                      onCommand(cmd, true);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all border shadow-sm ${
+                      isActive 
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-blue-100' 
+                        : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'
+                    }`}
+                  >
+                    {sLabel}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Clear Filters Chip */}
-        {(isHospFiltered || isStatusFiltered || searchTerm.trim()) && (
-          <div className="pt-0.5 flex items-center justify-between text-xs">
-            <span className="text-slate-400 font-medium">Filtro aplicado</span>
+        {/* Clear Filters Chip - only when filter is applied */}
+        {hasActiveFilter && (
+          <div className="pt-0.5 flex items-center justify-start text-xs">
             <button
+              type="button"
               onClick={() => {
                 setSearchTerm("");
                 onCommand("/pacientes", true);
               }}
-              className="inline-flex items-center gap-1 bg-rose-50 hover:bg-rose-100 border border-rose-200/70 text-rose-600 text-[11px] font-bold px-2.5 py-1 rounded-full shadow-2xs transition"
+              className="inline-flex items-center gap-1 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 text-rose-600 text-[11px] font-bold px-2.5 py-1 rounded-full shadow-2xs transition"
             >
               <span>× Limpar filtros</span>
             </button>
