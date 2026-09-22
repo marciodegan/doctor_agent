@@ -527,11 +527,6 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                               </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                              {p.status && (
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-tight border ${statusStyle.badge}`}>
-                                  {p.status}
-                                </span>
-                              )}
                               <button 
                                 type="button"
                                 onClick={(e) => {
@@ -592,13 +587,6 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                           </p>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => onCommand(`/pacientes status:${sName}`, true)}
-                        className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5"
-                      >
-                        <span>Ver todos</span>
-                        <ChevronRight size={14} strokeWidth={2.5} />
-                      </button>
                     </div>
 
                     {/* Patient Cards in Status Group */}
@@ -649,9 +637,6 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-tight border ${statusStyle.badge}`}>
-                                  {p.status || sName}
-                                </span>
                                 <button 
                                   type="button"
                                   onClick={(e) => {
