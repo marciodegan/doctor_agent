@@ -270,9 +270,43 @@
         "message": { "type": "string" }
       },
       "required": ["latestVersion"]
+    },
+    "Procedimento": {
+      "title": "Procedimento",
+      "description": "Ocorrência de procedimento médico importada do CSV e vinculada ao paciente",
+      "type": "object",
+      "properties": {
+        "pacienteId": { "type": "string" },
+        "codigoUsuario": { "type": "string" },
+        "nomeUsuario": { "type": "string" },
+        "groupId": { "type": "string" },
+        "periodo": { "type": "string" },
+        "notaFiscal": { "type": "string" },
+        "relacaoNr": { "type": "string" },
+        "data": { "type": "string" },
+        "documento": { "type": "string" },
+        "quantidade": { "type": "number" },
+        "codigoAMB": { "type": "string" },
+        "descricao": { "type": "string" },
+        "valorHonorarios": { "type": "number" },
+        "valorOperacional": { "type": "number" },
+        "valorFilme": { "type": "number" },
+        "valorTaxaAdministrativa": { "type": "number" },
+        "prestadorExecutante": { "type": "string" },
+        "prestadorPagamento": { "type": "string" },
+        "prestadorProtocolo": { "type": "string" },
+        "dadosOriginais": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pacienteId", "codigoUsuario", "codigoAMB"]
     }
   },
   "firestore": {
+    "/procedimentos/{procedimentoId}": {
+      "schema": "Procedimento",
+      "description": "Collection de procedimentos médicos importados do CSV"
+    },
     "/app_config/{configId}": {
       "schema": "AppConfig",
       "description": "Global application configuration documents"

@@ -1342,8 +1342,45 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       hospitalId: pData.hospitalId || "",
       roomNumber: pData.roomNumber,
       surgery_type: pData.surgery_type || "",
-      procedure: pData.procedure || ""
+      procedure: pData.procedure || "",
+      codigoUsuario: pData.codigoUsuario ? pData.codigoUsuario.toString() : "",
+      cpf: pData.cpf || pData.documento || "",
+      documento: pData.documento || pData.cpf || ""
     };
+
+    // Process Procedimentos linked to this patient
+    try {
+      let procDocs: any[] = [];
+      const procSnap = await db.collection("procedimentos")
+        .where("pacienteId", "==", id)
+        .get();
+
+      procDocs = procSnap.docs;
+
+      if (procDocs.length === 0 && pData.codigoUsuario) {
+        const procByCodeSnap = await db.collection("procedimentos")
+          .where("codigoUsuario", "==", pData.codigoUsuario.toString().trim())
+          .get();
+        procDocs = procByCodeSnap.docs;
+      }
+
+      report.procedimentos = procDocs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt
+        };
+      }).sort((a, b) => {
+        const dateA = a.data || "";
+        const dateB = b.data || "";
+        return dateB.localeCompare(dateA);
+      });
+    } catch (procErr) {
+      console.warn("Error fetching procedimentos for patient-report:", procErr);
+      report.procedimentos = [];
+    }
 
     // Process Files/Images
     const isVideoUrlLocal = (url: string) => {
@@ -1469,6 +1506,68 @@ app.post("/api/app/patients", express.json(), async (req, res) => {
   }
 });
 
+// Get patient procedures from the procedimentos collection
+app.get("/api/app/patients/:id/procedimentos", async (req, res) => {
+  const { id } = req.params;
+  const sort = req.query.sort === "asc" ? "asc" : "desc";
+
+  try {
+    const { groupId, patient } = await requirePatientAccess(req, id);
+
+    let docs: any[] = [];
+    // Primary query: pacienteId == id
+    try {
+      const procSnap = await db.collection("procedimentos")
+        .where("pacienteId", "==", id)
+        .get();
+      docs = procSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    } catch (e) {
+      console.warn("Error querying procedimentos by pacienteId:", e);
+    }
+
+    // Fallback: if empty, query by codigoUsuario if available
+    if (docs.length === 0 && patient.codigoUsuario) {
+      try {
+        const codeSnap = await db.collection("procedimentos")
+          .where("codigoUsuario", "==", patient.codigoUsuario.toString().trim())
+          .get();
+        docs = codeSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+      } catch (e) {
+        console.warn("Error querying procedimentos by codigoUsuario:", e);
+      }
+    }
+
+    // Also check subcollection fallback for backward compatibility
+    if (docs.length === 0) {
+      try {
+        const subSnap = await db.collection("patients").doc(id).collection("procedimentos").get();
+        if (!subSnap.empty) {
+          docs = subSnap.docs.map((d: any) => ({ id: d.id, ...d.data(), pacienteId: id }));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    // Format timestamps and sort in memory by data (or createdAt)
+    const formattedDocs = docs.map(d => ({
+      ...d,
+      createdAt: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt,
+      updatedAt: d.updatedAt?.toDate ? d.updatedAt.toDate().toISOString() : d.updatedAt
+    }));
+
+    formattedDocs.sort((a, b) => {
+      const dateA = a.data || a.createdAt || "";
+      const dateB = b.data || b.createdAt || "";
+      return sort === "asc" ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+    });
+
+    res.json({ success: true, procedimentos: formattedDocs });
+  } catch (error) {
+    handleApiError(res, error, "Fetching patient procedures");
+  }
+});
+
 // Import patients via CSV
 app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async (req, res) => {
   const groupId = getGroupId(req);
@@ -1497,12 +1596,31 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
       }
     });
 
-    const parseNum = (val: any) => {
-      if (!val) return 0;
-      const clean = val.toString().replace(/[^\d.,]/g, "").replace(/\./g, "").replace(",", ".");
+    const parseNum = (val: any): number => {
+      if (val === null || val === undefined) return 0;
+      if (typeof val === "number") return isNaN(val) ? 0 : val;
+      const str = val.toString().trim();
+      if (!str) return 0;
+      let clean = str.replace(/[^\d.,-]/g, "");
+      if (!clean) return 0;
+      const hasComma = clean.includes(",");
+      const hasDot = clean.includes(".");
+      if (hasComma && hasDot) {
+        if (clean.lastIndexOf(",") > clean.lastIndexOf(".")) {
+          clean = clean.replace(/\./g, "").replace(",", ".");
+        } else {
+          clean = clean.replace(/,/g, "");
+        }
+      } else if (hasComma) {
+        clean = clean.replace(",", ".");
+      }
       const num = parseFloat(clean);
       return isNaN(num) ? 0 : num;
     };
+
+    // Track occurrence counts of compound tuples within this import to prevent accidental loss
+    // while ensuring re-importing the same CSV does not duplicate records
+    const tupleOccurrenceMap = new Map<string, number>();
 
     for (const patData of patients) {
       try {
@@ -1524,8 +1642,12 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           patientId = existing.id;
           updatedPatients++;
           const updateFields: any = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
-          if (documento && !existing.data.cpf) updateFields.cpf = documento;
+          if (documento && !existing.data.cpf) {
+            updateFields.cpf = documento;
+            updateFields.documento = documento;
+          }
           if (prestador && !existing.data.hospitalId) updateFields.hospitalId = prestador;
+          if (!existing.data.codigoUsuario) updateFields.codigoUsuario = codigoUsuario;
           if (Object.keys(updateFields).length > 1) {
             await db.collection("patients").doc(patientId).update(updateFields);
           }
@@ -1536,6 +1658,7 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             name: nome,
             codigoUsuario: codigoUsuario,
             cpf: documento,
+            documento: documento,
             hospitalId: prestador,
             statusId: "Sem Status",
             groupId,
@@ -1547,42 +1670,80 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           existingByCode.set(codigoUsuario, { id: patientId, data: { name: nome, codigoUsuario } });
         }
 
-        const procColRef = db.collection("patients").doc(patientId).collection("procedimentos");
-        
         for (const row of rows) {
-          const codigoAmb = (row["Código AMB"] || row["codigoAmb"] || "").toString().trim();
-          const descricao = (row["Descrição"] || row["descricao"] || "").toString().trim();
-          const vlrHon = parseNum(row["Vlr.Hon."] || row["vlrHon"] || "0");
-          const dataProc = (row["Data"] || row["data"] || "").toString().trim();
-          const relacaoNr = (row["Relação Nr"] || row["relacaoNr"] || "").toString().trim();
-          const notaFiscal = (row["NOTA FISCAL"] || row["notaFiscal"] || "").toString().trim();
-          const periodo = (row["PERIODO"] || row["periodo"] || "").toString().trim();
-          const prestadorExecutante = (row["Prestador Executante"] || "").toString().trim();
-          const prestadorPagamento = (row["Prestador Pagamento"] || "").toString().trim();
-          const prestadorProtocolo = (row["Prestador Protocolo"] || "").toString().trim();
-          const vlrOper = parseNum(row["Vlr.Oper."] || "0");
-          const vlrFilme = parseNum(row["Vlr.Filme"] || "0");
-          const vlrTxAdm = parseNum(row["Vlr Tx Adm"] || "0");
+          // Flexible key lookup to handle all variations of CSV column names
+          const periodo = (row["PERIODO"] || row["Periodo"] || row["periodo"] || "").toString().trim();
+          const notaFiscal = (row["NOTA FISCAL"] || row["Nota Fiscal"] || row["notaFiscal"] || row["nota_fiscal"] || "").toString().trim();
+          const relacaoNr = (row["Relação Nr"] || row["Relacao Nr"] || row["Relação Nº"] || row["Relacao Nº"] || row["Relação No"] || row["Relacao No"] || row["relacaoNr"] || "").toString().trim();
+          const dataProc = (row["Data"] || row["DATA"] || row["data"] || "").toString().trim();
+          const rowDoc = (row["Documento"] || row["DOCUMENTO"] || row["documento"] || row["CPF"] || row["cpf"] || documento).toString().trim();
+          const rawQt = row["Qt."] || row["Qt"] || row["Qtd"] || row["Quantidade"] || row["qt"] || row["quantidade"] || "1";
+          const quantidade = parseNum(rawQt) || 1;
 
-          const deterministicKey = `${codigoUsuario}_${codigoAmb}_${dataProc}_${relacaoNr}_${notaFiscal}`.replace(/[^a-zA-Z0-9_]/g, "_");
-          const procDocRef = procColRef.doc(deterministicKey);
+          const codigoAmb = (row["Código AMB"] || row["Codigo AMB"] || row["Cod. AMB"] || row["Cod AMB"] || row["codigoAmb"] || row["codigoAMB"] || "").toString().trim();
+          const descricao = (row["Descrição"] || row["Descricao"] || row["descricao"] || "").toString().trim();
 
-          await procDocRef.set({
-            codigoAmb,
-            descricao,
-            valorHonorarios: vlrHon,
+          const vlrHon = parseNum(row["Vlr.Hon."] || row["Vlr Hon"] || row["Valor Honorarios"] || row["Valor Honorários"] || row["vlrHon"] || row["vlr_hon"] || "0");
+          const vlrOper = parseNum(row["Vlr.Oper."] || row["Vlr Oper"] || row["Valor Operacional"] || row["vlrOper"] || row["vlr_oper"] || "0");
+          const vlrFilme = parseNum(row["Vlr.Filme"] || row["Vlr Filme"] || row["Valor Filme"] || row["vlrFilme"] || row["vlr_filme"] || "0");
+          const vlrTxAdm = parseNum(row["Vlr Tx Adm"] || row["Vlr. Tx. Adm."] || row["Valor Taxa Administrativa"] || row["vlrTxAdm"] || row["vlr_tx_adm"] || "0");
+
+          const prestadorExecutante = (row["Prestador Executante"] || row["prestadorExecutante"] || "").toString().trim();
+          const prestadorPagamento = (row["Prestador Pagamento"] || row["prestadorPagamento"] || "").toString().trim();
+          const prestadorProtocolo = (row["Prestador Protocolo"] || row["prestadorProtocolo"] || "").toString().trim();
+
+          // Compound key strategy for deduplication:
+          // Código do Usuário + Relação Nr + Documento + Código AMB + Data + occurrence index within batch
+          const tupleBase = `${groupId}_${codigoUsuario}_${relacaoNr}_${rowDoc}_${codigoAmb}_${dataProc}_${notaFiscal}`;
+          const occIndex = tupleOccurrenceMap.get(tupleBase) || 0;
+          tupleOccurrenceMap.set(tupleBase, occIndex + 1);
+
+          const deterministicKey = `${tupleBase}_occ${occIndex}`.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 120);
+
+          const procDocRef = db.collection("procedimentos").doc(deterministicKey);
+          const existingProcSnap = await procDocRef.get();
+
+          const procPayload: any = {
+            pacienteId: patientId,
+            codigoUsuario: codigoUsuario,
+            nomeUsuario: nome,
+            groupId: groupId,
+
+            periodo: periodo,
+            notaFiscal: notaFiscal,
+            relacaoNr: relacaoNr,
             data: dataProc,
-            relacaoNr,
-            notaFiscal,
-            periodo,
-            prestadorExecutante,
-            prestadorPagamento,
-            prestadorProtocolo,
-            vlrOper,
-            vlrFilme,
-            vlrTxAdm,
+            documento: rowDoc,
+            quantidade: quantidade,
+
+            codigoAMB: codigoAmb,
+            descricao: descricao,
+
+            valorHonorarios: vlrHon,
+            valorOperacional: vlrOper,
+            valorFilme: vlrFilme,
+            valorTaxaAdministrativa: vlrTxAdm,
+
+            prestadorExecutante: prestadorExecutante,
+            prestadorPagamento: prestadorPagamento,
+            prestadorProtocolo: prestadorProtocolo,
+
+            dadosOriginais: row,
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
+          };
+
+          if (!existingProcSnap.exists) {
+            procPayload.createdAt = admin.firestore.FieldValue.serverTimestamp();
+          }
+
+          await procDocRef.set(procPayload, { merge: true });
+
+          // Also mirror to patient subcollection for backwards compatibility
+          try {
+            await db.collection("patients").doc(patientId).collection("procedimentos").doc(deterministicKey).set(procPayload, { merge: true });
+          } catch (subErr) {
+            // non-fatal
+          }
 
           proceduresImported++;
         }

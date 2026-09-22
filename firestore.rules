@@ -238,5 +238,24 @@ service cloud.firestore {
       );
       allow delete: if isSignedIn() && isMember(existing().groupId);
     }
+
+    match /procedimentos/{procedimentoId} {
+      allow read: if isSignedIn() && (
+        (resource != null && resource.data.groupId != null && isMember(resource.data.groupId)) ||
+        (resource != null && resource.data.pacienteId != null && canAccessPatient(resource.data.pacienteId))
+      );
+      allow create: if isSignedIn() && (
+        (incoming().groupId != null && isMember(incoming().groupId)) ||
+        (incoming().pacienteId != null && canAccessPatient(incoming().pacienteId))
+      );
+      allow update: if isSignedIn() && (
+        (existing().groupId != null && isMember(existing().groupId) && incoming().groupId != null && isMember(incoming().groupId)) ||
+        (existing().pacienteId != null && canAccessPatient(existing().pacienteId))
+      );
+      allow delete: if isSignedIn() && (
+        (existing().groupId != null && isOwner(existing().groupId)) ||
+        (existing().pacienteId != null && canAccessPatient(existing().pacienteId))
+      );
+    }
   }
 }

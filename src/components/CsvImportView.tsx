@@ -60,9 +60,14 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
     const lines = cleanText.split(/\r\n|\n/);
     if (lines.length === 0) return { headers: [], rows: [] };
 
-    // Determine delimiter (comma or semicolon) based on first line
+    // Determine delimiter (semicolon, comma, or tab) based on count in first line
     const firstLine = lines[0];
-    const delimiter = firstLine.includes(";") ? ";" : ",";
+    const semiCount = (firstLine.match(/;/g) || []).length;
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const tabCount = (firstLine.match(/\t/g) || []).length;
+    let delimiter = ",";
+    if (semiCount > commaCount && semiCount > tabCount) delimiter = ";";
+    else if (tabCount > commaCount && tabCount > semiCount) delimiter = "\t";
 
     const parseLine = (line: string): string[] => {
       const result: string[] = [];
@@ -84,7 +89,6 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
     };
 
     const rawHeaders = parseLine(lines[0]);
-    console.log("CSV Parsed Raw Headers:", rawHeaders);
 
     const rows: ParsedRow[] = [];
     for (let i = 1; i < lines.length; i++) {
@@ -93,9 +97,8 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
       const values = parseLine(line);
       const rowObj: ParsedRow = {};
       rawHeaders.forEach((h, index) => {
-        if (h) {
-          rowObj[h] = values[index] !== undefined ? values[index] : "";
-        }
+        const headerName = (h && h.trim()) ? h.trim() : `Coluna_${index + 1}`;
+        rowObj[headerName] = values[index] !== undefined ? values[index] : "";
       });
       rows.push(rowObj);
     }

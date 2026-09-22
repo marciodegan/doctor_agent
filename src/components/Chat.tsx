@@ -27,6 +27,7 @@ import { OperationType, handleFirestoreError } from "../lib/firestoreUtils";
 import { PatientListView } from "./PatientListView";
 import { E2EMedia } from "./E2EMedia";
 import { mediaUploadService } from "../services/mediaUploadService";
+import { PatientProceduresCard } from "./PatientProceduresCard";
 
 
 const sanitizeFileName = (fileName: string): string => {
@@ -219,6 +220,7 @@ interface Message {
     roomNumber?: string;
     surgery_type?: string;
     procedure?: string;
+    codigoUsuario?: string;
   };
   reportData?: any;
   form?: {
@@ -2297,7 +2299,8 @@ ${aiPart}
             hospitalNome: allHospitals.find(h => h.id === cad.hospitalId || h.nome === cad.hospital_nome)?.nome || cad.hospital_nome || "Não informado",
             roomNumber: cad.roomNumber || cad.room_number || "Sala ?",
             surgery_type: cad.surgery_type || "",
-            procedure: cad.procedure || ""
+            procedure: cad.procedure || "",
+            codigoUsuario: cad.codigoUsuario || ""
           }
         }]);
         setTimeout(scrollToTop, 0);
@@ -4295,6 +4298,15 @@ ${aiPart}
                                       )}
                                     </div>
                                   </div>
+                                )}
+
+                                {/* --- SECTION CARD: PROCEDIMENTOS --- */}
+                                {msg.profileData?.id && (
+                                  <PatientProceduresCard
+                                    patientId={msg.profileData.id}
+                                    codigoUsuario={msg.profileData.codigoUsuario}
+                                    initialProcedimentos={msg.reportData?.procedimentos || []}
+                                  />
                                 )}
                               </div>
                             );
