@@ -1061,67 +1061,9 @@ app.get("/api/app/patients", async (req, res) => {
     return res.json(demoPatients);
   }
 
-  // Self-healing: clean up any corrupted hospitals or statuses created with person/doctor names
-  const cleanupCorruptedData = async (gId: string) => {
-    try {
-      const hSnap = await db.collection("hospitals").where("groupId", "==", gId).get();
-      const badHospitalIds = new Set<string>();
-      for (const d of hSnap.docs) {
-        const hName = (d.data().name || d.data().nome || "").trim().toLowerCase();
-        if (hName === "camila ribeiro dutra") {
-          badHospitalIds.add(d.id);
-          await d.ref.update({ active: false, status: "removed" }).catch(() => {});
-        }
-      }
-
-      const sSnap = await db.collection("patient_statuses").where("groupId", "==", gId).get();
-      const badStatusIds = new Set<string>();
-      for (const d of sSnap.docs) {
-        const sName = (d.data().name || d.data().nome || "").trim().toLowerCase();
-        if (sName === "camila ribeiro dutra") {
-          badStatusIds.add(d.id);
-          await d.ref.update({ active: false, status: "removed" }).catch(() => {});
-        }
-      }
-
-      if (badHospitalIds.size > 0 || badStatusIds.size > 0) {
-        const pSnap = await db.collection("patients").where("groupId", "==", gId).get();
-        const batch = db.batch();
-        let count = 0;
-        for (const d of pSnap.docs) {
-          const pData = d.data();
-          const pUpdates: any = {};
-          const curHosp = (pData.hospitalName || "").trim().toLowerCase();
-          const curStat = (pData.statusName || pData.status || "").trim().toLowerCase();
-          const patName = (pData.name || "").trim().toLowerCase();
-
-          if (badHospitalIds.has(pData.hospitalId) || curHosp === "camila ribeiro dutra" || (patName && curHosp === patName)) {
-            pUpdates.hospitalId = "";
-            pUpdates.hospitalName = "Sem Hospital";
-          }
-          if (badStatusIds.has(pData.statusId) || curStat === "camila ribeiro dutra" || (patName && curStat === patName)) {
-            pUpdates.statusId = "";
-            pUpdates.status = "Sem Status";
-            pUpdates.statusName = "Sem Status";
-          }
-          if (Object.keys(pUpdates).length > 0) {
-            batch.update(d.ref, pUpdates);
-            count++;
-          }
-        }
-        if (count > 0) {
-          await batch.commit();
-        }
-      }
-    } catch (e) {
-      // Non-blocking cleanup
-    }
-  };
-
   try {
     // Verify membership using centralised check
     await requireGroupMember(req, groupId);
-    cleanupCorruptedData(groupId).catch(() => {});
 
     let patientsQuery: admin.firestore.Query = db.collection("patients").where("groupId", "==", groupId);
     const hFilter = req.query.hospitalId?.toString();

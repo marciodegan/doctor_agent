@@ -22,8 +22,8 @@ service cloud.firestore {
 
     function isMember(groupId) {
       let memberDoc = /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
-      let groupDoc = /databases/$(database)/documents/groups/$(groupId);
       let userMembershipDoc = /databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(groupId);
+      let groupDoc = /databases/$(database)/documents/groups/$(groupId);
       return isSignedIn() && (
         exists(userMembershipDoc) ||
         exists(memberDoc) ||
@@ -33,8 +33,8 @@ service cloud.firestore {
     
     function isOwner(groupId) {
       let memberDoc = /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
-      let groupDoc = /databases/$(database)/documents/groups/$(groupId);
       let userMembershipDoc = /databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(groupId);
+      let groupDoc = /databases/$(database)/documents/groups/$(groupId);
       return isSignedIn() && (
         (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid) ||
         (exists(memberDoc) && (get(memberDoc).data.role == "owner" || get(memberDoc).data.role == "admin")) ||
@@ -90,8 +90,8 @@ service cloud.firestore {
 
     // Groups
     match /groups/{groupId} {
-      allow get: if isMember(groupId);
-      allow list: if isSignedIn() && resource.data.createdBy == request.auth.uid; 
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && (resource.data.createdBy == request.auth.uid || isMember(groupId)); 
       allow create: if isSignedIn() && incoming().createdBy == request.auth.uid;
       allow update: if isOwner(groupId); 
       
