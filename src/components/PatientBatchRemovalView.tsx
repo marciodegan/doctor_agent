@@ -194,7 +194,8 @@ export function PatientBatchRemovalView({ onBack }: PatientBatchRemovalViewProps
         throw new Error(errData.error || `Erro HTTP ${res.status}`);
       }
 
-      setSuccessMessage(`${count} paciente(s) removido(s) com sucesso!`);
+      const resData = await res.json().catch(() => ({}));
+      setSuccessMessage(`${count} paciente(s) e todos os seus procedimentos foram removidos permanentemente!`);
       setSelectedIds(new Set());
       await fetchPatients();
     } catch (err: any) {
@@ -202,6 +203,35 @@ export function PatientBatchRemovalView({ onBack }: PatientBatchRemovalViewProps
       setError(err.message || "Não foi possível remover os pacientes selecionados.");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const [isPurging, setIsPurging] = useState(false);
+
+  const handlePurgeRemoved = async () => {
+    const confirmMsg = "Deseja realizar a limpeza profunda do banco de dados?\n\nIsso removerá permanentemente do banco todos os procedimentos órfãos e pacientes que já foram marcados como removidos anteriormente.";
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsPurging(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const res = await apiFetch("/api/app/patients/purge-removed", {
+        method: "POST"
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Erro HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setSuccessMessage(`Limpeza concluída! ${data.purgedPatients || 0} paciente(s) e ${data.purgedProcedures || 0} procedimento(s) órfãos foram purgados definitivamente do banco de dados.`);
+      await fetchPatients();
+    } catch (err: any) {
+      console.error("Erro na limpeza:", err);
+      setError(err.message || "Erro ao realizar a limpeza.");
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -234,6 +264,16 @@ export function PatientBatchRemovalView({ onBack }: PatientBatchRemovalViewProps
           </div>
 
           <div className="flex items-center gap-3 self-end sm:self-center">
+            <button
+              onClick={handlePurgeRemoved}
+              disabled={isPurging || isLoading}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl transition-all text-xs font-bold active:scale-95 disabled:opacity-50"
+              title="Limpar procedimentos órfãos e registros removidos do banco"
+            >
+              {isPurging ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} className="text-amber-600" />}
+              <span className="hidden md:inline">Limpar Órfãos / Removidos</span>
+            </button>
+
             <button
               onClick={fetchPatients}
               disabled={isLoading}

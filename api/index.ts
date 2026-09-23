@@ -1110,8 +1110,19 @@ app.get("/api/app/patients", async (req, res) => {
       db.collection("patient_statuses").where("groupId", "==", groupId).get()
     ]);
 
-    const hMap = Object.fromEntries(hospitalsSnap.docs.map(doc => [doc.id, doc.data().name]));
-    const sMap = Object.fromEntries(statusesSnap.docs.map(doc => [doc.id, doc.data().name]));
+    // Only consider active configured hospitals and statuses
+    const activeHospitalsDocs = hospitalsSnap.docs.filter(d => {
+      const data = d.data();
+      return data.active !== false && data.status !== "removed";
+    });
+
+    const activeStatusesDocs = statusesSnap.docs.filter(d => {
+      const data = d.data();
+      return data.active !== false && data.status !== "removed";
+    });
+
+    const hMap = Object.fromEntries(activeHospitalsDocs.map(doc => [doc.id, doc.data().name || doc.data().nome]));
+    const sMap = Object.fromEntries(activeStatusesDocs.map(doc => [doc.id, doc.data().name || doc.data().nome]));
 
     let patients = patientsSnap.docs.map(doc => {
       const data = doc.data();
@@ -1119,8 +1130,8 @@ app.get("/api/app/patients", async (req, res) => {
         id: doc.id,
         ...data,
         nome: data.name, // Map name to nome for frontend
-        hospitalName: hMap[data.hospitalId] || data.hospitalId || "Sem Hospital",
-        status: (data.statusId && sMap[data.statusId]) ? sMap[data.statusId] : "Sem Status"
+        hospitalName: hMap[data.hospitalId] || data.hospitalName || data.hospitalId || "Sem Hospital",
+        status: (data.statusId && sMap[data.statusId]) ? sMap[data.statusId] : (data.statusName || data.status || "Sem Status")
       };
     }).filter(patient => (patient as any).recordStatus !== "removed");
 
@@ -1135,9 +1146,9 @@ app.get("/api/app/patients", async (req, res) => {
     // Optimization for the future: create nameNormalized and searchTokens fields when creating/updating patient, then use indexed Firestore queries.
 
     if (req.query.full === "true") {
-      const sortedStatuses = statusesSnap.docs.map(d => {
+      const sortedStatuses = activeStatusesDocs.map(d => {
         const sData = d.data();
-        return { id: d.id, ...sData, nome: sData.name } as any;
+        return { id: d.id, ...sData, nome: sData.name || sData.nome } as any;
       }).sort((a: any, b: any) => {
         const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
         const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
@@ -1149,9 +1160,9 @@ app.get("/api/app/patients", async (req, res) => {
 
       res.json({
         patients,
-        hospitals: hospitalsSnap.docs.map(d => {
+        hospitals: activeHospitalsDocs.map(d => {
           const hData = d.data();
-          return { id: d.id, ...hData, nome: hData.name };
+          return { id: d.id, ...hData, nome: hData.name || hData.nome };
         }),
         statuses: sortedStatuses
       });
@@ -1246,10 +1257,15 @@ app.get("/api/app/hospitals", async (req, res) => {
 
   try {
     const snap = await db.collection("hospitals").where("groupId", "==", groupId).get();
-    const hospitals = snap.docs.map(doc => {
-      const data = doc.data();
-      return { id: doc.id, ...data, nome: data.name };
-    });
+    const hospitals = snap.docs
+      .filter(doc => {
+        const data = doc.data();
+        return data.active !== false && data.status !== "removed";
+      })
+      .map(doc => {
+        const data = doc.data();
+        return { id: doc.id, ...data, nome: data.name || data.nome };
+      });
     res.json(hospitals);
   } catch (error) {
     handleApiError(res, error, "Fetching hospitals");
@@ -1654,43 +1670,32 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
         const statusCsv = (patData.status || "").toString().trim();
         const rows = Array.isArray(patData.rows) ? patData.rows : [];
 
-        let resolvedHospitalId = prestador;
+        // Only link hospital if it exists in the group's configured hospitals
+        let resolvedHospitalId = "";
+        let matchedHospitalName = "";
         if (hospitalCsv) {
           const hKey = hospitalCsv.toLowerCase();
           if (hospitalNameToId.has(hKey)) {
             resolvedHospitalId = hospitalNameToId.get(hKey)!;
-          } else {
-            const newHRef = db.collection("hospitals").doc();
-            await newHRef.set({
-              name: hospitalCsv,
-              groupId,
-              createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            hospitalNameToId.set(hKey, newHRef.id);
-            resolvedHospitalId = newHRef.id;
+            matchedHospitalName = hospitalCsv;
           }
-        } else if (prestador) {
+        }
+        if (!resolvedHospitalId && prestador) {
           const pKey = prestador.toLowerCase();
           if (hospitalNameToId.has(pKey)) {
             resolvedHospitalId = hospitalNameToId.get(pKey)!;
+            matchedHospitalName = prestador;
           }
         }
 
+        // Only link status if it exists in the group's configured statuses
         let resolvedStatusId = "";
+        let matchedStatusName = "";
         if (statusCsv) {
           const sKey = statusCsv.toLowerCase();
           if (statusNameToId.has(sKey)) {
             resolvedStatusId = statusNameToId.get(sKey)!;
-          } else {
-            const newSRef = db.collection("patient_statuses").doc();
-            await newSRef.set({
-              name: statusCsv,
-              groupId,
-              sortOrder: statusesSnap.size + 1,
-              createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            statusNameToId.set(sKey, newSRef.id);
-            resolvedStatusId = newSRef.id;
+            matchedStatusName = statusCsv;
           }
         }
 
@@ -1700,21 +1705,28 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
         if (existing) {
           patientId = existing.id;
           updatedPatients++;
-          const updateFields: any = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+          const updateFields: any = { 
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            recordStatus: "active" // unremove if re-imported
+          };
           if (documento && !existing.data.cpf) {
             updateFields.cpf = documento;
             updateFields.documento = documento;
           }
-          if (resolvedHospitalId && (!existing.data.hospitalId || existing.data.hospitalId === "Sem Hospital")) {
+          if (resolvedHospitalId) {
             updateFields.hospitalId = resolvedHospitalId;
           }
-          if (resolvedStatusId && (!existing.data.statusId || existing.data.statusId === "Sem Status")) {
+          if (matchedHospitalName || hospitalCsv || prestador) {
+            updateFields.hospitalName = matchedHospitalName || hospitalCsv || prestador;
+          }
+          if (resolvedStatusId) {
             updateFields.statusId = resolvedStatusId;
           }
-          if (!existing.data.codigoUsuario) updateFields.codigoUsuario = codigoUsuario;
-          if (Object.keys(updateFields).length > 1) {
-            await db.collection("patients").doc(patientId).update(updateFields);
+          if (matchedStatusName || statusCsv) {
+            updateFields.status = matchedStatusName || statusCsv;
           }
+          if (!existing.data.codigoUsuario) updateFields.codigoUsuario = codigoUsuario;
+          await db.collection("patients").doc(patientId).update(updateFields);
         } else {
           const newRef = db.collection("patients").doc();
           patientId = newRef.id;
@@ -1723,8 +1735,10 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             codigoUsuario: codigoUsuario,
             cpf: documento,
             documento: documento,
-            hospitalId: resolvedHospitalId || prestador || "Sem Hospital",
-            statusId: resolvedStatusId || "Sem Status",
+            hospitalId: resolvedHospitalId || "",
+            hospitalName: matchedHospitalName || hospitalCsv || prestador || "Sem Hospital",
+            statusId: resolvedStatusId || "",
+            status: matchedStatusName || statusCsv || "Sem Status",
             groupId,
             recordStatus: "active",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1963,7 +1977,7 @@ app.post("/api/app/patients/:patientId/remove", express.json(), async (req, res)
   }
 });
 
-// Batch remove patients
+// Batch remove patients and their procedures
 app.post("/api/app/patients/batch-remove", express.json(), async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
@@ -1974,27 +1988,110 @@ app.post("/api/app/patients/batch-remove", express.json(), async (req, res) => {
   }
 
   try {
-    const member = await requireGroupMember(req, groupId);
-    const now = admin.firestore.FieldValue.serverTimestamp();
-    const chunkSize = 400;
-    for (let i = 0; i < patientIds.length; i += chunkSize) {
-      const chunk = patientIds.slice(i, i + chunkSize);
+    await requireGroupMember(req, groupId);
+    let deletedPatientsCount = 0;
+    let deletedProcsCount = 0;
+
+    for (const pId of patientIds) {
+      if (!pId) continue;
+
+      // 1. Delete procedures from root collection 'procedimentos'
+      const procsSnap = await db.collection("procedimentos")
+        .where("groupId", "==", groupId)
+        .where("pacienteId", "==", pId)
+        .get();
+
+      // 2. Delete procedures from patient subcollection
+      const subProcsSnap = await db.collection("patients").doc(pId).collection("procedimentos").get();
+
       const batch = db.batch();
-      for (const pId of chunk) {
-        if (!pId) continue;
-        const ref = db.collection("patients").doc(pId);
-        batch.update(ref, {
-          recordStatus: "removed",
-          removedAt: now,
-          removedBy: member.user.uid,
-          updatedAt: now
-        });
-      }
+      procsSnap.docs.forEach(doc => {
+        batch.delete(doc.ref);
+        deletedProcsCount++;
+      });
+      subProcsSnap.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // 3. Delete patient document completely
+      const patRef = db.collection("patients").doc(pId);
+      batch.delete(patRef);
+
       await batch.commit();
+      deletedPatientsCount++;
     }
-    res.json({ success: true, count: patientIds.length });
+
+    res.json({ 
+      success: true, 
+      count: deletedPatientsCount,
+      proceduresDeleted: deletedProcsCount 
+    });
   } catch (error) {
     handleApiError(res, error, "Batch removing patients");
+  }
+});
+
+// Purge soft-deleted patients and orphaned procedures
+app.post("/api/app/patients/purge-removed", express.json(), async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  try {
+    await requireGroupMember(req, groupId);
+
+    // 1. Find all patients marked as "removed"
+    const removedPatientsSnap = await db.collection("patients")
+      .where("groupId", "==", groupId)
+      .where("recordStatus", "==", "removed")
+      .get();
+
+    let purgedPatients = 0;
+    let purgedProcs = 0;
+
+    for (const pDoc of removedPatientsSnap.docs) {
+      const pId = pDoc.id;
+      const subProcs = await db.collection("patients").doc(pId).collection("procedimentos").get();
+      const rootProcs = await db.collection("procedimentos").where("pacienteId", "==", pId).get();
+
+      const batch = db.batch();
+      subProcs.docs.forEach(d => { batch.delete(d.ref); purgedProcs++; });
+      rootProcs.docs.forEach(d => { batch.delete(d.ref); purgedProcs++; });
+      batch.delete(pDoc.ref);
+      await batch.commit();
+      purgedPatients++;
+    }
+
+    // 2. Find any procedures whose patient doesn't exist
+    const allActivePatientsSnap = await db.collection("patients").where("groupId", "==", groupId).get();
+    const activePatientIds = new Set(
+      allActivePatientsSnap.docs
+        .filter(d => d.data().recordStatus !== "removed")
+        .map(d => d.id)
+    );
+
+    const allGroupProcsSnap = await db.collection("procedimentos").where("groupId", "==", groupId).get();
+    const orphanBatch = db.batch();
+    let orphanCount = 0;
+
+    allGroupProcsSnap.docs.forEach(d => {
+      const pId = d.data().pacienteId;
+      if (!pId || !activePatientIds.has(pId)) {
+        orphanBatch.delete(d.ref);
+        orphanCount++;
+      }
+    });
+
+    if (orphanCount > 0) {
+      await orphanBatch.commit();
+    }
+
+    res.json({
+      success: true,
+      purgedPatients,
+      purgedProcedures: purgedProcs + orphanCount
+    });
+  } catch (error) {
+    handleApiError(res, error, "Purging removed data");
   }
 });
 
@@ -2078,11 +2175,22 @@ app.get("/api/app/statuses", async (req, res) => {
       .where("groupId", "==", groupId)
       .get();
     
-    // Fallback if no specific statuses for this group, but we probably want them to be strict
-    let statuses = statusesSnap.docs.map(doc => {
-      const data = doc.data();
-      return { id: doc.id, ...data, nome: data.name };
-    });
+    // Only return configured active statuses
+    let statuses = statusesSnap.docs
+      .filter(doc => {
+        const data = doc.data();
+        return data.active !== false && data.status !== "removed";
+      })
+      .map(doc => {
+        const data = doc.data();
+        return { id: doc.id, ...data, nome: data.name || data.nome };
+      })
+      .sort((a: any, b: any) => {
+        const orderA = typeof a.sortOrder === "number" ? a.sortOrder : 999999;
+        const orderB = typeof b.sortOrder === "number" ? b.sortOrder : 999999;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.nome || "").localeCompare(b.nome || "");
+      });
 
     res.json(statuses);
   } catch (error) {

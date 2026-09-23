@@ -486,10 +486,14 @@ export function Calendar({
     const q = query(collection(db, "patients"), where("groupId", "==", activeGroup.id));
     const unsub = onSnapshot(q, (snap) => {
       if (!isMounted) return;
-      setAllPatients(snap.docs.map(d => ({ 
-        id: d.id, 
-        nome: d.data().name || d.data().nome || "" 
-      })));
+      setAllPatients(
+        snap.docs
+          .filter(d => d.data().recordStatus !== "removed")
+          .map(d => ({ 
+            id: d.id, 
+            nome: d.data().name || d.data().nome || "" 
+          }))
+      );
     }, (err) => handleFirestoreError(err, OperationType.LIST, "patients"));
 
     return () => {

@@ -410,8 +410,8 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
             <p className="font-bold uppercase tracking-wider text-blue-700">Regras de Importação:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>O <b>Código do Usuário</b> é o identificador único e não altera pacientes existentes.</li>
-              <li>Novos pacientes receberão automaticamente o status <b>"Sem Status"</b>.</li>
-              <li>Pacientes já cadastrados <b>manterão seu status atual</b> inalterado.</li>
+              <li><b>Filtros e Configurações:</b> Hospitais e status só são vinculados se já estiverem previamente definidos nas configurações do grupo (não cria novos hospitais ou status no sistema).</li>
+              <li>Pacientes já cadastrados <b>manterão seu status atual</b> se já definido.</li>
               <li>Múltiplas linhas com o mesmo código serão agrupadas como procedimentos do mesmo paciente.</li>
               <li>A importação é totalmente idempotente e segura contra duplicidades.</li>
             </ul>
