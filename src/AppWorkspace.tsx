@@ -51,6 +51,7 @@ import { PatientLogs } from "./components/PatientLogs";
 import { ShoppingList } from "./components/ShoppingList";
 import { PersonalNotes } from "./components/PersonalNotes";
 import { TrelloBoard } from "./components/TrelloBoard";
+import { NewPatientModal } from "./components/NewPatientModal";
 
 type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes" | "trello";
 
@@ -90,6 +91,7 @@ export default function AppWorkspace() {
 
   const [showSecurityInfo, setShowSecurityInfo] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
 
   const navigateAndAction = (view: NavView, command?: string, patientId?: string, patientName?: string, procedure?: string, hospitalId?: string, type?: string, sala?: string) => {
     setCurrentView(view);
@@ -872,10 +874,17 @@ export default function AppWorkspace() {
           currentView={currentView}
           onNavigate={(view, prompt) => navigateAndAction(view, prompt)}
           onOpenManagement={() => setIsManagementOpen(true)}
-          onAddPatient={() => navigateAndAction("workspace", "/novo")}
+          onAddPatient={() => setIsNewPatientModalOpen(true)}
         />
       )}
       <TeamManagement />
+      <NewPatientModal
+        isOpen={isNewPatientModalOpen}
+        onClose={() => setIsNewPatientModalOpen(false)}
+        onSuccess={() => {
+          navigateAndAction("workspace", "/pacientes");
+        }}
+      />
     </div>
   );
 }
