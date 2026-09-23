@@ -1061,9 +1061,67 @@ app.get("/api/app/patients", async (req, res) => {
     return res.json(demoPatients);
   }
 
+  // Self-healing: clean up any corrupted hospitals or statuses created with person/doctor names
+  const cleanupCorruptedData = async (gId: string) => {
+    try {
+      const hSnap = await db.collection("hospitals").where("groupId", "==", gId).get();
+      const badHospitalIds = new Set<string>();
+      for (const d of hSnap.docs) {
+        const hName = (d.data().name || d.data().nome || "").trim().toLowerCase();
+        if (hName === "camila ribeiro dutra") {
+          badHospitalIds.add(d.id);
+          await d.ref.update({ active: false, status: "removed" }).catch(() => {});
+        }
+      }
+
+      const sSnap = await db.collection("patient_statuses").where("groupId", "==", gId).get();
+      const badStatusIds = new Set<string>();
+      for (const d of sSnap.docs) {
+        const sName = (d.data().name || d.data().nome || "").trim().toLowerCase();
+        if (sName === "camila ribeiro dutra") {
+          badStatusIds.add(d.id);
+          await d.ref.update({ active: false, status: "removed" }).catch(() => {});
+        }
+      }
+
+      if (badHospitalIds.size > 0 || badStatusIds.size > 0) {
+        const pSnap = await db.collection("patients").where("groupId", "==", gId).get();
+        const batch = db.batch();
+        let count = 0;
+        for (const d of pSnap.docs) {
+          const pData = d.data();
+          const pUpdates: any = {};
+          const curHosp = (pData.hospitalName || "").trim().toLowerCase();
+          const curStat = (pData.statusName || pData.status || "").trim().toLowerCase();
+          const patName = (pData.name || "").trim().toLowerCase();
+
+          if (badHospitalIds.has(pData.hospitalId) || curHosp === "camila ribeiro dutra" || (patName && curHosp === patName)) {
+            pUpdates.hospitalId = "";
+            pUpdates.hospitalName = "Sem Hospital";
+          }
+          if (badStatusIds.has(pData.statusId) || curStat === "camila ribeiro dutra" || (patName && curStat === patName)) {
+            pUpdates.statusId = "";
+            pUpdates.status = "Sem Status";
+            pUpdates.statusName = "Sem Status";
+          }
+          if (Object.keys(pUpdates).length > 0) {
+            batch.update(d.ref, pUpdates);
+            count++;
+          }
+        }
+        if (count > 0) {
+          await batch.commit();
+        }
+      }
+    } catch (e) {
+      // Non-blocking cleanup
+    }
+  };
+
   try {
     // Verify membership using centralised check
     await requireGroupMember(req, groupId);
+    cleanupCorruptedData(groupId).catch(() => {});
 
     let patientsQuery: admin.firestore.Query = db.collection("patients").where("groupId", "==", groupId);
     const hFilter = req.query.hospitalId?.toString();
@@ -1110,15 +1168,17 @@ app.get("/api/app/patients", async (req, res) => {
       db.collection("patient_statuses").where("groupId", "==", groupId).get()
     ]);
 
-    // Only consider active configured hospitals and statuses
+    // Only consider active configured hospitals and statuses (filter out removed or invalid doctor names)
     const activeHospitalsDocs = hospitalsSnap.docs.filter(d => {
       const data = d.data();
-      return data.active !== false && data.status !== "removed";
+      const hName = (data.name || data.nome || "").trim().toLowerCase();
+      return data.active !== false && data.status !== "removed" && hName !== "camila ribeiro dutra";
     });
 
     const activeStatusesDocs = statusesSnap.docs.filter(d => {
       const data = d.data();
-      return data.active !== false && data.status !== "removed";
+      const sName = (data.name || data.nome || "").trim().toLowerCase();
+      return data.active !== false && data.status !== "removed" && sName !== "camila ribeiro dutra";
     });
 
     const hMap = Object.fromEntries(activeHospitalsDocs.map(doc => [doc.id, doc.data().name || doc.data().nome]));
@@ -1126,12 +1186,23 @@ app.get("/api/app/patients", async (req, res) => {
 
     let patients = patientsSnap.docs.map(doc => {
       const data = doc.data();
+      const patName = (data.name || "").toString().trim();
+      let rawHosp = hMap[data.hospitalId] || data.hospitalName || "";
+      if (rawHosp.trim().toLowerCase() === "camila ribeiro dutra" || (patName && rawHosp.trim().toLowerCase() === patName.toLowerCase())) {
+        rawHosp = "";
+      }
+      let rawStat = (data.statusId && sMap[data.statusId]) ? sMap[data.statusId] : (data.statusName || data.status || "");
+      if (rawStat.trim().toLowerCase() === "camila ribeiro dutra" || (patName && rawStat.trim().toLowerCase() === patName.toLowerCase())) {
+        rawStat = "";
+      }
+
       return {
         id: doc.id,
         ...data,
-        nome: data.name, // Map name to nome for frontend
-        hospitalName: hMap[data.hospitalId] || data.hospitalName || data.hospitalId || "Sem Hospital",
-        status: (data.statusId && sMap[data.statusId]) ? sMap[data.statusId] : (data.statusName || data.status || "Sem Status")
+        nome: patName || "Sem Nome", // Map name to nome for frontend
+        hospitalName: rawHosp || "Sem Hospital",
+        status: rawStat || "Sem Status",
+        statusName: rawStat || "Sem Status"
       };
     }).filter(patient => (patient as any).recordStatus !== "removed");
 
@@ -1139,7 +1210,15 @@ app.get("/api/app/patients", async (req, res) => {
     if (normalizedSearch) {
       patients = patients.filter(patient => {
         const patientName = normalizeText((patient as any).nome || (patient as any).name || "");
-        return patientName.includes(normalizedSearch);
+        const patientCode = normalizeText((patient as any).codigoUsuario || "");
+        const patientCpf = normalizeText((patient as any).cpf || (patient as any).documento || "");
+        const patientHosp = normalizeText((patient as any).hospitalName || "");
+        const patientStat = normalizeText((patient as any).status || (patient as any).statusName || "");
+        return patientName.includes(normalizedSearch) ||
+               patientCode.includes(normalizedSearch) ||
+               patientCpf.includes(normalizedSearch) ||
+               patientHosp.includes(normalizedSearch) ||
+               patientStat.includes(normalizedSearch);
       });
     }
 
@@ -1669,17 +1748,34 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           continue;
         }
 
-        const nome = (patData.nome || patData["Nome do Usuário"] || "Sem Nome").toString().trim();
+        const nome = (patData.nome || patData["Nome do Usuário"] || patData.nomeUsuario || "Sem Nome").toString().trim();
         const documento = (patData.documento || patData.Documento || "").toString().trim();
-        const prestador = (patData.prestador || patData["Prestador Executante"] || "").toString().trim();
-        const hospitalCsv = (patData.hospital || "").toString().trim();
-        const statusCsv = (patData.status || "").toString().trim();
+        const prestador = (patData.prestador || patData["Prestador Executante"] || patData.prestadorExecutante || "").toString().trim();
+        
+        let hospitalCsv = (patData.hospital || "").toString().trim();
+        let statusCsv = (patData.status || "").toString().trim();
+
+        // Strict sanitization: Nome do Usuário and Prestador Executante must NEVER be used as hospital or status
+        if (hospitalCsv.toLowerCase() === nome.toLowerCase()) hospitalCsv = "";
+        if (hospitalCsv.toLowerCase() === prestador.toLowerCase()) hospitalCsv = "";
+
+        if (statusCsv.toLowerCase() === nome.toLowerCase()) statusCsv = "";
+        if (statusCsv.toLowerCase() === prestador.toLowerCase()) statusCsv = "";
+
+        // Temporary console.log during import as requested by user
+        console.log({
+          name: nome,
+          codigoUsuario: codigoUsuario,
+          hospital: hospitalCsv,
+          status: statusCsv
+        });
+
         const rows = Array.isArray(patData.rows) ? patData.rows : [];
 
-        // 1. Resolve Hospital
+        // 1. Resolve Hospital - ONLY from hospitalCsv! NEVER fall back to prestador!
         let resolvedHospitalId = "";
         let matchedHospitalName = "";
-        const targetHospitalName = hospitalCsv || prestador;
+        const targetHospitalName = hospitalCsv;
         if (targetHospitalName) {
           const hKey = targetHospitalName.toLowerCase();
           if (hospitalNameToId.has(hKey)) {
@@ -1701,7 +1797,7 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           }
         }
 
-        // 2. Resolve Status
+        // 2. Resolve Status - ONLY from statusCsv!
         let resolvedStatusId = "";
         let matchedStatusName = "";
         if (statusCsv) {
@@ -1736,6 +1832,10 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             recordStatus: "active"
           };
+          if (nome && nome !== "Sem Nome") {
+            updateFields.name = nome;
+            updateFields.nome = nome;
+          }
           if (documento && !existing.data.cpf) {
             updateFields.cpf = documento;
             updateFields.documento = documento;
@@ -1751,6 +1851,7 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           }
           if (matchedStatusName) {
             updateFields.status = matchedStatusName;
+            updateFields.statusName = matchedStatusName;
           }
           if (!existing.data.codigoUsuario) updateFields.codigoUsuario = codigoUsuario;
           await db.collection("patients").doc(patientId).update(updateFields);
@@ -1759,13 +1860,15 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           patientId = newRef.id;
           await newRef.set({
             name: nome,
+            nome: nome,
             codigoUsuario: codigoUsuario,
             cpf: documento,
             documento: documento,
             hospitalId: resolvedHospitalId || "",
-            hospitalName: matchedHospitalName || "Sem Hospital",
+            hospitalName: matchedHospitalName || (targetHospitalName ? targetHospitalName : "Sem Hospital"),
             statusId: resolvedStatusId || "",
-            status: matchedStatusName || "Sem Status",
+            statusName: matchedStatusName || (statusCsv ? statusCsv : "Sem Status"),
+            status: matchedStatusName || (statusCsv ? statusCsv : "Sem Status"),
             groupId,
             recordStatus: "active",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1777,27 +1880,35 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
 
         // 4. Insert Procedures
         for (const row of rows) {
-          const periodo = (row["PERIODO"] || row["Periodo"] || row["periodo"] || "").toString().trim();
-          const notaFiscal = (row["NOTA FISCAL"] || row["Nota Fiscal"] || row["notaFiscal"] || "").toString().trim();
-          const relacaoNr = (row["Relação Nr"] || row["Relacao Nr"] || row["Relação Nº"] || row["Relacao Nº"] || row["relacaoNr"] || "").toString().trim();
-          const dataProc = (row["Data"] || row["DATA"] || row["data"] || "").toString().trim();
-          const rowDoc = (row["Documento"] || row["DOCUMENTO"] || row["documento"] || row["CPF"] || documento).toString().trim();
-          const rawQt = row["Qt."] || row["Qt"] || row["Qtd"] || row["Quantidade"] || "1";
+          const periodo = (row["PERIODO"] || row["Periodo"] || row.periodo || "").toString().trim();
+          const notaFiscal = (row["NOTA FISCAL"] || row["Nota Fiscal"] || row.notaFiscal || "").toString().trim();
+          const relacaoNr = (row["Relação Nr"] || row["Relacao Nr"] || row["Relação Nº"] || row["Relacao Nº"] || row.relacaoNr || "").toString().trim();
+          const dataProc = (row["Data"] || row["DATA"] || row.data || "").toString().trim();
+          const rowDoc = (row["Documento"] || row["DOCUMENTO"] || row.documento || row["CPF"] || documento).toString().trim();
+          const rawQt = row["Qt."] || row["Qt"] || row["Qtd"] || row["Quantidade"] || row.quantidade || "1";
           const quantidade = parseNum(rawQt) || 1;
 
-          const codigoAmb = (row["Código AMB"] || row["Codigo AMB"] || row["Cod. AMB"] || row["codigoAmb"] || "").toString().trim();
-          const descricao = (row["Descrição"] || row["Descricao"] || "").toString().trim();
+          const codigoAmb = (row["Código AMB"] || row["Codigo AMB"] || row["Cod. AMB"] || row.codigoAmb || row.codigoAMB || "").toString().trim();
+          const descricao = (row["Descrição"] || row["Descricao"] || row.descricao || "").toString().trim();
 
-          const vlrHon = parseNum(row["Vlr.Hon."] || row["Vlr Hon"] || row["Valor Honorários"] || "0");
-          const vlrOper = parseNum(row["Vlr.Oper."] || row["Vlr Oper"] || "0");
-          const vlrFilme = parseNum(row["Vlr.Filme"] || row["Vlr Filme"] || "0");
-          const vlrTxAdm = parseNum(row["Vlr Tx Adm"] || row["Vlr. Tx. Adm."] || "0");
+          const vlrHon = parseNum(row["Vlr.Hon."] || row["Vlr Hon"] || row["Valor Honorários"] || row.valorHonorarios || "0");
+          const vlrOper = parseNum(row["Vlr.Oper."] || row["Vlr Oper"] || row.valorOperacional || "0");
+          const vlrFilme = parseNum(row["Vlr.Filme"] || row["Vlr Filme"] || row.valorFilme || "0");
+          const vlrTxAdm = parseNum(row["Vlr Tx Adm"] || row["Vlr. Tx. Adm."] || row.valorTaxaAdministrativa || "0");
 
-          const prestadorExecutante = (row["Prestador Executante"] || "").toString().trim();
-          const prestadorPagamento = (row["Prestador Pagamento"] || "").toString().trim();
-          const prestadorProtocolo = (row["Prestador Protocolo"] || "").toString().trim();
-          const rowHospital = (row["hospital"] || hospitalCsv || prestador || "").toString().trim();
-          const rowStatus = (row["status"] || statusCsv || "Sem Status").toString().trim();
+          const prestadorExecutante = (row["Prestador Executante"] || row.prestadorExecutante || prestador || "").toString().trim();
+          const prestadorPagamento = (row["Prestador Pagamento"] || row.prestadorPagamento || "").toString().trim();
+          const prestadorProtocolo = (row["Prestador Protocolo"] || row.prestadorProtocolo || "").toString().trim();
+
+          let rowHospital = (row["hospital"] || row.hospital || hospitalCsv || "").toString().trim();
+          if (rowHospital.toLowerCase() === nome.toLowerCase() || rowHospital.toLowerCase() === prestadorExecutante.toLowerCase()) {
+            rowHospital = "";
+          }
+
+          let rowStatus = (row["status"] || row.status || statusCsv || "").toString().trim();
+          if (rowStatus.toLowerCase() === nome.toLowerCase() || rowStatus.toLowerCase() === prestadorExecutante.toLowerCase()) {
+            rowStatus = "";
+          }
 
           // importKey for deduplication
           const tupleBase = `${groupId}_${codigoUsuario}_${relacaoNr}_${rowDoc}_${codigoAmb}_${dataProc}_${notaFiscal}`;
@@ -1816,7 +1927,7 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           const procPayload: any = {
             pacienteId: patientId,
             codigoUsuario: codigoUsuario,
-            nomeUsuario: nome,
+            nomeUsuario: nome, // Exclusively Nome do Usuário
             groupId: groupId,
 
             periodo: periodo,
@@ -1837,9 +1948,9 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             prestadorExecutante: prestadorExecutante,
             prestadorPagamento: prestadorPagamento,
             prestadorProtocolo: prestadorProtocolo,
-            hospitalId: resolvedHospitalId,
+            hospitalId: resolvedHospitalId || "",
             hospitalName: rowHospital || matchedHospitalName || "Sem Hospital",
-            statusId: resolvedStatusId,
+            statusId: resolvedStatusId || "",
             statusName: rowStatus || matchedStatusName || "Sem Status",
 
             dadosOriginais: row, // Preserves ALL columns including Unnamed: ...

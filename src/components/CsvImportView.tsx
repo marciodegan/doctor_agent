@@ -117,51 +117,27 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
       .replace(/[^a-z0-9]/g, "");
   };
 
-  const findHeaderKey = (headers: string[], targetKeywords: string[]): string | null => {
-    // First try exact or normalized match
-    for (const h of headers) {
-      if (!h) continue;
-      const cleanH = normalizeHeader(h);
-      if (!cleanH) continue;
-      for (const t of targetKeywords) {
-        const cleanT = normalizeHeader(t);
-        if (cleanH === cleanT || cleanH.includes(cleanT) || cleanT.includes(cleanH)) {
-          return h;
+  const getFieldValue = (row: any, ...aliases: string[]): string => {
+    if (!row || typeof row !== "object") return "";
+    // 1. Direct exact key match
+    for (const a of aliases) {
+      if (row[a] !== undefined && row[a] !== null) {
+        const val = String(row[a]).trim();
+        if (val !== "") return val;
+      }
+    }
+    // 2. Normalized key match across all keys of row
+    const normAliases = aliases.map(a => normalizeHeader(a));
+    for (const key of Object.keys(row)) {
+      const normK = normalizeHeader(key);
+      for (const na of normAliases) {
+        if (normK === na && row[key] !== undefined && row[key] !== null) {
+          const val = String(row[key]).trim();
+          if (val !== "") return val;
         }
       }
     }
-
-    // Second try: combined keywords (e.g. must contain both "codigo" and "usuario")
-    if (targetKeywords.some(t => t.includes("codigo") || t.includes("cod"))) {
-      for (const h of headers) {
-        if (!h) continue;
-        const cleanH = normalizeHeader(h);
-        if (cleanH.includes("codigo") && cleanH.includes("usuario")) {
-          return h;
-        }
-        if (cleanH.includes("cod") && cleanH.includes("usuario")) {
-          return h;
-        }
-      }
-    }
-
-    if (targetKeywords.some(t => t.includes("nome"))) {
-      for (const h of headers) {
-        if (!h) continue;
-        const cleanH = normalizeHeader(h);
-        if (cleanH.includes("nome") && cleanH.includes("usuario")) {
-          return h;
-        }
-        if (cleanH.includes("nome") && cleanH.includes("paciente")) {
-          return h;
-        }
-        if (cleanH === "nome") {
-          return h;
-        }
-      }
-    }
-
-    return null;
+    return "";
   };
 
   const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,15 +152,20 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
       const text = await file.text();
       const { headers, rows } = parseCsvText(text);
 
-      // Find required columns with flexible target names and accent normalization
-      const codeKey = findHeaderKey(headers, ["codigo do usuario", "codigodousuario", "codusuario", "codigo usuario", "cod. usuario", "codigo", "cod"]);
-      const nameKey = findHeaderKey(headers, ["nome do usuario", "nomedousuario", "nome usuario", "nome", "paciente"]);
-
-      if (!codeKey) {
-        throw new Error("Não foi possível importar o arquivo. A coluna Código do Usuário não foi encontrada.");
+      if (rows.length === 0) {
+        throw new Error("O arquivo CSV selecionado está vazio.");
       }
-      if (!nameKey) {
-        throw new Error("Não foi possível importar o arquivo. A coluna Nome do Usuário não foi encontrada.");
+
+      // Quick sanity check on the first row
+      const sampleRow = rows[0];
+      const testCode = getFieldValue(sampleRow, "Código do Usuário", "Codigo do Usuario", "codigoUsuario", "Cod. Usuario", "Cod Usuario", "codigo");
+      const testName = getFieldValue(sampleRow, "Nome do Usuário", "Nome do Usuario", "nomeUsuario", "Nome", "Paciente");
+
+      if (!testCode && !rows.some(r => getFieldValue(r, "Código do Usuário", "Codigo do Usuario", "codigoUsuario"))) {
+        throw new Error("Não foi possível importar o arquivo. A coluna 'Código do Usuário' não foi encontrada.");
+      }
+      if (!testName && !rows.some(r => getFieldValue(r, "Nome do Usuário", "Nome do Usuario", "nomeUsuario", "Nome"))) {
+        throw new Error("Não foi possível importar o arquivo. A coluna 'Nome do Usuário' não foi encontrada.");
       }
 
       // Fetch existing patients in this group to compare
@@ -212,10 +193,41 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
       const errorsList: string[] = [];
 
       rows.forEach((row, idx) => {
-        const rawCode = row[codeKey];
-        const rawName = row[nameKey];
+        // Map row by column names, never by fixed index
+        const rowData = {
+          periodo: getFieldValue(row, "PERIODO", "Periodo", "periodo"),
+          notaFiscal: getFieldValue(row, "NOTA FISCAL", "Nota Fiscal", "notaFiscal", "nota_fiscal"),
+          relacaoNr: getFieldValue(row, "Relação Nr", "Relacao Nr", "Relação Nº", "Relacao Nº", "relacaoNr"),
+          data: getFieldValue(row, "Data", "DATA", "data"),
+          nomeUsuario: getFieldValue(row, "Nome do Usuário", "Nome do Usuario", "nomeUsuario", "Nome", "Paciente"),
+          codigoUsuario: getFieldValue(row, "Código do Usuário", "Codigo do Usuario", "codigoUsuario", "Cod. Usuario", "Cod Usuario"),
+          documento: getFieldValue(row, "Documento", "DOCUMENTO", "documento", "CPF", "cpf"),
+          quantidade: getFieldValue(row, "Qt.", "Qt", "Qtd", "Quantidade", "quantidade"),
+          codigoAMB: getFieldValue(row, "Código AMB", "Codigo AMB", "Cod. AMB", "Cod AMB", "codigoAmb"),
+          descricao: getFieldValue(row, "Descrição", "Descricao", "descricao"),
+          valorHonorarios: getFieldValue(row, "Vlr.Hon.", "Vlr Hon", "Valor Honorarios", "Valor Honorários", "vlrHon"),
+          valorOperacional: getFieldValue(row, "Vlr.Oper.", "Vlr Oper", "Valor Operacional", "vlrOper"),
+          valorFilme: getFieldValue(row, "Vlr.Filme", "Vlr Filme", "Valor Filme", "vlrFilme"),
+          valorTaxaAdministrativa: getFieldValue(row, "Vlr Tx Adm", "Vlr. Tx. Adm.", "Valor Taxa Administrativa", "vlrTxAdm"),
+          prestadorExecutante: getFieldValue(row, "Prestador Executante", "prestadorExecutante"),
+          prestadorPagamento: getFieldValue(row, "Prestador Pagamento", "prestadorPagamento"),
+          prestadorProtocolo: getFieldValue(row, "Prestador Protocolo", "prestadorProtocolo"),
+          hospital: getFieldValue(row, "hospital", "Hospital", "HOSPITAL"),
+          status: getFieldValue(row, "status", "Status", "STATUS")
+        };
 
-        if (!rawCode || rawCode.trim() === "" || rawCode.toLowerCase() === "null") {
+        // Temporary logging during import as requested
+        if (idx < 10 || idx === rows.length - 1) {
+          console.log({
+            name: rowData.nomeUsuario,
+            codigoUsuario: rowData.codigoUsuario,
+            hospital: rowData.hospital,
+            status: rowData.status
+          });
+        }
+
+        const codigoUsuario = (rowData.codigoUsuario || "").trim();
+        if (!codigoUsuario || codigoUsuario.toLowerCase() === "null") {
           invalidCount++;
           if (errorsList.length < 10) {
             errorsList.push(`Linha ${idx + 2}: Ignorada por ausência do Código do Usuário.`);
@@ -223,39 +235,42 @@ export function CsvImportView({ onBack }: CsvImportViewProps) {
           return;
         }
 
-        const codigoUsuario = rawCode.toString().trim();
-        const nomeUsuario = rawName ? rawName.toString().trim() : "Sem Nome";
-        
-        // Find document or CPF column
-        const docKey = findHeaderKey(headers, ["documento", "cpf", "rg"]);
-        const docVal = docKey ? row[docKey] || "" : "";
+        const nomeUsuario = (rowData.nomeUsuario || "Sem Nome").trim();
 
-        // Find provider / hospital column
-        const prestadorKey = findHeaderKey(headers, ["prestador executante", "prestador", "hospital"]);
-        const prestadorVal = prestadorKey ? row[prestadorKey] || "" : "";
+        // Strict validation: Nome do Usuário and Prestador Executante must NEVER be used as hospital or status
+        let safeHospital = rowData.hospital.trim();
+        if (safeHospital.toLowerCase() === nomeUsuario.toLowerCase()) safeHospital = "";
+        if (safeHospital.toLowerCase() === rowData.prestadorExecutante.toLowerCase()) safeHospital = "";
 
-        // Find hospital column
-        const hospitalKey = findHeaderKey(headers, ["hospital", "hosp"]);
-        const hospitalVal = hospitalKey ? row[hospitalKey] || "" : "";
-
-        // Find status column
-        const statusKey = findHeaderKey(headers, ["status", "situacao", "estado"]);
-        const statusVal = statusKey ? row[statusKey] || "" : "";
+        let safeStatus = rowData.status.trim();
+        if (safeStatus.toLowerCase() === nomeUsuario.toLowerCase()) safeStatus = "";
+        if (safeStatus.toLowerCase() === rowData.prestadorExecutante.toLowerCase()) safeStatus = "";
 
         if (!grouped.has(codigoUsuario)) {
           grouped.set(codigoUsuario, {
             nome: nomeUsuario,
-            documento: docVal,
-            prestador: prestadorVal,
-            hospital: hospitalVal,
-            status: statusVal,
+            documento: rowData.documento,
+            prestador: rowData.prestadorExecutante,
+            hospital: safeHospital,
+            status: safeStatus,
             rows: []
           });
-        } else {
-          const existing = grouped.get(codigoUsuario)!;
-          if (!existing.hospital && hospitalVal) existing.hospital = hospitalVal;
-          if (!existing.status && statusVal) existing.status = statusVal;
         }
+
+        const existing = grouped.get(codigoUsuario)!;
+        if (!existing.hospital && safeHospital) existing.hospital = safeHospital;
+        if (!existing.status && safeStatus) existing.status = safeStatus;
+        if ((!existing.nome || existing.nome === "Sem Nome") && nomeUsuario !== "Sem Nome") {
+          existing.nome = nomeUsuario;
+        }
+
+        // Push row with all original and mapped columns
+        existing.rows.push({
+          ...row,
+          ...rowData,
+          hospital: safeHospital,
+          status: safeStatus
+        });
       });
 
       let newCount = 0;

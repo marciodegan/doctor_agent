@@ -19,24 +19,34 @@ interface CalendarEvent {
 interface Patient {
   id: string;
   nome: string;
+  name?: string;
+  codigoUsuario?: string;
+  cpf?: string;
+  documento?: string;
   status: string;
+  statusName?: string;
   statusId?: string;
   hospitalId?: string;
   hospitalName?: string;
   roomNumber?: string;
   procedure?: string;
   surgery_type?: string;
+  [key: string]: any;
 }
 
 interface Hospital {
   id: string;
   nome: string;
+  name?: string;
+  [key: string]: any;
 }
 
 interface Status {
   id: string;
   nome: string;
+  name?: string;
   sortOrder?: number;
+  [key: string]: any;
 }
 
 interface PatientListViewProps {
@@ -296,12 +306,21 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
     );
   }
 
-  // 4. Client-side search matching
+  // 4. Client-side search matching (name, codigoUsuario with leading zeros, CPF, hospital, status)
   if (searchTerm.trim()) {
     const searchNorm = searchTerm.toLowerCase().trim();
-    processedPatients = processedPatients.filter(p => 
-      (p.nome || "").toLowerCase().includes(searchNorm)
-    );
+    processedPatients = processedPatients.filter(p => {
+      const name = (p.nome || p.name || "").toLowerCase();
+      const code = (p.codigoUsuario || "").toString().toLowerCase();
+      const cpf = (p.cpf || p.documento || "").toString().toLowerCase();
+      const hosp = (p.hospitalName || "").toLowerCase();
+      const stat = (p.status || p.statusName || "").toLowerCase();
+      return name.includes(searchNorm) ||
+             code.includes(searchNorm) ||
+             cpf.includes(searchNorm) ||
+             hosp.includes(searchNorm) ||
+             stat.includes(searchNorm);
+    });
   }
 
   const searchedPatients = processedPatients;
@@ -510,8 +529,14 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
             (() => {
               const hospitalGrouped: Record<string, { id: string, name: string, list: Patient[] }> = {};
               searchedPatients.forEach((p) => {
-                const hName = p.hospitalName || "Sem Hospital";
-                const hId = p.hospitalId?.toString() || "999";
+                // Find hospital name from official hospitals array or patient field
+                const hospObj = hospitals.find(h => h.id?.toString() === p.hospitalId?.toString());
+                let hName = hospObj ? (hospObj.nome || hospObj.name) : (p.hospitalName || "Sem Hospital");
+                const patName = (p.nome || p.name || "").trim().toLowerCase();
+                if (hName.trim().toLowerCase() === "camila ribeiro dutra" || (patName && hName.trim().toLowerCase() === patName)) {
+                  hName = "Sem Hospital";
+                }
+                const hId = hospObj ? hospObj.id : (p.hospitalId?.toString() || hName);
                 if (!hospitalGrouped[hId]) {
                   hospitalGrouped[hId] = { id: hId, name: hName, list: [] };
                 }
@@ -634,8 +659,14 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
             (() => {
               const statusGrouped: Record<string, { id: string, name: string, list: Patient[] }> = {};
               searchedPatients.forEach((p) => {
-                const sName = p.status || "Sem Status";
-                const sId = p.statusId?.toString() || "999";
+                // Find status name from official statuses array or patient field
+                const statObj = statuses.find(s => s.id?.toString() === p.statusId?.toString());
+                let sName = statObj ? (statObj.nome || statObj.name) : (p.status || p.statusName || "Sem Status");
+                const patName = (p.nome || p.name || "").trim().toLowerCase();
+                if (sName.trim().toLowerCase() === "camila ribeiro dutra" || (patName && sName.trim().toLowerCase() === patName)) {
+                  sName = "Sem Status";
+                }
+                const sId = statObj ? statObj.id : (p.statusId?.toString() || sName);
                 if (!statusGrouped[sId]) {
                   statusGrouped[sId] = { id: sId, name: sName, list: [] };
                 }

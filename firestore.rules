@@ -23,8 +23,10 @@ service cloud.firestore {
     function isMember(groupId) {
       let memberDoc = /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
       let groupDoc = /databases/$(database)/documents/groups/$(groupId);
+      let userMembershipDoc = /databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(groupId);
       return isSignedIn() && (
-        (exists(memberDoc) && (get(memberDoc).data.status == "active" || get(memberDoc).data.status == "conectado")) ||
+        exists(userMembershipDoc) ||
+        exists(memberDoc) ||
         (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid)
       );
     }
@@ -32,11 +34,11 @@ service cloud.firestore {
     function isOwner(groupId) {
       let memberDoc = /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
       let groupDoc = /databases/$(database)/documents/groups/$(groupId);
+      let userMembershipDoc = /databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(groupId);
       return isSignedIn() && (
         (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid) ||
-        (exists(memberDoc) && 
-         (get(memberDoc).data.role == "owner" || get(memberDoc).data.role == "admin") &&
-         (get(memberDoc).data.status == "active" || get(memberDoc).data.status == "conectado"))
+        (exists(memberDoc) && (get(memberDoc).data.role == "owner" || get(memberDoc).data.role == "admin")) ||
+        (exists(userMembershipDoc) && (get(userMembershipDoc).data.role == "owner" || get(userMembershipDoc).data.role == "admin"))
       );
     }
 
