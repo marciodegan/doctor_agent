@@ -1963,6 +1963,39 @@ app.post("/api/app/patients/:patientId/remove", express.json(), async (req, res)
   }
 });
 
+// Batch remove patients
+app.post("/api/app/patients/batch-remove", express.json(), async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+
+  const { patientIds } = req.body;
+  if (!Array.isArray(patientIds) || patientIds.length === 0) {
+    return res.status(400).json({ error: "Lista de IDs de pacientes inválida." });
+  }
+
+  try {
+    const member = await requireGroupMember(req, groupId);
+    const batch = db.batch();
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    for (const pId of patientIds) {
+      if (!pId) continue;
+      const ref = db.collection("patients").doc(pId);
+      batch.update(ref, {
+        recordStatus: "removed",
+        removedAt: now,
+        removedBy: member.user.uid,
+        updatedAt: now
+      });
+    }
+
+    await batch.commit();
+    res.json({ success: true, count: patientIds.length });
+  } catch (error) {
+    handleApiError(res, error, "Batch removing patients");
+  }
+});
+
 // Get logs for a specific patient
 app.get("/api/app/patients/:id/logs", async (req, res) => {
   const { id } = req.params;
