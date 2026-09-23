@@ -336,9 +336,9 @@ export default function AppWorkspace() {
         style={{ height: 'calc(3.25rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
         className={`fixed top-0 left-0 lg:left-64 right-0 glass-header z-50 ${isFullscreen ? 'hidden' : ''}`}
       >
-        <div className="h-full w-full flex items-center justify-center px-4 relative">
+        <div className="h-full w-full flex items-center justify-between px-4 relative">
           {/* Left Toggle - Mobile Only */}
-          <div className="absolute left-4 flex items-center lg:hidden">
+          <div className="flex items-center lg:hidden">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
               className="p-2 text-slate-700 hover:text-blue-600 transition-colors"
@@ -349,11 +349,38 @@ export default function AppWorkspace() {
           </div>
 
           {/* Centered Logo */}
-          <div className="flex items-center gap-2.5 pointer-events-none">
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2.5 pointer-events-none">
             <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-500/20">
               <Stethoscope size={16} />
             </div>
             <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">{headerName}</span>
+          </div>
+
+          {/* Right Group Button (e.g., "Heart") */}
+          <div className="ml-auto flex items-center">
+            {activeGroup && (
+              <button
+                onClick={() => setIsManagementOpen(true)}
+                className="flex items-center gap-2 bg-white/80 hover:bg-white border border-slate-200/80 px-3 py-1.5 rounded-2xl shadow-2xs transition-all active:scale-95 group cursor-pointer"
+                title="Gerenciar Grupo"
+              >
+                {activeGroup.photoURL ? (
+                  <img 
+                    src={activeGroup.photoURL} 
+                    className="w-6 h-6 rounded-lg object-cover border border-slate-200"
+                    alt="Group"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Users size={14} />
+                  </div>
+                )}
+                <span className="text-xs font-bold text-gray-800 tracking-tight max-w-[110px] truncate">
+                  {activeGroup.name || "Grupo"}
+                </span>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full border border-white shrink-0" />
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -845,6 +872,7 @@ export default function AppWorkspace() {
           currentView={currentView}
           onNavigate={(view, prompt) => navigateAndAction(view, prompt)}
           onOpenManagement={() => setIsManagementOpen(true)}
+          onAddPatient={() => navigateAndAction("workspace", "/novo")}
         />
       )}
       <TeamManagement />

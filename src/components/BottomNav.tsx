@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   StickyNote,
   Kanban,
+  Plus,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGroup } from "../contexts/GroupContext";
@@ -17,12 +18,14 @@ interface BottomNavProps {
   currentView: string;
   onNavigate: (view: any, prompt?: string) => void;
   onOpenManagement: () => void;
+  onAddPatient: () => void;
 }
 
 export function BottomNav({
   currentView,
   onNavigate,
   onOpenManagement,
+  onAddPatient,
 }: BottomNavProps) {
   const { activeGroup } = useGroup();
   const isPersonal = activeGroup?.groupType === "personal";
@@ -56,6 +59,13 @@ export function BottomNav({
       prompt: "/trello",
     },
     {
+      id: "add_patient",
+      label: "Novo",
+      isPlus: true,
+      icon: <Plus size={26} className="text-white" />,
+      action: onAddPatient,
+    },
+    {
       id: "calendar",
       label: "Calendário",
       icon: <Calendar size={20} />,
@@ -69,25 +79,6 @@ export function BottomNav({
     },
   ];
 
-
-
-  tabs.push({
-    id: "management",
-    label: activeGroup?.name || "Equipe",
-    icon: activeGroup?.photoURL ? (
-      <img 
-        src={activeGroup.photoURL} 
-        className="w-7 h-7 rounded-xl object-cover border-2 border-white shadow-md"
-        alt="Group"
-      />
-    ) : (
-      <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
-        <Users size={18} />
-      </div>
-    ),
-    action: onOpenManagement,
-  });
-
   return (
     <div 
   style={{
@@ -100,16 +91,34 @@ export function BottomNav({
     style={{
       paddingTop: topPadding,
     }}
-    className="flex items-center justify-around px-4 bg-transparent"
+    className="flex items-center justify-around px-2 sm:px-4 bg-transparent"
   >
         {tabs.map((tab, idx) => {
           const isActive = currentView === tab.id;
-          const isEquipe = tab.id === "management";
+          const isPlus = tab.isPlus;
+
+          if (isPlus) {
+            return (
+              <button
+                key={tab.id}
+                onClick={tab.action}
+                className="flex flex-col items-center justify-center -mt-6 relative group focus:outline-none cursor-pointer px-2 py-1"
+                aria-label="Adicionar Novo Paciente"
+              >
+                <div className="w-14 h-14 sm:w-15 sm:h-15 bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-blue-500/40 border-4 border-white transition-all transform hover:scale-105 active:scale-95">
+                  {tab.icon}
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-tight text-blue-600 mt-1">
+                  {tab.label}
+                </span>
+              </button>
+            );
+          }
 
           return (
             <button
               key={tab.id}
-              id={tab.id === "management" ? "equipe-nav-button" : `nav-btn-${tab.id}`}
+              id={`nav-btn-${tab.id}`}
               onClick={() => {
                 const mainElement = document.querySelector("main");
                 if (mainElement) {
@@ -122,7 +131,7 @@ export function BottomNav({
                   onNavigate(tab.id, (tab as any).prompt);
                 }
               }}
-              className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 min-w-[64px] relative group px-1 py-1"
+              className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 min-w-[56px] sm:min-w-[64px] relative group px-1 py-1"
             >
               <AnimatePresence>
                 {isActive && (
@@ -145,15 +154,8 @@ export function BottomNav({
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 className="relative"
               >
-                {isEquipe ? (
-                  <div className="relative">
-                     {tab.icon}
-                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm" />
-                  </div>
-                ) : (
-                  tab.icon
-                )}
-                {isActive && !isEquipe && (
+                {tab.icon}
+                {isActive && (
                   <motion.div
                     layoutId="active-dot"
                     className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full border-2 border-white shadow-sm"
