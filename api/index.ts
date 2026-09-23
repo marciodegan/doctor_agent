@@ -1600,6 +1600,11 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
     let newPatients = 0;
     let updatedPatients = 0;
     let proceduresImported = 0;
+    let proceduresIgnoredDuplicates = 0;
+    let hospitalsFound = 0;
+    let hospitalsCreated = 0;
+    let statusesFound = 0;
+    let statusesCreated = 0;
     let errorsCount = 0;
     const errorDetails: string[] = [];
 
@@ -1620,13 +1625,15 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
     const hospitalNameToId = new Map<string, string>();
     hospitalsSnap.docs.forEach(d => {
       const data = d.data();
-      if (data.name) hospitalNameToId.set(data.name.toString().trim().toLowerCase(), d.id);
+      const hName = (data.name || data.nome || "").toString().trim();
+      if (hName) hospitalNameToId.set(hName.toLowerCase(), d.id);
     });
 
     const statusNameToId = new Map<string, string>();
     statusesSnap.docs.forEach(d => {
       const data = d.data();
-      if (data.name) statusNameToId.set(data.name.toString().trim().toLowerCase(), d.id);
+      const sName = (data.name || data.nome || "").toString().trim();
+      if (sName) statusNameToId.set(sName.toLowerCase(), d.id);
     });
 
     const parseNum = (val: any): number => {
@@ -1651,8 +1658,6 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
       return isNaN(num) ? 0 : num;
     };
 
-    // Track occurrence counts of compound tuples within this import to prevent accidental loss
-    // while ensuring re-importing the same CSV does not duplicate records
     const tupleOccurrenceMap = new Map<string, number>();
 
     for (const patData of patients) {
@@ -1660,35 +1665,43 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
         const codigoUsuario = (patData.codigoUsuario || "").toString().trim();
         if (!codigoUsuario) {
           errorsCount++;
+          if (errorDetails.length < 20) errorDetails.push("Linha ignorada: Código do Usuário ausente.");
           continue;
         }
 
-        const nome = (patData.nome || "Sem Nome").toString().trim();
-        const documento = (patData.documento || "").toString().trim();
-        const prestador = (patData.prestador || "").toString().trim();
+        const nome = (patData.nome || patData["Nome do Usuário"] || "Sem Nome").toString().trim();
+        const documento = (patData.documento || patData.Documento || "").toString().trim();
+        const prestador = (patData.prestador || patData["Prestador Executante"] || "").toString().trim();
         const hospitalCsv = (patData.hospital || "").toString().trim();
         const statusCsv = (patData.status || "").toString().trim();
         const rows = Array.isArray(patData.rows) ? patData.rows : [];
 
-        // Only link hospital if it exists in the group's configured hospitals
+        // 1. Resolve Hospital
         let resolvedHospitalId = "";
         let matchedHospitalName = "";
-        if (hospitalCsv) {
-          const hKey = hospitalCsv.toLowerCase();
+        const targetHospitalName = hospitalCsv || prestador;
+        if (targetHospitalName) {
+          const hKey = targetHospitalName.toLowerCase();
           if (hospitalNameToId.has(hKey)) {
             resolvedHospitalId = hospitalNameToId.get(hKey)!;
-            matchedHospitalName = hospitalCsv;
-          }
-        }
-        if (!resolvedHospitalId && prestador) {
-          const pKey = prestador.toLowerCase();
-          if (hospitalNameToId.has(pKey)) {
-            resolvedHospitalId = hospitalNameToId.get(pKey)!;
-            matchedHospitalName = prestador;
+            matchedHospitalName = targetHospitalName;
+            hospitalsFound++;
+          } else {
+            const newHRef = db.collection("hospitals").doc();
+            await newHRef.set({
+              name: targetHospitalName,
+              groupId,
+              active: true,
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            resolvedHospitalId = newHRef.id;
+            matchedHospitalName = targetHospitalName;
+            hospitalNameToId.set(hKey, newHRef.id);
+            hospitalsCreated++;
           }
         }
 
-        // Only link status if it exists in the group's configured statuses
+        // 2. Resolve Status
         let resolvedStatusId = "";
         let matchedStatusName = "";
         if (statusCsv) {
@@ -1696,9 +1709,23 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           if (statusNameToId.has(sKey)) {
             resolvedStatusId = statusNameToId.get(sKey)!;
             matchedStatusName = statusCsv;
+            statusesFound++;
+          } else {
+            const newSRef = db.collection("patient_statuses").doc();
+            await newSRef.set({
+              name: statusCsv,
+              groupId,
+              sortOrder: statusesSnap.size + statusesCreated + 1,
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            resolvedStatusId = newSRef.id;
+            matchedStatusName = statusCsv;
+            statusNameToId.set(sKey, newSRef.id);
+            statusesCreated++;
           }
         }
 
+        // 3. Upsert Patient
         let patientId = "";
         const existing = existingByCode.get(codigoUsuario);
 
@@ -1707,7 +1734,7 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           updatedPatients++;
           const updateFields: any = { 
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            recordStatus: "active" // unremove if re-imported
+            recordStatus: "active"
           };
           if (documento && !existing.data.cpf) {
             updateFields.cpf = documento;
@@ -1716,14 +1743,14 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           if (resolvedHospitalId) {
             updateFields.hospitalId = resolvedHospitalId;
           }
-          if (matchedHospitalName || hospitalCsv || prestador) {
-            updateFields.hospitalName = matchedHospitalName || hospitalCsv || prestador;
+          if (matchedHospitalName) {
+            updateFields.hospitalName = matchedHospitalName;
           }
           if (resolvedStatusId) {
             updateFields.statusId = resolvedStatusId;
           }
-          if (matchedStatusName || statusCsv) {
-            updateFields.status = matchedStatusName || statusCsv;
+          if (matchedStatusName) {
+            updateFields.status = matchedStatusName;
           }
           if (!existing.data.codigoUsuario) updateFields.codigoUsuario = codigoUsuario;
           await db.collection("patients").doc(patientId).update(updateFields);
@@ -1736,9 +1763,9 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             cpf: documento,
             documento: documento,
             hospitalId: resolvedHospitalId || "",
-            hospitalName: matchedHospitalName || hospitalCsv || prestador || "Sem Hospital",
+            hospitalName: matchedHospitalName || "Sem Hospital",
             statusId: resolvedStatusId || "",
-            status: matchedStatusName || statusCsv || "Sem Status",
+            status: matchedStatusName || "Sem Status",
             groupId,
             recordStatus: "active",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1748,32 +1775,31 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           existingByCode.set(codigoUsuario, { id: patientId, data: { name: nome, codigoUsuario } });
         }
 
+        // 4. Insert Procedures
         for (const row of rows) {
-          // Flexible key lookup to handle all variations of CSV column names
           const periodo = (row["PERIODO"] || row["Periodo"] || row["periodo"] || "").toString().trim();
-          const notaFiscal = (row["NOTA FISCAL"] || row["Nota Fiscal"] || row["notaFiscal"] || row["nota_fiscal"] || "").toString().trim();
-          const relacaoNr = (row["Relação Nr"] || row["Relacao Nr"] || row["Relação Nº"] || row["Relacao Nº"] || row["Relação No"] || row["Relacao No"] || row["relacaoNr"] || "").toString().trim();
+          const notaFiscal = (row["NOTA FISCAL"] || row["Nota Fiscal"] || row["notaFiscal"] || "").toString().trim();
+          const relacaoNr = (row["Relação Nr"] || row["Relacao Nr"] || row["Relação Nº"] || row["Relacao Nº"] || row["relacaoNr"] || "").toString().trim();
           const dataProc = (row["Data"] || row["DATA"] || row["data"] || "").toString().trim();
-          const rowDoc = (row["Documento"] || row["DOCUMENTO"] || row["documento"] || row["CPF"] || row["cpf"] || documento).toString().trim();
-          const rawQt = row["Qt."] || row["Qt"] || row["Qtd"] || row["Quantidade"] || row["qt"] || row["quantidade"] || "1";
+          const rowDoc = (row["Documento"] || row["DOCUMENTO"] || row["documento"] || row["CPF"] || documento).toString().trim();
+          const rawQt = row["Qt."] || row["Qt"] || row["Qtd"] || row["Quantidade"] || "1";
           const quantidade = parseNum(rawQt) || 1;
 
-          const codigoAmb = (row["Código AMB"] || row["Codigo AMB"] || row["Cod. AMB"] || row["Cod AMB"] || row["codigoAmb"] || row["codigoAMB"] || "").toString().trim();
-          const descricao = (row["Descrição"] || row["Descricao"] || row["descricao"] || "").toString().trim();
+          const codigoAmb = (row["Código AMB"] || row["Codigo AMB"] || row["Cod. AMB"] || row["codigoAmb"] || "").toString().trim();
+          const descricao = (row["Descrição"] || row["Descricao"] || "").toString().trim();
 
-          const vlrHon = parseNum(row["Vlr.Hon."] || row["Vlr Hon"] || row["Valor Honorarios"] || row["Valor Honorários"] || row["vlrHon"] || row["vlr_hon"] || "0");
-          const vlrOper = parseNum(row["Vlr.Oper."] || row["Vlr Oper"] || row["Valor Operacional"] || row["vlrOper"] || row["vlr_oper"] || "0");
-          const vlrFilme = parseNum(row["Vlr.Filme"] || row["Vlr Filme"] || row["Valor Filme"] || row["vlrFilme"] || row["vlr_filme"] || "0");
-          const vlrTxAdm = parseNum(row["Vlr Tx Adm"] || row["Vlr. Tx. Adm."] || row["Valor Taxa Administrativa"] || row["vlrTxAdm"] || row["vlr_tx_adm"] || "0");
+          const vlrHon = parseNum(row["Vlr.Hon."] || row["Vlr Hon"] || row["Valor Honorários"] || "0");
+          const vlrOper = parseNum(row["Vlr.Oper."] || row["Vlr Oper"] || "0");
+          const vlrFilme = parseNum(row["Vlr.Filme"] || row["Vlr Filme"] || "0");
+          const vlrTxAdm = parseNum(row["Vlr Tx Adm"] || row["Vlr. Tx. Adm."] || "0");
 
-          const prestadorExecutante = (row["Prestador Executante"] || row["prestadorExecutante"] || "").toString().trim();
-          const prestadorPagamento = (row["Prestador Pagamento"] || row["prestadorPagamento"] || "").toString().trim();
-          const prestadorProtocolo = (row["Prestador Protocolo"] || row["prestadorProtocolo"] || "").toString().trim();
-          const rowHospital = (row["HOSPITAL"] || row["Hospital"] || row["hospital"] || hospitalCsv || "").toString().trim();
-          const rowStatus = (row["status"] || row["Status"] || row["STATUS"] || statusCsv || "").toString().trim();
+          const prestadorExecutante = (row["Prestador Executante"] || "").toString().trim();
+          const prestadorPagamento = (row["Prestador Pagamento"] || "").toString().trim();
+          const prestadorProtocolo = (row["Prestador Protocolo"] || "").toString().trim();
+          const rowHospital = (row["hospital"] || hospitalCsv || prestador || "").toString().trim();
+          const rowStatus = (row["status"] || statusCsv || "Sem Status").toString().trim();
 
-          // Compound key strategy for deduplication:
-          // Código do Usuário + Relação Nr + Documento + Código AMB + Data + occurrence index within batch
+          // importKey for deduplication
           const tupleBase = `${groupId}_${codigoUsuario}_${relacaoNr}_${rowDoc}_${codigoAmb}_${dataProc}_${notaFiscal}`;
           const occIndex = tupleOccurrenceMap.get(tupleBase) || 0;
           tupleOccurrenceMap.set(tupleBase, occIndex + 1);
@@ -1782,6 +1808,10 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
 
           const procDocRef = db.collection("procedimentos").doc(deterministicKey);
           const existingProcSnap = await procDocRef.get();
+
+          if (existingProcSnap.exists) {
+            proceduresIgnoredDuplicates++;
+          }
 
           const procPayload: any = {
             pacienteId: patientId,
@@ -1807,10 +1837,12 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             prestadorExecutante: prestadorExecutante,
             prestadorPagamento: prestadorPagamento,
             prestadorProtocolo: prestadorProtocolo,
-            hospital: rowHospital || prestador,
-            status: rowStatus || "Sem Status",
+            hospitalId: resolvedHospitalId,
+            hospitalName: rowHospital || matchedHospitalName || "Sem Hospital",
+            statusId: resolvedStatusId,
+            statusName: rowStatus || matchedStatusName || "Sem Status",
 
-            dadosOriginais: row,
+            dadosOriginais: row, // Preserves ALL columns including Unnamed: ...
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           };
 
@@ -1820,12 +1852,10 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
 
           await procDocRef.set(procPayload, { merge: true });
 
-          // Also mirror to patient subcollection for backwards compatibility
+          // Mirror to subcollection
           try {
             await db.collection("patients").doc(patientId).collection("procedimentos").doc(deterministicKey).set(procPayload, { merge: true });
-          } catch (subErr) {
-            // non-fatal
-          }
+          } catch (e) {}
 
           proceduresImported++;
         }
@@ -1843,6 +1873,11 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
       updatedPatients,
       totalProcessed: newPatients + updatedPatients,
       proceduresImported,
+      proceduresIgnoredDuplicates,
+      hospitalsFound,
+      hospitalsCreated,
+      statusesFound,
+      statusesCreated,
       errorsCount,
       errorDetails
     });
