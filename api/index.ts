@@ -1631,11 +1631,22 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
 
     const existingSnap = await db.collection("patients").where("groupId", "==", groupId).get();
     const existingByCode = new Map<string, { id: string; data: any }>();
+    const existingByCpf = new Map<string, { id: string; data: any }>();
+    const existingByName = new Map<string, { id: string; data: any }>();
+
     existingSnap.docs.forEach(docSnap => {
       const dData = docSnap.data();
-      if (dData.codigoUsuario) {
-        existingByCode.set(dData.codigoUsuario.toString().trim(), { id: docSnap.id, data: dData });
-      }
+      const id = docSnap.id;
+      const codes = Array.isArray(dData.codigosUsuario) 
+        ? dData.codigosUsuario 
+        : (dData.codigoUsuario ? [dData.codigoUsuario.toString().trim()] : []);
+      codes.forEach((c: string) => {
+        if (c) existingByCode.set(c, { id, data: dData });
+      });
+      if (dData.cpf) existingByCpf.set(dData.cpf.toString().trim(), { id, data: dData });
+      if (dData.documento) existingByCpf.set(dData.documento.toString().trim(), { id, data: dData });
+      if (dData.name) existingByName.set(dData.name.toString().trim().toLowerCase(), { id, data: dData });
+      if (dData.nome) existingByName.set(dData.nome.toString().trim().toLowerCase(), { id, data: dData });
     });
 
     const [hospitalsSnap, statusesSnap] = await Promise.all([
@@ -1713,6 +1724,11 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
         });
 
         const rows = Array.isArray(patData.rows) ? patData.rows : [];
+        const rowAmbCodes: string[] = [];
+        for (const row of rows) {
+          const amb = (row["Código AMB"] || row["Codigo AMB"] || row["Cod. AMB"] || row.codigoAmb || row.codigoAMB || "").toString().trim();
+          if (amb) rowAmbCodes.push(amb);
+        }
 
         // 1. Resolve Hospital - ONLY from hospitalCsv! NEVER fall back to prestador!
         let resolvedHospitalId = "";
@@ -1763,17 +1779,27 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           }
         }
 
-        // 3. Upsert Patient
+        // 3. Upsert Patient (Match by code, cpf/documento, or name)
         let patientId = "";
-        const existing = existingByCode.get(codigoUsuario);
+        let existing = existingByCode.get(codigoUsuario);
+        if (!existing && documento) {
+          existing = existingByCpf.get(documento);
+        }
+        if (!existing && nome && nome !== "Sem Nome") {
+          existing = existingByName.get(nome.toLowerCase());
+        }
 
         if (existing) {
           patientId = existing.id;
           updatedPatients++;
           const updateFields: any = { 
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            recordStatus: "active"
+            recordStatus: "active",
+            codigosUsuario: admin.firestore.FieldValue.arrayUnion(codigoUsuario),
           };
+          if (rowAmbCodes.length > 0) {
+            updateFields.codigosAMB = admin.firestore.FieldValue.arrayUnion(...rowAmbCodes);
+          }
           if (nome && nome !== "Sem Nome") {
             updateFields.name = nome;
             updateFields.nome = nome;
@@ -1797,6 +1823,7 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
           }
           if (!existing.data.codigoUsuario) updateFields.codigoUsuario = codigoUsuario;
           await db.collection("patients").doc(patientId).update(updateFields);
+          existingByCode.set(codigoUsuario, { id: patientId, data: existing.data });
         } else {
           const newRef = db.collection("patients").doc();
           patientId = newRef.id;
@@ -1804,6 +1831,8 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             name: nome,
             nome: nome,
             codigoUsuario: codigoUsuario,
+            codigosUsuario: [codigoUsuario],
+            codigosAMB: rowAmbCodes,
             cpf: documento,
             documento: documento,
             hospitalId: resolvedHospitalId || "",
@@ -1817,7 +1846,9 @@ app.post("/api/app/patients/import-csv", express.json({ limit: "50mb" }), async 
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
           newPatients++;
-          existingByCode.set(codigoUsuario, { id: patientId, data: { name: nome, codigoUsuario } });
+          existingByCode.set(codigoUsuario, { id: patientId, data: { name: nome, codigoUsuario, codigosUsuario: [codigoUsuario] } });
+          if (documento) existingByCpf.set(documento, { id: patientId, data: { name: nome, cpf: documento } });
+          if (nome && nome !== "Sem Nome") existingByName.set(nome.toLowerCase(), { id: patientId, data: { name: nome } });
         }
 
         // 4. Insert Procedures
