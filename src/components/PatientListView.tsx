@@ -803,7 +803,11 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
             disabled={pagination.page <= 1}
             onClick={() => {
               const prevPage = pagination.page - 1;
-              onCommand(`/pacientes hospital:${pagination.hospitalFilter || ""} status:${pagination.statusFilter || ""} pag:${prevPage} sort:${pagination.sort}`, true);
+              let c = `/pacientes`;
+              if (pagination.hospitalFilter) c += ` hospital:${pagination.hospitalFilter}`;
+              if (pagination.statusFilter) c += ` status:${pagination.statusFilter}`;
+              c += ` pag:${prevPage} sort:${pagination.sort || "id"}`;
+              onCommand(c, true);
             }}
             className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50 disabled:opacity-40 rounded-xl transition-all border border-slate-200/80 shadow-sm flex items-center gap-2"
           >
@@ -819,7 +823,11 @@ export const PatientListView: React.FC<PatientListViewProps> = ({
             disabled={pagination.page >= pagination.totalPages}
             onClick={() => {
               const nextPage = pagination.page + 1;
-              onCommand(`/pacientes hospital:${pagination.hospitalFilter || ""} status:${pagination.statusFilter || ""} pag:${nextPage} sort:${pagination.sort}`, true);
+              let c = `/pacientes`;
+              if (pagination.hospitalFilter) c += ` hospital:${pagination.hospitalFilter}`;
+              if (pagination.statusFilter) c += ` status:${pagination.statusFilter}`;
+              c += ` pag:${nextPage} sort:${pagination.sort || "id"}`;
+              onCommand(c, true);
             }}
             className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50 disabled:opacity-40 rounded-xl transition-all border border-slate-200/80 shadow-sm flex items-center gap-2"
           >

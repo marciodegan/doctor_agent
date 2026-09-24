@@ -2395,14 +2395,12 @@ ${aiPart}
         let totalPages = 1;
         let pageToView = 1;
 
-        if (isFilteringAlta) {
-          const PAGE_SIZE = 10;
-          totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
-          pageToView = Math.max(1, Math.min(page, totalPages || 1));
-          const start = (pageToView - 1) * PAGE_SIZE;
-          const end = start + PAGE_SIZE;
-          pageData = filteredData.slice(start, end);
-        }
+        const PAGE_SIZE = 10;
+        totalPages = Math.ceil(filteredData.length / PAGE_SIZE) || 1;
+        pageToView = Math.max(1, Math.min(page, totalPages));
+        const start = (pageToView - 1) * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
+        pageData = filteredData.slice(start, end);
 
         const actionGroups = [];
         if (hospitals.length > 0) {
@@ -2466,7 +2464,7 @@ ${aiPart}
             hospitalFilter: hospitalFilter || undefined,
             statusFilter: statusFilter || undefined,
             sort,
-            pagination: isFilteringAlta ? {
+            pagination: totalPages > 1 ? {
               page: pageToView,
               totalPages: totalPages,
               hospitalFilter: hospitalFilter || undefined,
