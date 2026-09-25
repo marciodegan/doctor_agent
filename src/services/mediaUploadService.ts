@@ -51,16 +51,16 @@ export const mediaUploadService = {
     }
 
     // Standard limits
-    if (isVideo && file.size > 100 * 1024 * 1024) {
+    if (isVideo && file.size > 150 * 1024 * 1024) {
       return {
         isValid: false,
-        error: "Este vídeo é muito grande (máximo de 100MB). Escolha um vídeo menor para anexar."
+        error: "Este vídeo é muito grande (máximo de 150MB). Escolha um vídeo menor para anexar."
       };
     }
-    if (isImage && file.size > 20 * 1024 * 1024) {
+    if (isImage && file.size > 30 * 1024 * 1024) {
       return {
         isValid: false,
-        error: "Esta imagem é muito grande (máximo de 20MB). Escolha um arquivo menor."
+        error: "Esta imagem é muito grande (máximo de 30MB). Escolha um arquivo menor."
       };
     }
     if (isPdf && file.size > 50 * 1024 * 1024) {
@@ -142,30 +142,17 @@ export const mediaUploadService = {
       }
     }
 
-    // 2. Prepare FormData
+    // 2. Prepare metadata
     const safeFileName = file.name
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/\s+/g, "_")
       .replace(/[^a-zA-Z0-9._-]/g, "");
 
-    const formData = new FormData();
-    formData.append("file", fileToUpload, safeFileName);
-    formData.append("patientId", patientId);
-    formData.append("description", description || file.name || "Arquivo");
-    formData.append("groupId", groupId || "");
-    formData.append(
-      "platform",
+    const platform =
       typeof navigator !== "undefined" && /mobi|android|iphone|ipad/i.test(navigator.userAgent)
         ? "mobile"
-        : "desktop"
-    );
-
-    if (isEncrypted) {
-      formData.append("isEncrypted", "true");
-      formData.append("iv", ivBase64 || "");
-      formData.append("originalContentType", mime);
-    }
+        : "desktop";
 
     // 3. Resolve auth token
     let authToken = "";
@@ -183,75 +170,219 @@ export const mediaUploadService = {
       authToken = "demo-token";
     }
 
-    // 4. Send upload request via XMLHttpRequest for real progress
-    console.log("[mediaUploadService] Uploading file to /api/app/upload-image...");
+    const commonHeaders: Record<string, string> = {};
+    if (groupId) commonHeaders["x-group-id"] = groupId;
+    if (authToken) commonHeaders["Authorization"] = `Bearer ${authToken}`;
+    if (isDemoMode) commonHeaders["x-demo-mode"] = "true";
+
+    console.log("[mediaUploadService] Preparing upload...");
     console.log("- file:", file.name, `(${file.size} bytes)`);
     console.log("- patientId:", patientId, "groupId:", groupId);
 
-    const result = await new Promise<{ fileId: string; downloadURL: string }>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/app/upload-image");
-      xhr.withCredentials = true;
+    // 4. Try Direct Signed Upload first (bypasses Cloud Run 32MB payload limit and memory buffering)
+    let result: { fileId: string; downloadURL: string } | null = null;
+    let signedUploadError: any = null;
 
-      if (groupId) {
-        xhr.setRequestHeader("x-group-id", groupId);
-      }
-      if (authToken) {
-        xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
-      }
-      if (isDemoMode) {
-        xhr.setRequestHeader("x-demo-mode", "true");
-      }
+    try {
+      console.log("[mediaUploadService] Attempting Direct Signed Upload...");
+      const signRes = await fetch("/api/app/get-upload-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...commonHeaders
+        },
+        body: JSON.stringify({
+          patientId,
+          fileName: safeFileName,
+          mimeType: mime,
+          size: file.size,
+          description: description || file.name || "Arquivo",
+          isEncrypted,
+          iv: ivBase64 || "",
+          originalContentType: mime
+        })
+      });
 
-      if (xhr.upload) {
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable && onProgress) {
-            const percent = Math.min(99, Math.round((e.loaded / e.total) * 100));
-            onProgress(percent);
-          }
-        };
-      }
+      if (signRes.ok) {
+        const signData = await signRes.json();
+        const { uploadUrl, fileId, storagePath, downloadURL, contentType } = signData;
 
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const data = JSON.parse(xhr.responseText);
+        if (uploadUrl && fileId) {
+          // Perform direct PUT to Google Cloud Storage signed URL
+          console.log("[mediaUploadService] Got signed URL. Uploading directly to Google Cloud Storage...");
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("PUT", uploadUrl);
+            xhr.setRequestHeader("Content-Type", contentType || "application/octet-stream");
+
+            if (xhr.upload) {
+              xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable && onProgress) {
+                  const percent = Math.min(99, Math.round((e.loaded / e.total) * 100));
+                  onProgress(percent);
+                }
+              };
+            }
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+              } else if (xhr.status === 413) {
+                reject(
+                  new Error(
+                    "O arquivo é muito grande para o servidor (Erro 413: Limite de tamanho excedido). Tente enviar um vídeo mais curto ou arquivo menor."
+                  )
+                );
+              } else {
+                reject(
+                  new Error(
+                    `Falha no upload direto (HTTP ${xhr.status}): ${xhr.statusText || "Erro de armazenamento"}`
+                  )
+                );
+              }
+            };
+
+            xhr.onerror = () => {
+              reject(new Error("Falha na conexão durante o envio direto ao armazenamento."));
+            };
+
+            xhr.onabort = () => {
+              reject(new Error("Envio do arquivo cancelado."));
+            };
+
+            xhr.send(fileToUpload);
+          });
+
+          // Confirm and index in Firestore
+          console.log("[mediaUploadService] PUT succeeded. Confirming upload with server...");
+          const confirmRes = await fetch("/api/app/confirm-upload", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...commonHeaders
+            },
+            body: JSON.stringify({
+              fileId,
+              storagePath,
+              patientId,
+              fileName: file.name,
+              mimeType: mime,
+              size: file.size,
+              description: description || file.name || "Arquivo",
+              isEncrypted,
+              iv: ivBase64 || "",
+              originalContentType: mime,
+              platform
+            })
+          });
+
+          if (confirmRes.ok) {
+            const confirmData = await confirmRes.json();
             if (onProgress) onProgress(100);
-            const downloadURL = data.downloadURL || data.downloadUrl || data.link;
-            console.log("[mediaUploadService] Upload successful! URL:", downloadURL);
-            resolve({
-              fileId: data.fileId,
-              downloadURL: downloadURL
-            });
-          } catch (err) {
-            reject(new Error("Resposta inválida do servidor ao processar o arquivo."));
-          }
-        } else {
-          try {
-            const errData = JSON.parse(xhr.responseText);
-            const msg =
-              errData.error || errData.message || `Erro no envio do arquivo (HTTP ${xhr.status})`;
-            reject(new Error(msg));
-          } catch (e) {
-            reject(
-              new Error(
-                `Erro no envio do arquivo (HTTP ${xhr.status}): ${xhr.statusText || "Falha no servidor"}`
-              )
-            );
+            result = {
+              fileId: confirmData.fileId || fileId,
+              downloadURL: confirmData.downloadURL || confirmData.downloadUrl || confirmData.link || downloadURL
+            };
+            console.log("[mediaUploadService] Direct Signed Upload successful! URL:", result.downloadURL);
+          } else {
+            const errData = await confirmRes.json().catch(() => ({}));
+            throw new Error(errData.error || "Falha ao registrar arquivo no banco de dados.");
           }
         }
-      };
+      } else {
+        const signErr = await signRes.json().catch(() => ({}));
+        console.warn("[mediaUploadService] Direct sign failed, falling back to multipart:", signErr);
+        signedUploadError = signErr.error;
+      }
+    } catch (directErr: any) {
+      console.warn("[mediaUploadService] Direct Signed Upload attempt failed, checking fallback:", directErr);
+      signedUploadError = directErr?.message;
+      if (directErr?.message?.includes("413") || directErr?.message?.includes("muito grande")) {
+        throw directErr;
+      }
+    }
 
-      xhr.onerror = () => {
-        reject(new Error("Falha na conexão durante o envio do arquivo. Verifique sua conexão e tente novamente."));
-      };
+    // 5. Fallback: multipart/form-data upload to /api/app/upload-image
+    if (!result) {
+      console.log("[mediaUploadService] Using fallback multipart upload to /api/app/upload-image...");
+      const formData = new FormData();
+      formData.append("file", fileToUpload, safeFileName);
+      formData.append("patientId", patientId);
+      formData.append("description", description || file.name || "Arquivo");
+      formData.append("groupId", groupId || "");
+      formData.append("platform", platform);
 
-      xhr.onabort = () => {
-        reject(new Error("Envio do arquivo cancelado."));
-      };
+      if (isEncrypted) {
+        formData.append("isEncrypted", "true");
+        formData.append("iv", ivBase64 || "");
+        formData.append("originalContentType", mime);
+      }
 
-      xhr.send(formData);
-    });
+      result = await new Promise<{ fileId: string; downloadURL: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/app/upload-image");
+        xhr.withCredentials = true;
+
+        if (groupId) xhr.setRequestHeader("x-group-id", groupId);
+        if (authToken) xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+        if (isDemoMode) xhr.setRequestHeader("x-demo-mode", "true");
+
+        if (xhr.upload) {
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && onProgress) {
+              const percent = Math.min(99, Math.round((e.loaded / e.total) * 100));
+              onProgress(percent);
+            }
+          };
+        }
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const data = JSON.parse(xhr.responseText);
+              if (onProgress) onProgress(100);
+              const downloadURL = data.downloadURL || data.downloadUrl || data.link;
+              console.log("[mediaUploadService] Multipart upload successful! URL:", downloadURL);
+              resolve({
+                fileId: data.fileId,
+                downloadURL: downloadURL
+              });
+            } catch (err) {
+              reject(new Error("Resposta inválida do servidor ao processar o arquivo."));
+            }
+          } else if (xhr.status === 413) {
+            reject(
+              new Error(
+                "O arquivo é muito grande para o servidor (Erro 413: Tamanho limite excedido). Para vídeos ou arquivos grandes, tente comprimir ou enviar um vídeo menor."
+              )
+            );
+          } else {
+            try {
+              const errData = JSON.parse(xhr.responseText);
+              const msg =
+                errData.error || errData.message || `Erro no envio do arquivo (HTTP ${xhr.status})`;
+              reject(new Error(msg));
+            } catch (e) {
+              reject(
+                new Error(
+                  `Erro no envio do arquivo (HTTP ${xhr.status}): ${xhr.statusText || "Falha no servidor"}`
+                )
+              );
+            }
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(new Error("Falha na conexão durante o envio do arquivo. Verifique sua conexão e tente novamente."));
+        };
+
+        xhr.onabort = () => {
+          reject(new Error("Envio do arquivo cancelado."));
+        };
+
+        xhr.send(formData);
+      });
+    }
 
     // 5. Optimistically update local Firestore cache if client is connected
     try {

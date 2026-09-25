@@ -315,10 +315,71 @@ const MessageForm: React.FC<{
 
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
-  const resizeImage = (file: File): Promise<string> => {
+  const compressAndResizeImage = (file: File, maxDimension = 2048, quality = 0.85): Promise<{ file: File; dataUrl: string }> => {
     return new Promise((resolve) => {
+      if (!file.type.startsWith("image/") || file.type === "image/gif" || file.type === "image/svg+xml") {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve({ file, dataUrl: e.target?.result as string });
+        reader.onerror = () => resolve({ file, dataUrl: "" });
+        reader.readAsDataURL(file);
+        return;
+      }
+
       const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          if (file.size <= 1.5 * 1024 * 1024 && width <= maxDimension && height <= maxDimension) {
+            resolve({ file, dataUrl: e.target?.result as string });
+            return;
+          }
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve({ file, dataUrl: e.target?.result as string });
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const outputMime = file.type === "image/png" ? "image/png" : "image/jpeg";
+          const dataUrl = canvas.toDataURL(outputMime, quality);
+
+          canvas.toBlob((blob) => {
+            if (blob && blob.size < file.size) {
+              const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, outputMime === "image/png" ? ".png" : ".jpg"), {
+                type: outputMime,
+                lastModified: Date.now()
+              });
+              resolve({ file: compressedFile, dataUrl });
+            } else {
+              resolve({ file, dataUrl });
+            }
+          }, outputMime, quality);
+        };
+        img.onerror = () => {
+          resolve({ file, dataUrl: e.target?.result as string });
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => {
+        resolve({ file, dataUrl: "" });
+      };
       reader.readAsDataURL(file);
     });
   };
@@ -368,44 +429,43 @@ const MessageForm: React.FC<{
     }
 
     // Validate size
-    if (fileTypeResolved === "image" && file.size > 10 * 1024 * 1024) {
-      setFileError("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 10MB para imagens).");
+    if (fileTypeResolved === "image" && file.size > 30 * 1024 * 1024) {
+      setFileError("Esta foto é muito grande (máximo 30MB). Escolha um arquivo menor.");
       if (onSelectImage) onSelectImage(null);
       if (onSelectFileObj) onSelectFileObj(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (fileTypeResolved === "video" && file.size > 100 * 1024 * 1024) {
-      setFileError("Este vídeo é muito grande. Escolha um vídeo menor para anexar.");
+    if (fileTypeResolved === "video" && file.size > 150 * 1024 * 1024) {
+      setFileError("Este vídeo é muito grande (máximo 150MB). Escolha um vídeo menor para anexar.");
       if (onSelectImage) onSelectImage(null);
       if (onSelectFileObj) onSelectFileObj(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (fileTypeResolved === "pdf" && file.size > 20 * 1024 * 1024) {
-      setFileError("Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 20MB para PDFs).");
+    if (fileTypeResolved === "pdf" && file.size > 50 * 1024 * 1024) {
+      setFileError("Este arquivo é muito grande (máximo 50MB para PDFs).");
       if (onSelectImage) onSelectImage(null);
       if (onSelectFileObj) onSelectFileObj(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
-    }
-
-    if (onSelectFileObj) {
-      onSelectFileObj(file);
     }
 
     if (fileTypeResolved === "image") {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (onSelectImage) {
-          onSelectImage(event.target?.result as string);
-        }
-      };
-      reader.onerror = () => {
-        setFileError("Não foi possível ler a imagem.");
-      };
-      reader.readAsDataURL(file);
+      try {
+        const { file: processedFile, dataUrl } = await compressAndResizeImage(file);
+        if (onSelectFileObj) onSelectFileObj(processedFile);
+        if (onSelectImage) onSelectImage(dataUrl);
+      } catch (err) {
+        if (onSelectFileObj) onSelectFileObj(file);
+        try {
+          if (onSelectImage) onSelectImage(URL.createObjectURL(file));
+        } catch (e) {}
+      }
     } else {
+      if (onSelectFileObj) {
+        onSelectFileObj(file);
+      }
       try {
         if (onSelectImage) {
           onSelectImage(URL.createObjectURL(file));
@@ -2936,11 +2996,14 @@ ${aiPart}
       } catch (err: any) {
         console.error("[Upload] Error complete trace:", err);
         const errMsg = err?.message || "";
-        const friendlyMsg = errMsg || (
-          isVideoUpload
+        let friendlyMsg = errMsg;
+        if (errMsg.includes("413") || errMsg.toLowerCase().includes("muito grande")) {
+          friendlyMsg = "O arquivo enviado é muito grande (Erro 413: Tamanho limite excedido). Para vídeos ou fotos pesadas, reduza a duração ou comprima o arquivo antes de enviar.";
+        } else if (!friendlyMsg) {
+          friendlyMsg = isVideoUpload
             ? "Não foi possível enviar este vídeo. Tente salvar novamente como MP4 ou enviar uma versão menor."
-            : "Não foi possível enviar o arquivo. Verifique sua conexão e tente novamente."
-        );
+            : "Não foi possível enviar o arquivo. Verifique sua conexão e tente novamente.";
+        }
 
         setMessages(prev => [...prev, { role: "model", text: `❌ ${friendlyMsg}` }]);
       } finally {

@@ -125,8 +125,8 @@ const getStripe = () => {
 export const app = express();
 const PORT = 3000;
 
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ limit: "100mb", extended: true }));
 app.use(cookieParser());
 
 // Normalize URL for Vercel serverless functions:
@@ -2676,7 +2676,268 @@ app.get("/api/app/proxy-storage-file", async (req, res) => {
   }
 });
 
-// Upload image/document directly to Firebase Storage and link to Firestore
+// Ensure Bucket CORS is properly configured for browser direct PUT uploads
+const ensureBucketCors = async () => {
+  try {
+    const defaultBucket = getStorage().bucket(targetStorageBucket);
+    await defaultBucket.setCorsConfiguration([
+      {
+        maxAgeSeconds: 3600,
+        method: ["GET", "PUT", "POST", "HEAD", "OPTIONS"],
+        origin: ["*"],
+        responseHeader: ["*"]
+      }
+    ]);
+    console.log("[Storage] Storage bucket CORS successfully configured for direct uploads.");
+  } catch (err: any) {
+    console.warn("[Storage] Warning configuring bucket CORS:", err?.message);
+  }
+};
+ensureBucketCors().catch(() => {});
+
+// Direct Signed Upload URL generator (bypasses Cloud Run 32MB payload limit and memory buffering)
+app.post("/api/app/get-upload-url", express.json({ limit: "10mb" }), async (req, res) => {
+  try {
+    const {
+      patientId,
+      fileName,
+      mimeType,
+      size,
+      description,
+      isEncrypted,
+      iv,
+      originalContentType
+    } = req.body || {};
+
+    if (!patientId) {
+      return res.status(400).json({ error: "PatientID é obrigatório." });
+    }
+
+    const authUser = await requireAuth(req);
+    const { groupId } = await requirePatientAccess(req, patientId);
+
+    const rawName = fileName || "file";
+    const safeFileName = sanitizeFileName(rawName);
+    const safeContentType = getSafeContentType(safeFileName, mimeType || "application/octet-stream");
+
+    const mimeToCheck = isEncrypted ? (originalContentType || "") : safeContentType;
+    const nameToCheck = isEncrypted ? (rawName || "") : safeFileName;
+
+    let fileTypeResolved: "image" | "video" | "pdf" = "image";
+    if (
+      mimeToCheck.startsWith("image/") ||
+      nameToCheck.endsWith(".heic") ||
+      nameToCheck.endsWith(".jpeg") ||
+      nameToCheck.endsWith(".jpg") ||
+      nameToCheck.endsWith(".png") ||
+      nameToCheck.endsWith(".webp")
+    ) {
+      fileTypeResolved = "image";
+    } else if (
+      mimeToCheck.startsWith("video/") ||
+      nameToCheck.endsWith(".mp4") ||
+      nameToCheck.endsWith(".mov") ||
+      nameToCheck.endsWith(".webm") ||
+      nameToCheck.endsWith(".quicktime") ||
+      nameToCheck.endsWith(".m4v") ||
+      nameToCheck.endsWith(".3gp") ||
+      nameToCheck.endsWith(".3gpp") ||
+      nameToCheck.endsWith(".mkv") ||
+      nameToCheck.endsWith(".avi") ||
+      nameToCheck.endsWith(".wmv") ||
+      nameToCheck.endsWith(".flv") ||
+      nameToCheck.endsWith(".qt") ||
+      nameToCheck.endsWith(".ts")
+    ) {
+      fileTypeResolved = "video";
+    } else if (mimeToCheck === "application/pdf" || nameToCheck.endsWith(".pdf")) {
+      fileTypeResolved = "pdf";
+    }
+
+    const fileSize = Number(size) || 0;
+    if (fileTypeResolved === "image" && fileSize > 30 * 1024 * 1024) {
+      return res.status(400).json({ error: "Esta imagem é muito grande (máximo 30MB). Escolha um arquivo menor." });
+    }
+    if (fileTypeResolved === "video" && fileSize > 150 * 1024 * 1024) {
+      return res.status(400).json({ error: "Este vídeo é muito grande (máximo 150MB). Escolha um vídeo menor para anexar." });
+    }
+    if (fileTypeResolved === "pdf" && fileSize > 50 * 1024 * 1024) {
+      return res.status(400).json({ error: "Este PDF é muito grande (máximo 50MB). Escolha um arquivo menor." });
+    }
+
+    const fileId = db.collection("files").doc().id;
+    let storagePath = `patients/${patientId}/${Date.now()}-${safeFileName}`;
+    if (groupId) {
+      if (isEncrypted) {
+        storagePath = `groups/${groupId}/encrypted-files/${fileId}/${safeFileName}.encrypted`;
+      } else {
+        storagePath = `groups/${groupId}/files/${fileId}/${safeFileName}`;
+      }
+    }
+
+    const contentTypeToSave = isEncrypted ? "application/octet-stream" : safeContentType;
+    const targetBucket = getStorage().bucket(targetStorageBucket);
+    const fileObj = targetBucket.file(storagePath);
+
+    const [uploadUrl] = await fileObj.getSignedUrl({
+      version: "v4",
+      action: "write",
+      expires: Date.now() + 30 * 60 * 1000, // 30 minutes
+      contentType: contentTypeToSave
+    });
+
+    const publicUrl = `https://storage.googleapis.com/${targetStorageBucket}/${storagePath}`;
+
+    console.log(`[get-upload-url] Generated signed upload URL for ${rawName} (${fileTypeResolved}, ${fileSize} bytes) -> ${storagePath}`);
+
+    return res.json({
+      success: true,
+      fileId,
+      uploadUrl,
+      storagePath,
+      downloadURL: publicUrl,
+      publicUrl,
+      contentType: contentTypeToSave,
+      safeFileName,
+      fileType: fileTypeResolved,
+      groupId
+    });
+  } catch (error: any) {
+    console.error("[get-upload-url] Error:", error);
+    return res.status(500).json({ error: error.message || "Falha ao gerar URL de upload direto." });
+  }
+});
+
+// Confirmation route after client successfully uploads file directly to Signed URL
+app.post("/api/app/confirm-upload", express.json({ limit: "10mb" }), async (req, res) => {
+  try {
+    const {
+      fileId,
+      storagePath,
+      patientId,
+      fileName,
+      mimeType,
+      size,
+      description,
+      isEncrypted,
+      iv,
+      originalContentType,
+      platform
+    } = req.body || {};
+
+    if (!fileId || !storagePath || !patientId) {
+      return res.status(400).json({ error: "fileId, storagePath e patientId são obrigatórios." });
+    }
+
+    const authUser = await requireAuth(req);
+    const { groupId } = await requirePatientAccess(req, patientId);
+
+    const rawName = fileName || "file";
+    const safeFileName = sanitizeFileName(rawName);
+    const safeContentType = getSafeContentType(safeFileName, mimeType || "application/octet-stream");
+
+    const mimeToCheck = isEncrypted ? (originalContentType || "") : safeContentType;
+    const nameToCheck = isEncrypted ? (rawName || "") : safeFileName;
+
+    let fileTypeResolved: "image" | "video" | "pdf" = "image";
+    if (
+      mimeToCheck.startsWith("image/") ||
+      nameToCheck.endsWith(".heic") ||
+      nameToCheck.endsWith(".jpeg") ||
+      nameToCheck.endsWith(".jpg") ||
+      nameToCheck.endsWith(".png") ||
+      nameToCheck.endsWith(".webp")
+    ) {
+      fileTypeResolved = "image";
+    } else if (
+      mimeToCheck.startsWith("video/") ||
+      nameToCheck.endsWith(".mp4") ||
+      nameToCheck.endsWith(".mov") ||
+      nameToCheck.endsWith(".webm") ||
+      nameToCheck.endsWith(".quicktime") ||
+      nameToCheck.endsWith(".m4v") ||
+      nameToCheck.endsWith(".3gp") ||
+      nameToCheck.endsWith(".3gpp") ||
+      nameToCheck.endsWith(".mkv") ||
+      nameToCheck.endsWith(".avi") ||
+      nameToCheck.endsWith(".wmv") ||
+      nameToCheck.endsWith(".flv") ||
+      nameToCheck.endsWith(".qt") ||
+      nameToCheck.endsWith(".ts")
+    ) {
+      fileTypeResolved = "video";
+    } else if (mimeToCheck === "application/pdf" || nameToCheck.endsWith(".pdf")) {
+      fileTypeResolved = "pdf";
+    }
+
+    const targetBucket = getStorage().bucket(targetStorageBucket);
+    const fileObj = targetBucket.file(storagePath);
+
+    // Ensure public read access
+    try {
+      await fileObj.makePublic();
+    } catch (pubErr) {
+      console.warn("[confirm-upload] makePublic warning:", pubErr);
+    }
+
+    const publicUrl = `https://storage.googleapis.com/${targetStorageBucket}/${storagePath}`;
+    const contentTypeToSave = isEncrypted ? "application/octet-stream" : safeContentType;
+    const fileSize = Number(size) || 0;
+
+    const fileRef = db.collection("files").doc(fileId);
+    const metadata = {
+      id: fileId,
+      groupId: groupId || "",
+      patientId: patientId,
+      uploadedBy: authUser.uid,
+      uploadedByEmail: authUser.email || "",
+      originalName: rawName,
+      originalFileName: rawName,
+      safeFileName: safeFileName,
+      contentType: contentTypeToSave,
+      originalContentType: isEncrypted ? originalContentType : safeContentType,
+      fileType: fileTypeResolved,
+      size: fileSize,
+      storagePath: storagePath,
+      downloadURL: publicUrl,
+      downloadUrl: publicUrl,
+      description: description || rawName || "Arquivo",
+      link: publicUrl,
+      status: "active",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      encrypted: !!isEncrypted,
+      ...(isEncrypted ? {
+        encryption: {
+          algorithm: "AES-GCM",
+          iv: iv || "",
+          originalContentType: originalContentType || "",
+          encrypted: true
+        }
+      } : {})
+    };
+
+    await fileRef.set(metadata);
+    console.log(`[confirm-upload] File ${fileId} confirmed and indexed in Firestore.`);
+
+    return res.json({
+      success: true,
+      fileId,
+      link: publicUrl,
+      downloadURL: publicUrl,
+      downloadUrl: publicUrl,
+      fileType: fileTypeResolved,
+      size: fileSize,
+      name: rawName
+    });
+  } catch (error: any) {
+    console.error("[confirm-upload] Error:", error);
+    return res.status(500).json({ error: error.message || "Falha ao registrar arquivo no banco de dados." });
+  }
+});
+
+// Upload image/document directly to Firebase Storage and link to Firestore (fallback / multipart route)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB
