@@ -187,6 +187,8 @@ export const E2EMedia: React.FC<E2EMediaProps> = ({
       <video 
         src={decryptedUrl} 
         controls={controls} 
+        playsInline
+        preload="metadata"
         className={`w-full h-full object-contain bg-slate-950 rounded-2xl ${className}`} 
       />
     );

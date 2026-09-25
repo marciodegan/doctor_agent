@@ -2936,11 +2936,11 @@ ${aiPart}
       } catch (err: any) {
         console.error("[Upload] Error complete trace:", err);
         const errMsg = err?.message || "";
-        const friendlyMsg = errMsg.includes("proteger")
-          ? "Não foi possível proteger este arquivo. Tente novamente."
-          : isVideoUpload
+        const friendlyMsg = errMsg || (
+          isVideoUpload
             ? "Não foi possível enviar este vídeo. Tente salvar novamente como MP4 ou enviar uma versão menor."
-            : "Não foi possível enviar o arquivo. Verifique sua conexão e tente novamente.";
+            : "Não foi possível enviar o arquivo. Verifique sua conexão e tente novamente."
+        );
 
         setMessages(prev => [...prev, { role: "model", text: `❌ ${friendlyMsg}` }]);
       } finally {
@@ -4233,16 +4233,24 @@ ${aiPart}
                                         imagensItems.map((img, idx) => {
                                           const originalRecord = msg.reportData?.imagens?.find((item: any) => item.link === img.src);
                                           const encryptionMeta = originalRecord?.encryption;
+                                          const isVid = isVideoUrl(img.src) || originalRecord?.fileType === "video";
+                                          const isPdf = isPdfUrl(img.src) || originalRecord?.fileType === "pdf";
 
                                           return (
                                             <div key={idx} className="flex flex-col gap-3 pb-4 last:pb-0 border-b border-gray-50 last:border-0 w-full">
                                               {img.src && (
-                                                <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-slate-100">
+                                                <div className={`relative w-full rounded-xl overflow-hidden shadow-sm border border-gray-100 ${
+                                                  isVid 
+                                                    ? "aspect-video bg-slate-950 flex items-center justify-center" 
+                                                    : isPdf 
+                                                      ? "aspect-[4/3] bg-slate-900" 
+                                                      : "aspect-[4/3] max-h-80 bg-slate-100"
+                                                }`}>
                                                   <E2EMedia
                                                     src={img.src}
                                                     encryption={encryptionMeta}
-                                                    fallbackType={isPdfUrl(img.src) ? "pdf" : isVideoUrl(img.src) ? "video" : "image"}
-                                                    alt={img.alt || "Imagem de exame"}
+                                                    fallbackType={isPdf ? "pdf" : isVid ? "video" : "image"}
+                                                    alt={img.alt || (isVid ? "Vídeo de exame" : "Imagem de exame")}
                                                     className="w-full h-full object-cover animate-fade-in"
                                                   />
                                                 </div>

@@ -503,11 +503,97 @@ const requireGroupOwner = async (req: express.Request, groupId: string | null) =
   throw err;
 };
 
+const DEMO_PATIENTS = [
+  {
+    id: "demo-pat-1",
+    groupId: "demo-group-hospital",
+    name: "Maria Silva",
+    nome: "Maria Silva",
+    hospitalId: "demo-hosp-1",
+    statusId: "demo-stat-1",
+    status: "UTI / Crítico",
+    hospital: "Hospital Central & UTI",
+    bed: "Leito 302 - UTI Adulto",
+    age: "58 anos",
+    diagnosis: "Pneumonia Comunitária Grave em desmame ventilatório",
+    allergies: "Penicilina, Dipirona",
+    currentCondition: "Paciente lúcida, afebril há 48h, tolerando desmame de O2 via cateter nasal (2L/min). Diurese preservada.",
+    diet: "Oral branda com espessante",
+    access: "CVC subclávia D (D4)",
+    pendingActions: "Checar hemograma de controle e Rx de tórax matinal",
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: "demo-pat-2",
+    groupId: "demo-group-hospital",
+    name: "Carlos Eduardo Santos",
+    nome: "Carlos Eduardo Santos",
+    hospitalId: "demo-hosp-1",
+    statusId: "demo-stat-2",
+    status: "Estável / Enfermaria",
+    hospital: "Hospital Central & UTI",
+    bed: "Leito 105 - Enfermaria Clínica",
+    age: "42 anos",
+    diagnosis: "Apendicectomia laparoscópica (PO D1)",
+    allergies: "Nenhuma conhecida",
+    currentCondition: "Bom estado geral, eupneico, dor em FO controlada com analgésicos simples. RHA presentes, aceitou dieta leve.",
+    diet: "Líquida restrita evoluindo para branda",
+    access: "AVP MSD salinizado",
+    pendingActions: "Troca de curativo cirúrgico e previsão de alta amanhã",
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: "demo-pat-3",
+    groupId: "demo-group-hospital",
+    name: "Ana Beatriz Oliveira",
+    nome: "Ana Beatriz Oliveira",
+    hospitalId: "demo-hosp-2",
+    statusId: "demo-stat-3",
+    status: "Observação / Cirúrgico",
+    hospital: "Hospital Santa Clara",
+    bed: "Leito 210 - Bloco Cirúrgico / Recuperação",
+    age: "31 anos",
+    diagnosis: "Colecistectomia Eletiva",
+    allergies: "Iodo (relato de urticária prévia)",
+    currentCondition: "Estável hemodinamicamente, acordada, sem náuseas.",
+    diet: "Jejum para procedimento vespertino",
+    access: "AVP MSE com hidratação venosa",
+    pendingActions: "Aguardando liberação de leito em enfermaria pós-RPA",
+    updatedAt: new Date().toISOString()
+  }
+];
+
 const requirePatientAccess = async (req: express.Request, patientId: string) => {
   if (!patientId) {
     const err = new Error("Patient ID is required");
     (err as any).statusCode = 400;
     throw err;
+  }
+
+  // 0. Demo Mode support
+  const authHeader = req.headers.authorization;
+  const isDemo =
+    authHeader === "Bearer demo-token" ||
+    req.headers["x-demo-mode"] === "true" ||
+    getGroupId(req) === "demo-group-hospital" ||
+    patientId.startsWith("demo-pat-");
+
+  if (isDemo) {
+    const foundDemo = DEMO_PATIENTS.find(p => p.id === patientId);
+    const demoPatientObj = foundDemo || {
+      id: patientId,
+      name: "Paciente Demo",
+      groupId: "demo-group-hospital",
+      hospitalId: "demo-hosp-1",
+      statusId: "demo-stat-1"
+    };
+    return {
+      user: { uid: "demo-doctor-preview", email: "demo@doctor-agent.online", source: "demo" },
+      group: { id: "demo-group-hospital", name: "Equipe Médica - Plantão Geral", createdBy: "demo-doctor-preview", groupType: "professional", status: "active" },
+      member: { userId: "demo-doctor-preview", role: "admin", status: "active" },
+      patient: demoPatientObj,
+      groupId: "demo-group-hospital"
+    };
   }
 
   let patientDoc = await db.collection("patients").doc(patientId).get();
@@ -999,66 +1085,7 @@ app.get("/api/app/patients", async (req, res) => {
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
 
   if (groupId === "demo-group-hospital") {
-    const demoPatients = [
-      {
-        id: "demo-pat-1",
-        groupId: "demo-group-hospital",
-        name: "Maria Silva",
-        nome: "Maria Silva",
-        hospitalId: "demo-hosp-1",
-        statusId: "demo-stat-1",
-        status: "UTI / Crítico",
-        hospital: "Hospital Central & UTI",
-        bed: "Leito 302 - UTI Adulto",
-        age: "58 anos",
-        diagnosis: "Pneumonia Comunitária Grave em desmame ventilatório",
-        allergies: "Penicilina, Dipirona",
-        currentCondition: "Paciente lúcida, afebril há 48h, tolerando desmame de O2 via cateter nasal (2L/min). Diurese preservada.",
-        diet: "Oral branda com espessante",
-        access: "CVC subclávia D (D4)",
-        pendingActions: "Checar hemograma de controle e Rx de tórax matinal",
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: "demo-pat-2",
-        groupId: "demo-group-hospital",
-        name: "Carlos Eduardo Santos",
-        nome: "Carlos Eduardo Santos",
-        hospitalId: "demo-hosp-1",
-        statusId: "demo-stat-2",
-        status: "Estável / Enfermaria",
-        hospital: "Hospital Central & UTI",
-        bed: "Leito 105 - Enfermaria Clínica",
-        age: "42 anos",
-        diagnosis: "Apendicectomia laparoscópica (PO D1)",
-        allergies: "Nenhuma conhecida",
-        currentCondition: "Bom estado geral, eupneico, dor em FO controlada com analgésicos simples. RHA presentes, aceitou dieta leve.",
-        diet: "Líquida restrita evoluindo para branda",
-        access: "AVP MSD salinizado",
-        pendingActions: "Troca de curativo cirúrgico e previsão de alta amanhã",
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: "demo-pat-3",
-        groupId: "demo-group-hospital",
-        name: "Ana Beatriz Oliveira",
-        nome: "Ana Beatriz Oliveira",
-        hospitalId: "demo-hosp-2",
-        statusId: "demo-stat-3",
-        status: "Observação / Cirúrgico",
-        hospital: "Hospital Santa Clara",
-        bed: "Leito 210 - Bloco Cirúrgico / Recuperação",
-        age: "31 anos",
-        diagnosis: "Colecistectomia Eletiva",
-        allergies: "Iodo (relato de urticária prévia)",
-        currentCondition: "Estável hemodinamicamente, acordada, sem náuseas.",
-        diet: "Jejum para procedimento vespertino",
-        access: "AVP MSE com hidratação venosa",
-        pendingActions: "Aguardando liberação de leito em enfermaria pós-RPA",
-        updatedAt: new Date().toISOString()
-      }
-    ];
-    return res.json(demoPatients);
+    return res.json(DEMO_PATIENTS);
   }
 
   try {
@@ -1367,17 +1394,17 @@ app.get("/api/app/patient-report/:id", async (req, res) => {
       hospitalsMap.set(doc.id, data.name || data.nome);
     });
 
-    const pData = patient;
+    const pData: any = patient;
     report.cadastro = {
       ID: id,
-      Nome: pData.name,
-      Telefone: pData.phone,
-      Idade: pData.age,
-      Status: (pData.statusId && statusesMap.get(pData.statusId)) ? statusesMap.get(pData.statusId) : "Sem Status",
+      Nome: pData.name || pData.nome || "Sem Nome",
+      Telefone: pData.phone || pData.fone || "",
+      Idade: pData.age || pData.idade || "",
+      Status: (pData.statusId && statusesMap.get(pData.statusId)) ? statusesMap.get(pData.statusId) : (pData.status || "Sem Status"),
       statusId: pData.statusId || "",
-      hospitalName: hospitalsMap.get(pData.hospitalId) || pData.hospitalId,
+      hospitalName: hospitalsMap.get(pData.hospitalId) || pData.hospital || pData.hospitalId || "",
       hospitalId: pData.hospitalId || "",
-      roomNumber: pData.roomNumber,
+      roomNumber: pData.roomNumber || pData.bed || "",
       surgery_type: pData.surgery_type || "",
       procedure: pData.procedure || "",
       codigoUsuario: pData.codigoUsuario ? pData.codigoUsuario.toString() : "",
@@ -1563,10 +1590,11 @@ app.get("/api/app/patients/:id/procedimentos", async (req, res) => {
     }
 
     // Fallback: if empty, query by codigoUsuario if available
-    if (docs.length === 0 && patient.codigoUsuario) {
+    const patObj: any = patient;
+    if (docs.length === 0 && patObj.codigoUsuario) {
       try {
         const codeSnap = await db.collection("procedimentos")
-          .where("codigoUsuario", "==", patient.codigoUsuario.toString().trim())
+          .where("codigoUsuario", "==", patObj.codigoUsuario.toString().trim())
           .get();
         docs = codeSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
       } catch (e) {
@@ -1997,6 +2025,8 @@ app.post("/api/app/patients/status", express.json(), async (req, res) => {
     await db.runTransaction(async (t) => {
       t.update(patientRef, { 
         statusId: status.toString(), 
+        status: finalStatusName,
+        statusName: finalStatusName,
         updatedAt: admin.firestore.FieldValue.serverTimestamp() 
       });
 
@@ -2588,6 +2618,9 @@ const getSafeContentType = (fileName: string, fileMime?: string): string => {
   if (ext === "ts") return "video/mp2t";
   if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
   if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  if (ext === "heic") return "image/heic";
+  if (ext === "heif") return "image/heif";
   if (ext === "pdf") return "application/pdf";
 
   if (mime && mime !== "application/octet-stream" && mime !== "") {
@@ -2777,20 +2810,21 @@ app.post("/api/app/upload-image", (req, res, next) => {
     console.log("[Upload] originalContentType", originalContentType);
 
     // Size limit check
-    if (fileTypeResolved === "image" && fileSize > 10 * 1024 * 1024) {
-      return res.status(400).json({ error: "Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 10MB para imagens)." });
+    if (fileTypeResolved === "image" && fileSize > 20 * 1024 * 1024) {
+      return res.status(400).json({ error: "Esta imagem é muito grande (máximo 20MB). Escolha um arquivo menor." });
     }
     if (fileTypeResolved === "video" && fileSize > 100 * 1024 * 1024) {
-      return res.status(400).json({ error: "Este vídeo é muito grande. Escolha um vídeo menor para anexar." });
+      return res.status(400).json({ error: "Este vídeo é muito grande (máximo 100MB). Escolha um vídeo menor para anexar." });
     }
-    if (fileTypeResolved === "pdf" && fileSize > 20 * 1024 * 1024) {
-      return res.status(400).json({ error: "Este arquivo é muito grande. Escolha um arquivo menor para anexar (máximo 20MB para PDFs)." });
+    if (fileTypeResolved === "pdf" && fileSize > 50 * 1024 * 1024) {
+      return res.status(400).json({ error: "Este PDF é muito grande (máximo 50MB). Escolha um arquivo menor." });
     }
 
     // 2. Upload to Firebase Storage with organized path
     const fileId = db.collection("files").doc().id;
+    const timestamp = Date.now();
     
-    let destination = `patients/${patientId}/${safeFileName}`;
+    let destination = `patients/${patientId}/${timestamp}-${safeFileName}`;
     if (groupId) {
       if (isEncrypted) {
         destination = `groups/${groupId}/encrypted-files/${fileId}/${safeFileName}.encrypted`;
@@ -2801,56 +2835,91 @@ app.post("/api/app/upload-image", (req, res, next) => {
 
     console.log("[Upload] storagePath", destination);
 
-    const file = bucket.file(destination);
     const contentTypeToSave = isEncrypted ? "application/octet-stream" : safeContentType;
 
-    await file.save(buffer, {
-      metadata: {
-        contentType: contentTypeToSave,
-        metadata: {
-          patientId: patientId,
-          description: description || "",
-          groupId: groupId || "",
-          originalName: rawName,
-          uploadedFrom: "pwa",
-          platform: platform || "other",
-          ...(isEncrypted ? {
-            encrypted: "true",
-            iv: iv,
-            originalContentType: originalContentType
-          } : {})
-        }
-      }
-    });
+    // Resilient bucket upload
+    const projectId = firebaseConfig.projectId || "parabolic-craft-277523";
+    const bucketsToTry = [
+      bucket.name,
+      firebaseConfig.storageBucket,
+      `${projectId}.firebasestorage.app`,
+      `${projectId}.appspot.com`,
+    ].filter((b, i, arr) => b && arr.indexOf(b) === i && b !== "[DEFAULT]");
 
-    // Make public and get URL
-    await file.makePublic();
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${encodeURIComponent(destination)}`;
+    let lastUploadError: any = null;
+    let successfulBucket = "";
+    let fileObj: any = null;
+
+    for (const bName of bucketsToTry) {
+      try {
+        console.log(`[Upload] Attempting to save to bucket: ${bName}`);
+        const currentBucket = getStorage().bucket(bName);
+        const currentFile = currentBucket.file(destination);
+        await currentFile.save(buffer, {
+          metadata: {
+            contentType: contentTypeToSave,
+            metadata: {
+              patientId: patientId,
+              description: description || "",
+              groupId: groupId || "",
+              originalName: rawName,
+              uploadedFrom: "pwa",
+              platform: platform || "other",
+              ...(isEncrypted ? {
+                encrypted: "true",
+                iv: iv,
+                originalContentType: originalContentType
+              } : {})
+            }
+          }
+        });
+        fileObj = currentFile;
+        successfulBucket = bName;
+        break;
+      } catch (err: any) {
+        lastUploadError = err;
+        console.warn(`[Upload] Bucket ${bName} failed:`, err.message);
+      }
+    }
+
+    if (!fileObj) {
+      throw new Error(`Falha ao salvar no armazenamento: ${lastUploadError?.message || "Nenhum bucket disponível"}`);
+    }
+
+    // Attempt to make public (ignore failure if Uniform Bucket-Level Access prevents ACL)
+    try {
+      await fileObj.makePublic();
+    } catch (pubErr) {
+      console.warn("[Upload] makePublic warning:", pubErr);
+    }
+
+    const publicUrl = `https://storage.googleapis.com/${successfulBucket}/${destination}`;
 
     // 3. Save detailed metadata to Firestore (under files collection)
     const fileRef = db.collection("files").doc(fileId);
     const metadata = {
       id: fileId,
       groupId: groupId || "",
-      patientId: patientId, // For backwards compatibility
+      patientId: patientId,
       uploadedBy: authUser.uid,
       uploadedByEmail: authUser.email || "",
       originalName: rawName,
+      originalFileName: rawName,
+      safeFileName: safeFileName,
       contentType: contentTypeToSave,
+      originalContentType: isEncrypted ? originalContentType : safeContentType,
       fileType: fileTypeResolved,
       size: fileSize,
       storagePath: destination,
       downloadURL: publicUrl,
-      
-      // legacy equivalents for maximum compatibility
-      description: description || "Upload Direto",
+      downloadUrl: publicUrl,
+      description: description || rawName || "Arquivo",
       link: publicUrl,
       status: "active",
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-
-      // E2E Encryption-specific metadata (if encrypted)
+      encrypted: isEncrypted,
       ...(isEncrypted ? {
         encryption: {
           algorithm: "AES-GCM",
@@ -2863,7 +2932,16 @@ app.post("/api/app/upload-image", (req, res, next) => {
 
     await fileRef.set(metadata);
 
-    res.json({ success: true, fileId: fileId, link: publicUrl });
+    res.json({
+      success: true,
+      fileId: fileId,
+      link: publicUrl,
+      downloadURL: publicUrl,
+      downloadUrl: publicUrl,
+      fileType: fileTypeResolved,
+      size: fileSize,
+      name: rawName
+    });
   } catch (error) {
     console.error("[Upload] error full", error);
     if (error && typeof error === "object") {

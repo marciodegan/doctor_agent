@@ -319,6 +319,8 @@ export const PersonalDocuments: React.FC = () => {
       const errMsg = err?.message || "";
       if (errMsg.includes("proteger")) {
         setErrorMsg("Não foi possível proteger este arquivo. Tente novamente.");
+      } else if (errMsg) {
+        setErrorMsg(errMsg);
       } else if (isVideo) {
         setErrorMsg("Não foi possível enviar este vídeo. Tente salvar novamente como MP4 ou enviar uma versão menor.");
       } else {

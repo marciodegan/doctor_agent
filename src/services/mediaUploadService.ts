@@ -1,6 +1,5 @@
-import { db, storage } from "../lib/firebase";
-import { collection, doc, setDoc } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { db, auth } from "../lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
 import { features } from "../config/features";
 import { mediaEncryptionService } from "./mediaEncryptionService";
 
@@ -11,7 +10,7 @@ export interface UploadOptions {
   createdBy: string;
   createdByEmail?: string;
   description?: string;
-  groupKey: Uint8Array | null;
+  groupKey?: Uint8Array | null;
   onProgress?: (progress: number) => void;
 }
 
@@ -20,20 +19,55 @@ export const mediaUploadService = {
     const mime = (file.type || "").toLowerCase();
     const name = (file.name || "").toLowerCase();
     const ext = name.split(".").pop() || "";
-    
-    const isImage = mime.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext);
-    const isVideo = mime.startsWith("video/") || ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
+
+    const isImage =
+      mime.startsWith("image/") ||
+      ["jpg", "jpeg", "png", "webp", "heic", "heif", "bmp", "tiff", "svg"].includes(ext);
+    const isVideo =
+      mime.startsWith("video/") ||
+      [
+        "mp4",
+        "mov",
+        "qt",
+        "quicktime",
+        "m4v",
+        "hevc",
+        "webm",
+        "avi",
+        "wmv",
+        "flv",
+        "3gp",
+        "3gpp",
+        "mkv",
+        "ts"
+      ].includes(ext);
     const isPdf = mime === "application/pdf" || ext === "pdf";
+
+    if (!isImage && !isVideo && !isPdf) {
+      return {
+        isValid: false,
+        error: "Formato de arquivo não suportado. Por favor, envie uma foto, vídeo ou PDF."
+      };
+    }
 
     // Standard limits
     if (isVideo && file.size > 100 * 1024 * 1024) {
-      return { isValid: false, error: "Este vídeo é muito grande (máximo de 100MB). Escolha um vídeo menor para anexar." };
+      return {
+        isValid: false,
+        error: "Este vídeo é muito grande (máximo de 100MB). Escolha um vídeo menor para anexar."
+      };
     }
     if (isImage && file.size > 20 * 1024 * 1024) {
-      return { isValid: false, error: "Esta imagem é muito grande (máximo de 20MB). Escolha um arquivo menor." };
+      return {
+        isValid: false,
+        error: "Esta imagem é muito grande (máximo de 20MB). Escolha um arquivo menor."
+      };
     }
     if (isPdf && file.size > 50 * 1024 * 1024) {
-      return { isValid: false, error: "Este PDF é muito grande (máximo de 50MB). Escolha um arquivo menor." };
+      return {
+        isValid: false,
+        error: "Este PDF é muito grande (máximo de 50MB). Escolha um arquivo menor."
+      };
     }
 
     return { isValid: true };
@@ -47,7 +81,7 @@ export const mediaUploadService = {
       createdBy,
       createdByEmail = "",
       description = "",
-      groupKey,
+      groupKey = null,
       onProgress
     } = options;
 
@@ -60,49 +94,31 @@ export const mediaUploadService = {
     const name = (file.name || "").toLowerCase();
     const ext = name.split(".").pop() || "";
 
-    const isImage = mime.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext);
-    const isVideo = mime.startsWith("video/") || ["mp4", "mov", "qt", "quicktime", "m4v", "hevc", "webm", "avi", "wmv", "flv", "3gp", "3gpp", "mkv"].includes(ext);
+    const isVideo =
+      mime.startsWith("video/") ||
+      [
+        "mp4",
+        "mov",
+        "qt",
+        "quicktime",
+        "m4v",
+        "hevc",
+        "webm",
+        "avi",
+        "wmv",
+        "flv",
+        "3gp",
+        "3gpp",
+        "mkv",
+        "ts"
+      ].includes(ext);
     const isPdf = mime === "application/pdf" || ext === "pdf";
+    const fileTypeResolved: "image" | "video" | "pdf" = isVideo ? "video" : isPdf ? "pdf" : "image";
 
-    let fileTypeResolved: "image" | "video" | "pdf" = "image";
-    if (isVideo) {
-      fileTypeResolved = "video";
-    } else if (isPdf) {
-      fileTypeResolved = "pdf";
-    }
-
-    // Determine contentType
-    let originalContentType = mime;
-    if (!originalContentType || originalContentType === "application/octet-stream" || originalContentType === "application/x-utext") {
-      if (ext === "mov" || ext === "qt" || ext === "quicktime") originalContentType = "video/quicktime";
-      else if (ext === "mp4") originalContentType = "video/mp4";
-      else if (ext === "m4v") originalContentType = "video/x-m4v";
-      else if (ext === "hevc") originalContentType = "video/hevc";
-      else if (ext === "webm") originalContentType = "video/webm";
-      else if (ext === "avi") originalContentType = "video/x-msvideo";
-      else if (ext === "wmv") originalContentType = "video/x-ms-wmv";
-      else if (ext === "mkv") originalContentType = "video/x-matroska";
-      else if (ext === "jpg" || ext === "jpeg") originalContentType = "image/jpeg";
-      else if (ext === "png") originalContentType = "image/png";
-      else if (ext === "webp") originalContentType = "image/webp";
-      else if (ext === "heic") originalContentType = "image/heic";
-      else if (ext === "heif") originalContentType = "image/heif";
-      else if (ext === "pdf") originalContentType = "application/pdf";
-      else originalContentType = "application/octet-stream";
-    }
-
-    // Normalize and remove accents/diacritics
-    const safeFileName = file.name
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, "_")
-      .replace(/[^a-zA-Z0-9._-]/g, "");
-      
-    const fileId = doc(collection(db, "files")).id;
-    const timestamp = Date.now();
-
-    // Check central feature toggle
-    const shouldEncrypt = features.mediaEncryptionEnabled && (fileTypeResolved === "image" || fileTypeResolved === "video");
+    // 1. Check central encryption feature toggle
+    const shouldEncrypt =
+      features.mediaEncryptionEnabled &&
+      (fileTypeResolved === "image" || fileTypeResolved === "video");
 
     let fileToUpload: File | Blob = file;
     let isEncrypted = false;
@@ -110,7 +126,9 @@ export const mediaUploadService = {
 
     if (shouldEncrypt) {
       if (!groupKey) {
-        throw new Error("Chave de segurança do grupo indisponível. Para sua segurança, o envio de arquivos não criptografados foi bloqueado.");
+        throw new Error(
+          "Chave de segurança do grupo indisponível. Para sua segurança, o envio de arquivos não criptografados foi bloqueado."
+        );
       }
       try {
         console.log("[mediaUploadService] Encrypting file before upload:", file.name);
@@ -124,93 +142,159 @@ export const mediaUploadService = {
       }
     }
 
-    // 3. Determine target storage path
-    let storagePath = "";
+    // 2. Prepare FormData
+    const safeFileName = file.name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9._-]/g, "");
+
+    const formData = new FormData();
+    formData.append("file", fileToUpload, safeFileName);
+    formData.append("patientId", patientId);
+    formData.append("description", description || file.name || "Arquivo");
+    formData.append("groupId", groupId || "");
+    formData.append(
+      "platform",
+      typeof navigator !== "undefined" && /mobi|android|iphone|ipad/i.test(navigator.userAgent)
+        ? "mobile"
+        : "desktop"
+    );
+
     if (isEncrypted) {
-      storagePath = `groups/${groupId}/encrypted-files/${fileId}/${safeFileName}.encrypted`;
-    } else {
-      storagePath = `groups/${groupId}/patients/${patientId}/files/${timestamp}-${safeFileName}`;
+      formData.append("isEncrypted", "true");
+      formData.append("iv", ivBase64 || "");
+      formData.append("originalContentType", mime);
     }
 
-    console.log("[mediaUploadService] Starting direct Firebase Storage upload...");
-    console.log("- file.name:", file.name);
-    console.log("- storage path:", storagePath);
+    // 3. Resolve auth token
+    let authToken = "";
+    try {
+      authToken = (await auth.currentUser?.getIdToken()) || "";
+    } catch (e) {}
 
-    // Initiate upload
-    const storageRef = ref(storage, storagePath);
-    const metadata = {
-      contentType: isEncrypted ? "application/octet-stream" : originalContentType,
-      customMetadata: {
-        originalName: file.name,
-        contentType: originalContentType,
-      },
-    };
+    const isDemoMode =
+      groupId === "demo-group-hospital" ||
+      (typeof localStorage !== "undefined" &&
+        (localStorage.getItem("activeGroupId") === "demo-group-hospital" ||
+          localStorage.getItem("doctor_pro_auth_tokens")?.includes("demo")));
 
-    const uploadTask = uploadBytesResumable(storageRef, fileToUpload, metadata);
+    if (!authToken && isDemoMode) {
+      authToken = "demo-token";
+    }
 
-    const downloadURL = await new Promise<string>((resolve, reject) => {
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          if (onProgress) onProgress(progress);
-        },
-        (error) => {
-          reject(error);
-        },
-        async () => {
+    // 4. Send upload request via XMLHttpRequest for real progress
+    console.log("[mediaUploadService] Uploading file to /api/app/upload-image...");
+    console.log("- file:", file.name, `(${file.size} bytes)`);
+    console.log("- patientId:", patientId, "groupId:", groupId);
+
+    const result = await new Promise<{ fileId: string; downloadURL: string }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/app/upload-image");
+      xhr.withCredentials = true;
+
+      if (groupId) {
+        xhr.setRequestHeader("x-group-id", groupId);
+      }
+      if (authToken) {
+        xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+      }
+      if (isDemoMode) {
+        xhr.setRequestHeader("x-demo-mode", "true");
+      }
+
+      if (xhr.upload) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && onProgress) {
+            const percent = Math.min(99, Math.round((e.loaded / e.total) * 100));
+            onProgress(percent);
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
           try {
-            const url = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(url);
+            const data = JSON.parse(xhr.responseText);
+            if (onProgress) onProgress(100);
+            const downloadURL = data.downloadURL || data.downloadUrl || data.link;
+            console.log("[mediaUploadService] Upload successful! URL:", downloadURL);
+            resolve({
+              fileId: data.fileId,
+              downloadURL: downloadURL
+            });
           } catch (err) {
-            reject(err);
+            reject(new Error("Resposta inválida do servidor ao processar o arquivo."));
+          }
+        } else {
+          try {
+            const errData = JSON.parse(xhr.responseText);
+            const msg =
+              errData.error || errData.message || `Erro no envio do arquivo (HTTP ${xhr.status})`;
+            reject(new Error(msg));
+          } catch (e) {
+            reject(
+              new Error(
+                `Erro no envio do arquivo (HTTP ${xhr.status}): ${xhr.statusText || "Falha no servidor"}`
+              )
+            );
           }
         }
-      );
+      };
+
+      xhr.onerror = () => {
+        reject(new Error("Falha na conexão durante o envio do arquivo. Verifique sua conexão e tente novamente."));
+      };
+
+      xhr.onabort = () => {
+        reject(new Error("Envio do arquivo cancelado."));
+      };
+
+      xhr.send(formData);
     });
 
-    console.log("[mediaUploadService] Upload successful. downloadURL:", downloadURL);
+    // 5. Optimistically update local Firestore cache if client is connected
+    try {
+      if (db && result.fileId) {
+        const fileRef = doc(db, "files", result.fileId);
+        setDoc(
+          fileRef,
+          {
+            id: result.fileId,
+            groupId: groupId,
+            patientId: patientId,
+            uploadedBy: createdBy,
+            uploadedByEmail: createdByEmail,
+            originalName: file.name,
+            safeFileName: safeFileName,
+            contentType: isEncrypted ? "application/octet-stream" : mime,
+            fileType: fileTypeResolved,
+            size: file.size,
+            downloadURL: result.downloadURL,
+            downloadUrl: result.downloadURL,
+            description: description || file.name || "Arquivo",
+            link: result.downloadURL,
+            status: "active",
+            timestamp: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            encrypted: isEncrypted,
+            ...(isEncrypted
+              ? {
+                  encryption: {
+                    algorithm: "AES-GCM",
+                    iv: ivBase64,
+                    originalContentType: mime,
+                    encrypted: true
+                  }
+                }
+              : {})
+          },
+          { merge: true }
+        ).catch(() => {});
+      }
+    } catch (e) {}
 
-    // Save complete metadata in Firestore
-    const fileRef = doc(db, "files", fileId);
-    await setDoc(fileRef, {
-      id: fileId,
-      groupId: groupId,
-      patientId: patientId,
-      uploadedBy: createdBy,
-      uploadedByEmail: createdByEmail,
-      createdBy: createdBy,
-      originalName: file.name,
-      originalFileName: file.name,
-      safeFileName: safeFileName,
-      contentType: isEncrypted ? "application/octet-stream" : originalContentType,
-      originalContentType: originalContentType,
-      fileType: fileTypeResolved,
-      size: file.size,
-      storagePath: storagePath,
-      downloadURL: downloadURL,
-      downloadUrl: downloadURL,
-      description: description || file.name || "Arquivo",
-      link: downloadURL,
-      status: "active",
-      timestamp: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      encrypted: isEncrypted,
-      encryptionVersion: isEncrypted ? 1 : null,
-      keyVersion: isEncrypted ? 1 : null,
-      algorithm: isEncrypted ? "AES-GCM" : null,
-      iv: isEncrypted ? ivBase64 : null,
-      ...(isEncrypted ? {
-        encryption: {
-          algorithm: "AES-GCM",
-          iv: ivBase64,
-          originalContentType: originalContentType,
-          encrypted: true
-        }
-      } : {})
-    });
-
-    return { fileId, downloadURL };
+    return result;
   }
 };
