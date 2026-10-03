@@ -16,11 +16,13 @@ import {
   Trash2,
   MessageCircle,
   ExternalLink,
-  ShoppingCart
+  ShoppingCart,
+  DollarSign
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GroupConfigs } from "./GroupConfigs";
 import { ShoppingListConfig } from "./ShoppingListConfig";
+import { AdminFinancialView } from "./AdminFinancialView";
 
 export function TeamManagement() {
   const { 
@@ -257,7 +259,7 @@ export function TeamManagement() {
           <div className="flex-1 overflow-y-visible md:overflow-y-auto p-6 sm:p-8 space-y-10 custom-scrollbar pb-[calc(120px+env(safe-area-inset-bottom))] md:pb-8">
             {managementMode === "dashboard" ? (
               <div className="space-y-8">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
                     <button 
                       onClick={() => setManagementMode("members")}
                       className="flex flex-col items-center justify-center gap-4 p-8 bg-blue-50/50 border-2 border-blue-100 rounded-[40px] hover:bg-blue-600 hover:text-white hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-200 transition-all group relative overflow-hidden"
@@ -294,6 +296,22 @@ export function TeamManagement() {
                       </div>
                     </button>
 
+                    <button 
+                      onClick={() => setManagementMode("administration")}
+                      className="flex flex-col items-center justify-center gap-4 p-8 bg-purple-50/50 border-2 border-purple-100 rounded-[40px] hover:bg-purple-600 hover:text-white hover:border-purple-500 hover:shadow-2xl hover:shadow-purple-200 transition-all group relative overflow-hidden sm:col-span-2"
+                    >
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                         <DollarSign size={80} />
+                      </div>
+                      <div className="p-4 bg-white text-purple-600 rounded-[24px] shadow-lg group-hover:scale-110 transition-all">
+                        <DollarSign size={32} />
+                      </div>
+                      <div className="text-center">
+                        <h4 className="text-[15px] font-black uppercase tracking-tight mb-1">Administração</h4>
+                        <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:text-purple-50">Financeiro, Fechamentos & Importações</p>
+                      </div>
+                    </button>
+
                     {activeGroup.groupType === 'personal' && (
                       <button 
                         onClick={() => setManagementMode("shopping_config")}
@@ -323,6 +341,8 @@ export function TeamManagement() {
                     </div>
                  </div>
               </div>
+            ) : managementMode === "administration" ? (
+              <AdminFinancialView onBack={() => setManagementMode("dashboard")} />
             ) : managementMode === "configs" ? (
               <div className="space-y-6">
                 <div className="flex items-center gap-4 mb-4">

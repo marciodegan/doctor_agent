@@ -80,8 +80,8 @@ interface GroupContextType {
   getGroupCryptoKey: (groupId: string) => Promise<Uint8Array | null>;
   isManagementOpen: boolean;
   setIsManagementOpen: (open: boolean) => void;
-  managementMode: "dashboard" | "members" | "configs" | "shopping_config";
-  setManagementMode: (mode: "dashboard" | "members" | "configs" | "shopping_config") => void;
+  managementMode: "dashboard" | "members" | "configs" | "shopping_config" | "administration";
+  setManagementMode: (mode: "dashboard" | "members" | "configs" | "shopping_config" | "administration") => void;
   configsActiveTab: string | null;
   setConfigsActiveTab: (tab: string | null) => void;
 }
@@ -106,7 +106,7 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
   const [userWhatsapp, setUserWhatsapp] = useState("");
   const [imageAnalysisPrompt, setImageAnalysisPrompt] = useState("");
   const [isManagementOpen, setIsManagementOpen] = useState(false);
-  const [managementMode, setManagementMode] = useState<"dashboard" | "members" | "configs" | "shopping_config">("dashboard");
+  const [managementMode, setManagementMode] = useState<"dashboard" | "members" | "configs" | "shopping_config" | "administration">("dashboard");
   const [configsActiveTab, setConfigsActiveTab] = useState<string | null>(null);
   const [firestoreLastGroupId, setFirestoreLastGroupId] = useState<string | null>(null);
   const [groupDocs, setGroupDocs] = useState<Record<string, any>>({});

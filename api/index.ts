@@ -10,6 +10,8 @@ import Stripe from "stripe";
 import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import crypto from "crypto";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
@@ -4421,6 +4423,446 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
       error: err?.message || "Internal Server Error",
       code: err?.code || "INTERNAL_ERROR"
     });
+  }
+});
+
+// --- Financial Management Endpoints ---
+
+const uploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+// 1. Closings
+app.get("/api/app/financial/closings", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("financial_closings").where("teamId", "==", groupId).get();
+    const closings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json(closings);
+  } catch (err: any) {
+    handleApiError(res, err, "Get Financial Closings");
+  }
+});
+
+app.post("/api/app/financial/closings", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupOwner(req, groupId);
+    const { nome, competencia, mes, ano, observacao } = req.body;
+    if (!nome) return res.status(400).json({ error: "Nome do fechamento é obrigatório" });
+
+    const docRef = db.collection("financial_closings").doc();
+    const newClosing = {
+      id: docRef.id,
+      teamId: groupId,
+      nome,
+      competencia: competencia || nome,
+      mes: mes ? Number(mes) : new Date().getMonth() + 1,
+      ano: ano ? Number(ano) : new Date().getFullYear(),
+      status: "ABERTO",
+      observacao: observacao || "",
+      createdBy: user.uid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    await docRef.set(newClosing);
+    res.json(newClosing);
+  } catch (err: any) {
+    handleApiError(res, err, "Create Financial Closing");
+  }
+});
+
+app.put("/api/app/financial/closings/:id", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupOwner(req, groupId);
+    const { id } = req.params;
+    const { status, observacao } = req.body;
+    const docRef = db.collection("financial_closings").doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Fechamento não encontrado" });
+
+    const updateData: any = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+    if (status) updateData.status = status;
+    if (observacao !== undefined) updateData.observacao = observacao;
+    if (status === "FECHADO") updateData.dataFechamento = new Date().toISOString();
+
+    await docRef.update(updateData);
+    res.json({ success: true, id, ...updateData });
+  } catch (err: any) {
+    handleApiError(res, err, "Update Financial Closing");
+  }
+});
+
+// 2. Transaction Types
+app.get("/api/app/financial/types", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("financial_transaction_types").where("teamId", "==", groupId).get();
+    let types = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (types.length === 0) {
+      const defaultTypes = [
+        "Integralização de Cota Parte", "Capitalização Cota-Parte", "Disponibilidade Médica - UTI",
+        "Disponibilidade - Reumatologia", "Disponibilidade Ginecologia - Centro Obstétrico",
+        "Sobreavisos", "Mensalidade PLAC", "Contribuição de Centro de Estudos",
+        "Glosas - Clínica Cooperada - 11%", "Desconto Atendimentos Realizados - Recurso Próprio",
+        "Consumo Clube do Médico - Restaurante", "Remuneração Bonificação Parto Normal"
+      ];
+      const batch = db.batch();
+      types = defaultTypes.map((tName, idx) => {
+        const ref = db.collection("financial_transaction_types").doc();
+        const obj = {
+          id: ref.id,
+          teamId: groupId,
+          nome: tName,
+          categoria: "Geral",
+          naturezaPadrao: tName.includes("Integralização") || tName.includes("Contribuição") || tName.includes("Glosas") || tName.includes("Desconto") || tName.includes("Consumo") || tName.includes("Mensalidade") ? "DEBITO" : "CREDITO",
+          ativo: true,
+          ordem: idx + 1,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+        batch.set(ref, obj);
+        return obj;
+      });
+      await batch.commit();
+    }
+    res.json(types);
+  } catch (err: any) {
+    handleApiError(res, err, "Get Financial Types");
+  }
+});
+
+app.post("/api/app/financial/types", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupOwner(req, groupId);
+    const { nome, categoria, naturezaPadrao } = req.body;
+    if (!nome) return res.status(400).json({ error: "Nome do tipo é obrigatório" });
+
+    const docRef = db.collection("financial_transaction_types").doc();
+    const newType = {
+      id: docRef.id,
+      teamId: groupId,
+      nome,
+      categoria: categoria || "Geral",
+      naturezaPadrao: naturezaPadrao || "CREDITO",
+      ativo: true,
+      ordem: 100,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    await docRef.set(newType);
+    res.json(newType);
+  } catch (err: any) {
+    handleApiError(res, err, "Create Financial Type");
+  }
+});
+
+// 3. Transactions
+app.get("/api/app/financial/transactions", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupMember(req, groupId);
+    let isAdminUser = false;
+    try {
+      await requireGroupOwner(req, groupId);
+      isAdminUser = true;
+    } catch (e) {
+      isAdminUser = false;
+    }
+
+    let query: admin.firestore.Query = db.collection("financial_transactions").where("teamId", "==", groupId);
+    const fechamentoId = req.query.fechamentoId?.toString();
+    const doctorId = req.query.doctorId?.toString();
+
+    if (fechamentoId) query = query.where("fechamentoId", "==", fechamentoId);
+    if (doctorId && isAdminUser) query = query.where("doctorId", "==", doctorId);
+
+    const snap = await query.get();
+    let transactions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (!isAdminUser) {
+      transactions = transactions.filter((t: any) => t.doctorId === user.uid || (t.doctorName && user.email && t.doctorName.toLowerCase().includes(user.email.split('@')[0].toLowerCase())));
+    }
+
+    res.json(transactions);
+  } catch (err: any) {
+    handleApiError(res, err, "Get Financial Transactions");
+  }
+});
+
+app.post("/api/app/financial/transactions", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupOwner(req, groupId);
+    const { doctorName, doctorId, tipoLancamentoId, tipoLancamentoNome, dataLancamento, valor, natureza, observacao, fechamentoId, fechamentoNome } = req.body;
+    if (!doctorName || valor === undefined || !fechamentoId) {
+      return res.status(400).json({ error: "DoctorName, valor e fechamentoId são obrigatórios" });
+    }
+
+    const numVal = Number(valor);
+    const nat = natureza || (numVal >= 0 ? "CREDITO" : "DEBITO");
+
+    const docRef = db.collection("financial_transactions").doc();
+    const rawHash = `${groupId}_${doctorId || ''}_${doctorName}_${tipoLancamentoNome || ''}_${dataLancamento || ''}_${numVal}_${fechamentoId}`;
+    const hash = crypto.createHash('md5').update(rawHash).digest('hex');
+
+    const newTx = {
+      id: docRef.id,
+      teamId: groupId,
+      doctorId: doctorId || "",
+      doctorName,
+      tipoLancamentoId: tipoLancamentoId || "",
+      tipoLancamentoNome: tipoLancamentoNome || "Outros",
+      dataLancamento: dataLancamento || new Date().toISOString().split('T')[0],
+      valor: numVal,
+      natureza: nat,
+      observacao: observacao || "",
+      fechamentoId,
+      fechamentoNome: fechamentoNome || "",
+      origem: "MANUAL",
+      criadoManualmente: true,
+      hashIdempotencia: hash,
+      createdBy: user.uid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    await docRef.set(newTx);
+    res.json(newTx);
+  } catch (err: any) {
+    handleApiError(res, err, "Create Financial Transaction");
+  }
+});
+
+// 4. Imports & PDF Parser via Gemini AI
+app.get("/api/app/financial/imports", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("financial_imports").where("teamId", "==", groupId).get();
+    const imports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json(imports);
+  } catch (err: any) {
+    handleApiError(res, err, "Get Financial Imports");
+  }
+});
+
+app.post("/api/app/financial/import-pdf", uploadMemory.single("file"), async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupOwner(req, groupId);
+    const file = req.file;
+    const fechamentoId = req.body.fechamentoId;
+    const fechamentoNome = req.body.fechamentoNome;
+
+    if (!file) return res.status(400).json({ error: "Arquivo PDF não enviado" });
+    if (!fechamentoId) return res.status(400).json({ error: "Fechamento ID é obrigatório" });
+
+    const aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const prompt = `Analise este documento financeiro em PDF (Ocorrências Financeiras). 
+Extraia todas as ocorrências financeiras agrupadas por médico/entidade (ex: CAMILA RIBEIRO DUTRA, LUAN JUNIOR VIGNATTI, HEART CIRURGIA CARDIOVASCULAR, etc.).
+Para cada ocorrência, extraia:
+- doctorName (string: Nome completo do médico ou entidade)
+- tipoLancamentoNome (string: Tipo de lançamento, ex: Integralização de Cota Parte, Disponibilidade, Sobreavisos, etc.)
+- dataLancamento (string: Data no formato YYYY-MM-DD)
+- valor (number: Valor numérico positivo ou negativo, ex: -7500.00 ou 12769.67)
+- observacao (string: Observações adicionais se houver)
+
+Retorne estritamente um objeto JSON válido com o seguinte formato:
+{
+  "doctors": [
+    {
+      "doctorName": "NOME DO MEDICO",
+      "transactions": [
+        {
+          "tipoLancamentoNome": "...",
+          "dataLancamento": "YYYY-MM-DD",
+          "valor": 0.00,
+          "observacao": "..."
+        }
+      ]
+    }
+  ]
+}`;
+
+    const response = await aiClient.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: file.mimetype || "application/pdf",
+                data: file.buffer.toString("base64")
+              }
+            },
+            { text: prompt }
+          ]
+        }
+      ]
+    });
+
+    const responseText = response.text || "";
+    let jsonStr = responseText.trim();
+    if (jsonStr.startsWith("```json")) {
+      jsonStr = jsonStr.replace(/^```json/, "").replace(/```$/, "").trim();
+    } else if (jsonStr.startsWith("```")) {
+      jsonStr = jsonStr.replace(/^```/, "").replace(/```$/, "").trim();
+    }
+
+    let parsedData: any;
+    try {
+      parsedData = JSON.parse(jsonStr);
+    } catch (parseErr) {
+      console.error("Failed to parse Gemini JSON response:", responseText);
+      throw new Error("A IA não conseguiu estruturar corretamente os dados do PDF. Tente novamente.");
+    }
+
+    const existingSnap = await db.collection("financial_transactions")
+      .where("teamId", "==", groupId)
+      .where("fechamentoId", "==", fechamentoId)
+      .get();
+    const existingHashes = new Set(existingSnap.docs.map(d => d.data().hashIdempotencia));
+
+    const transactionsToPreview: any[] = [];
+    let newCount = 0;
+    let existingCount = 0;
+
+    if (parsedData.doctors && Array.isArray(parsedData.doctors)) {
+      for (const docGroup of parsedData.doctors) {
+        const doctorName = docGroup.doctorName || "Desconhecido";
+        if (docGroup.transactions && Array.isArray(docGroup.transactions)) {
+          for (const tx of docGroup.transactions) {
+            const numVal = Number(tx.valor || 0);
+            const natureza = numVal >= 0 ? "CREDITO" : "DEBITO";
+            const dataLancamento = tx.dataLancamento || new Date().toISOString().split('T')[0];
+            const tipoLancamentoNome = tx.tipoLancamentoNome || "Outros";
+
+            const rawHash = `${groupId}_${doctorName}_${tipoLancamentoNome}_${dataLancamento}_${numVal}_${fechamentoId}`;
+            const hash = crypto.createHash('md5').update(rawHash).digest('hex');
+
+            const isDuplicate = existingHashes.has(hash);
+            if (isDuplicate) existingCount++;
+            else newCount++;
+
+            transactionsToPreview.push({
+              doctorName,
+              tipoLancamentoNome,
+              dataLancamento,
+              valor: numVal,
+              natureza,
+              observacao: tx.observacao || "",
+              fechamentoId,
+              fechamentoNome,
+              origem: "PDF",
+              origemArquivo: file.originalname,
+              hashIdempotencia: hash,
+              isDuplicate
+            });
+          }
+        }
+      }
+    }
+
+    res.json({
+      fileName: file.originalname,
+      fechamentoId,
+      fechamentoNome,
+      totalTransactions: transactionsToPreview.length,
+      newCount,
+      existingCount,
+      transactions: transactionsToPreview
+    });
+  } catch (err: any) {
+    handleApiError(res, err, "Import PDF Financial");
+  }
+});
+
+app.post("/api/app/financial/import-pdf/confirm", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupOwner(req, groupId);
+    const { fechamentoId, fechamentoNome, nomeArquivo, transactions } = req.body;
+    if (!transactions || !Array.isArray(transactions) || !fechamentoId) {
+      return res.status(400).json({ error: "Transactions e fechamentoId são obrigatórios" });
+    }
+
+    const batch = db.batch();
+    let savedNew = 0;
+    let skippedExisting = 0;
+    let totalCreditos = 0;
+    let totalDebitos = 0;
+
+    for (const tx of transactions) {
+      const rawHash = tx.hashIdempotencia || crypto.createHash('md5').update(`${groupId}_${tx.doctorName}_${tx.tipoLancamentoNome}_${tx.dataLancamento}_${tx.valor}_${fechamentoId}`).digest('hex');
+      
+      const checkSnap = await db.collection("financial_transactions")
+        .where("teamId", "==", groupId)
+        .where("hashIdempotencia", "==", rawHash)
+        .get();
+
+      if (!checkSnap.empty) {
+        skippedExisting++;
+        continue;
+      }
+
+      const docRef = db.collection("financial_transactions").doc();
+      const txObj = {
+        id: docRef.id,
+        teamId: groupId,
+        doctorId: "",
+        doctorName: tx.doctorName,
+        tipoLancamentoId: "",
+        tipoLancamentoNome: tx.tipoLancamentoNome,
+        dataLancamento: tx.dataLancamento,
+        valor: tx.valor,
+        natureza: tx.valor >= 0 ? "CREDITO" : "DEBITO",
+        observacao: tx.observacao || "",
+        fechamentoId,
+        fechamentoNome: fechamentoNome || "",
+        origem: "PDF",
+        origemArquivo: nomeArquivo || "documento.pdf",
+        hashIdempotencia: rawHash,
+        createdBy: user.uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      batch.set(docRef, txObj);
+      savedNew++;
+
+      if (tx.valor >= 0) totalCreditos += tx.valor;
+      else totalDebitos += Math.abs(tx.valor);
+    }
+
+    const importRef = db.collection("financial_imports").doc();
+    const importRecord = {
+      id: importRef.id,
+      teamId: groupId,
+      tipoArquivo: "PDF",
+      nomeArquivo: nomeArquivo || "documento.pdf",
+      fechamentoId,
+      fechamentoNome: fechamentoNome || "",
+      quantidadeLancamentos: savedNew,
+      valorTotalCreditos: totalCreditos,
+      valorTotalDebitos: totalDebitos,
+      valorTotal: totalCreditos - totalDebitos,
+      status: "IMPORTADO",
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    batch.set(importRef, importRecord);
+
+    await batch.commit();
+    res.json({ success: true, savedNew, skippedExisting, importId: importRef.id });
+  } catch (err: any) {
+    handleApiError(res, err, "Confirm PDF Import");
   }
 });
 

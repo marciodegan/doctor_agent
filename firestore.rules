@@ -259,5 +259,29 @@ service cloud.firestore {
         (existing().pacienteId != null && canAccessPatient(existing().pacienteId))
       );
     }
+
+    match /financial_closings/{closingId} {
+      allow read: if isMember(resource.data.teamId || resource.data.groupId);
+      allow write: if isOwner(resource.data.teamId || resource.data.groupId || incoming().teamId || incoming().groupId);
+    }
+
+    match /financial_transaction_types/{typeId} {
+      allow read: if isMember(resource.data.teamId || resource.data.groupId);
+      allow write: if isOwner(resource.data.teamId || resource.data.groupId || incoming().teamId || incoming().groupId);
+    }
+
+    match /financial_imports/{importId} {
+      allow read: if isMember(resource.data.teamId || resource.data.groupId);
+      allow write: if isOwner(resource.data.teamId || resource.data.groupId || incoming().teamId || incoming().groupId);
+    }
+
+    match /financial_transactions/{transactionId} {
+      allow read: if isMember(resource.data.teamId || resource.data.groupId) && (
+        isOwner(resource.data.teamId || resource.data.groupId) ||
+        resource.data.doctorId == request.auth.uid ||
+        resource.data.createdBy == request.auth.uid
+      );
+      allow write: if isOwner(incoming().teamId || incoming().groupId);
+    }
   }
 }
