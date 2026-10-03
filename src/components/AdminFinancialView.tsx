@@ -89,6 +89,24 @@ export function AdminFinancialView({ onBack }: AdminFinancialViewProps) {
       const res = await apiFetch("/api/app/financial/closings");
       if (res.ok) {
         const data = await res.json();
+        if (data.length === 0) {
+          // Auto-create default closing SETEMBRO-26
+          const createRes = await apiFetch("/api/app/financial/closings", {
+            method: "POST",
+            body: JSON.stringify({
+              nome: "SETEMBRO-26",
+              competencia: "SETEMBRO-26",
+              mes: 9,
+              ano: 2026
+            })
+          });
+          if (createRes.ok) {
+            const created = await createRes.json();
+            setClosings([created]);
+            setSelectedClosingId(created.id);
+            return;
+          }
+        }
         setClosings(data);
         if (data.length > 0 && !selectedClosingId) {
           // Select open or latest closing by default
@@ -647,12 +665,22 @@ export function AdminFinancialView({ onBack }: AdminFinancialViewProps) {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">1. Selecione o Fechamento de Destino:</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">1. Selecione o Fechamento de Destino:</label>
+                  <button
+                    onClick={() => setActiveTab("fechamentos")}
+                    className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+                  >
+                    <Plus size={14} />
+                    <span>Cadastrar Novo Fechamento</span>
+                  </button>
+                </div>
                 <select
                   value={selectedClosingId}
                   onChange={(e) => setSelectedClosingId(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-2xl text-xs font-bold text-gray-900 outline-none"
                 >
+                  {closings.length === 0 && <option value="">Nenhum fechamento cadastrado. Cadastre na aba Fechamentos.</option>}
                   {closings.map(c => (
                     <option key={c.id} value={c.id}>{c.nome} ({c.status})</option>
                   ))}
