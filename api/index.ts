@@ -4693,7 +4693,7 @@ Retorne estritamente um objeto JSON válido com o seguinte formato:
 }`;
 
     const response = await aiClient.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: [
         {
           role: "user",
