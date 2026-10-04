@@ -1973,6 +1973,43 @@ app.delete("/api/app/financial/imports/:importId", async (req, res) => {
   }
 });
 
+// DELETE /clear-all: Clear all financial data for the team/group
+app.delete("/api/app/financial/clear-all", async (req, res) => {
+  const groupId = getGroupId(req);
+  try {
+    const collections = [
+      "financial_closings",
+      "financial_production",
+      "financial_glosas",
+      "financial_taxes",
+      "financial_adjustments",
+      "financial_transactions",
+      "financial_imports",
+      "financial_audit_logs",
+      "transaction_types"
+    ];
+
+    const batch = db.batch();
+    let count = 0;
+
+    for (const colName of collections) {
+      const snap = await db.collection(colName).where("teamId", "==", groupId).get();
+      snap.docs.forEach(d => {
+        batch.delete(d.ref);
+        count++;
+      });
+    }
+
+    if (count > 0) {
+      await batch.commit();
+    }
+
+    res.json({ success: true, message: `Todos os dados financeiros foram limpos com sucesso (${count} registros apagados).` });
+  } catch (error: any) {
+    handleApiError(res, error, "Clear All Financial Data");
+  }
+});
+
 app.post("/api/app/financial/import", async (req, res) => {
   const groupId = getGroupId(req);
   const { closingId, batchNumber } = req.body;

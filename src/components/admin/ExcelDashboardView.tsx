@@ -175,70 +175,53 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
     .filter(d => d.isTeamMember)
     .reduce((acc, d) => acc + (Number(d.teamSharePercent) || 0), 0);
 
-  // Excel master dataset linked dynamically with imported closing details
+  // Excel master dataset linked dynamically with imported closing details (zero fallback if no closing)
+  const hasClosing = Boolean(details?.closing);
   const excelData = {
-    monthKey: details?.closing?.monthKey || "SETEMBRO-26",
+    monthKey: details?.closing?.monthKey || (closings.length > 0 ? closings[0].monthKey : "NENHUM FECHAMENTO"),
     totals: {
-      entradasGerais: details?.closing?.processedValue || 266118.14,
-      saidasOperacionais: details?.closing?.otherDebits || 4787.49,
-      outrasSaidas: details?.closing?.taxValue || 29527.92,
-      totalSaidas: (details?.closing?.otherDebits || 0) + (details?.closing?.taxValue || 0) || 34315.41,
-      totalFaturado: details?.closing?.informedValue || 277794.83,
-      totalRecebimentos: details?.closing?.releasedValue || 318078.98,
-      totalDistribuicao: details?.closing?.netValue || 270446.21,
-      totalReservadoImpostos: details?.closing?.taxValue || 46558.41,
-      saldoFinal: 1074.36
+      entradasGerais: details?.closing?.processedValue || 0,
+      saidasOperacionais: details?.closing?.otherDebits || 0,
+      outrasSaidas: details?.closing?.taxValue || 0,
+      totalSaidas: (details?.closing?.otherDebits || 0) + (details?.closing?.taxValue || 0),
+      totalFaturado: details?.closing?.informedValue || 0,
+      totalRecebimentos: details?.closing?.releasedValue || 0,
+      totalDistribuicao: details?.closing?.netValue || 0,
+      totalReservadoImpostos: details?.closing?.taxValue || 0,
+      saldoFinal: 0
     },
     // Entradas por Fonte
     fontes: {
       azambuja: {
         titulo: "AZAMBUJA (Exclusivo da Equipe)",
-        equipePlantao: 57420.94,
-        liquidoPlantao: 46782.71,
-        particular: 12600.00,
-        liquidoParticular: 10265.63,
-        total: 70020.94,
-        liquidoTotal: 57048.34,
-        rateio: [
-          { medico: "ROCHELE LORENZI POL", valor: 1890.27 },
-          { medico: "THAIS ISABEL LUMIKOSKI", valor: 1890.27 },
-          { medico: "LUIS BONGIOLO MATTOS", valor: 1890.27 },
-          { medico: "KATHIZE LIRA", valor: 798.54 }
-        ]
+        equipePlantao: 0,
+        liquidoPlantao: 0,
+        particular: 0,
+        liquidoParticular: 0,
+        total: 0,
+        liquidoTotal: 0,
+        rateio: []
       },
       marieta: {
         titulo: "MARIETA (Exclusivo da Equipe)",
-        total: 81042.09,
-        liquidoTotal: 67645.83,
-        rateio: [
-          { medico: "ROCHELE LORENZI POL", valor: 19617.29 },
-          { medico: "THAIS ISABEL LUMIKOSKI", valor: 19617.29 },
-          { medico: "LUIS BONGIOLO MATTOS", valor: 19617.29 },
-          { medico: "KATHIZE LIRA", valor: 8793.96 }
-        ]
+        total: 0,
+        liquidoTotal: 0,
+        rateio: []
       },
       unimed: {
         titulo: "UNIMED LITORAL (Individual por Prestador)",
-        total: details?.closing?.informedValue || 277794.83,
-        liquidoTotal: details?.closing?.netValue || 227477.88,
+        total: details?.closing?.informedValue || 0,
+        liquidoTotal: details?.closing?.netValue || 0,
         rateio: details?.doctorsSummary && details.doctorsSummary.length > 0
           ? details.doctorsSummary.map((d: any) => ({ medico: d.doctorName, valor: d.netProduction || d.productionTotal || 0 }))
-          : [
-              { medico: "ROCHELE LORENZI POL", valor: 27095.00 },
-              { medico: "THAIS ISABEL LUMIKOSKI", valor: 7706.25 },
-              { medico: "TAMARA QUINTINO REGIS", valor: 21101.25 },
-              { medico: "LUAN JUNIOR VIGNATTI", valor: 37715.27 },
-              { medico: "THAYNARA MAESTRI VIGNATTI", valor: 82700.87 },
-              { medico: "CAMILA RIBEIRO DUTRA", valor: 18924.06 },
-              { medico: "MARIA EDUARDA CASA SOUZA MACHADO", valor: 35174.57 }
-            ]
+          : []
       },
       consultorio: {
         titulo: "CONSULTÓRIO PARTICULAR & OUTROS (Exclusivo da Equipe)",
-        dinheiro: 400.00,
-        cartao: 1200.00,
-        unimedLuis: 8406.00,
-        totalGeral: 10006.00
+        dinheiro: 0,
+        cartao: 0,
+        unimedLuis: 0,
+        totalGeral: 0
       }
     },
     // Consolidado por Médico
@@ -260,136 +243,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
             detalhesSaidas: [`Glosas: R$ ${(d.glosaTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`]
           };
         })
-      : [
-      // 1. Membros da Equipe (Recebem rateio institucional e dividem custos fixos)
-      { 
-        nome: "ROCHELE LORENZI POL", 
-        key: "rochele",
-        isTeamMember: true,
-        percent: "29%", 
-        producao: 27095.00, 
-        entradas: 5894.16, 
-        saidas: 601.09, 
-        liquidoCalculado: 44988.48, 
-        divisaoLucros: 1442.69, 
-        finalGeral: 46431.17,
-        detalhesEntradas: ["Plantão UTI: R$ 1.966,87", "Produção HU: R$ 1.439,16", "Pareceres HU: R$ 135,00", "Sobreavisos: R$ 4.320,00"],
-        detalhesSaidas: ["Glosa Clínica 11%: R$ 10,00", "Centro de Estudos: R$ 170,00"]
-      },
-      { 
-        nome: "THAIS ISABEL LUMIKOSKI", 
-        key: "thais",
-        isTeamMember: true,
-        percent: "29%", 
-        producao: 7706.25, 
-        entradas: 7200.00, 
-        saidas: 8024.66, 
-        liquidoCalculado: 44000.00, 
-        divisaoLucros: 1465.75, 
-        finalGeral: 45465.75,
-        detalhesEntradas: ["Sobreavisos: R$ 7.200,00"],
-        detalhesSaidas: ["Integralização Cota Parte: R$ 7.500,00", "Centro de Estudos: R$ 170,00", "Glosas Unimed: R$ 6,00"]
-      },
-      { 
-        nome: "LUIS BONGIOLO MATTOS", 
-        key: "luis",
-        isTeamMember: true,
-        percent: "29%", 
-        producao: 0.00, 
-        entradas: 46461.17, 
-        saidas: 0.00, 
-        liquidoCalculado: 44000.00, 
-        divisaoLucros: 16277.74, 
-        finalGeral: 60277.74,
-        detalhesEntradas: ["Repasses Azambuja + Marieta", "Participação Cirurgias"],
-        detalhesSaidas: ["Sem retenção individual"]
-      },
-      { 
-        nome: "KATHIZE LIRA", 
-        key: "kathize",
-        isTeamMember: true,
-        percent: "13%", 
-        producao: 0.00, 
-        entradas: 12831.53, 
-        saidas: 0.00, 
-        liquidoCalculado: 12831.53, 
-        divisaoLucros: 0.00, 
-        finalGeral: 12831.53,
-        detalhesEntradas: ["Marieta: R$ 8.793,96", "Azambuja: R$ 798,54", "Acertos"],
-        detalhesSaidas: ["Sem retenção individual"]
-      },
-      // 2. Não pertencem à equipe (Cooperados / Prestadores Externos - Sem rateio de despesas corporativas)
-      { 
-        nome: "TAMARA QUINTINO REGIS", 
-        key: "tamara",
-        isTeamMember: false,
-        percent: "0%", 
-        producao: 21101.25, 
-        entradas: 0.00, 
-        saidas: 1215.10, 
-        liquidoCalculado: 13183.53, 
-        divisaoLucros: 1442.69, 
-        finalGeral: 14626.22,
-        detalhesEntradas: ["Produção Unimed Própria"],
-        detalhesSaidas: ["Glosas: R$ 757,10", "Centro de Estudos: R$ 170,00", "Mensalidade PLAC: R$ 288,00"]
-      },
-      { 
-        nome: "LUAN JUNIOR VIGNATTI", 
-        key: "luan",
-        isTeamMember: false,
-        percent: "0%", 
-        producao: 37715.27, 
-        entradas: 0.00, 
-        saidas: 10137.55, 
-        liquidoCalculado: 18047.72, 
-        divisaoLucros: 0.00, 
-        finalGeral: 18047.72,
-        detalhesEntradas: ["Produção Unimed Própria"],
-        detalhesSaidas: ["Cota Parte (5/24): R$ 7.579,69", "Glosas Unimed: R$ 2.308,86", "Centro de Estudos: R$ 170,00"]
-      },
-      { 
-        nome: "THAYNARA MAESTRI VIGNATTI", 
-        key: "thaynara",
-        isTeamMember: false,
-        percent: "0%", 
-        producao: 82700.87, 
-        entradas: 13768.13, 
-        saidas: 8387.18, 
-        liquidoCalculado: 58251.62, 
-        divisaoLucros: 0.00, 
-        finalGeral: 58251.62,
-        detalhesEntradas: ["Disponibilidade Obstetrícia HU: R$ 7.910,93", "Disponibilidade Ginecologia: R$ 3.857,67", "Bonificação Parto: R$ 1.999,53"],
-        detalhesSaidas: ["Cota Parte: R$ 7.500,00", "Glosas Unimed: R$ 702,18", "Centro de Estudos: R$ 170,00"]
-      },
-      { 
-        nome: "CAMILA RIBEIRO DUTRA", 
-        key: "camila",
-        isTeamMember: false,
-        percent: "0%", 
-        producao: 18924.06, 
-        entradas: 12769.67, 
-        saidas: 7838.24, 
-        liquidoCalculado: 12159.42, 
-        divisaoLucros: 0.00, 
-        finalGeral: 12159.42,
-        detalhesEntradas: ["Disponibilidade Reumatologia: R$ 12.769,67"],
-        detalhesSaidas: ["Cota Parte (5/24): R$ 7.579,66", "PLAC: R$ 431,09", "Centro de Estudos: R$ 170,00", "Recurso Próprio: R$ 45,00"]
-      },
-      { 
-        nome: "MARIA EDUARDA CASA SOUZA MACHADO", 
-        key: "maria_eduarda",
-        isTeamMember: false,
-        percent: "0%", 
-        producao: 35174.57, 
-        entradas: 0.00, 
-        saidas: 7749.66, 
-        liquidoCalculado: 14728.93, 
-        divisaoLucros: 0.00, 
-        finalGeral: 14728.93,
-        detalhesEntradas: ["Produção Procedimentos Ambulatoriais"],
-        detalhesSaidas: ["Cota Parte (5/24): R$ 7.579,66", "Glosas Unimed: R$ 275,00", "Centro de Estudos: R$ 170,00"]
-      }
-    ],
+      : [],
     // Ocorrências Financeiras detalhadas por Médico
     ocorrencias: details?.transactions && details.transactions.length > 0
       ? details.transactions.map((t: any) => ({
@@ -398,61 +252,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
           valor: Math.abs(t.amount || 0),
           natureza: t.nature === "CREDIT" ? "ENTRADA" : "SAIDA",
           desc: t.observation || t.typeName || "Lançamento",
-          data: t.date || "14/09/2026",
+          data: t.date || "",
           scope: t.scope || "DOCTOR"
         }))
-      : [
-          { medico: "ROCHELE LORENZI POL", tipo: "Disponibilidade Médica - UTI", valor: 1966.87, natureza: "ENTRADA", desc: "Plantão UTI HU", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "ROCHELE LORENZI POL", tipo: "Repasse Pagamento de Produção - HU", valor: 1439.16, natureza: "ENTRADA", desc: "Produção HU Unimed", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "ROCHELE LORENZI POL", tipo: "Repasse Pagamento de Parecer Médico - HU", valor: 135.00, natureza: "ENTRADA", desc: "Pareceres HU", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "ROCHELE LORENZI POL", tipo: "Sobreavisos", valor: 4320.00, natureza: "ENTRADA", desc: "Sobreavisos de retaguarda", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "ROCHELE LORENZI POL", tipo: "Glosas - Clínica Cooperada - 11%", valor: 10.00, natureza: "SAIDA", desc: "Retenção glosa Unimed", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "ROCHELE LORENZI POL", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
-
-          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Sobreavisos", valor: 7200.00, natureza: "ENTRADA", desc: "Sobreavisos plantão", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 6.00, natureza: "SAIDA", desc: "Glosa Unimed", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Integralização de Cota Parte", valor: 7500.00, natureza: "SAIDA", desc: "Integralização cota Unimed", data: "14/09/2026", scope: "DOCTOR" },
-
-          { medico: "TAMARA QUINTINO REGIS", tipo: "Glosas - Clínica Cooperada - 11%", valor: 407.57, natureza: "SAIDA", desc: "Glosa Lote 1485226", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "TAMARA QUINTINO REGIS", tipo: "Glosas - Clínica Cooperada - 11%", valor: 349.53, natureza: "SAIDA", desc: "Glosa Lote 1490176", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "TAMARA QUINTINO REGIS", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "TAMARA QUINTINO REGIS", tipo: "Mensalidade PLAC", valor: 288.00, natureza: "SAIDA", desc: "Desconto mensal PLAC", data: "14/09/2026", scope: "DOCTOR" },
-
-          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 2308.86, natureza: "SAIDA", desc: "Glosa Lote 1490176", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Integralização de Cota Parte", valor: 7579.69, natureza: "SAIDA", desc: "Integralização Unimed 5 de 24", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
-
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Remuneração Bonificação Parto Normal", valor: 1150.00, natureza: "ENTRADA", desc: "Bonificação Parto Normal HU", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Remuneração Bonificação Parto Normal", valor: 849.53, natureza: "ENTRADA", desc: "Bonificação Parto Normal", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Disponibilidade Ginecologia - Centro Obstétrico", valor: 3857.67, natureza: "ENTRADA", desc: "Disponibilidade Obstetrícia", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Disponibilidade Ginecologia - Centro Obstétrico", valor: 7910.93, natureza: "ENTRADA", desc: "Disponibilidade Obstetrícia HU", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 702.18, natureza: "SAIDA", desc: "Glosa Unimed", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Integralização de Cota Parte", valor: 7500.00, natureza: "SAIDA", desc: "Integralização cota Unimed", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
-
-          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Disponibilidade - Reumatologia", valor: 12769.67, natureza: "ENTRADA", desc: "Disponibilidade Especialidade", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Integralização de Cota Parte", valor: 7579.66, natureza: "SAIDA", desc: "Integralização cota 5 de 24", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Mensalidade PLAC", valor: 431.09, nature: "SAIDA", desc: "Desconto PLAC", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Contribuição de Centro de Estudos", valor: 170.00, nature: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Desconto Atendimentos Realizados - Recurso Próprio", valor: 45.00, nature: "SAIDA", desc: "Desconto Recurso Próprio", data: "14/09/2026", scope: "DOCTOR" },
-
-          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Glosas - Clínica Cooperada - 11%", valor: 275.00, natureza: "SAIDA", desc: "Glosa Unimed", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Integralização de Cota Parte", valor: 7579.66, nature: "SAIDA", desc: "Integralização cota 5 de 24", data: "14/09/2026", scope: "DOCTOR" },
-          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Contribuição de Centro de Estudos", valor: 170.00, nature: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
-
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Capitalização Cota-Parte (360)", valor: 14825.40, natureza: "SAIDA", desc: "Desconto cota capitalização Unimed", data: "01/08/2026", scope: "TEAM" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Contador Heart", valor: 294.00, natureza: "SAIDA", desc: "Assessoria Contábil Heart", data: "14/09/2026", scope: "TEAM" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "DARE", valor: 497.00, natureza: "SAIDA", desc: "Taxa DARE estadual", data: "14/09/2026", scope: "TEAM" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Aluguel Sala / Consultório", valor: 900.00, natureza: "SAIDA", desc: "Locação consultório", data: "14/09/2026", scope: "TEAM" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Celular Corporativo", valor: 722.21, nature: "SAIDA", desc: "Telefonia corporativa", data: "14/09/2026", scope: "TEAM" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Consultório Itajaí", valor: 2029.78, nature: "SAIDA", desc: "Despesas unidade Itajaí", data: "14/09/2026", scope: "TEAM" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "CRM", valor: 344.50, nature: "SAIDA", desc: "Taxa anuidade conselho CRM", data: "14/09/2026", scope: "TEAM" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Instrumentador Cirúrgico", valor: 1526.76, nature: "SAIDA", desc: "Honorários instrumentação", data: "14/09/2026", scope: "TEAM" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Alvará Municipal", valor: 431.09, nature: "SAIDA", desc: "Licença prefeitura", data: "14/09/2026", scope: "TEAM" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Constit Heart LK / Google", valor: 45.00, nature: "SAIDA", desc: "Serviços digitais e Google", data: "14/09/2026", scope: "TEAM" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "INSS Patronal", valor: 502.51, nature: "SAIDA", desc: "Previdência social", data: "14/09/2026", scope: "TEAM" }
-        ],
+      : [],
     // Demonstrativo de Lotes Unimed
     lotesUnimed: details?.taxes && details.taxes.length > 0
       ? details.taxes.map((tax: any) => ({

@@ -135,6 +135,21 @@ export function FinancialClosingsView({ selectedClosingId, onSelectClosing, onOp
     }
   };
 
+  const handleClearAllData = async () => {
+    if (!confirm("⚠️ ATENÇÃO: Deseja realmente LIMPAR TODOS OS DADOS do sistema? Isso apagará permanentemente todos os fechamentos, produções, glosas, impostos, transações, importações e tipos de lançamento. Esta ação é totalmente irreversível!")) return;
+    try {
+      const res = await apiFetch("/api/app/financial/clear-all", { method: "DELETE" });
+      if (res.ok) {
+        setClosings([]);
+        onSelectClosing(null);
+        setClosingDetails(null);
+        alert("Todos os dados financeiros do sistema foram limpos com sucesso.");
+      }
+    } catch (err: any) {
+      alert("Erro ao limpar dados: " + err.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -165,6 +180,14 @@ export function FinancialClosingsView({ selectedClosingId, onSelectClosing, onOp
           >
             <UploadCloud size={16} />
             <span>Importar Documentos (Lote 10944)</span>
+          </button>
+          <button
+            onClick={handleClearAllData}
+            className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2.5 rounded-2xl font-black text-xs transition border border-red-200"
+            title="Limpar todos os dados e fechamentos do sistema"
+          >
+            <Trash2 size={16} />
+            <span>Limpar Todos os Dados</span>
           </button>
         </div>
       </div>
