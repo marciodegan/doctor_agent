@@ -59,17 +59,29 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
     rochele: { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 1966.87, unimedPlantaoDS: 1610.61 }
   });
 
-  // Global manual entries for Azambuja and Marieta totals at the top of their sections
+  // Global manual entries for totals at the top of sections
   const [globalEntradas, setGlobalEntradas] = useState<{
     azambujaTT: number;
     azambujaDS: number;
     marietaTT: number;
     marietaDS: number;
+    consultorioTT: number;
+    consultorioDS: number;
+    dinheiroTT: number;
+    dinheiroDS: number;
+    unimedLuisTT: number;
+    unimedLuisDS: number;
   }>({
     azambujaTT: 70020.94,
     azambujaDS: 57048.34,
     marietaTT: 81042.09,
-    marietaDS: 67645.83
+    marietaDS: 67645.83,
+    consultorioTT: 400,
+    consultorioDS: 400,
+    dinheiroTT: 1200,
+    dinheiroDS: 1200,
+    unimedLuisTT: 8406,
+    unimedLuisDS: 7016.49
   });
 
   // Team settings state
@@ -642,9 +654,75 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                       </div>
                     </th>
                     <th className="p-3 border border-slate-700 bg-teal-900" colSpan={10}>UNIMED</th>
-                    <th className="p-3 border border-slate-700 bg-purple-900" colSpan={2}>CONSULTÓRIO</th>
-                    <th className="p-3 border border-slate-700 bg-amber-900" colSpan={2}>DINHEIRO</th>
-                    <th className="p-3 border border-slate-700 bg-rose-900" colSpan={2}>UNIMED LUIS</th>
+                    <th className="p-3 border border-slate-700 bg-purple-900" colSpan={2}>
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
+                        <span>CONSULTÓRIO</span>
+                        <div className="flex items-center gap-1.5 bg-purple-950/80 px-2 py-1 rounded-lg border border-purple-700/60 font-mono text-[10px]">
+                          <span className="text-emerald-300 font-bold">TT:</span>
+                          <input
+                            type="number"
+                            value={globalEntradas.consultorioTT || ""}
+                            onChange={(e) => setGlobalEntradas({ ...globalEntradas, consultorioTT: parseFloat(e.target.value) || 0 })}
+                            className="w-16 text-center bg-emerald-100 text-emerald-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-emerald-400"
+                            placeholder="0,00"
+                          />
+                          <span className="text-emerald-300 font-bold ml-1">DS:</span>
+                          <input
+                            type="number"
+                            value={globalEntradas.consultorioDS || ""}
+                            onChange={(e) => setGlobalEntradas({ ...globalEntradas, consultorioDS: parseFloat(e.target.value) || 0 })}
+                            className="w-16 text-center bg-emerald-100 text-emerald-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-emerald-400"
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </div>
+                    </th>
+                    <th className="p-3 border border-slate-700 bg-amber-900" colSpan={2}>
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
+                        <span>DINHEIRO</span>
+                        <div className="flex items-center gap-1.5 bg-amber-950/80 px-2 py-1 rounded-lg border border-amber-700/60 font-mono text-[10px]">
+                          <span className="text-emerald-300 font-bold">TT:</span>
+                          <input
+                            type="number"
+                            value={globalEntradas.dinheiroTT || ""}
+                            onChange={(e) => setGlobalEntradas({ ...globalEntradas, dinheiroTT: parseFloat(e.target.value) || 0 })}
+                            className="w-16 text-center bg-emerald-100 text-emerald-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-emerald-400"
+                            placeholder="0,00"
+                          />
+                          <span className="text-emerald-300 font-bold ml-1">DS:</span>
+                          <input
+                            type="number"
+                            value={globalEntradas.dinheiroDS || ""}
+                            onChange={(e) => setGlobalEntradas({ ...globalEntradas, dinheiroDS: parseFloat(e.target.value) || 0 })}
+                            className="w-16 text-center bg-emerald-100 text-emerald-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-emerald-400"
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </div>
+                    </th>
+                    <th className="p-3 border border-slate-700 bg-rose-900" colSpan={2}>
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
+                        <span>UNIMED LUIS</span>
+                        <div className="flex items-center gap-1.5 bg-rose-950/80 px-2 py-1 rounded-lg border border-rose-700/60 font-mono text-[10px]">
+                          <span className="text-emerald-300 font-bold">TT:</span>
+                          <input
+                            type="number"
+                            value={globalEntradas.unimedLuisTT || ""}
+                            onChange={(e) => setGlobalEntradas({ ...globalEntradas, unimedLuisTT: parseFloat(e.target.value) || 0 })}
+                            className="w-16 text-center bg-emerald-100 text-emerald-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-emerald-400"
+                            placeholder="0,00"
+                          />
+                          <span className="text-emerald-300 font-bold ml-1">DS:</span>
+                          <input
+                            type="number"
+                            value={globalEntradas.unimedLuisDS || ""}
+                            onChange={(e) => setGlobalEntradas({ ...globalEntradas, unimedLuisDS: parseFloat(e.target.value) || 0 })}
+                            className="w-16 text-center bg-emerald-100 text-emerald-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-emerald-400"
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </div>
+                    </th>
                     <th className="p-3 border border-slate-700 bg-emerald-900" colSpan={6}>TOTAL GERAL</th>
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
@@ -721,10 +799,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
 
                     const totalAzambujaPlantaoDS = rowsData.reduce((acc, doc) => {
                       const man = manualEntradas[doc.key] || {};
-                      const tt = man.azambujaPlantaoTT || 0;
-                      const ds = man.azambujaPlantaoDS !== undefined && man.azambujaPlantaoDS !== null ? man.azambujaPlantaoDS : Math.round(tt * 0.8147 * 100) / 100;
+                      const tt = (man.azambujaPlantaoTT || 0) * mul;
+                      const ds = (globalEntradas.azambujaTT > 0)
+                        ? Math.round((tt * globalEntradas.azambujaDS / globalEntradas.azambujaTT) * 100) / 100
+                        : 0;
                       return acc + ds;
-                    }, 0) * mul;
+                    }, 0);
 
                     const netAzEquipeTT = Math.max(0, (globalEntradas.azambujaTT * mul) - totalAzambujaPlantaoTT);
                     const netAzEquipeDS = Math.max(0, (globalEntradas.azambujaDS * mul) - totalAzambujaPlantaoDS);
@@ -745,7 +825,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                       const azEqTT = isTeam ? Math.round((pct / 100) * netAzEquipeTT * 100) / 100 : 0;
                       const azEqDS = isTeam ? Math.round((pct / 100) * netAzEquipeDS * 100) / 100 : 0;
                       const azPlTT = (man.azambujaPlantaoTT || 0) * mul;
-                      const azPlDS = man.azambujaPlantaoDS !== undefined && man.azambujaPlantaoDS !== null ? (man.azambujaPlantaoDS || 0) * mul : Math.round(azPlTT * 0.8147 * 100) / 100;
+                      const azPlDS = (globalEntradas.azambujaTT > 0)
+                        ? Math.round((azPlTT * globalEntradas.azambujaDS / globalEntradas.azambujaTT) * 100) / 100 * mul
+                        : 0;
                       const azTotTT = azEqTT + azPlTT;
                       const azTotDS = azEqDS + azPlDS;
 
@@ -763,12 +845,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                       const unimTotTT = unimedEqTT + unimPlTT;
                       const unimTotDS = unimedEqDS + unimPlDS;
 
-                      const consultTT = (man.consultTT || 0) * mul;
-                      const consultDS = (man.consultDS || 0) * mul;
-                      const dinheiroTT = (man.dinheiroTT || 0) * mul;
-                      const dinheiroDS = (man.dinheiroDS || 0) * mul;
-                      const unimLuisTT = (man.unimLuisTT || 0) * mul;
-                      const unimLuisDS = (man.unimLuisDS || 0) * mul;
+                      const consultTT = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioTT * 100) / 100 * mul : 0;
+                      const consultDS = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioDS * 100) / 100 * mul : 0;
+                      const dinheiroTT = isTeam ? Math.round((pct / 100) * globalEntradas.dinheiroTT * 100) / 100 * mul : 0;
+                      const dinheiroDS = isTeam ? Math.round((pct / 100) * globalEntradas.dinheiroDS * 100) / 100 * mul : 0;
+                      const unimLuisTT = isTeam ? Math.round((pct / 100) * globalEntradas.unimedLuisTT * 100) / 100 * mul : 0;
+                      const unimLuisDS = isTeam ? Math.round((pct / 100) * globalEntradas.unimedLuisDS * 100) / 100 * mul : 0;
 
                       const totalGeralTT = azTotTT + marTotTT + unimTotTT + consultTT + dinheiroTT + unimLuisTT;
                       const totalGeralDS = azTotDS + marTotDS + unimTotDS + consultDS + dinheiroDS + unimLuisDS;
@@ -858,89 +940,17 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                         <td className="p-3 border border-slate-200 font-mono text-gray-500">{r.unimTotTT > 0 ? (r.unimTotTT / 277794.83 * 100).toFixed(2) : "0.00"}%</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-teal-800 border-r-2 border-slate-500">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Consultorio (Manual in Emerald) */}
-                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
-                          <input
-                            type="number"
-                            value={manualEntradas[r.key]?.consultTT || ""}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              const man = manualEntradas[r.key] || {};
-                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, consultTT: val } });
-                            }}
-                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                            placeholder="0,00"
-                          />
-                        </td>
-                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-500">
-                          <input
-                            type="number"
-                            value={manualEntradas[r.key]?.consultDS || ""}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              const man = manualEntradas[r.key] || {};
-                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, consultDS: val } });
-                            }}
-                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                            placeholder="0,00"
-                          />
-                        </td>
+                        {/* Consultorio */}
+                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.consultTT > 0 ? r.consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-purple-900 border-r-2 border-slate-500">{r.consultDS > 0 ? r.consultDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Dinheiro (Manual in Emerald) */}
-                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
-                          <input
-                            type="number"
-                            value={manualEntradas[r.key]?.dinheiroTT || ""}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              const man = manualEntradas[r.key] || {};
-                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, dinheiroTT: val } });
-                            }}
-                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                            placeholder="0,00"
-                          />
-                        </td>
-                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-500">
-                          <input
-                            type="number"
-                            value={manualEntradas[r.key]?.dinheiroDS || ""}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              const man = manualEntradas[r.key] || {};
-                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, dinheiroDS: val } });
-                            }}
-                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                            placeholder="0,00"
-                          />
-                        </td>
+                        {/* Dinheiro */}
+                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.dinheiroTT > 0 ? r.dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-amber-900 border-r-2 border-slate-500">{r.dinheiroDS > 0 ? r.dinheiroDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Unimed Luis (Manual in Emerald) */}
-                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
-                          <input
-                            type="number"
-                            value={manualEntradas[r.key]?.unimLuisTT || ""}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              const man = manualEntradas[r.key] || {};
-                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, unimLuisTT: val } });
-                            }}
-                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                            placeholder="0,00"
-                          />
-                        </td>
-                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-500">
-                          <input
-                            type="number"
-                            value={manualEntradas[r.key]?.unimLuisDS || ""}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              const man = manualEntradas[r.key] || {};
-                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, unimLuisDS: val } });
-                            }}
-                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                            placeholder="0,00"
-                          />
-                        </td>
+                        {/* Unimed Luis */}
+                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimLuisTT > 0 ? r.unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-rose-900 border-r-2 border-slate-500">{r.unimLuisDS > 0 ? r.unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Total Geral */}
                         <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
