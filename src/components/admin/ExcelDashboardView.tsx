@@ -956,7 +956,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                   <th className="p-3.5 pl-6">Médico</th>
                   <th className="p-3.5">Especialidade</th>
                   <th className="p-3.5 text-center">Membro da Equipe?</th>
-                  <th className="p-3.5 text-center">% Rateio da Equipe</th>
+                  <th className="p-3.5 text-center">% Nominal (Entradas)</th>
+                  <th className="p-3.5 text-center">Disponível no Mês (R$)</th>
+                  <th className="p-3.5 text-center bg-blue-50 text-blue-900">PROPORÇÃO HEART (Despesas)</th>
                   <th className="p-3.5">Regra de Fechamento</th>
                 </tr>
               </thead>
@@ -975,8 +977,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                             updated[idx].isTeamMember = e.target.checked;
                             if (!e.target.checked) {
                               updated[idx].teamSharePercent = 0;
+                              updated[idx].proporcaoHeartDinamica = 0;
                             }
-                            setTeamSettings({ ...teamSettings, doctors: updated });
+                            const recalced = recalculateHeartProportions(updated);
+                            setTeamSettings({ ...teamSettings, doctors: recalced });
                           }}
                           className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
                         />
@@ -985,6 +989,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                         </span>
                       </label>
                     </td>
+
+                    {/* % Nominal Societário (Entradas da Equipe) */}
                     <td className="p-3.5 text-center">
                       {doc.isTeamMember ? (
                         <div className="inline-flex items-center gap-1">
@@ -999,22 +1005,58 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                               updated[idx].teamSharePercent = parseFloat(e.target.value) || 0;
                               setTeamSettings({ ...teamSettings, doctors: updated });
                             }}
-                            className="w-20 bg-white border border-gray-300 rounded-lg px-2 py-1 text-center font-black text-emerald-700"
+                            className="w-16 bg-white border border-gray-300 rounded-lg px-2 py-1 text-center font-black text-emerald-700"
                           />
                           <span className="font-bold text-gray-500">%</span>
                         </div>
                       ) : (
-                        <span className="text-gray-400 font-bold">0% (Não rateia)</span>
+                        <span className="text-gray-400 font-bold">0%</span>
                       )}
                     </td>
+
+                    {/* Disponível no Período (R$) */}
+                    <td className="p-3.5 text-center">
+                      {doc.isTeamMember ? (
+                        <div className="inline-flex items-center gap-1">
+                          <span className="text-[10px] text-gray-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={doc.disponivelPeriodo || ""}
+                            onChange={(e) => {
+                              const updated = [...teamSettings.doctors];
+                              updated[idx].disponivelPeriodo = parseFloat(e.target.value) || 0;
+                              const recalced = recalculateHeartProportions(updated);
+                              setTeamSettings({ ...teamSettings, doctors: recalced });
+                            }}
+                            className="w-24 bg-white border border-gray-300 rounded-lg px-2 py-1 text-right font-mono font-bold text-gray-800"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 font-mono">—</span>
+                      )}
+                    </td>
+
+                    {/* PROPORÇÃO HEART Calculada Dinamicamente */}
+                    <td className="p-3.5 text-center bg-blue-50/40">
+                      {doc.isTeamMember ? (
+                        <span className="px-2.5 py-1 bg-blue-100 text-blue-900 border border-blue-200 rounded-lg font-black text-xs">
+                          {(doc.proporcaoHeartDinamica || 0).toFixed(2)}%
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 font-bold">0%</span>
+                      )}
+                    </td>
+
                     <td className="p-3.5 text-gray-600 text-[11px]">
                       {doc.isTeamMember ? (
                         <span className="text-emerald-700 font-bold">
-                          Participa de Marieta, Azambuja, Consultório e rateia custos corporativos HeaRT
+                          Entradas rateadas a {doc.teamSharePercent}% (Nominal) e despesas rateadas a {(doc.proporcaoHeartDinamica || 0).toFixed(2)}% (Proporção HeaRT)
                         </span>
                       ) : (
                         <span className="text-gray-400 font-medium">
-                          Recebe somente produção própria Unimed e plantões diretos, sem custos de equipe
+                          Recebe somente produção própria Unimed e plantões diretos, sem rateio de custos corporativos
                         </span>
                       )}
                     </td>
@@ -1458,13 +1500,26 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
         </div>
       )}
 
-      {/* VIEW 7: DESPESAS DA EQUIPE HEART */}
+      {/* VIEW 7: DESPESAS DA EQUIPE HEART COM RATEIO PELA PROPORÇÃO HEART */}
       {activeSubTab === "despesas_equipe" && (
         <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden space-y-4">
-          <div className="p-6 border-b border-gray-100 bg-gray-50/70 flex items-center justify-between">
+          <div className="p-6 border-b border-gray-100 bg-gray-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Despesas Corporativas & Operacionais (Equipe HeaRT)</h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Custos fixos, tributários e taxas deduzidos exclusivamente dos membros da equipe</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Despesas Corporativas & Operacionais (Equipe HeaRT)</h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-blue-100 text-blue-800">
+                  Rateio via PROPORÇÃO HEART
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 font-medium mt-1">
+                Custos fixos, infraestrutura e tributos rateados dinamicamente entre os sócios conforme a coluna <strong>PROPORÇÃO HEART</strong> do período:
+                <span className="font-bold text-gray-700 ml-1">
+                  Rochele ({teamSettings.doctors.find(d => d.key === 'rochele')?.proporcaoHeartDinamica || 26.79}%), 
+                  Thais ({teamSettings.doctors.find(d => d.key === 'thais')?.proporcaoHeartDinamica || 28.97}%), 
+                  Luis ({teamSettings.doctors.find(d => d.key === 'luis')?.proporcaoHeartDinamica || 26.79}%), 
+                  Kathize ({teamSettings.doctors.find(d => d.key === 'kathize')?.proporcaoHeartDinamica || 17.45}%)
+                </span>
+              </p>
             </div>
             <div className="text-right">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Total Despesas Equipe:</span>
@@ -1475,31 +1530,67 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
+                <tr className="bg-gray-100 text-gray-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
                   <th className="p-3.5 pl-6">Despesa / Item</th>
                   <th className="p-3.5">Categoria</th>
-                  <th className="p-3.5 text-center">Status</th>
-                  <th className="p-3.5 text-right pr-6">Valor (R$)</th>
+                  <th className="p-3.5 text-right font-black">Valor Total (R$)</th>
+                  <th className="p-3.5 text-right text-emerald-800 bg-emerald-50/50">Drª Rochele (26,79%)</th>
+                  <th className="p-3.5 text-right text-emerald-800 bg-emerald-50/50">Drª Thais (28,97%)</th>
+                  <th className="p-3.5 text-right text-emerald-800 bg-emerald-50/50">Dr Luis (26,79%)</th>
+                  <th className="p-3.5 text-right text-emerald-800 bg-emerald-50/50">Drª Kathize (17,45%)</th>
+                  <th className="p-3.5 text-center pr-6">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-                {excelData.despesasEquipe.map((d, idx) => (
-                  <tr key={idx} className="hover:bg-rose-50/20 transition-colors">
-                    <td className="p-3.5 pl-6 font-bold text-gray-900">{d.despesa}</td>
-                    <td className="p-3.5 text-gray-600 font-medium">{d.categoria}</td>
-                    <td className="p-3.5 text-center">
-                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[9px] font-black uppercase">
-                        {d.status}
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-right pr-6 font-black text-rose-600">
-                      -R$ {d.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
+                {excelData.despesasEquipe.map((d, idx) => {
+                  const val = d.valor;
+                  const pRochele = teamSettings.doctors.find(x => x.key === 'rochele')?.proporcaoHeartDinamica || 26.79;
+                  const pThais = teamSettings.doctors.find(x => x.key === 'thais')?.proporcaoHeartDinamica || 28.97;
+                  const pLuis = teamSettings.doctors.find(x => x.key === 'luis')?.proporcaoHeartDinamica || 26.79;
+                  const pKathize = teamSettings.doctors.find(x => x.key === 'kathize')?.proporcaoHeartDinamica || 17.45;
+
+                  const rRochele = (val * pRochele) / 100;
+                  const rThais = (val * pThais) / 100;
+                  const rLuis = (val * pLuis) / 100;
+                  const rKathize = (val * pKathize) / 100;
+
+                  return (
+                    <tr key={idx} className="hover:bg-rose-50/20 transition-colors">
+                      <td className="p-3.5 pl-6 font-bold text-gray-900">{d.despesa}</td>
+                      <td className="p-3.5 text-gray-600 font-medium">{d.categoria}</td>
+                      <td className="p-3.5 text-right font-black text-rose-600">
+                        -R$ {val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3.5 text-right font-mono text-[11px] text-gray-700 bg-emerald-50/20">
+                        -R$ {rRochele.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3.5 text-right font-mono text-[11px] text-gray-700 bg-emerald-50/20">
+                        -R$ {rThais.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3.5 text-right font-mono text-[11px] text-gray-700 bg-emerald-50/20">
+                        -R$ {rLuis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3.5 text-right font-mono text-[11px] text-gray-700 bg-emerald-50/20">
+                        -R$ {rKathize.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3.5 text-center pr-6">
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[9px] font-black uppercase">
+                          {d.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* VIEW 8: GERENCIADOR DE TIPOS DE LANÇAMENTO */}
+      {activeSubTab === "tipos_lancamento" && (
+        <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden p-2">
+          <TransactionTypesManager />
         </div>
       )}
     </div>
