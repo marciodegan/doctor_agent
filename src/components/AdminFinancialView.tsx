@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useGroup } from "../contexts/GroupContext";
 import { useAuth } from "../hooks/useAuth";
+import { FinancialClosingsView } from "./FinancialClosingsView";
 
 interface AdminFinancialViewProps {
   onBack: () => void;
@@ -862,96 +863,8 @@ export function AdminFinancialView({ onBack }: AdminFinancialViewProps) {
 
       {/* ========================================== */}
       {/* TAB 3: FECHAMENTOS */}
-      {/* ========================================== */}
       {activeTab === "fechamentos" && (
-        <div className="space-y-8 max-w-4xl mx-auto w-full">
-          {isAdmin && (
-            <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm space-y-6">
-              <h3 className="font-black text-gray-900 text-base uppercase tracking-tight flex items-center gap-3">
-                <FolderPlus size={20} className="text-blue-600" />
-                <span>Criar Novo Fechamento</span>
-              </h3>
-              <form onSubmit={handleCreateClosing} className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <input
-                  type="text"
-                  placeholder="Nome (ex: OUTUBRO-26)"
-                  value={newClosingName}
-                  onChange={(e) => setNewClosingName(e.target.value)}
-                  className="bg-gray-50 border border-gray-200 px-4 py-3.5 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-blue-100 outline-none"
-                  required
-                />
-                <select
-                  value={newClosingMes}
-                  onChange={(e) => setNewClosingMes(Number(e.target.value))}
-                  className="bg-gray-50 border border-gray-200 px-4 py-3.5 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-blue-100 outline-none"
-                >
-                  {["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"].map((m, idx) => (
-                    <option key={idx + 1} value={idx + 1}>{m}</option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  placeholder="Ano"
-                  value={newClosingAno}
-                  onChange={(e) => setNewClosingAno(Number(e.target.value))}
-                  className="bg-gray-50 border border-gray-200 px-4 py-3.5 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-blue-100 outline-none"
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={isCreatingClosing}
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider py-3.5 shadow-lg shadow-blue-200 transition flex items-center justify-center gap-2"
-                >
-                  {isCreatingClosing ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                  <span>Criar</span>
-                </button>
-              </form>
-            </div>
-          )}
-
-          <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8 space-y-6">
-            <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Fechamentos Registrados</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {closings.map(c => (
-                <div key={c.id} className="bg-gray-50 border border-gray-100 p-6 rounded-3xl space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-base text-gray-900 uppercase">{c.nome}</span>
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                      c.status === "ABERTO" ? "bg-emerald-100 text-emerald-700" :
-                      c.status === "EM_CONFERENCIA" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
-                    }`}>
-                      {c.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 font-bold">Mês/Ano Referência: {c.mes}/{c.ano}</p>
-                  
-                  {isAdmin && (
-                    <div className="flex items-center gap-2 pt-3 border-t border-gray-200/60">
-                      <button
-                        onClick={() => handleUpdateClosingStatus(c.id, "ABERTO")}
-                        className="flex-1 text-[11px] font-bold bg-white border border-gray-200 py-2 rounded-xl hover:bg-gray-100"
-                      >
-                        Aberto
-                      </button>
-                      <button
-                        onClick={() => handleUpdateClosingStatus(c.id, "EM_CONFERENCIA")}
-                        className="flex-1 text-[11px] font-bold bg-white border border-gray-200 py-2 rounded-xl hover:bg-gray-100"
-                      >
-                        Conferência
-                      </button>
-                      <button
-                        onClick={() => handleUpdateClosingStatus(c.id, "FECHADO")}
-                        className="flex-1 text-[11px] font-bold bg-blue-50 border border-blue-200 text-blue-700 py-2 rounded-xl hover:bg-blue-100"
-                      >
-                        Fechar
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <FinancialClosingsView onBack={() => setActiveTab("fluxo")} />
       )}
 
       {/* ========================================== */}

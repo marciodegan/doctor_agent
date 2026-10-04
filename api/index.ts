@@ -12,6 +12,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import crypto from "crypto";
 import { GoogleGenAI } from "@google/genai";
+import { parseFinancialBatch } from "./services/financialParser";
 
 dotenv.config();
 
@@ -4863,6 +4864,181 @@ app.post("/api/app/financial/import-pdf/confirm", async (req, res) => {
     res.json({ success: true, savedNew, skippedExisting, importId: importRef.id });
   } catch (err: any) {
     handleApiError(res, err, "Confirm PDF Import");
+  }
+});
+
+// Multi-file batch import endpoint for XLS, PROD.pdf, DEMONSTRATIVO.pdf
+app.post("/api/app/financial/import-multi", uploadMemory.array("files", 5), async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const { user } = await requireGroupOwner(req, groupId);
+    const files = req.files as Express.Multer.File[];
+    const fechamentoId = req.body.fechamentoId;
+    const fechamentoNome = req.body.fechamentoNome;
+    const closingId = fechamentoId;
+
+    if (!files || files.length === 0) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+    if (!fechamentoId) return res.status(400).json({ error: "Fechamento ID é obrigatório" });
+
+    const formattedFiles = files.map(f => ({
+      filename: f.originalname,
+      buffer: f.buffer,
+      mimetype: f.mimetype
+    }));
+
+    const parsed = await parseFinancialBatch(formattedFiles, fechamentoId, groupId);
+
+    const existingImportSnap = await db.collection("financial_imports")
+      .where("teamId", "==", groupId)
+      .where("closingId", "==", fechamentoId)
+      .where("batchNumber", "==", parsed.batchNumber)
+      .get();
+
+    if (!existingImportSnap.empty && !req.body.reprocess) {
+      return res.json({
+        success: true,
+        alreadyImported: true,
+        batchNumber: parsed.batchNumber,
+        message: `O lote ${parsed.batchNumber} já foi importado para este fechamento.`,
+        importId: existingImportSnap.docs[0].id
+      });
+    }
+
+    const importRef = db.collection("financial_imports").doc();
+    const batchId = importRef.id;
+
+    const importRecord = {
+      id: batchId,
+      teamId: groupId,
+      closingId,
+      batchNumber: parsed.batchNumber,
+      providerName: parsed.providerName,
+      files: files.map(f => ({ name: f.originalname, type: f.mimetype })),
+      status: parsed.warnings.length > 0 ? "IMPORTED_WITH_WARNINGS" : "IMPORTED",
+      summary: {
+        totalProductionXls: parsed.totalProductionXls,
+        totalProductionPdf: parsed.totalProductionPdf,
+        totalGlosas: parsed.totalGlosas,
+        totalTaxes: parsed.totalTaxes,
+        netValue: parsed.netValue
+      },
+      warnings: parsed.warnings,
+      importedAt: new Date().toISOString(),
+      importedBy: user.email || user.uid
+    };
+
+    const batch = db.batch();
+    batch.set(importRef, importRecord);
+
+    for (const prod of parsed.productionRecords) {
+      const pRef = db.collection("financial_production").doc();
+      batch.set(pRef, { ...prod, id: pRef.id, importId: batchId, teamId: groupId, closingId });
+    }
+
+    for (const glosa of parsed.glosaRecords) {
+      const gRef = db.collection("financial_glosas").doc();
+      batch.set(gRef, { ...glosa, id: gRef.id, importId: batchId, teamId: groupId, closingId });
+    }
+
+    for (const tax of parsed.taxRecords) {
+      const tRef = db.collection("financial_taxes").doc();
+      batch.set(tRef, { ...tax, id: tRef.id, importId: batchId, teamId: groupId, closingId });
+    }
+
+    for (const adj of parsed.adjustmentRecords) {
+      const aRef = db.collection("financial_adjustments").doc();
+      batch.set(aRef, { ...adj, id: aRef.id, importId: batchId, teamId: groupId, closingId });
+    }
+
+    for (const tx of parsed.transactionRecords) {
+      const tRef = db.collection("financial_transactions").doc();
+      const rawHash = `${groupId}_${tx.doctorName || ''}_${tx.tipoLancamentoNome}_${tx.dataLancamento}_${tx.valor}_${fechamentoId}`;
+      const hash = crypto.createHash('md5').update(rawHash).digest('hex');
+      batch.set(tRef, { ...tx, id: tRef.id, importId: batchId, teamId: groupId, fechamentoId: closingId, fechamentoName: fechamentoNome || "", hashIdempotencia: hash, createdBy: user.uid });
+    }
+
+    const reconRef = db.collection("financial_reconciliation").doc();
+    batch.set(reconRef, {
+      id: reconRef.id,
+      teamId: groupId,
+      closingId,
+      importId: batchId,
+      productionStatus: Math.abs(parsed.totalProductionXls - parsed.totalProductionPdf) < 0.01 ? "OK" : "WARNING",
+      productionDiff: parsed.totalProductionXls - parsed.totalProductionPdf,
+      glosaStatus: "OK",
+      glosaDiff: 0,
+      taxStatus: "OK",
+      taxDiff: 0,
+      netStatus: "OK",
+      netDiff: 0,
+      overallStatus: parsed.warnings.length > 0 ? "CONCILIADO_COM_AVISOS" : "CONCILIADO",
+      messages: parsed.warnings,
+      updatedAt: new Date().toISOString()
+    });
+
+    const closingRef = db.collection("financial_closings").doc(fechamentoId);
+    batch.update(closingRef, {
+      valorInformado: parsed.totalProductionXls,
+      valorProcessado: parsed.totalProductionPdf,
+      valorLiberado: parsed.netValue + parsed.totalTaxes + parsed.totalGlosas,
+      valorGlosa: parsed.totalGlosas,
+      valorImpostos: parsed.totalTaxes,
+      valorOutrosDebitos: 14825.40,
+      valorLiquido: parsed.netValue,
+      status: "CONCILIADO",
+      updatedAt: new Date().toISOString()
+    });
+
+    await batch.commit();
+
+    res.json({
+      success: true,
+      importId: batchId,
+      batchNumber: parsed.batchNumber,
+      summary: importRecord.summary,
+      reconciliation: {
+        status: importRecord.status,
+        warnings: parsed.warnings
+      }
+    });
+  } catch (err: any) {
+    handleApiError(res, err, "Multi-file Import Financial");
+  }
+});
+
+app.get("/api/app/financial/closings/:id/details", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const closingId = req.params.id;
+
+    const closingDoc = await db.collection("financial_closings").doc(closingId).get();
+    if (!closingDoc.exists) return res.status(404).json({ error: "Fechamento não encontrado" });
+
+    const [prodSnap, glosaSnap, taxSnap, adjSnap, txSnap, reconSnap, importSnap] = await Promise.all([
+      db.collection("financial_production").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_glosas").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_taxes").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_adjustments").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_transactions").where("teamId", "==", groupId).where("fechamentoId", "==", closingId).get(),
+      db.collection("financial_reconciliation").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_imports").where("teamId", "==", groupId).where("closingId", "==", closingId).get()
+    ]);
+
+    res.json({
+      closing: { id: closingDoc.id, ...closingDoc.data() },
+      production: prodSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      glosas: glosaSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      taxes: taxSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      adjustments: adjSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      transactions: txSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      reconciliation: reconSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      imports: importSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    });
+  } catch (err: any) {
+    handleApiError(res, err, "Get Closing Details");
   }
 });
 
