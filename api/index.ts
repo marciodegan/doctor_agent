@@ -1292,7 +1292,13 @@ app.get("/api/app/patients", async (req, res) => {
 // Get app settings
 app.get("/api/app/settings", async (req, res) => {
   const groupId = getGroupId(req);
-  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  if (!groupId) {
+    return res.json({
+      companyName: "Dr. Agent",
+      whatsappNumber: "",
+      imageAnalysisPrompt: "Aja como um médico experiente e descreva os achados clínicos e conduta recomendada."
+    });
+  }
 
   if (groupId === "demo-group-hospital") {
     return res.json({

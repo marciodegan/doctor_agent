@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUserKeys(keys);
           }
         } catch (e) {
-          console.error("[useAuth] Failed to load/create user keys:", e);
+          console.debug("[useAuth] Key generation/loading skipped:", e);
         }
       });
     } else {
