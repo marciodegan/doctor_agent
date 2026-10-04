@@ -700,7 +700,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                       };
                     };
 
-                    const rows = [
+                    const rowsData = [
                       { key: "rochele", name: "ROCHELE LORENZI POL", percent: 29, isTeam: true },
                       { key: "thais", name: "THAIS ISABEL LUMIKOSKI", percent: 29, isTeam: true },
                       { key: "luis", name: "LUIS BONGIOLO MATTOS", percent: 29, isTeam: true },
@@ -710,10 +710,28 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                       { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", percent: 0, isTeam: false },
                       { key: "camila", name: "CAMILA RIBEIRO DUTRA", percent: 0, isTeam: false },
                       { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", percent: 0, isTeam: false }
-                    ].map((doc) => {
+                    ];
+
+                    const mul = hasClosing ? 1 : 0;
+
+                    const totalAzambujaPlantaoTT = rowsData.reduce((acc, doc) => {
+                      const man = manualEntradas[doc.key] || {};
+                      return acc + (man.azambujaPlantaoTT || 0);
+                    }, 0) * mul;
+
+                    const totalAzambujaPlantaoDS = rowsData.reduce((acc, doc) => {
+                      const man = manualEntradas[doc.key] || {};
+                      const tt = man.azambujaPlantaoTT || 0;
+                      const ds = man.azambujaPlantaoDS !== undefined && man.azambujaPlantaoDS !== null ? man.azambujaPlantaoDS : Math.round(tt * 0.8147 * 100) / 100;
+                      return acc + ds;
+                    }, 0) * mul;
+
+                    const netAzEquipeTT = Math.max(0, (globalEntradas.azambujaTT * mul) - totalAzambujaPlantaoTT);
+                    const netAzEquipeDS = Math.max(0, (globalEntradas.azambujaDS * mul) - totalAzambujaPlantaoDS);
+
+                    const rows = rowsData.map((doc) => {
                       const isTeam = doc.isTeam;
                       const pct = doc.percent;
-                      const mul = hasClosing ? 1 : 0;
                       
                       const man = manualEntradas[doc.key] || {
                         azambujaPlantaoTT: 0, azambujaPlantaoDS: 0,
@@ -723,11 +741,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                         unimLuisTT: 0, unimLuisDS: 0
                       };
 
-                      // Azambuja Equipe rateada pelo percentual da equipe para médicos da equipe (29, 29, 29, 13)
-                      const azEqTT = isTeam ? Math.round((pct / 100) * globalEntradas.azambujaTT * 100) / 100 * mul : 0;
-                      const azEqDS = isTeam ? Math.round((pct / 100) * globalEntradas.azambujaDS * 100) / 100 * mul : 0;
+                      // Azambuja Equipe = total typed minus plantoes, rateada pelo percentual da equipe
+                      const azEqTT = isTeam ? Math.round((pct / 100) * netAzEquipeTT * 100) / 100 : 0;
+                      const azEqDS = isTeam ? Math.round((pct / 100) * netAzEquipeDS * 100) / 100 : 0;
                       const azPlTT = (man.azambujaPlantaoTT || 0) * mul;
-                      const azPlDS = (man.azambujaPlantaoDS || 0) * mul;
+                      const azPlDS = man.azambujaPlantaoDS !== undefined && man.azambujaPlantaoDS !== null ? (man.azambujaPlantaoDS || 0) * mul : Math.round(azPlTT * 0.8147 * 100) / 100;
                       const azTotTT = azEqTT + azPlTT;
                       const azTotDS = azEqDS + azPlDS;
 
