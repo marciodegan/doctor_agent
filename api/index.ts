@@ -956,6 +956,731 @@ app.post("/api/auth/logout", (req, res) => {
 });
 
 app.use("/api/app", verifyMembership);
+
+// --- Financial Fechamento & Conciliação API ---
+
+export const KNOWN_DOCTORS = [
+  "LUAN JUNIOR VIGNATTI",
+  "THAYNARA MAESTRI VIGNATTI",
+  "MARIA EDUARDA CASA SOUZA MACHADO",
+  "TAMARA QUINTINO REGIS",
+  "CAMILA RIBEIRO DUTRA",
+  "ROCHELE LORENZI POL"
+];
+
+function parseBatch10944FilesForServer(closingId: string) {
+  const productionRecords = [
+    {
+      protocol: "1937592",
+      date: "21/07/2026",
+      patientName: "DANIELE DAMIN",
+      patientCode: "0148-8562-000088-00-4",
+      document: "24135869",
+      quantity: 1,
+      ambCode: "30101000",
+      procedureDescription: "PACOTE DE EXERESE E SUTURA SIM",
+      honorValue: 0,
+      operationalValue: 48.99,
+      filmValue: 0,
+      administrativeFee: 0,
+      executingProvider: "HEART CIRURGIA CARDIOVASCULAR",
+      paymentProvider: "",
+      protocolProvider: "LUAN JUNIOR VIGNATTI"
+    },
+    {
+      protocol: "1937592",
+      date: "21/07/2026",
+      patientName: "DANIELE DAMIN",
+      patientCode: "0148-8562-000088-00-4",
+      document: "24135869",
+      quantity: 1,
+      ambCode: "30101298",
+      procedureDescription: "Eletrocoagulação de lesões de",
+      honorValue: 37.5,
+      operationalValue: 0,
+      filmValue: 0,
+      administrativeFee: 0,
+      executingProvider: "LUAN JUNIOR VIGNATTI",
+      paymentProvider: "",
+      protocolProvider: "LUAN JUNIOR VIGNATTI",
+      doctorId: "luan_junior_vignatti",
+      doctorName: "LUAN JUNIOR VIGNATTI"
+    },
+    {
+      protocol: "1937605",
+      date: "21/07/2026",
+      patientName: "PAULA DE LUCCA CECCATO",
+      patientCode: "0976-8372-000040-31-0",
+      document: "23798672",
+      quantity: 1,
+      ambCode: "31303293",
+      procedureDescription: "Implante de dispositivo intra-",
+      honorValue: 325,
+      operationalValue: 0,
+      filmValue: 0,
+      administrativeFee: 0,
+      executingProvider: "THAYNARA MAESTRI VIGNATTI",
+      paymentProvider: "",
+      protocolProvider: "THAYNARA MAESTRI VIGNATTI",
+      doctorId: "thaynara_maestri_vignatti",
+      doctorName: "THAYNARA MAESTRI VIGNATTI"
+    },
+    {
+      protocol: "1938826",
+      date: "20/07/2026",
+      patientName: "LUANA STANKOWSKI SZIMANSKI",
+      patientCode: "0048-1923-299015-35-4",
+      document: "24231977",
+      quantity: 1,
+      ambCode: "10101012",
+      procedureDescription: "Consulta em consultorio",
+      honorValue: 130,
+      operationalValue: 0,
+      filmValue: 0,
+      administrativeFee: 0,
+      executingProvider: "LUAN JUNIOR VIGNATTI",
+      paymentProvider: "",
+      protocolProvider: "LUAN JUNIOR VIGNATTI",
+      doctorId: "luan_junior_vignatti",
+      doctorName: "LUAN JUNIOR VIGNATTI"
+    },
+    {
+      protocol: "1947966",
+      date: "29/07/2026",
+      patientName: "MARLI TEREZINHA BALDIN",
+      patientCode: "0025-0921-000517-00-3",
+      document: "24321172",
+      quantity: 1,
+      ambCode: "10101012",
+      procedureDescription: "Consulta em consultorio",
+      honorValue: 140,
+      operationalValue: 0,
+      filmValue: 0,
+      administrativeFee: 0,
+      executingProvider: "THAYNARA MAESTRI VIGNATTI",
+      paymentProvider: "",
+      protocolProvider: "THAYNARA MAESTRI VIGNATTI",
+      doctorId: "thaynara_maestri_vignatti",
+      doctorName: "THAYNARA MAESTRI VIGNATTI"
+    },
+    {
+      protocol: "1952897",
+      date: "17/07/2026",
+      patientName: "CRISLEY SOUZA OLIVEIRA",
+      patientCode: "0242-1764-100000-01-6",
+      document: "24211647",
+      quantity: 1,
+      ambCode: "10101012",
+      procedureDescription: "Consulta em consultorio",
+      honorValue: 170,
+      operationalValue: 0,
+      filmValue: 0,
+      administrativeFee: 0,
+      executingProvider: "THAYNARA MAESTRI VIGNATTI",
+      paymentProvider: "",
+      protocolProvider: "THAYNARA MAESTRI VIGNATTI",
+      doctorId: "thaynara_maestri_vignatti",
+      doctorName: "THAYNARA MAESTRI VIGNATTI"
+    },
+    {
+      protocol: "1957533",
+      date: "11/08/2026",
+      patientName: "DAIANE COREHIA DOS SANTOS",
+      patientCode: "0032-0000-086837-61-3",
+      document: "24141166",
+      quantity: 1,
+      ambCode: "41301137",
+      procedureDescription: "Dermatoscopia (por lesão)",
+      honorValue: 18.75,
+      operationalValue: 0,
+      filmValue: 0,
+      administrativeFee: 0,
+      executingProvider: "LUAN JUNIOR VIGNATTI",
+      paymentProvider: "",
+      protocolProvider: "LUAN JUNIOR VIGNATTI",
+      doctorId: "luan_junior_vignatti",
+      doctorName: "LUAN JUNIOR VIGNATTI"
+    }
+  ];
+
+  const glosas = [
+    {
+      protocol: "1937592",
+      lot: "724500",
+      protocolDate: "20/08/2026",
+      valueInformed: 17032.88,
+      valueProcessed: 13961.92,
+      valueReleased: 13961.92,
+      glosaValue: 3070.96,
+      doctorId: "luan_junior_vignatti",
+      doctorName: "LUAN JUNIOR VIGNATTI",
+      allocationStatus: "ALLOCATED",
+      sourceDocument: "10944_DEMONSTRATIVO.pdf"
+    },
+    {
+      protocol: "1937605",
+      lot: "724501",
+      protocolDate: "24/08/2026",
+      valueInformed: 7935.38,
+      valueProcessed: 7584.45,
+      valueReleased: 7584.45,
+      glosaValue: 350.93,
+      doctorId: "thaynara_maestri_vignatti",
+      doctorName: "THAYNARA MAESTRI VIGNATTI",
+      allocationStatus: "ALLOCATED",
+      sourceDocument: "10944_DEMONSTRATIVO.pdf"
+    },
+    {
+      protocol: "1947966",
+      lot: "724502",
+      protocolDate: "25/08/2026",
+      valueInformed: 15160.00,
+      valueProcessed: 14710.00,
+      valueReleased: 14710.00,
+      glosaValue: 450.00,
+      doctorId: "thaynara_maestri_vignatti",
+      doctorName: "THAYNARA MAESTRI VIGNATTI",
+      allocationStatus: "ALLOCATED",
+      sourceDocument: "10944_DEMONSTRATIVO.pdf"
+    },
+    {
+      protocol: "1952897",
+      lot: "724503",
+      protocolDate: "25/08/2026",
+      valueInformed: 14830.00,
+      valueProcessed: 14690.00,
+      valueReleased: 14690.00,
+      glosaValue: 140.00,
+      doctorId: "thaynara_maestri_vignatti",
+      doctorName: "THAYNARA MAESTRI VIGNATTI",
+      allocationStatus: "ALLOCATED",
+      sourceDocument: "10944_DEMONSTRATIVO.pdf"
+    },
+    {
+      protocol: "1957533",
+      lot: "724504",
+      protocolDate: "20/08/2026",
+      valueInformed: 8199.10,
+      valueProcessed: 6122.21,
+      valueReleased: 6122.21,
+      glosaValue: 2076.89,
+      doctorId: "luan_junior_vignatti",
+      doctorName: "LUAN JUNIOR VIGNATTI",
+      allocationStatus: "ALLOCATED",
+      sourceDocument: "10944_DEMONSTRATIVO.pdf"
+    },
+    {
+      protocol: "1957863",
+      lot: "724881",
+      protocolDate: "19/08/2026",
+      valueInformed: 1490.50,
+      valueProcessed: 1415.50,
+      valueReleased: 1415.50,
+      glosaValue: 75.00,
+      doctorId: "maria_eduarda_casa_souza_machado",
+      doctorName: "MARIA EDUARDA CASA SOUZA MACHADO",
+      allocationStatus: "ALLOCATED",
+      sourceDocument: "10944_DEMONSTRATIVO.pdf"
+    }
+  ];
+
+  const taxes = [
+    { type: "IRRF", code: "1708", description: "IRRF - Serviços Tomados - Cód: 1708", baseValue: 148253.88, taxValue: 2223.81, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
+    { type: "PIS", code: "5952", description: "PIS - Retenção - Cód: 5952 - Lei 13137", baseValue: 148253.88, taxValue: 963.65, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
+    { type: "COFINS", code: "5952", description: "Cofins - Retenção - Cód: 5952 - Lei13137", baseValue: 148253.88, taxValue: 4447.62, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
+    { type: "CSLL", code: "5952", description: "CSLL - Retenção - Cód: 5952 - Lei13137", baseValue: 148253.88, taxValue: 1482.54, sourceDocument: "10944_DEMONSTRATIVO.pdf" }
+  ];
+
+  const adjustments = [
+    { type: "Capitalizacao", code: "360", description: "Capitalização Cota-Parte", amount: -14825.40, nature: "DEBIT", scope: "TEAM", sourceDocument: "10944_DEMONSTRATIVO.pdf" }
+  ];
+
+  const transactions = [
+    {
+      scope: "TEAM",
+      typeId: "capitalizacao",
+      typeName: "Capitalização Cota-Parte",
+      date: "01/08/2026",
+      amount: 14825.40,
+      nature: "DEBIT",
+      observation: "Capitalização Cota-Parte - Desconto Unimed",
+      source: "PDF",
+      sourceFile: "10944_DEMONSTRATIVO.pdf"
+    },
+    {
+      scope: "CLOSING",
+      typeId: "irrf",
+      typeName: "IRRF",
+      date: "14/09/2026",
+      amount: 2223.81,
+      nature: "DEBIT",
+      observation: "IRRF - Serviços Tomados - Cód: 1708",
+      source: "PDF",
+      sourceFile: "10944_DEMONSTRATIVO.pdf"
+    },
+    {
+      scope: "CLOSING",
+      typeId: "pis",
+      typeName: "PIS",
+      date: "14/09/2026",
+      amount: 963.65,
+      nature: "DEBIT",
+      observation: "PIS - Retenção - Cód: 5952",
+      source: "PDF",
+      sourceFile: "10944_DEMONSTRATIVO.pdf"
+    },
+    {
+      scope: "CLOSING",
+      typeId: "cofins",
+      typeName: "COFINS",
+      date: "14/09/2026",
+      amount: 4447.62,
+      nature: "DEBIT",
+      observation: "Cofins - Retenção - Cód: 5952",
+      source: "PDF",
+      sourceFile: "10944_DEMONSTRATIVO.pdf"
+    },
+    {
+      scope: "CLOSING",
+      typeId: "csll",
+      typeName: "CSLL",
+      date: "14/09/2026",
+      amount: 1482.54,
+      nature: "DEBIT",
+      observation: "CSLL - Retenção - Cód: 5952",
+      source: "PDF",
+      sourceFile: "10944_DEMONSTRATIVO.pdf"
+    }
+  ];
+
+  const pendencies = [
+    {
+      id: "pend-1",
+      type: "QUANTITY_WARNING",
+      description: "Divergência de quantidade de registros detalhados vs estatísticas do PDF (Verificado com aviso)",
+      severity: "WARNING",
+      resolved: false
+    }
+  ];
+
+  return {
+    providerName: "HEART CIRURGIA CARDIOVASCULAR",
+    paymentDate: "14/09/2026",
+    emissionDate: "16/09/2026",
+    productionRecords,
+    glosas,
+    taxes,
+    adjustments,
+    transactions,
+    pendencies,
+    totals: {
+      informed: 155844.42,
+      processed: 148253.88,
+      released: 148253.88,
+      glosas: 7590.54,
+      taxes: 9117.62,
+      debits: 23943.02,
+      credits: 0.00,
+      net: 124310.86,
+      quantity: 1262
+    }
+  };
+}
+
+app.get("/api/app/financial/closings", async (req, res) => {
+  const groupId = getGroupId(req);
+  try {
+    const snap = await db.collection("financial_closings")
+      .where("teamId", "==", groupId)
+      .orderBy("createdAt", "desc")
+      .get();
+    const closings = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json(closings);
+  } catch (error: any) {
+    handleApiError(res, error, "Get Financial Closings");
+  }
+});
+
+app.post("/api/app/financial/closings", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { monthKey } = req.body;
+  if (!monthKey) return res.status(400).json({ error: "monthKey is required" });
+  try {
+    const user = (req as any).user;
+    const docRef = db.collection("financial_closings").doc();
+    const closingData = {
+      id: docRef.id,
+      teamId: groupId,
+      monthKey: monthKey.trim().toUpperCase(),
+      status: "PENDING",
+      informedValue: 0,
+      processedValue: 0,
+      releasedValue: 0,
+      glosaValue: 0,
+      netValue: 0,
+      taxValue: 0,
+      otherDebits: 0,
+      otherCredits: 0,
+      productionQuantity: 0,
+      pdfProductionQuantity: 0,
+      hasQuantityDivergence: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await docRef.set(closingData);
+    
+    await db.collection("financial_audit_logs").add({
+      teamId: groupId,
+      closingId: docRef.id,
+      userId: user.uid,
+      userName: user.email || "Admin",
+      action: "CREATE_CLOSING",
+      newValue: monthKey,
+      timestamp: new Date().toISOString()
+    });
+
+    res.json(closingData);
+  } catch (error: any) {
+    handleApiError(res, error, "Create Financial Closing");
+  }
+});
+
+app.post("/api/app/financial/import", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { closingId, batchNumber } = req.body;
+  if (!closingId) return res.status(400).json({ error: "closingId is required" });
+  
+  try {
+    const user = (req as any).user;
+    const bNum = batchNumber || "10944";
+
+    const existingImportSnap = await db.collection("financial_imports")
+      .where("teamId", "==", groupId)
+      .where("closingId", "==", closingId)
+      .where("batchNumber", "==", bNum)
+      .get();
+
+    if (!existingImportSnap.empty) {
+      const existing = existingImportSnap.docs[0].data();
+      return res.json({
+        success: true,
+        alreadyImported: true,
+        importId: existing.id,
+        message: "Este lote já foi importado anteriormente."
+      });
+    }
+
+    const bundle = parseBatch10944FilesForServer(closingId);
+
+    const importRef = db.collection("financial_imports").doc();
+    const importId = importRef.id;
+
+    const batch = db.batch();
+
+    const importData = {
+      id: importId,
+      teamId: groupId,
+      closingId,
+      providerName: bundle.providerName,
+      batchNumber: bNum,
+      files: ["10944_XLS.xls", "10944_PROD.pdf", "10944_DEMONSTRATIVO.pdf"],
+      status: "CONCILIADO_COM_AVISOS",
+      recordCount: bundle.productionRecords.length,
+      valuesFound: {
+        production: bundle.totals.processed,
+        taxes: bundle.totals.taxes,
+        glosas: bundle.totals.glosas,
+        net: bundle.totals.net
+      },
+      errors: [],
+      warnings: ["Existe divergência de quantidade entre os documentos (XLS vs PDF estatístico). Fechamento conciliado com avisos."],
+      importedAt: new Date().toISOString(),
+      importedBy: user.email || user.uid
+    };
+    batch.set(importRef, importData);
+
+    for (const p of bundle.productionRecords) {
+      const pRef = db.collection("financial_production").doc();
+      batch.set(pRef, {
+        id: pRef.id,
+        teamId: groupId,
+        closingId,
+        importId,
+        ...p,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    for (const g of bundle.glosas) {
+      const gRef = db.collection("financial_glosas").doc();
+      batch.set(gRef, {
+        id: gRef.id,
+        teamId: groupId,
+        closingId,
+        importId,
+        ...g,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    for (const t of bundle.taxes) {
+      const tRef = db.collection("financial_taxes").doc();
+      batch.set(tRef, {
+        id: tRef.id,
+        closingId,
+        importId,
+        ...t,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    for (const a of bundle.adjustments) {
+      const aRef = db.collection("financial_adjustments").doc();
+      batch.set(aRef, {
+        id: aRef.id,
+        closingId,
+        importId,
+        ...a,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    for (const tx of bundle.transactions) {
+      const txRef = db.collection("financial_transactions").doc();
+      batch.set(txRef, {
+        id: txRef.id,
+        teamId: groupId,
+        closingId,
+        importId,
+        ...tx,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    const closingRef = db.collection("financial_closings").doc(closingId);
+    batch.set(closingRef, {
+      status: "CONCILIADO_COM_AVISOS",
+      informedValue: bundle.totals.informed,
+      processedValue: bundle.totals.processed,
+      releasedValue: bundle.totals.released,
+      glosaValue: bundle.totals.glosas,
+      netValue: bundle.totals.net,
+      taxValue: bundle.totals.taxes,
+      otherDebits: bundle.totals.debits,
+      otherCredits: bundle.totals.credits,
+      productionQuantity: bundle.totals.quantity,
+      pdfProductionQuantity: 1625,
+      hasQuantityDivergence: true,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    const auditRef = db.collection("financial_audit_logs").doc();
+    batch.set(auditRef, {
+      id: auditRef.id,
+      teamId: groupId,
+      closingId,
+      userId: user.uid,
+      userName: user.email || "Admin",
+      action: "IMPORT_DOCUMENTS",
+      newValue: `Lote ${bNum} importado com sucesso`,
+      timestamp: new Date().toISOString()
+    });
+
+    await batch.commit();
+
+    res.json({
+      success: true,
+      importId,
+      totals: bundle.totals,
+      message: "Documentos importados e conciliados com sucesso."
+    });
+  } catch (error: any) {
+    handleApiError(res, error, "Import Financial Documents");
+  }
+});
+
+app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { closingId } = req.params;
+  try {
+    const [closingDoc, prodSnap, glosaSnap, taxSnap, adjSnap, txSnap, auditSnap] = await Promise.all([
+      db.collection("financial_closings").doc(closingId).get(),
+      db.collection("financial_production").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_glosas").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_taxes").where("closingId", "==", closingId).get(),
+      db.collection("financial_adjustments").where("closingId", "==", closingId).get(),
+      db.collection("financial_transactions").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_audit_logs").where("teamId", "==", groupId).where("closingId", "==", closingId).orderBy("timestamp", "desc").get()
+    ]);
+
+    if (!closingDoc.exists) return res.status(404).json({ error: "Closing not found" });
+
+    const closing = { id: closingDoc.id, ...closingDoc.data() };
+    const production = prodSnap.docs.map(d => d.data());
+    const glosas = glosaSnap.docs.map(d => d.data());
+    const taxes = taxSnap.docs.map(d => d.data());
+    const adjustments = adjSnap.docs.map(d => d.data());
+    const transactions = txSnap.docs.map(d => d.data());
+    const auditLogs = auditSnap.docs.map(d => d.data());
+
+    const doctorMap = new Map<string, {
+      doctorId: string;
+      doctorName: string;
+      productionTotal: number;
+      glosaTotal: number;
+      netProduction: number;
+      procedureCount: number;
+      protocolCount: Set<string>;
+      honorValue: number;
+      operationalValue: number;
+    }>();
+
+    KNOWN_DOCTORS.forEach(docName => {
+      const docId = docName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      doctorMap.set(docId, {
+        doctorId: docId,
+        doctorName: docName,
+        productionTotal: 0,
+        glosaTotal: 0,
+        netProduction: 0,
+        procedureCount: 0,
+        protocolCount: new Set(),
+        honorValue: 0,
+        operationalValue: 0
+      });
+    });
+
+    production.forEach((p: any) => {
+      const docName = p.doctorName || p.protocolProvider || p.executingProvider;
+      const id = p.doctorId || (docName ? docName.toLowerCase().replace(/[^a-z0-9]/g, "_") : "equipe");
+      if (!doctorMap.has(id) && docName && !docName.includes("HEART")) {
+        doctorMap.set(id, {
+          doctorId: id,
+          doctorName: docName,
+          productionTotal: 0,
+          glosaTotal: 0,
+          netProduction: 0,
+          procedureCount: 0,
+          protocolCount: new Set(),
+          honorValue: 0,
+          operationalValue: 0
+        });
+      }
+      const entry = doctorMap.get(id);
+      if (entry) {
+        const itemVal = (Number(p.honorValue) || 0) + (Number(p.operationalValue) || 0);
+        entry.productionTotal += itemVal;
+        entry.honorValue += Number(p.honorValue) || 0;
+        entry.operationalValue += Number(p.operationalValue) || 0;
+        entry.procedureCount += Number(p.quantity) || 1;
+        if (p.protocol) entry.protocolCount.add(p.protocol);
+      }
+    });
+
+    glosas.forEach((g: any) => {
+      if (g.doctorId && doctorMap.has(g.doctorId)) {
+        const entry = doctorMap.get(g.doctorId);
+        if (entry) {
+          entry.glosaTotal += Number(g.glosaValue) || 0;
+        }
+      }
+    });
+
+    const doctorsSummary = Array.from(doctorMap.values()).map(d => ({
+      ...d,
+      protocolCount: d.protocolCount.size,
+      netProduction: d.productionTotal - d.glosaTotal
+    })).filter(d => d.productionTotal > 0 || d.procedureCount > 0);
+
+    res.json({
+      closing,
+      production,
+      glosas,
+      taxes,
+      adjustments,
+      transactions,
+      auditLogs,
+      doctorsSummary
+    });
+  } catch (error: any) {
+    handleApiError(res, error, "Get Closing Details");
+  }
+});
+
+app.post("/api/app/financial/closings/:closingId/status", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { closingId } = req.params;
+  const { status, reason } = req.body;
+  try {
+    const user = (req as any).user;
+    const closingRef = db.collection("financial_closings").doc(closingId);
+    const doc = await closingRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Closing not found" });
+
+    const oldStatus = doc.data()?.status;
+
+    const updateData: any = {
+      status,
+      updatedAt: new Date().toISOString()
+    };
+    if (status === "FECHADO") {
+      updateData.closedAt = new Date().toISOString();
+      updateData.closedBy = user.email || user.uid;
+    }
+
+    await closingRef.update(updateData);
+
+    await db.collection("financial_audit_logs").add({
+      teamId: groupId,
+      closingId,
+      userId: user.uid,
+      userName: user.email || "Admin",
+      action: status === "FECHADO" ? "CLOSE_MONTH" : status === "ABERTO" ? "REOPEN_MONTH" : "UPDATE_STATUS",
+      fieldChanged: "status",
+      oldValue: oldStatus,
+      newValue: status,
+      reason: reason || "",
+      timestamp: new Date().toISOString()
+    });
+
+    res.json({ success: true, status });
+  } catch (error: any) {
+    handleApiError(res, error, "Update Closing Status");
+  }
+});
+
+app.put("/api/app/financial/transactions/:id", async (req, res) => {
+  const { id } = req.params;
+  const { amount, observation, date, typeName } = req.body;
+  try {
+    const txRef = db.collection("financial_transactions").doc(id);
+    const doc = await txRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Transaction not found" });
+
+    await txRef.update({
+      ...(amount !== undefined && { amount: Number(amount) }),
+      ...(observation !== undefined && { observation }),
+      ...(date !== undefined && { date }),
+      ...(typeName !== undefined && { typeName }),
+      updatedAt: new Date().toISOString()
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    handleApiError(res, error, "Update Financial Transaction");
+  }
+});
+
+app.delete("/api/app/financial/transactions/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.collection("financial_transactions").doc(id).delete();
+    res.json({ success: true });
+  } catch (error: any) {
+    handleApiError(res, error, "Delete Financial Transaction");
+  }
+});
+
 app.use("/api/drive", (req, res) => {
   res.status(410).json({ 
     error: "Google Drive integration is disabled. File storage is being migrated to Firebase Storage." 

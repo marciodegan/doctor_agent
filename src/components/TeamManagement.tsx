@@ -16,7 +16,8 @@ import {
   Trash2,
   MessageCircle,
   ExternalLink,
-  ShoppingCart
+  ShoppingCart,
+  ShieldCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GroupConfigs } from "./GroupConfigs";
@@ -291,6 +292,25 @@ export function TeamManagement() {
                       <div className="text-center">
                         <h4 className="text-[15px] font-black uppercase tracking-tight mb-1">Configurações</h4>
                         <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:text-emerald-50">Ajustes do Grupo</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        setIsManagementOpen(false);
+                        window.dispatchEvent(new CustomEvent('open-administration'));
+                      }}
+                      className="flex flex-col items-center justify-center gap-4 p-8 bg-purple-50/50 border-2 border-purple-100 rounded-[40px] hover:bg-purple-600 hover:text-white hover:border-purple-500 hover:shadow-2xl hover:shadow-purple-200 transition-all group relative overflow-hidden sm:col-span-2"
+                    >
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                         <ShieldCheck size={80} />
+                      </div>
+                      <div className="p-4 bg-white text-purple-600 rounded-[24px] shadow-lg group-hover:scale-110 transition-all">
+                         <ShieldCheck size={32} />
+                      </div>
+                      <div className="text-center">
+                        <h4 className="text-[15px] font-black uppercase tracking-tight mb-1">Administração & Financeiro</h4>
+                        <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:text-purple-50">Fechamentos, Glosas, Impostos e Fluxo de Caixa</p>
                       </div>
                     </button>
 

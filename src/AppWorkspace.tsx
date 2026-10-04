@@ -46,6 +46,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { BottomNav } from "./components/BottomNav";
 
 import { TeamManagement } from "./components/TeamManagement";
+import { AdministrationFullscreen } from "./components/admin/AdministrationFullscreen";
 import { PersonalDocuments } from "./components/PersonalDocuments";
 import { PatientLogs } from "./components/PatientLogs";
 import { ShoppingList } from "./components/ShoppingList";
@@ -75,6 +76,13 @@ export default function AppWorkspace() {
     : "Dr. Agent";
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showAdministration, setShowAdministration] = useState(false);
+
+  useEffect(() => {
+    const handleOpenAdmin = () => setShowAdministration(true);
+    window.addEventListener("open-administration" as any, handleOpenAdmin);
+    return () => window.removeEventListener("open-administration" as any, handleOpenAdmin);
+  }, []);
   const [installPrompt, setInstallPrompt] = useState<any>(() => {
     return (typeof window !== "undefined" && (window as any).deferredInstallPrompt) || null;
   });
@@ -570,6 +578,11 @@ export default function AppWorkspace() {
 
           <div className="pt-8 space-y-1">
             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Account</div>
+            <NavItem
+              icon={<ShieldCheck size={18} className="text-purple-600" />}
+              label="Administração"
+              onClick={() => setShowAdministration(true)}
+            />
             <NavItem
               icon={<Zap size={18} className="text-blue-600" />}
               label="Assinatura Pro"
