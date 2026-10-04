@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUserKeys(keys);
           }
         } catch (e) {
-          console.debug("[useAuth] Key generation/loading skipped:", e);
+          console.error("[useAuth] Failed to load/create user keys:", e);
         }
       });
     } else {
@@ -310,8 +310,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!res.ok || !data?.url) {
-        console.warn("[Auth] OAuth URL generation failed, falling back to Demo/Sandbox login:", data?.error || res.status);
-        enableDemoMode();
+        const errorMsg = data?.error || data?.details || `HTTP error ${res.status}`;
+        console.error("[Auth] Failed to generate auth URL:", errorMsg);
+        alert(`Não foi possível iniciar o login do Google: ${errorMsg}\n\nCaso esteja implantado na Vercel, certifique-se de adicionar GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no painel de Environment Variables.`);
         return;
       }
       const { url, state } = data;
