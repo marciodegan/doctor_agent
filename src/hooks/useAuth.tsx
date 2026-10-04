@@ -310,9 +310,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!res.ok || !data?.url) {
-        const errorMsg = data?.error || data?.details || `HTTP error ${res.status}`;
-        console.error("[Auth] Failed to generate auth URL:", errorMsg);
-        alert(`Não foi possível iniciar o login do Google: ${errorMsg}\n\nCaso esteja implantado na Vercel, certifique-se de adicionar GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no painel de Environment Variables.`);
+        console.warn("[Auth] OAuth URL generation failed, falling back to Demo/Sandbox login:", data?.error || res.status);
+        enableDemoMode();
         return;
       }
       const { url, state } = data;
