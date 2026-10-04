@@ -281,7 +281,8 @@ const isInvalidGrantError = (err: any) => {
 
 // Helper to get auth client from cookie
 const getAuthClient = (req: express.Request) => {
-  const rawToken = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
+  const cookies = req?.cookies || {};
+  const rawToken = cookies[COOKIE_NAME] || cookies[LEGACY_COOKIE_NAME] || cookies["n_session_p"] || cookies["n_session_u"] || cookies["google_token"];
   if (!rawToken) return null;
   
   const client = getOAuth2Client(req);
@@ -307,7 +308,8 @@ const getGroupId = (req: express.Request) => {
 const userIdCache = new Map<string, { id: string; expires: number }>();
 
 const getUserId = async (req: express.Request) => {
-  const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME];
+  const cookies = req?.cookies || {};
+  const token = cookies[COOKIE_NAME] || cookies[LEGACY_COOKIE_NAME];
   if (!token) return null;
   
   // Hash the token for cache key
@@ -934,14 +936,15 @@ app.get("/api/auth/firebase-token", async (req, res) => {
 
 app.get("/api/auth/status", (req, res) => {
   try {
-    const token = req.cookies[COOKIE_NAME] || req.cookies[LEGACY_COOKIE_NAME] || req.cookies["n_session_p"] || req.cookies["n_session_u"] || req.cookies["google_token"];
+    const cookies = req?.cookies || {};
+    const token = cookies[COOKIE_NAME] || cookies[LEGACY_COOKIE_NAME] || cookies["n_session_p"] || cookies["n_session_u"] || cookies["google_token"];
     res.json({ 
       isAuthenticated: !!token,
       debug: {
-        hasPartitioned: !!req.cookies[COOKIE_NAME],
-        hasLegacy: !!req.cookies[LEGACY_COOKIE_NAME],
-        cookieCount: Object.keys(req.cookies || {}).length,
-        allCookies: Object.keys(req.cookies || {}),
+        hasPartitioned: !!cookies[COOKIE_NAME],
+        hasLegacy: !!cookies[LEGACY_COOKIE_NAME],
+        cookieCount: Object.keys(cookies).length,
+        allCookies: Object.keys(cookies),
         ua: req.headers["user-agent"],
         configLoaded: !!firebaseConfig.projectId,
         hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT
@@ -949,7 +952,7 @@ app.get("/api/auth/status", (req, res) => {
     });
   } catch (err: any) {
     console.error("Error in auth status:", err);
-    res.status(500).json({ error: "Internal server error fetching auth status" });
+    res.json({ isAuthenticated: false, error: err.message });
   }
 });
 
