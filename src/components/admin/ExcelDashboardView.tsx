@@ -802,13 +802,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                           {r.azPlDS > 0 ? r.azPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{r.azTotTT > 0 ? r.azTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-300">{r.azTotDS > 0 ? r.azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-500">{r.azTotDS > 0 ? r.azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Marieta */}
                         <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.marEqTT > 0 ? r.marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.marEqDS > 0 ? r.marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{r.marTotTT > 0 ? r.marTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-300">{r.marTotDS > 0 ? r.marTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-500">{r.marTotDS > 0 ? r.marTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Unimed (Equipe from imports, Plantao manual) */}
                         <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedEqTT > 0 ? r.unimedEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
@@ -838,7 +838,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                         <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{r.unimTotTT > 0 ? r.unimTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono text-gray-500">{r.unimTotTT > 0 ? (r.unimTotTT / 277794.83 * 100).toFixed(2) : "0.00"}%</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-teal-800 border-r-2 border-slate-300">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-teal-800 border-r-2 border-slate-500">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Consultorio (Manual in Emerald) */}
                         <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
@@ -854,7 +854,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                             placeholder="0,00"
                           />
                         </td>
-                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-300">
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-500">
                           <input
                             type="number"
                             value={manualEntradas[r.key]?.consultDS || ""}
@@ -882,7 +882,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                             placeholder="0,00"
                           />
                         </td>
-                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-300">
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-500">
                           <input
                             type="number"
                             value={manualEntradas[r.key]?.dinheiroDS || ""}
@@ -910,7 +910,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                             placeholder="0,00"
                           />
                         </td>
-                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-300">
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-500">
                           <input
                             type="number"
                             value={manualEntradas[r.key]?.unimLuisDS || ""}
