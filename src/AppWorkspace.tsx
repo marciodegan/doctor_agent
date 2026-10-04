@@ -898,6 +898,9 @@ export default function AppWorkspace() {
           navigateAndAction("workspace", "/pacientes");
         }}
       />
+      {showAdministration && (
+        <AdministrationFullscreen onClose={() => setShowAdministration(false)} />
+      )}
     </div>
   );
 }

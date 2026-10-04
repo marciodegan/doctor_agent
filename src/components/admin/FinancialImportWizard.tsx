@@ -11,7 +11,8 @@ import {
   Sparkles,
   ShieldCheck,
   Building2,
-  Calendar
+  Calendar,
+  ArrowRight
 } from "lucide-react";
 
 interface FinancialImportWizardProps {

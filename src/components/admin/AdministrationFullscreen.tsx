@@ -56,7 +56,7 @@ export function AdministrationFullscreen({ onClose, initialTab = "fechamentos" }
               <ShieldCheck size={18} />
             </div>
             <div>
-              <h1 className="font-black text-sm uppercase tracking-tight text-gray-900">ADMINISTRAÇÃO > FINANCEIRO</h1>
+              <h1 className="font-black text-sm uppercase tracking-tight text-gray-900">ADMINISTRAÇÃO &gt; FINANCEIRO</h1>
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{activeGroup?.name || "Gestão Financeira e Fechamentos"}</p>
             </div>
           </div>
