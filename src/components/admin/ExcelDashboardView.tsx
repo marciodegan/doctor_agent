@@ -657,17 +657,27 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                       const isTeam = doc.isTeam;
                       const pct = doc.percent;
                       const mul = hasClosing ? 1 : 0;
-                      const azEqTT = isTeam ? Math.round((pct / 100) * 57420.90 * 100 * mul) / 100 : 0;
-                      const azEqDS = isTeam ? Math.round((pct / 100) * 46782.71 * 100 * mul) / 100 : 0;
                       
-                      const man = manualEntradas[doc.key] || { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 0, unimedPlantaoDS: 0 };
+                      const man = manualEntradas[doc.key] || {
+                        azambujaEqTT: 0, azambujaEqDS: 0, azambujaPlantaoTT: 0, azambujaPlantaoDS: 0,
+                        marietaEqTT: 0, marietaEqDS: 0,
+                        unimedPlantaoTT: 0, unimedPlantaoDS: 0,
+                        consultTT: 0, consultDS: 0,
+                        dinheiroTT: 0, dinheiroDS: 0,
+                        unimLuisTT: 0, unimLuisDS: 0
+                      };
+
+                      const azEqTT = (man.azambujaEqTT || 0) * mul;
+                      const azEqDS = (man.azambujaEqDS || 0) * mul;
                       const azPlTT = (man.azambujaPlantaoTT || 0) * mul;
                       const azPlDS = (man.azambujaPlantaoDS || 0) * mul;
                       const azTotTT = azEqTT + azPlTT;
                       const azTotDS = azEqDS + azPlDS;
 
-                      const marEqTT = isTeam ? Math.round((pct / 100) * 81042.09 * 100 * mul) / 100 : 0;
-                      const marEqDS = isTeam ? Math.round((pct / 100) * 67645.83 * 100 * mul) / 100 : 0;
+                      const marEqTT = (man.marietaEqTT || 0) * mul;
+                      const marEqDS = (man.marietaEqDS || 0) * mul;
+                      const marTotTT = marEqTT;
+                      const marTotDS = marEqDS;
 
                       const unimedData = getDoctorUnimed(doc.name);
                       const unimedEqTT = unimedData.prod * mul;
@@ -677,20 +687,22 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                       const unimTotTT = unimedEqTT + unimPlTT;
                       const unimTotDS = unimedEqDS + unimPlDS;
 
-                      const consultTT = isTeam ? Math.round((pct / 100) * 400 * 100 * mul) / 100 : 0;
-                      const dinheiroTT = isTeam ? Math.round((pct / 100) * 1200 * 100 * mul) / 100 : 0;
-                      const unimLuisTT = isTeam ? Math.round((pct / 100) * 8406 * 100 * mul) / 100 : 0;
-                      const unimLuisDS = isTeam ? Math.round((pct / 100) * 7016.49 * 100 * mul) / 100 : 0;
+                      const consultTT = (man.consultTT || 0) * mul;
+                      const consultDS = (man.consultDS || 0) * mul;
+                      const dinheiroTT = (man.dinheiroTT || 0) * mul;
+                      const dinheiroDS = (man.dinheiroDS || 0) * mul;
+                      const unimLuisTT = (man.unimLuisTT || 0) * mul;
+                      const unimLuisDS = (man.unimLuisDS || 0) * mul;
 
-                      const totalGeralTT = azTotTT + marEqTT + unimTotTT + consultTT + dinheiroTT + unimLuisTT;
-                      const totalGeralDS = azTotDS + marEqDS + unimTotDS + consultTT + dinheiroTT + unimLuisDS;
+                      const totalGeralTT = azTotTT + marTotTT + unimTotTT + consultTT + dinheiroTT + unimLuisTT;
+                      const totalGeralDS = azTotDS + marTotDS + unimTotDS + consultDS + dinheiroDS + unimLuisDS;
 
                       return {
                         ...doc,
                         azEqTT, azEqDS, azPlTT, azPlDS, azTotTT, azTotDS,
-                        marEqTT, marEqDS,
+                        marEqTT, marEqDS, marTotTT, marTotDS,
                         unimedEqTT, unimedEqDS, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
-                        consultTT, dinheiroTT, unimLuisTT, unimLuisDS,
+                        consultTT, consultDS, dinheiroTT, dinheiroDS, unimLuisTT, unimLuisDS,
                         totalGeralTT, totalGeralDS
                       };
                     });
@@ -708,9 +720,33 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                         <td className="p-3 border border-slate-200 font-bold text-gray-700 bg-slate-50">
                           {r.percent > 0 ? `${r.percent}%` : "-"}
                         </td>
-                        {/* Azambuja */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.azEqTT > 0 ? r.azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.azEqDS > 0 ? r.azEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {/* Azambuja (Manual Inputs in Emerald) */}
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
+                          <input
+                            type="number"
+                            value={manualEntradas[r.key]?.azambujaEqTT || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const man = manualEntradas[r.key] || {};
+                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, azambujaEqTT: val } });
+                            }}
+                            className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="0,00"
+                          />
+                        </td>
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
+                          <input
+                            type="number"
+                            value={manualEntradas[r.key]?.azambujaEqDS || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const man = manualEntradas[r.key] || {};
+                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, azambujaEqDS: val } });
+                            }}
+                            className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="0,00"
+                          />
+                        </td>
                         <td className="p-3 border border-slate-200 bg-emerald-50/60 p-1">
                           <input
                             type="number"
@@ -718,7 +754,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                             onChange={(e) => {
                               const val = parseFloat(e.target.value) || 0;
                               const ratio = 0.8147;
-                              const man = manualEntradas[r.key] || { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 0, unimedPlantaoDS: 0 };
+                              const man = manualEntradas[r.key] || {};
                               setManualEntradas({
                                 ...manualEntradas,
                                 [r.key]: { ...man, azambujaPlantaoTT: val, azambujaPlantaoDS: Math.round(val * ratio * 100) / 100 }
@@ -734,13 +770,37 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                         <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{r.azTotTT > 0 ? r.azTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-300">{r.azTotDS > 0 ? r.azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Marieta */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.marEqTT > 0 ? r.marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.marEqDS > 0 ? r.marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{r.marEqTT > 0 ? r.marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-300">{r.marEqDS > 0 ? r.marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {/* Marieta (Manual Inputs in Emerald) */}
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
+                          <input
+                            type="number"
+                            value={manualEntradas[r.key]?.marietaEqTT || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const man = manualEntradas[r.key] || {};
+                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, marietaEqTT: val } });
+                            }}
+                            className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="0,00"
+                          />
+                        </td>
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
+                          <input
+                            type="number"
+                            value={manualEntradas[r.key]?.marietaEqDS || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const man = manualEntradas[r.key] || {};
+                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, marietaEqDS: val } });
+                            }}
+                            className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="0,00"
+                          />
+                        </td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{r.marTotTT > 0 ? r.marTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-300">{r.marTotDS > 0 ? r.marTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Unimed */}
+                        {/* Unimed (Equipe from imports, Plantao manual) */}
                         <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedEqTT > 0 ? r.unimedEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedEqDS > 0 ? r.unimedEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono text-gray-500">-</td>
@@ -752,7 +812,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                             onChange={(e) => {
                               const val = parseFloat(e.target.value) || 0;
                               const ratio = 0.8189;
-                              const man = manualEntradas[r.key] || { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 0, unimedPlantaoDS: 0 };
+                              const man = manualEntradas[r.key] || {};
                               setManualEntradas({
                                 ...manualEntradas,
                                 [r.key]: { ...man, unimedPlantaoTT: val, unimedPlantaoDS: Math.round(val * ratio * 100) / 100 }
@@ -770,17 +830,89 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                         <td className="p-3 border border-slate-200 font-mono text-gray-500">{r.unimTotTT > 0 ? (r.unimTotTT / 277794.83 * 100).toFixed(2) : "0.00"}%</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-teal-800 border-r-2 border-slate-300">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Consultorio */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.consultTT > 0 ? r.consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-purple-900 border-r-2 border-slate-300">{r.consultTT > 0 ? r.consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {/* Consultorio (Manual in Emerald) */}
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
+                          <input
+                            type="number"
+                            value={manualEntradas[r.key]?.consultTT || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const man = manualEntradas[r.key] || {};
+                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, consultTT: val } });
+                            }}
+                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="0,00"
+                          />
+                        </td>
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-300">
+                          <input
+                            type="number"
+                            value={manualEntradas[r.key]?.consultDS || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const man = manualEntradas[r.key] || {};
+                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, consultDS: val } });
+                            }}
+                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="0,00"
+                          />
+                        </td>
 
-                        {/* Dinheiro */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.dinheiroTT > 0 ? r.dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-amber-900 border-r-2 border-slate-300">{r.dinheiroTT > 0 ? r.dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {/* Dinheiro (Manual in Emerald) */}
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
+                          <input
+                            type="number"
+                            value={manualEntradas[r.key]?.dinheiroTT || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const man = manualEntradas[r.key] || {};
+                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, dinheiroTT: val } });
+                            }}
+                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="0,00"
+                          />
+                        </td>
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-300">
+                          <input
+                            type="number"
+                            value={manualEntradas[r.key]?.dinheiroDS || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const man = manualEntradas[r.key] || {};
+                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, dinheiroDS: val } });
+                            }}
+                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="0,00"
+                          />
+                        </td>
 
-                        {/* Unimed Luis */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimLuisTT > 0 ? r.unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-rose-900 border-r-2 border-slate-300">{r.unimLuisDS > 0 ? r.unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {/* Unimed Luis (Manual in Emerald) */}
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1">
+                          <input
+                            type="number"
+                            value={manualEntradas[r.key]?.unimLuisTT || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const man = manualEntradas[r.key] || {};
+                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, unimLuisTT: val } });
+                            }}
+                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="0,00"
+                          />
+                        </td>
+                        <td className="p-3 border border-slate-200 bg-emerald-50/40 p-1 border-r-2 border-slate-300">
+                          <input
+                            type="number"
+                            value={manualEntradas[r.key]?.unimLuisDS || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const man = manualEntradas[r.key] || {};
+                              setManualEntradas({ ...manualEntradas, [r.key]: { ...man, unimLuisDS: val } });
+                            }}
+                            className="w-16 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="0,00"
+                          />
+                        </td>
 
                         {/* Total Geral */}
                         <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -1100,13 +1232,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
           {/* Table of doctors and team assignment */}
           <div className="overflow-x-auto border border-gray-200 rounded-2xl">
             <table className="w-full text-left border-collapse text-xs">
-              <thead>
+               <thead>
                 <tr className="bg-gray-100 text-gray-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
                   <th className="p-3.5 pl-6">Médico</th>
                   <th className="p-3.5">Especialidade</th>
                   <th className="p-3.5 text-center">Membro da Equipe?</th>
                   <th className="p-3.5 text-center">% Nominal (Entradas)</th>
-                  <th className="p-3.5 text-center">Disponível no Mês (R$)</th>
                   <th className="p-3.5 text-center bg-blue-50 text-blue-900">PROPORÇÃO HEART (Despesas)</th>
                   <th className="p-3.5">Regra de Fechamento</th>
                 </tr>
@@ -1152,7 +1283,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                             onChange={(e) => {
                               const updated = [...teamSettings.doctors];
                               updated[idx].teamSharePercent = parseFloat(e.target.value) || 0;
-                              setTeamSettings({ ...teamSettings, doctors: updated });
+                              const recalced = recalculateHeartProportions(updated);
+                              setTeamSettings({ ...teamSettings, doctors: recalced });
                             }}
                             className="w-16 bg-white border border-gray-300 rounded-lg px-2 py-1 text-center font-black text-emerald-700"
                           />
@@ -1160,30 +1292,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                         </div>
                       ) : (
                         <span className="text-gray-400 font-bold">0%</span>
-                      )}
-                    </td>
-
-                    {/* Disponível no Período (R$) */}
-                    <td className="p-3.5 text-center">
-                      {doc.isTeamMember ? (
-                        <div className="inline-flex items-center gap-1">
-                          <span className="text-[10px] text-gray-400 font-bold">R$</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={doc.disponivelPeriodo || ""}
-                            onChange={(e) => {
-                              const updated = [...teamSettings.doctors];
-                              updated[idx].disponivelPeriodo = parseFloat(e.target.value) || 0;
-                              const recalced = recalculateHeartProportions(updated);
-                              setTeamSettings({ ...teamSettings, doctors: recalced });
-                            }}
-                            className="w-24 bg-white border border-gray-300 rounded-lg px-2 py-1 text-right font-mono font-bold text-gray-800"
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 font-mono">—</span>
                       )}
                     </td>
 
