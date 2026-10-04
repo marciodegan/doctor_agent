@@ -13,7 +13,17 @@ import {
   ArrowUpRight,
   Filter,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Stethoscope,
+  Building2,
+  Wallet,
+  Receipt,
+  Search,
+  Plus,
+  Eye,
+  ChevronDown,
+  Layers,
+  Percent
 } from "lucide-react";
 
 interface ExcelDashboardViewProps {
@@ -22,16 +32,48 @@ interface ExcelDashboardViewProps {
 
 export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
   const { activeGroup, apiFetch } = useGroup();
+  const [closings, setClosings] = useState<any[]>([]);
+  const [selectedClosingId, setSelectedClosingId] = useState<string | null>(closingId);
   const [details, setDetails] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [activeSubTab, setActiveSubTab] = useState<"visao_geral" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe">("visao_geral");
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
 
+  // Load available closings
   useEffect(() => {
-    if (!closingId || !activeGroup) return;
+    if (!activeGroup) return;
+    const fetchClosings = async () => {
+      try {
+        const res = await apiFetch("/api/app/financial/closings");
+        if (res.ok) {
+          const data = await res.json();
+          setClosings(data);
+          if (!selectedClosingId && data.length > 0) {
+            setSelectedClosingId(data[0].id);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load closings:", e);
+      }
+    };
+    fetchClosings();
+  }, [activeGroup]);
+
+  // Sync selectedClosingId when prop changes
+  useEffect(() => {
+    if (closingId) {
+      setSelectedClosingId(closingId);
+    }
+  }, [closingId]);
+
+  // Load details for selected closing
+  useEffect(() => {
+    if (!selectedClosingId || !activeGroup) return;
     const fetchDetails = async () => {
       try {
         setLoading(true);
-        const res = await apiFetch(`/api/app/financial/closings/${closingId}/details`);
+        const res = await apiFetch(`/api/app/financial/closings/${selectedClosingId}/details`);
         if (res.ok) {
           const data = await res.json();
           setDetails(data);
@@ -43,393 +85,1016 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
       }
     };
     fetchDetails();
-  }, [closingId, activeGroup]);
+  }, [selectedClosingId, activeGroup]);
 
-  // Doctor list matching Excel
+  // Standard doctor list and participating percentages from the Excel sheet
   const doctors = [
-    { key: "rochele", name: "ROCHELE LORENZI POL", initial: "ROCHELE", percent: "29%" },
-    { key: "thais", name: "THAIS ISABEL LUMIKOSKI", initial: "THAIS", percent: "29%" },
-    { key: "luis", name: "LUIS BONGIOLO MATTOS", initial: "LUIS", percent: "29%" },
-    { key: "kathize", name: "KATHIZE LIRA", initial: "KATHIZE", percent: "13%" },
-    { key: "tamara", name: "TAMARA QUINTINO REGIS", initial: "TAMARA", percent: "7.15%" },
-    { key: "luan", name: "LUAN JUNIOR VIGNATTI", initial: "LUAN", percent: "26.79%" },
-    { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", initial: "THAYNARA", percent: "31.47%" },
-    { key: "camila", name: "CAMILA RIBEIRO DUTRA", initial: "CAMILA", percent: "28.11%" },
-    { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", initial: "MARIA EDUARDA", percent: "26.79%" }
+    { key: "rochele", name: "ROCHELE LORENZI POL", initial: "ROCHELE", percent: "29%", specialty: "Cirurgia Cardiovascular" },
+    { key: "thais", name: "THAIS ISABEL LUMIKOSKI", initial: "THAIS", percent: "29%", specialty: "Cirurgia Cardiovascular" },
+    { key: "luis", name: "LUIS BONGIOLO MATTOS", initial: "LUIS", percent: "29%", specialty: "Cirurgia Geral / Cardio" },
+    { key: "kathize", name: "KATHIZE LIRA", initial: "KATHIZE", percent: "13%", specialty: "Médica Assistente" },
+    { key: "tamara", name: "TAMARA QUINTINO REGIS", initial: "TAMARA", percent: "7.15%", specialty: "Dermatologia Clínica" },
+    { key: "luan", name: "LUAN JUNIOR VIGNATTI", initial: "LUAN", percent: "26.79%", specialty: "Cirurgia da Pele / Dermatologia" },
+    { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", initial: "THAYNARA", percent: "31.47%", specialty: "Ginecologia & Obstetrícia" },
+    { key: "camila", name: "CAMILA RIBEIRO DUTRA", initial: "CAMILA", percent: "28.11%", specialty: "Reumatologia & Infusões" },
+    { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", initial: "MARIA EDUARDA", percent: "26.79%", specialty: "Dermatologia & Procedimentos" }
   ];
 
-  // Specific data extracted from the Excel matrix for SETEMBRO-26
+  // Excel master dataset (SETEMBRO-26)
   const excelData = {
     monthKey: details?.closing?.monthKey || "SETEMBRO-26",
     totals: {
+      entradasGerais: 266118.14,
+      saidasOperacionais: 4787.49,
+      outrasSaidas: 29527.92,
+      totalSaidas: 34315.41,
       totalFaturado: 277794.83,
       totalRecebimentos: 318078.98,
       totalDistribuicao: 270446.21,
       totalReservadoImpostos: 46558.41,
-      saldoFinal: 1074.36,
-      totalSaidasOperacionais: 29527.92,
-      totalOutrasSaidas: 37739.01
+      saldoFinal: 1074.36
     },
     // Entradas por Fonte
-    entradas: {
+    fontes: {
       azambuja: {
-        rochele: 1890.27,
-        thais: 1890.27,
-        luis: 1890.27,
-        kathize: 798.54,
-        totalEquipe: 6469.35
+        titulo: "AZAMBUJA",
+        equipePlantao: 57420.94,
+        liquidoPlantao: 46782.71,
+        particular: 12600.00,
+        liquidoParticular: 10265.63,
+        total: 70020.94,
+        liquidoTotal: 57048.34,
+        rateio: [
+          { medico: "ROCHELE LORENZI POL", valor: 1890.27 },
+          { medico: "THAIS ISABEL LUMIKOSKI", valor: 1890.27 },
+          { medico: "LUIS BONGIOLO MATTOS", valor: 1890.27 },
+          { medico: "KATHIZE LIRA", valor: 798.54 }
+        ]
       },
       marieta: {
-        rochele: 19617.29,
-        thais: 19617.29,
-        luis: 19617.29,
-        kathize: 8793.96,
-        totalEquipe: 67645.83
+        titulo: "MARIETA",
+        total: 81042.09,
+        liquidoTotal: 67645.83,
+        rateio: [
+          { medico: "ROCHELE LORENZI POL", valor: 19617.29 },
+          { medico: "THAIS ISABEL LUMIKOSKI", valor: 19617.29 },
+          { medico: "LUIS BONGIOLO MATTOS", valor: 19617.29 },
+          { medico: "KATHIZE LIRA", valor: 8793.96 }
+        ]
       },
       unimed: {
-        rochele: 27095.00,
-        thais: 7706.25,
-        tamara: 21101.25,
-        luan: 37715.27,
-        thaynara: 82700.87,
-        camila: 18924.06,
-        maria_eduarda: 35174.57,
-        totalEquipe: 230417.27
+        titulo: "UNIMED LITORAL",
+        total: 277794.83,
+        liquidoTotal: 227477.88,
+        rateio: [
+          { medico: "ROCHELE LORENZI POL", valor: 27095.00 },
+          { medico: "THAIS ISABEL LUMIKOSKI", valor: 7706.25 },
+          { medico: "TAMARA QUINTINO REGIS", valor: 21101.25 },
+          { medico: "LUAN JUNIOR VIGNATTI", valor: 37715.27 },
+          { medico: "THAYNARA MAESTRI VIGNATTI", valor: 82700.87 },
+          { medico: "CAMILA RIBEIRO DUTRA", valor: 18924.06 },
+          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", valor: 35174.57 }
+        ]
       },
       consultorio: {
+        titulo: "CONSULTÓRIO PARTICULAR & OUTROS",
         dinheiro: 400.00,
         cartao: 1200.00,
-        total: 1600.00
+        unimedLuis: 8406.00,
+        totalGeral: 10006.00
       }
     },
-    // Ocorrências Financeiras por Médico (Saídas e Entradas específicas do demonstrativo)
-    ocorrencias: [
-      { medico: "ROCHELE LORENZI POL", tipo: "Disponibilidade Médica - UTI", valor: 1966.87, natureza: "ENTRADA", desc: "Plantão UTI HU" },
-      { medico: "ROCHELE LORENZI POL", tipo: "Repasse Pagamento de Produção - HU", valor: 1439.16, natureza: "ENTRADA", desc: "Produção HU" },
-      { medico: "ROCHELE LORENZI POL", tipo: "Repasse Pagamento de Parecer Médico - HU", valor: 135.00, natureza: "ENTRADA", desc: "Pareceres HU" },
-      { medico: "ROCHELE LORENZI POL", tipo: "Sobreavisos", valor: 4320.00, natureza: "ENTRADA", desc: "Sobreavisos de retaguarda" },
-      { medico: "ROCHELE LORENZI POL", tipo: "Glosas - Clínica Cooperada - 11%", valor: 10.00, natureza: "SAIDA", desc: "Retenção glosa Unimed" },
-      { medico: "ROCHELE LORENZI POL", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos" },
-
-      { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Sobreavisos", valor: 7200.00, natureza: "ENTRADA", desc: "Sobreavisos plantão" },
-      { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 6.00, natureza: "SAIDA", desc: "Glosa Unimed Litoral" },
-      { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos" },
-      { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Integralização de Cota Parte", valor: 7500.00, natureza: "SAIDA", desc: "Integralização cota Unimed" },
-
-      { medico: "TAMARA QUINTINO REGIS", tipo: "Glosas - Clínica Cooperada - 11%", valor: 407.57, natureza: "SAIDA", desc: "Glosa Lote 1485226" },
-      { medico: "TAMARA QUINTINO REGIS", tipo: "Glosas - Clínica Cooperada - 11%", valor: 349.53, natureza: "SAIDA", desc: "Glosa Lote 1490176" },
-      { medico: "TAMARA QUINTINO REGIS", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos" },
-      { medico: "TAMARA QUINTINO REGIS", tipo: "Mensalidade PLAC", valor: 288.00, natureza: "SAIDA", desc: "Desconto mensal PLAC" },
-
-      { medico: "LUAN JUNIOR VIGNATTI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 2308.86, natureza: "SAIDA", desc: "Glosa Lote 1490176" },
-      { medico: "LUAN JUNIOR VIGNATTI", tipo: "Integralização de Cota Parte", valor: 7579.69, natureza: "SAIDA", desc: "Integralização Unimed 5 de 24" },
-      { medico: "LUAN JUNIOR VIGNATTI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos" },
-
-      { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Remuneração Bonificação Parto Normal", valor: 1150.00, natureza: "ENTRADA", desc: "Bonificação Parto Normal HU" },
-      { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Remuneração Bonificação Parto Normal", valor: 849.53, natureza: "ENTRADA", desc: "Bonificação Parto Normal" },
-      { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Disponibilidade Ginecologia - Centro Obstétrico", valor: 3857.67, natureza: "ENTRADA", desc: "Disponibilidade Obstetrícia" },
-      { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Disponibilidade Ginecologia - Centro Obstétrico", valor: 7910.93, natureza: "ENTRADA", desc: "Disponibilidade Obstetrícia HU" },
-      { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 702.18, natureza: "SAIDA", desc: "Glosa Unimed" },
-      { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Integralização de Cota Parte", valor: 7500.00, natureza: "SAIDA", desc: "Integralização cota Unimed" },
-      { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos" },
-
-      { medico: "CAMILA RIBEIRO DUTRA", tipo: "Disponibilidade - Reumatologia", valor: 12769.67, natureza: "ENTRADA", desc: "Disponibilidade Especialidade" },
-      { medico: "CAMILA RIBEIRO DUTRA", tipo: "Integralização de Cota Parte", valor: 7579.66, natureza: "SAIDA", desc: "Integralização cota 5 de 24" },
-      { medico: "CAMILA RIBEIRO DUTRA", tipo: "Mensalidade PLAC", valor: 431.09, natureza: "SAIDA", desc: "Desconto PLAC" },
-      { medico: "CAMILA RIBEIRO DUTRA", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos" },
-      { medico: "CAMILA RIBEIRO DUTRA", tipo: "Desconto Atendimentos Realizados - Recurso Próprio", valor: 45.00, natureza: "SAIDA", desc: "Desconto Recurso Próprio" },
-
-      { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Glosas - Clínica Cooperada - 11%", valor: 275.00, natureza: "SAIDA", desc: "Glosa Unimed" },
-      { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Integralização de Cota Parte", valor: 7579.66, natureza: "SAIDA", desc: "Integralização cota 5 de 24" },
-      { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos" },
-
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Capitalização Cota-Parte (360)", valor: 14825.40, natureza: "SAIDA", desc: "Desconto cota capitalização Unimed" },
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Contador Heart", valor: 294.00, natureza: "SAIDA", desc: "Assessoria Contábil Heart" },
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "DARE", valor: 497.00, natureza: "SAIDA", desc: "Taxa DARE estadual" },
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Aluguel Sala / Consultório", valor: 900.00, natureza: "SAIDA", desc: "Locação consultório" },
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Celular Corporativo", valor: 722.21, natureza: "SAIDA", desc: "Telefonia corporativa" },
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Consultório Itajaí", valor: 2029.78, natureza: "SAIDA", desc: "Despesas unidade Itajaí" },
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "CRM", valor: 344.50, natureza: "SAIDA", desc: "Taxa anuidade conselho CRM" },
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Instrumentador Cirúrgico", valor: 1526.76, natureza: "SAIDA", desc: "Honorários instrumentação" },
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Alvará Municipal", valor: 431.09, natureza: "SAIDA", desc: "Licença prefeitura" },
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Constit Heart LK / Google", valor: 45.00, natureza: "SAIDA", desc: "Serviços digitais e Google" },
-      { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "INSS Patronal", valor: 502.51, natureza: "SAIDA", desc: "Previdência social" }
-    ],
-    // Demonstrativo Notas Unimed deste Fechamento
-    lotesUnimed: [
-      { lote: "1478356", tipo: "Lote Complementar", vencimento: "25/08/2026", liquido: 561.79, bruto: 670.00, glosa: 0.00, irrf: 10.05, pis: 4.36, cofins: 20.10, csll: 6.70, nf: "561.79" },
-      { lote: "1479142", tipo: "Lote Complementar", vencimento: "25/08/2026", liquido: 256.05, bruto: 300.00, glosa: 0.00, irrf: 4.50, pis: 1.95, cofins: 9.00, csll: 3.00, nf: "256.05" },
-      { lote: "1485226", tipo: "Clínica Cooperada", vencimento: "14/09/2026", liquido: 66778.75, bruto: 87281.12, glosa: 491.69, irrf: 1904.95, pis: 825.48, cofins: 3809.90, csll: 1269.97, nf: "126996.79" },
-      { lote: "1489867", tipo: "Lote Complementar", vencimento: "11/09/2026", liquido: 1477.36, bruto: 1574.16, glosa: 0.00, irrf: 23.61, pis: 10.23, cofins: 47.22, csll: 15.74, nf: "1477.36" },
-      { lote: "1490176", tipo: "Clínica Cooperada", vencimento: "14/09/2026", liquido: 124310.86, bruto: 148253.88, glosa: 7098.85, irrf: 2223.81, pis: 963.65, cofins: 4447.62, csll: 1482.54, nf: "148253.88" }
-    ],
-    // Salários e Resultados finais calculados por médico
+    // Consolidado por Médico (Salários & Fechamento)
     fechamentoMedicos: [
-      { nome: "ROCHELE LORENZI POL", producao: 27095.00, entradas: 5894.16, saidas: 601.09, liquidoCalculado: 44988.48, divisaoLucros: 0.00, finalGeral: 44988.48 },
-      { nome: "THAIS ISABEL LUMIKOSKI", producao: 7706.25, entradas: 7200.00, saidas: 8024.66, liquidoCalculado: 44000.00, divisaoLucros: 1465.75, finalGeral: 45465.75 },
-      { nome: "LUIS BONGIOLO MATTOS", producao: 0.00, entradas: 46461.17, saidas: 0.00, liquidoCalculado: 44000.00, divisaoLucros: 16277.74, finalGeral: 60277.74 },
-      { nome: "KATHIZE LIRA", producao: 0.00, entradas: 12831.53, saidas: 0.00, liquidoCalculado: 12831.53, divisaoLucros: 0.00, finalGeral: 12831.53 },
-      { nome: "TAMARA QUINTINO REGIS", producao: 21101.25, entradas: 0.00, saidas: 1215.10, liquidoCalculado: 13183.53, divisaoLucros: 1442.69, finalGeral: 14626.22 },
-      { nome: "LUAN JUNIOR VIGNATTI", producao: 37715.27, entradas: 0.00, saidas: 10137.55, liquidoCalculado: 18047.72, divisaoLucros: 0.00, finalGeral: 18047.72 },
-      { nome: "THAYNARA MAESTRI VIGNATTI", producao: 82700.87, entradas: 13768.13, saidas: 8387.18, liquidoCalculado: 58251.62, divisaoLucros: 0.00, finalGeral: 58251.62 },
-      { nome: "CAMILA RIBEIRO DUTRA", producao: 18924.06, entradas: 12769.67, saidas: 7838.24, liquidoCalculado: 12159.42, divisaoLucros: 0.00, finalGeral: 12159.42 },
-      { nome: "MARIA EDUARDA CASA SOUZA MACHADO", producao: 35174.57, entradas: 0.00, saidas: 7749.66, liquidoCalculado: 14728.93, divisaoLucros: 0.00, finalGeral: 14728.93 }
+      { 
+        nome: "ROCHELE LORENZI POL", 
+        percent: "29%", 
+        producao: 27095.00, 
+        entradas: 5894.16, 
+        saidas: 601.09, 
+        liquidoCalculado: 44988.48, 
+        divisaoLucros: 1442.69, 
+        finalGeral: 46431.17,
+        detalhesEntradas: ["Plantão UTI: R$ 1.966,87", "Produção HU: R$ 1.439,16", "Pareceres HU: R$ 135,00", "Sobreavisos: R$ 4.320,00"],
+        detalhesSaidas: ["Glosa Clínica 11%: R$ 10,00", "Centro de Estudos: R$ 170,00"]
+      },
+      { 
+        nome: "THAIS ISABEL LUMIKOSKI", 
+        percent: "29%", 
+        producao: 7706.25, 
+        entradas: 7200.00, 
+        saidas: 8024.66, 
+        liquidoCalculado: 44000.00, 
+        divisaoLucros: 1465.75, 
+        finalGeral: 45465.75,
+        detalhesEntradas: ["Sobreavisos: R$ 7.200,00"],
+        detalhesSaidas: ["Integralização Cota Parte: R$ 7.500,00", "Centro de Estudos: R$ 170,00", "Glosas Unimed: R$ 6,00"]
+      },
+      { 
+        nome: "LUIS BONGIOLO MATTOS", 
+        percent: "29%", 
+        producao: 0.00, 
+        entradas: 46461.17, 
+        saidas: 0.00, 
+        liquidoCalculado: 44000.00, 
+        divisaoLucros: 16277.74, 
+        finalGeral: 60277.74,
+        detalhesEntradas: ["Repasses Azambuja + Marieta", "Participação Cirurgias"],
+        detalhesSaidas: ["Nenhuma retenção direta"]
+      },
+      { 
+        nome: "KATHIZE LIRA", 
+        percent: "13%", 
+        producao: 0.00, 
+        entradas: 12831.53, 
+        saidas: 0.00, 
+        liquidoCalculado: 12831.53, 
+        divisaoLucros: 0.00, 
+        finalGeral: 12831.53,
+        detalhesEntradas: ["Marieta: R$ 8.793,96", "Azambuja: R$ 798,54", "Acertos"],
+        detalhesSaidas: ["Nenhuma dedução"]
+      },
+      { 
+        nome: "TAMARA QUINTINO REGIS", 
+        percent: "7.15%", 
+        producao: 21101.25, 
+        entradas: 0.00, 
+        saidas: 1215.10, 
+        liquidoCalculado: 13183.53, 
+        divisaoLucros: 1442.69, 
+        finalGeral: 14626.22,
+        detalhesEntradas: ["Produção Unimed Integral"],
+        detalhesSaidas: ["Glosas Lote 1485226: R$ 407,57", "Glosas Lote 1490176: R$ 349,53", "Centro de Estudos: R$ 170,00", "Mensalidade PLAC: R$ 288,00"]
+      },
+      { 
+        nome: "LUAN JUNIOR VIGNATTI", 
+        percent: "26.79%", 
+        producao: 37715.27, 
+        entradas: 0.00, 
+        saidas: 10137.55, 
+        liquidoCalculado: 18047.72, 
+        divisaoLucros: 0.00, 
+        finalGeral: 18047.72,
+        detalhesEntradas: ["Produção Consultórios & HU"],
+        detalhesSaidas: ["Integralização Cota Parte (5/24): R$ 7.579,69", "Glosas Unimed: R$ 2.308,86", "Centro de Estudos: R$ 170,00"]
+      },
+      { 
+        nome: "THAYNARA MAESTRI VIGNATTI", 
+        percent: "31.47%", 
+        producao: 82700.87, 
+        entradas: 13768.13, 
+        saidas: 8387.18, 
+        liquidoCalculado: 58251.62, 
+        divisaoLucros: 0.00, 
+        finalGeral: 58251.62,
+        detalhesEntradas: ["Disponibilidade Obstetrícia HU: R$ 7.910,93", "Disponibilidade Ginecologia: R$ 3.857,67", "Bonificação Parto Normal: R$ 1.999,53"],
+        detalhesSaidas: ["Integralização Cota Parte: R$ 7.500,00", "Glosas Unimed: R$ 702,18", "Centro de Estudos: R$ 170,00"]
+      },
+      { 
+        nome: "CAMILA RIBEIRO DUTRA", 
+        percent: "28.11%", 
+        producao: 18924.06, 
+        entradas: 12769.67, 
+        saidas: 7838.24, 
+        liquidoCalculado: 12159.42, 
+        divisaoLucros: 0.00, 
+        finalGeral: 12159.42,
+        detalhesEntradas: ["Disponibilidade Reumatologia: R$ 12.769,67"],
+        detalhesSaidas: ["Integralização Cota Parte (5/24): R$ 7.579,66", "Mensalidade PLAC: R$ 431,09", "Centro de Estudos: R$ 170,00", "Recurso Próprio: R$ 45,00"]
+      },
+      { 
+        nome: "MARIA EDUARDA CASA SOUZA MACHADO", 
+        percent: "26.79%", 
+        producao: 35174.57, 
+        entradas: 0.00, 
+        saidas: 7749.66, 
+        liquidoCalculado: 14728.93, 
+        divisaoLucros: 0.00, 
+        finalGeral: 14728.93,
+        detalhesEntradas: ["Produção Procedimentos Ambulatoriais"],
+        detalhesSaidas: ["Integralização Cota Parte (5/24): R$ 7.579,66", "Glosas Unimed: R$ 275,00", "Centro de Estudos: R$ 170,00"]
+      }
+    ],
+    // Ocorrências Financeiras detalhadas por Médico
+    ocorrencias: details?.transactions && details.transactions.length > 0
+      ? details.transactions.map((t: any) => ({
+          medico: t.doctorName || "HEART CIRURGIA CARDIOVASCULAR",
+          tipo: t.typeName || t.typeId,
+          valor: Math.abs(t.amount || 0),
+          natureza: t.nature === "CREDIT" ? "ENTRADA" : "SAIDA",
+          desc: t.observation || t.typeName || "Lançamento",
+          data: t.date || "14/09/2026"
+        }))
+      : [
+          { medico: "ROCHELE LORENZI POL", tipo: "Disponibilidade Médica - UTI", valor: 1966.87, natureza: "ENTRADA", desc: "Plantão UTI HU", data: "14/09/2026" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Repasse Pagamento de Produção - HU", valor: 1439.16, natureza: "ENTRADA", desc: "Produção HU Unimed", data: "14/09/2026" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Repasse Pagamento de Parecer Médico - HU", valor: 135.00, natureza: "ENTRADA", desc: "Pareceres HU", data: "14/09/2026" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Sobreavisos", valor: 4320.00, natureza: "ENTRADA", desc: "Sobreavisos de retaguarda", data: "14/09/2026" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Glosas - Clínica Cooperada - 11%", valor: 10.00, natureza: "SAIDA", desc: "Retenção glosa Unimed Litoral", data: "14/09/2026" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+
+          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Sobreavisos", valor: 7200.00, natureza: "ENTRADA", desc: "Sobreavisos plantão", data: "14/09/2026" },
+          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 6.00, natureza: "SAIDA", desc: "Glosa Unimed Litoral", data: "14/09/2026" },
+          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Integralização de Cota Parte", valor: 7500.00, natureza: "SAIDA", desc: "Integralização cota Unimed", data: "14/09/2026" },
+
+          { medico: "TAMARA QUINTINO REGIS", tipo: "Glosas - Clínica Cooperada - 11%", valor: 407.57, natureza: "SAIDA", desc: "Glosa Lote 1485226", data: "14/09/2026" },
+          { medico: "TAMARA QUINTINO REGIS", tipo: "Glosas - Clínica Cooperada - 11%", valor: 349.53, natureza: "SAIDA", desc: "Glosa Lote 1490176", data: "14/09/2026" },
+          { medico: "TAMARA QUINTINO REGIS", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+          { medico: "TAMARA QUINTINO REGIS", tipo: "Mensalidade PLAC", valor: 288.00, natureza: "SAIDA", desc: "Desconto mensal PLAC", data: "14/09/2026" },
+
+          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 2308.86, natureza: "SAIDA", desc: "Glosa Lote 1490176", data: "14/09/2026" },
+          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Integralização de Cota Parte", valor: 7579.69, natureza: "SAIDA", desc: "Integralização Unimed 5 de 24", data: "14/09/2026" },
+          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Remuneração Bonificação Parto Normal", valor: 1150.00, natureza: "ENTRADA", desc: "Bonificação Parto Normal HU", data: "14/09/2026" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Remuneração Bonificação Parto Normal", valor: 849.53, natureza: "ENTRADA", desc: "Bonificação Parto Normal", data: "14/09/2026" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Disponibilidade Ginecologia - Centro Obstétrico", valor: 3857.67, natureza: "ENTRADA", desc: "Disponibilidade Obstetrícia", data: "14/09/2026" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Disponibilidade Ginecologia - Centro Obstétrico", valor: 7910.93, natureza: "ENTRADA", desc: "Disponibilidade Obstetrícia HU", data: "14/09/2026" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 702.18, natureza: "SAIDA", desc: "Glosa Unimed", data: "14/09/2026" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Integralização de Cota Parte", valor: 7500.00, natureza: "SAIDA", desc: "Integralização cota Unimed", data: "14/09/2026" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+
+          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Disponibilidade - Reumatologia", valor: 12769.67, natureza: "ENTRADA", desc: "Disponibilidade Especialidade", data: "14/09/2026" },
+          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Integralização de Cota Parte", valor: 7579.66, natureza: "SAIDA", desc: "Integralização cota 5 de 24", data: "14/09/2026" },
+          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Mensalidade PLAC", valor: 431.09, natureza: "SAIDA", desc: "Desconto PLAC", data: "14/09/2026" },
+          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Desconto Atendimentos Realizados - Recurso Próprio", valor: 45.00, natureza: "SAIDA", desc: "Desconto Recurso Próprio", data: "14/09/2026" },
+
+          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Glosas - Clínica Cooperada - 11%", valor: 275.00, natureza: "SAIDA", desc: "Glosa Unimed", data: "14/09/2026" },
+          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Integralização de Cota Parte", valor: 7579.66, natureza: "SAIDA", desc: "Integralização cota 5 de 24", data: "14/09/2026" },
+          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Capitalização Cota-Parte (360)", valor: 14825.40, natureza: "SAIDA", desc: "Desconto cota capitalização Unimed", data: "01/08/2026" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Contador Heart", valor: 294.00, natureza: "SAIDA", desc: "Assessoria Contábil Heart", data: "14/09/2026" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "DARE", valor: 497.00, natureza: "SAIDA", desc: "Taxa DARE estadual", data: "14/09/2026" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Aluguel Sala / Consultório", valor: 900.00, natureza: "SAIDA", desc: "Locação consultório", data: "14/09/2026" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Celular Corporativo", valor: 722.21, natureza: "SAIDA", desc: "Telefonia corporativa", data: "14/09/2026" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Consultório Itajaí", valor: 2029.78, natureza: "SAIDA", desc: "Despesas unidade Itajaí", data: "14/09/2026" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "CRM", valor: 344.50, natureza: "SAIDA", desc: "Taxa anuidade conselho CRM", data: "14/09/2026" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Instrumentador Cirúrgico", valor: 1526.76, natureza: "SAIDA", desc: "Honorários instrumentação", data: "14/09/2026" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Alvará Municipal", valor: 431.09, natureza: "SAIDA", desc: "Licença prefeitura", data: "14/09/2026" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Constit Heart LK / Google", valor: 45.00, natureza: "SAIDA", desc: "Serviços digitais e Google", data: "14/09/2026" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "INSS Patronal", valor: 502.51, natureza: "SAIDA", desc: "Previdência social", data: "14/09/2026" }
+        ],
+    // Demonstrativo de Lotes Unimed
+    lotesUnimed: [
+      { lote: "1478356", tipo: "Lote Complementar", vencimento: "25/08/2026", bruto: 670.00, glosa: 0.00, irrf: 10.05, pis: 4.36, cofins: 20.10, csll: 6.70, liquido: 561.79 },
+      { lote: "1479142", tipo: "Lote Complementar", vencimento: "25/08/2026", bruto: 300.00, glosa: 0.00, irrf: 4.50, pis: 1.95, cofins: 9.00, csll: 3.00, liquido: 256.05 },
+      { lote: "1485226", tipo: "Clínica Cooperada", vencimento: "14/09/2026", bruto: 87281.12, glosa: 491.69, irrf: 1904.95, pis: 825.48, cofins: 3809.90, csll: 1269.97, liquido: 66778.75 },
+      { lote: "1489867", tipo: "Lote Complementar", vencimento: "11/09/2026", bruto: 1574.16, glosa: 0.00, irrf: 23.61, pis: 10.23, cofins: 47.22, csll: 15.74, liquido: 1477.36 },
+      { lote: "1490176", tipo: "Clínica Cooperada", vencimento: "14/09/2026", bruto: 148253.88, glosa: 7098.85, irrf: 2223.81, pis: 963.65, cofins: 4447.62, csll: 1482.54, liquido: 124310.86 }
+    ],
+    // Despesas Equipe Heart
+    despesasEquipe: [
+      { despesa: "Capitalização Cota-Parte (360)", categoria: "Operacional Unimed", valor: 14825.40, status: "DESCONTADO" },
+      { despesa: "Consultório Itajaí", categoria: "Infraestrutura", valor: 2029.78, status: "PAGO" },
+      { despesa: "Instrumentador Cirúrgico", categoria: "Equipe Cirúrgica", valor: 1526.76, status: "PAGO" },
+      { despesa: "Aluguel Sala / Consultório", categoria: "Infraestrutura", valor: 900.00, status: "PAGO" },
+      { despesa: "Celular Corporativo", categoria: "Comunicação", valor: 722.21, status: "PAGO" },
+      { despesa: "INSS Patronal", categoria: "Tributário", valor: 502.51, status: "PAGO" },
+      { despesa: "DARE", categoria: "Tributário Estadual", valor: 497.00, status: "PAGO" },
+      { despesa: "Alvará Municipal", categoria: "Taxa Municipal", valor: 431.09, status: "PAGO" },
+      { despesa: "CRM", categoria: "Conselho de Classe", valor: 344.50, status: "PAGO" },
+      { despesa: "Contador Heart", categoria: "Contabilidade", valor: 294.00, status: "PAGO" },
+      { despesa: "Constit Heart LK / Google", categoria: "Tecnologia", valor: 45.00, status: "PAGO" }
     ]
   };
 
-  const filteredOcorrencias = selectedDoctorFilter === "ALL" 
-    ? excelData.ocorrencias 
-    : excelData.ocorrencias.filter(o => o.medico.includes(selectedDoctorFilter));
+  // Filter occurrences
+  const filteredOcorrencias = excelData.ocorrencias.filter(o => {
+    const matchDoctor = selectedDoctorFilter === "ALL" 
+      ? true 
+      : selectedDoctorFilter === "HEART"
+      ? o.medico.includes("HEART")
+      : o.medico.includes(selectedDoctorFilter);
+    const matchSearch = searchTerm 
+      ? o.tipo.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        o.desc.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        o.medico.toLowerCase().includes(searchTerm.toLowerCase())
+      : true;
+    return matchDoctor && matchSearch;
+  });
+
+  const totalOcorrenciasEntradas = filteredOcorrencias
+    .filter(o => o.natureza === "ENTRADA")
+    .reduce((acc, o) => acc + o.valor, 0);
+
+  const totalOcorrenciasSaidas = filteredOcorrencias
+    .filter(o => o.natureza === "SAIDA")
+    .reduce((acc, o) => acc + o.valor, 0);
 
   return (
-    <div className="space-y-8 max-w-[1600px] mx-auto pb-16 font-sans">
+    <div className="space-y-6 max-w-[1700px] mx-auto pb-20 font-sans">
       {/* Top Banner / Excel Dashboard Title */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white p-8 rounded-[36px] shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="space-y-2 z-10">
-          <div className="flex items-center gap-3">
-            <span className="px-3 py-1 bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 text-xs font-black uppercase tracking-widest rounded-full">
+      <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white p-7 lg:p-9 rounded-[36px] shadow-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden border border-emerald-800/40">
+        <div className="space-y-3 z-10">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="px-3.5 py-1 bg-emerald-500/25 border border-emerald-400/40 text-emerald-200 text-xs font-black uppercase tracking-widest rounded-full flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               PLANILHA MESTRA • FECHAMENTO {excelData.monthKey}
             </span>
             <span className="px-3 py-1 bg-white/10 text-white/90 text-xs font-bold rounded-full">
-              Sincronizado com Fluxo de Caixa
+              Sincronizado com Fluxo de Caixa & IA
             </span>
           </div>
-          <h2 className="text-2xl lg:text-3xl font-black tracking-tight uppercase">Dashboard Financeiro & Rateios</h2>
-          <p className="text-xs text-emerald-100/80 font-medium">Reconciliação completa de produções, ocorrências financeiras, despesas fixas e distribuição de honorários.</p>
+          <div>
+            <h2 className="text-2xl lg:text-3xl font-black tracking-tight uppercase flex items-center gap-3">
+              <span>Dashboard Financeiro & Rateios HeaRT</span>
+            </h2>
+            <p className="text-xs text-emerald-100/80 font-medium max-w-3xl mt-1">
+              Painel idêntico à planilha Google Sheets/Excel: controle de faturamento, produções médicas, despesas corporativas, retenções e distribuição de honorários.
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 z-10">
+        <div className="flex flex-wrap items-center gap-3 z-10">
+          {/* Closing Month Selector */}
+          <div className="bg-black/30 backdrop-blur-md border border-white/20 rounded-2xl px-3 py-2 flex items-center gap-2 text-xs">
+            <Calendar size={14} className="text-emerald-300" />
+            <select
+              value={selectedClosingId || ""}
+              onChange={e => setSelectedClosingId(e.target.value)}
+              className="bg-transparent text-white font-bold outline-none cursor-pointer pr-2"
+            >
+              {closings.length > 0 ? (
+                closings.map(c => (
+                  <option key={c.id} value={c.id} className="text-gray-900 bg-white">
+                    {c.monthKey} ({c.status || "CONCILIADO"})
+                  </option>
+                ))
+              ) : (
+                <option value="" className="text-gray-900 bg-white">SETEMBRO-26</option>
+              )}
+            </select>
+          </div>
+
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider transition border border-white/20 cursor-pointer"
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider transition border border-white/20 cursor-pointer shadow-sm active:scale-95"
           >
-            <Download size={16} />
-            <span>Exportar Relatório</span>
+            <Download size={15} />
+            <span>Exportar PDF</span>
           </button>
         </div>
       </div>
 
       {/* Top Metrics Cards matching Excel summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <MetricCard label="Faturamento Bruto" value={excelData.totals.totalFaturado} color="text-blue-600" bg="bg-blue-50/50" />
-        <MetricCard label="Disponível Saque" value={excelData.totals.totalRecebimentos} color="text-indigo-600" bg="bg-indigo-50/50" />
-        <MetricCard label="Total Saídas & Ocorrências" value={excelData.totals.totalSaidasOperacionais + excelData.totals.totalOutrasSaidas} isNegative color="text-rose-600" bg="bg-rose-50/50" />
-        <MetricCard label="Reserva Impostos" value={excelData.totals.totalReservadoImpostos} color="text-amber-600" bg="bg-amber-50/50" />
-        <MetricCard label="Distribuído Médicos" value={excelData.totals.totalDistribuicao} color="text-emerald-600" bg="bg-emerald-50/50" isHighlight />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+        <MetricCard 
+          label="Entradas Totais" 
+          value={excelData.totals.entradasGerais} 
+          color="text-emerald-600" 
+          bg="bg-emerald-50/50" 
+          sub="Produção & Plantões"
+        />
+        <MetricCard 
+          label="Disponível Saque" 
+          value={excelData.totals.totalRecebimentos} 
+          color="text-indigo-600" 
+          bg="bg-indigo-50/50" 
+          sub="Recebimentos Brutos"
+        />
+        <MetricCard 
+          label="Total Saídas" 
+          value={excelData.totals.totalSaidas} 
+          isNegative 
+          color="text-rose-600" 
+          bg="bg-rose-50/50" 
+          sub="Operacional + Outras"
+        />
+        <MetricCard 
+          label="Reserva Impostos" 
+          value={excelData.totals.totalReservadoImpostos} 
+          color="text-amber-600" 
+          bg="bg-amber-50/50" 
+          sub="Tributos retidos"
+        />
+        <MetricCard 
+          label="Distribuído Médicos" 
+          value={excelData.totals.totalDistribuicao} 
+          color="text-blue-600" 
+          bg="bg-blue-50/50" 
+          isHighlight
+          sub="Salários da Equipe"
+        />
+        <MetricCard 
+          label="Saldo Final Caixa" 
+          value={excelData.totals.saldoFinal} 
+          color="text-emerald-700" 
+          bg="bg-emerald-50/60" 
+          sub="Sobra em Caixa"
+        />
       </div>
 
-      {/* Tabela Mestra 1: Resumo Consolidado de Entradas, Saídas e Salários */}
-      <div className="bg-white rounded-[36px] border border-gray-200 shadow-xl overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black">
-              <TableProperties size={20} />
+      {/* Navigation Sub-Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-gray-200 text-xs font-black uppercase tracking-wider">
+        <button
+          onClick={() => setActiveSubTab("visao_geral")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "visao_geral"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <TableProperties size={16} />
+          <span>1. Mapa de Rateio e Salários</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("colunas_medicos")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "colunas_medicos"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <Users size={16} />
+          <span>2. Colunas por Médico (Excel View)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("ocorrencias_fluxo")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "ocorrencias_fluxo"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <Wallet size={16} />
+          <span>3. Ocorrências no Fluxo ({excelData.ocorrencias.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("entradas_fontes")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "entradas_fontes"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <Building2 size={16} />
+          <span>4. Fontes (Azambuja, Marieta, Unimed)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("lotes_unimed")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "lotes_unimed"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <Receipt size={16} />
+          <span>5. Lotes & Retenções Unimed</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("despesas_equipe")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "despesas_equipe"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <FileText size={16} />
+          <span>6. Despesas Equipe Heart</span>
+        </button>
+      </div>
+
+      {/* VIEW 1: MAPA MESTRE DE RATEIO E SALÁRIOS */}
+      {activeSubTab === "visao_geral" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/70">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-md shadow-emerald-500/20">
+                  <TableProperties size={20} />
+                </div>
+                <div>
+                  <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Mapa de Rateio e Salários Finais</h3>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
+                    Fechamento / Distribuição e Salário Líquido Final Reajustado
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
+                <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
+                <span>Salário Final Geral = Líquido Produção + Divisão/Acertos</span>
+              </div>
             </div>
-            <div>
-              <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Mapa de Rateio e Salários Finais</h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Detalhamento individual por médico do corpo clínico</p>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gray-100/80 text-gray-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
+                    <th className="p-4 pl-6">Médico</th>
+                    <th className="p-4 text-center">Part. %</th>
+                    <th className="p-4 text-right">Produção Bruta</th>
+                    <th className="p-4 text-right">Outras Entradas (Plantão/HU)</th>
+                    <th className="p-4 text-right">Ocorrências / Deduções</th>
+                    <th className="p-4 text-right">Líquido Produção</th>
+                    <th className="p-4 text-right">Divisão / Acertos</th>
+                    <th className="p-4 text-right pr-6 bg-emerald-50/80 text-emerald-950 font-black">Salário Final Reajustado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                  {excelData.fechamentoMedicos.map((med) => (
+                    <tr key={med.nome} className="hover:bg-blue-50/30 transition-colors">
+                      <td className="p-4 pl-6">
+                        <div className="font-black text-gray-900">{med.nome}</div>
+                        <div className="text-[10px] text-gray-400">
+                          {doctors.find(d => d.name === med.nome)?.specialty || "Médico Cooperado"}
+                        </div>
+                      </td>
+                      <td className="p-4 text-center font-black text-gray-600">
+                        <span className="px-2.5 py-1 bg-gray-100 rounded-lg text-[10px]">
+                          {med.percent}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right font-bold text-blue-700">
+                        R$ {med.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-4 text-right text-emerald-600 font-bold">
+                        {med.entradas > 0 ? `+R$ ${med.entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
+                      </td>
+                      <td className="p-4 text-right text-rose-600 font-bold">
+                        {med.saidas > 0 ? `-R$ ${med.saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
+                      </td>
+                      <td className="p-4 text-right font-black text-gray-900">
+                        R$ {med.liquidoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-4 text-right text-indigo-600 font-bold">
+                        {med.divisaoLucros > 0 ? `+R$ ${med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
+                      </td>
+                      <td className="p-4 text-right pr-6 font-black text-sm text-emerald-800 bg-emerald-50/40">
+                        R$ {med.finalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-100 font-black text-xs text-gray-900 border-t-2 border-gray-300">
+                    <td className="p-4 pl-6 uppercase">TOTAL CONSOLIDADO DA EQUIPE</td>
+                    <td className="p-4 text-center">100.00%</td>
+                    <td className="p-4 text-right text-blue-700">R$ 230.417,27</td>
+                    <td className="p-4 text-right text-emerald-700">+R$ 39.631,96</td>
+                    <td className="p-4 text-right text-rose-700">-R$ 43.953,48</td>
+                    <td className="p-4 text-right">R$ 249.359,70</td>
+                    <td className="p-4 text-right text-indigo-700">+R$ 16.758,44</td>
+                    <td className="p-4 text-right pr-6 text-emerald-900 bg-emerald-100/70 font-black text-base">
+                      R$ 270.446,21
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
         </div>
+      )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-gray-100 text-gray-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
-                <th className="p-4 pl-6">Médico</th>
-                <th className="p-4 text-center">Part. %</th>
-                <th className="p-4 text-right">Produção Unimed</th>
-                <th className="p-4 text-right">Outras Entradas</th>
-                <th className="p-4 text-right">Total Ocorrências (Saídas)</th>
-                <th className="p-4 text-right">Líquido Produção</th>
-                <th className="p-4 text-right">Divisão / Acertos</th>
-                <th className="p-4 text-right pr-6 bg-emerald-50 text-emerald-900 font-black">Salário Final</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-              {excelData.fechamentoMedicos.map((med) => (
-                <tr key={med.nome} className="hover:bg-blue-50/30 transition-colors">
-                  <td className="p-4 pl-6 font-black text-gray-900">{med.nome}</td>
-                  <td className="p-4 text-center font-bold text-gray-500">
-                    {doctors.find(d => d.name === med.nome)?.percent || "-"}
-                  </td>
-                  <td className="p-4 text-right font-bold text-blue-700">
-                    R$ {med.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="p-4 text-right text-emerald-600 font-bold">
-                    +R$ {med.entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="p-4 text-right text-rose-600 font-bold">
-                    -R$ {med.saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="p-4 text-right font-black text-gray-900">
-                    R$ {med.liquidoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="p-4 text-right text-indigo-600 font-bold">
-                    {med.divisaoLucros > 0 ? `+R$ ${med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
-                  </td>
-                  <td className="p-4 text-right pr-6 font-black text-sm text-emerald-700 bg-emerald-50/40">
+      {/* VIEW 2: COLUNAS VERTICAIS POR MÉDICO (EXCEL COLUMN VIEW) */}
+      {activeSubTab === "colunas_medicos" && (
+        <div className="space-y-4">
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users size={16} />
+              <span className="font-bold">Visualização de Painéis Individuais por Médico (Representação em colunas do Excel)</span>
+            </div>
+            <span className="text-[10px] uppercase font-black tracking-wider text-emerald-700">9 Médicos Integrados</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {excelData.fechamentoMedicos.map((med) => (
+              <div 
+                key={med.nome}
+                className="bg-white rounded-[28px] border border-gray-200 shadow-md p-6 flex flex-col justify-between space-y-4 hover:border-emerald-400 transition"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 border-b border-gray-100 pb-3">
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-emerald-700 tracking-wider">
+                        Participação: {med.percent}
+                      </span>
+                      <h4 className="font-black text-gray-900 text-sm">{med.nome}</h4>
+                      <p className="text-[10px] text-gray-400">
+                        {doctors.find(d => d.name === med.nome)?.specialty}
+                      </p>
+                    </div>
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xs shrink-0">
+                      {med.percent}
+                    </div>
+                  </div>
+
+                  <div className="py-3 space-y-2 border-b border-gray-100">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Produção Unimed:</span>
+                      <span className="font-bold text-gray-900">R$ {med.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-emerald-600 font-medium">Outras Entradas:</span>
+                      <span className="font-bold text-emerald-600">+R$ {med.entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-rose-600 font-medium">Ocorrências / Descontos:</span>
+                      <span className="font-bold text-rose-600">-R$ {med.saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-indigo-600 font-medium">Divisão / Acertos:</span>
+                      <span className="font-bold text-indigo-600">+R$ {med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+
+                  {/* Occurrence highlights */}
+                  <div className="py-2 space-y-1 text-[10px]">
+                    <span className="font-black text-gray-400 uppercase tracking-wider block">Principais Lançamentos:</span>
+                    {med.detalhesEntradas.map((de, idx) => (
+                      <div key={idx} className="text-emerald-700 font-medium truncate">• {de}</div>
+                    ))}
+                    {med.detalhesSaidas.map((ds, idx) => (
+                      <div key={idx} className="text-rose-700 font-medium truncate">• {ds}</div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between">
+                  <span className="text-[10px] font-black text-emerald-900 uppercase">Salário Final Líquido:</span>
+                  <span className="text-base font-black text-emerald-800">
                     R$ {med.finalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: OCORRÊNCIAS NO FLUXO DE CAIXA */}
+      {activeSubTab === "ocorrencias_fluxo" && (
+        <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden space-y-4">
+          <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/70">
+            <div>
+              <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Ocorrências Financeiras Lançadas no Fluxo de Caixa</h3>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
+                Detalhamento exato de médico, tipo de despesa, cota parte, glosas e plantões ({filteredOcorrencias.length} lançamentos)
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar tipo de despesa..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="bg-white border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-xs font-bold outline-none w-56 focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Filter size={14} className="text-gray-400" />
+                <select
+                  value={selectedDoctorFilter}
+                  onChange={e => setSelectedDoctorFilter(e.target.value)}
+                  className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="ALL">Todos os Médicos & Equipe</option>
+                  {doctors.map(d => (
+                    <option key={d.key} value={d.initial}>{d.initial}</option>
+                  ))}
+                  <option value="HEART">EQUIPE HEART</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Totais do filtro atual */}
+          <div className="px-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl text-xs flex justify-between items-center">
+              <span className="text-emerald-800 font-bold">Total Entradas / Remunerações:</span>
+              <span className="font-black text-emerald-700">+R$ {totalOcorrenciasEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div className="p-3 bg-rose-50/50 border border-rose-100 rounded-xl text-xs flex justify-between items-center">
+              <span className="text-rose-800 font-bold">Total Saídas / Deduções:</span>
+              <span className="font-black text-rose-700">-R$ {totalOcorrenciasSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs flex justify-between items-center">
+              <span className="text-gray-700 font-bold">Saldo das Ocorrências:</span>
+              <span className={`font-black ${totalOcorrenciasEntradas - totalOcorrenciasSaidas >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                R$ {(totalOcorrenciasEntradas - totalOcorrenciasSaidas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
+                  <th className="p-3.5 pl-6">Data</th>
+                  <th className="p-3.5">Médico / Responsável</th>
+                  <th className="p-3.5">Tipo de Despesa / Ocorrência</th>
+                  <th className="p-3.5">Descrição</th>
+                  <th className="p-3.5 text-center">Natureza</th>
+                  <th className="p-3.5 text-right pr-6">Valor (R$)</th>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gray-100 font-black text-xs text-gray-900 border-t-2 border-gray-300">
-                <td className="p-4 pl-6 uppercase">TOTAL GERAL DA EQUIPE</td>
-                <td className="p-4 text-center">100.00%</td>
-                <td className="p-4 text-right text-blue-700">R$ 230.417,27</td>
-                <td className="p-4 text-right text-emerald-700">+R$ 39.631,96</td>
-                <td className="p-4 text-right text-rose-700">-R$ 43.953,48</td>
-                <td className="p-4 text-right">R$ 249.359,70</td>
-                <td className="p-4 text-right text-indigo-700">+R$ 16.758,44</td>
-                <td className="p-4 text-right pr-6 text-emerald-800 bg-emerald-100/60 font-black text-base">
-                  R$ 270.446,21
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-
-      {/* Tabela Mestra 2: Ocorrências Financeiras Lançadas no Fluxo de Caixa */}
-      <div className="bg-white rounded-[36px] border border-gray-200 shadow-xl overflow-hidden space-y-4">
-        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
-          <div>
-            <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Ocorrências Financeiras do Fechamento</h3>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
-              Lançamentos detalhados originados dos arquivos PDF / XLS ({filteredOcorrencias.length} lançamentos)
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
-              <Filter size={14} />
-              Filtrar Médico:
-            </span>
-            <select
-              value={selectedDoctorFilter}
-              onChange={e => setSelectedDoctorFilter(e.target.value)}
-              className="bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold outline-none"
-            >
-              <option value="ALL">Todos os Médicos & Equipe</option>
-              {doctors.map(d => (
-                <option key={d.key} value={d.initial}>{d.initial}</option>
-              ))}
-              <option value="HEART">EQUIPE HEART</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
-                <th className="p-3.5 pl-6">Médico / Responsável</th>
-                <th className="p-3.5">Tipo de Despesa / Ocorrência</th>
-                <th className="p-3.5">Descrição</th>
-                <th className="p-3.5 text-center">Natureza</th>
-                <th className="p-3.5 text-right pr-6">Valor (R$)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-              {filteredOcorrencias.map((oc, idx) => (
-                <tr key={idx} className="hover:bg-gray-50/80 transition-colors">
-                  <td className="p-3.5 pl-6 font-bold text-gray-900">{oc.medico}</td>
-                  <td className="p-3.5 font-bold text-gray-700">{oc.tipo}</td>
-                  <td className="p-3.5 text-gray-500">{oc.desc}</td>
-                  <td className="p-3.5 text-center">
-                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
-                      oc.natureza === "ENTRADA" 
-                        ? "bg-emerald-100 text-emerald-700" 
-                        : "bg-rose-100 text-rose-700"
+              </thead>
+              <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                {filteredOcorrencias.map((oc, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50/80 transition-colors">
+                    <td className="p-3.5 pl-6 text-gray-500 font-bold">{oc.data}</td>
+                    <td className="p-3.5 font-bold text-gray-900">{oc.medico}</td>
+                    <td className="p-3.5 font-bold text-gray-700">{oc.tipo}</td>
+                    <td className="p-3.5 text-gray-500">{oc.desc}</td>
+                    <td className="p-3.5 text-center">
+                      <span className={`px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                        oc.natureza === "ENTRADA" 
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
+                          : "bg-rose-100 text-rose-800 border border-rose-200"
+                      }`}>
+                        {oc.natureza}
+                      </span>
+                    </td>
+                    <td className={`p-3.5 text-right pr-6 font-black ${
+                      oc.natureza === "ENTRADA" ? "text-emerald-600" : "text-rose-600"
                     }`}>
-                      {oc.natureza}
-                    </span>
-                  </td>
-                  <td className={`p-3.5 text-right pr-6 font-black ${
-                    oc.natureza === "ENTRADA" ? "text-emerald-600" : "text-rose-600"
-                  }`}>
-                    {oc.natureza === "ENTRADA" ? "+R$ " : "-R$ "}
-                    {oc.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      {oc.natureza === "ENTRADA" ? "+R$ " : "-R$ "}
+                      {oc.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 4: FONTES DE ENTRADA (AZAMBUJA, MARIETA, UNIMED, CONSULTÓRIO) */}
+      {activeSubTab === "entradas_fontes" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Unimed Litoral Card */}
+          <div className="bg-white rounded-[32px] border border-gray-200 p-6 shadow-md space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black">
+                  <Building2 size={16} />
+                </div>
+                <div>
+                  <h4 className="font-black text-gray-900 uppercase text-sm">Unimed Litoral</h4>
+                  <p className="text-[10px] text-gray-400">Cooperativa Médica Principal</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-gray-400 uppercase font-black block">Líquido Recebido:</span>
+                <span className="font-black text-blue-700 text-sm">R$ {excelData.fontes.unimed.liquidoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-[10px] font-black uppercase text-gray-400">Rateio por Médico:</span>
+              <div className="divide-y divide-gray-50 text-xs">
+                {excelData.fontes.unimed.rateio.map(r => (
+                  <div key={r.medico} className="py-2 flex justify-between items-center">
+                    <span className="font-bold text-gray-800">{r.medico}</span>
+                    <span className="font-black text-gray-900">R$ {r.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Marieta Card */}
+          <div className="bg-white rounded-[32px] border border-gray-200 p-6 shadow-md space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black">
+                  <Building2 size={16} />
+                </div>
+                <div>
+                  <h4 className="font-black text-gray-900 uppercase text-sm">Hospital Marieta</h4>
+                  <p className="text-[10px] text-gray-400">Atendimentos & Retaguarda</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-gray-400 uppercase font-black block">Líquido Total:</span>
+                <span className="font-black text-emerald-700 text-sm">R$ {excelData.fontes.marieta.liquidoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-[10px] font-black uppercase text-gray-400">Rateio por Médico:</span>
+              <div className="divide-y divide-gray-50 text-xs">
+                {excelData.fontes.marieta.rateio.map(r => (
+                  <div key={r.medico} className="py-2 flex justify-between items-center">
+                    <span className="font-bold text-gray-800">{r.medico}</span>
+                    <span className="font-black text-gray-900">R$ {r.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Azambuja Card */}
+          <div className="bg-white rounded-[32px] border border-gray-200 p-6 shadow-md space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-black">
+                  <Building2 size={16} />
+                </div>
+                <div>
+                  <h4 className="font-black text-gray-900 uppercase text-sm">Hospital Azambuja</h4>
+                  <p className="text-[10px] text-gray-400">Plantões e Cirurgias</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-gray-400 uppercase font-black block">Líquido Total:</span>
+                <span className="font-black text-purple-700 text-sm">R$ {excelData.fontes.azambuja.liquidoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-[10px] font-black uppercase text-gray-400">Rateio por Médico:</span>
+              <div className="divide-y divide-gray-50 text-xs">
+                {excelData.fontes.azambuja.rateio.map(r => (
+                  <div key={r.medico} className="py-2 flex justify-between items-center">
+                    <span className="font-bold text-gray-800">{r.medico}</span>
+                    <span className="font-black text-gray-900">R$ {r.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Consultório / Particular Card */}
+          <div className="bg-white rounded-[32px] border border-gray-200 p-6 shadow-md space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-black">
+                  <Wallet size={16} />
+                </div>
+                <div>
+                  <h4 className="font-black text-gray-900 uppercase text-sm">Consultório & Particular</h4>
+                  <p className="text-[10px] text-gray-400">Recebimentos Diretos</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-gray-400 uppercase font-black block">Total Recebido:</span>
+                <span className="font-black text-amber-700 text-sm">R$ {excelData.fontes.consultorio.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="p-3 bg-gray-50 rounded-2xl flex justify-between text-xs">
+                <span className="text-gray-600 font-bold">Espécie / Dinheiro:</span>
+                <span className="font-black text-gray-900">R$ {excelData.fontes.consultorio.dinheiro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="p-3 bg-gray-50 rounded-2xl flex justify-between text-xs">
+                <span className="text-gray-600 font-bold">Cartão de Crédito/Débito:</span>
+                <span className="font-black text-gray-900">R$ {excelData.fontes.consultorio.cartao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="p-3 bg-blue-50/50 rounded-2xl flex justify-between text-xs border border-blue-100">
+                <span className="text-blue-700 font-bold">Unimed Dr. Luis:</span>
+                <span className="font-black text-blue-900">R$ {excelData.fontes.consultorio.unimedLuis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 5: LOTES UNIMED */}
+      {activeSubTab === "lotes_unimed" && (
+        <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden space-y-4">
+          <div className="p-6 border-b border-gray-100 bg-gray-50/70">
+            <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Demonstrativo de Notas & Lotes Unimed</h3>
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Cruzamento de Notas Fiscais, Retenções Tributárias Federais e Glosas</p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
+                  <th className="p-3.5 pl-6">Lote</th>
+                  <th className="p-3.5">Título / Natureza</th>
+                  <th className="p-3.5">Dt Vencimento</th>
+                  <th className="p-3.5 text-right">Bruto (R$)</th>
+                  <th className="p-3.5 text-right">Glosas (R$)</th>
+                  <th className="p-3.5 text-right">IRRF 1.5%</th>
+                  <th className="p-3.5 text-right">PIS 0.65%</th>
+                  <th className="p-3.5 text-right">COFINS 3%</th>
+                  <th className="p-3.5 text-right">CSLL 1%</th>
+                  <th className="p-3.5 text-right pr-6 bg-blue-50 font-black text-blue-900">Líquido (R$)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                {excelData.lotesUnimed.map((lote) => (
+                  <tr key={lote.lote} className="hover:bg-blue-50/20 transition-colors">
+                    <td className="p-3.5 pl-6 font-black text-gray-900">{lote.lote}</td>
+                    <td className="p-3.5 font-bold text-gray-700">{lote.tipo}</td>
+                    <td className="p-3.5 text-gray-500">{lote.vencimento}</td>
+                    <td className="p-3.5 text-right font-bold text-gray-900">R$ {lote.bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3.5 text-right text-rose-600 font-bold">{lote.glosa > 0 ? `-R$ ${lote.glosa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}</td>
+                    <td className="p-3.5 text-right text-gray-500">R$ {lote.irrf.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3.5 text-right text-gray-500">R$ {lote.pis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3.5 text-right text-gray-500">R$ {lote.cofins.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3.5 text-right text-gray-500">R$ {lote.csll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3.5 text-right pr-6 font-black text-blue-700 bg-blue-50/50">
+                      R$ {lote.liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-100 font-black text-xs text-gray-900 border-t-2 border-gray-300">
+                  <td colSpan={3} className="p-3.5 pl-6 uppercase">TOTAL CONSOLIDADO DOS LOTES</td>
+                  <td className="p-3.5 text-right">R$ 238.079,16</td>
+                  <td className="p-3.5 text-right text-rose-600">-R$ 7.590,54</td>
+                  <td className="p-3.5 text-right">R$ 4.166,92</td>
+                  <td className="p-3.5 text-right">R$ 1.805,67</td>
+                  <td className="p-3.5 text-right">R$ 8.333,84</td>
+                  <td className="p-3.5 text-right">R$ 2.777,95</td>
+                  <td className="p-3.5 text-right pr-6 text-blue-800 bg-blue-100 font-black text-sm">
+                    R$ 193.384,81
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </tfoot>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Tabela Mestra 3: Demonstrativo de Lotes Unimed deste Fechamento */}
-      <div className="bg-white rounded-[36px] border border-gray-200 shadow-xl overflow-hidden space-y-4">
-        <div className="p-6 border-b border-gray-100 bg-gray-50/50">
-          <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Demonstrativo de Pagamentos & Lotes Unimed</h3>
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Cruzamento de Notas Fiscais, Retenções e Glosas por Lote</p>
-        </div>
+      {/* VIEW 6: DESPESAS DA EQUIPE HEART */}
+      {activeSubTab === "despesas_equipe" && (
+        <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden space-y-4">
+          <div className="p-6 border-b border-gray-100 bg-gray-50/70 flex items-center justify-between">
+            <div>
+              <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Despesas Corporativas & Operacionais (Equipe HeaRT)</h3>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Custos fixos, tributários e taxas deduzidos no fechamento</p>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Total Despesas:</span>
+              <span className="font-black text-rose-600 text-base">R$ 21.618,34</span>
+            </div>
+          </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
-                <th className="p-3.5 pl-6">Lote</th>
-                <th className="p-3.5">Título / Natureza</th>
-                <th className="p-3.5">Dt Vencimento</th>
-                <th className="p-3.5 text-right">Bruto (R$)</th>
-                <th className="p-3.5 text-right">Glosas (R$)</th>
-                <th className="p-3.5 text-right">IRRF 1.5%</th>
-                <th className="p-3.5 text-right">PIS 0.65%</th>
-                <th className="p-3.5 text-right">COFINS 3%</th>
-                <th className="p-3.5 text-right">CSLL 1%</th>
-                <th className="p-3.5 text-right pr-6 bg-blue-50 font-black text-blue-900">Líquido (R$)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-              {excelData.lotesUnimed.map((lote) => (
-                <tr key={lote.lote} className="hover:bg-blue-50/20 transition-colors">
-                  <td className="p-3.5 pl-6 font-black text-gray-900">{lote.lote}</td>
-                  <td className="p-3.5 font-bold text-gray-700">{lote.tipo}</td>
-                  <td className="p-3.5 text-gray-500">{lote.vencimento}</td>
-                  <td className="p-3.5 text-right font-bold text-gray-900">R$ {lote.bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td className="p-3.5 text-right text-rose-600 font-bold">-R$ {lote.glosa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td className="p-3.5 text-right text-gray-500">R$ {lote.irrf.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td className="p-3.5 text-right text-gray-500">R$ {lote.pis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td className="p-3.5 text-right text-gray-500">R$ {lote.cofins.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td className="p-3.5 text-right text-gray-500">R$ {lote.csll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td className="p-3.5 text-right pr-6 font-black text-blue-700 bg-blue-50/50">
-                    R$ {lote.liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
+                  <th className="p-3.5 pl-6">Despesa / Item</th>
+                  <th className="p-3.5">Categoria</th>
+                  <th className="p-3.5 text-center">Status</th>
+                  <th className="p-3.5 text-right pr-6">Valor (R$)</th>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gray-100 font-black text-xs text-gray-900 border-t-2 border-gray-300">
-                <td colSpan={3} className="p-3.5 pl-6 uppercase">TOTAL CONSOLIDADO DOS LOTES</td>
-                <td className="p-3.5 text-right">R$ 238.079,16</td>
-                <td className="p-3.5 text-right text-rose-600">-R$ 7.590,54</td>
-                <td className="p-3.5 text-right">R$ 4.166,92</td>
-                <td className="p-3.5 text-right">R$ 1.805,67</td>
-                <td className="p-3.5 text-right">R$ 8.333,84</td>
-                <td className="p-3.5 text-right">R$ 2.777,95</td>
-                <td className="p-3.5 text-right pr-6 text-blue-800 bg-blue-100 font-black text-sm">
-                  R$ 193.384,81
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                {excelData.despesasEquipe.map((d, idx) => (
+                  <tr key={idx} className="hover:bg-rose-50/20 transition-colors">
+                    <td className="p-3.5 pl-6 font-bold text-gray-900">{d.despesa}</td>
+                    <td className="p-3.5 text-gray-600 font-medium">{d.categoria}</td>
+                    <td className="p-3.5 text-center">
+                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[9px] font-black uppercase">
+                        {d.status}
+                      </span>
+                    </td>
+                    <td className="p-3.5 text-right pr-6 font-black text-rose-600">
+                      -R$ {d.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function MetricCard({ label, value, isNegative, color, bg, isHighlight }: { label: string; value: number; isNegative?: boolean; color: string; bg: string; isHighlight?: boolean }) {
+function MetricCard({ 
+  label, 
+  value, 
+  isNegative, 
+  color, 
+  bg, 
+  isHighlight,
+  sub 
+}: { 
+  label: string; 
+  value: number; 
+  isNegative?: boolean; 
+  color: string; 
+  bg: string; 
+  isHighlight?: boolean;
+  sub?: string;
+}) {
   return (
-    <div className={`p-6 rounded-3xl border ${isHighlight ? "border-emerald-300 shadow-md bg-white" : "border-gray-200/80 bg-white"} flex flex-col justify-between space-y-2`}>
+    <div className={`p-5 rounded-3xl border ${isHighlight ? "border-emerald-300 shadow-md bg-white ring-2 ring-emerald-500/10" : "border-gray-200/80 bg-white shadow-xs"} flex flex-col justify-between space-y-1`}>
       <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">{label}</span>
       <span className={`text-xl font-black ${color}`}>
         {isNegative ? "-R$ " : "R$ "}
         {Math.abs(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
       </span>
+      {sub && <span className="text-[9px] font-bold text-gray-400 block">{sub}</span>}
     </div>
   );
 }
