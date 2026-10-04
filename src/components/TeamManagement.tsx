@@ -24,7 +24,11 @@ import { GroupConfigs } from "./GroupConfigs";
 import { ShoppingListConfig } from "./ShoppingListConfig";
 import { AdminFinancialView } from "./AdminFinancialView";
 
-export function TeamManagement() {
+interface TeamManagementProps {
+  onNavigateToAdmin?: () => void;
+}
+
+export function TeamManagement({ onNavigateToAdmin }: TeamManagementProps) {
   const { 
     activeGroup, 
     activeGroupMembers,
@@ -297,7 +301,13 @@ export function TeamManagement() {
                     </button>
 
                     <button 
-                      onClick={() => setManagementMode("administration")}
+                      onClick={() => {
+                        setIsManagementOpen(false);
+                        setManagementMode("dashboard");
+                        if (onNavigateToAdmin) {
+                          onNavigateToAdmin();
+                        }
+                      }}
                       className="flex flex-col items-center justify-center gap-4 p-8 bg-purple-50/50 border-2 border-purple-100 rounded-[40px] hover:bg-purple-600 hover:text-white hover:border-purple-500 hover:shadow-2xl hover:shadow-purple-200 transition-all group relative overflow-hidden sm:col-span-2"
                     >
                       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">

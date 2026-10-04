@@ -52,8 +52,9 @@ import { ShoppingList } from "./components/ShoppingList";
 import { PersonalNotes } from "./components/PersonalNotes";
 import { TrelloBoard } from "./components/TrelloBoard";
 import { NewPatientModal } from "./components/NewPatientModal";
+import { AdminFinancialView } from "./components/AdminFinancialView";
 
-type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes" | "trello";
+type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes" | "trello" | "admin_financial";
 
 export default function AppWorkspace() {
   const { isAuthenticated, user, login, logout, isDemoMode, enableDemoMode, disableDemoMode } = useAuth();
@@ -807,8 +808,13 @@ export default function AppWorkspace() {
                   </div>
                 </div>
               )}
-              {/* Chat column */}
-              <div className="xl:col-span-3 flex flex-col">
+              {/* Chat column or Fullscreen Admin Financial */}
+              {currentView === "admin_financial" ? (
+                <div className="xl:col-span-4 w-full">
+                  <AdminFinancialView onBack={() => navigateAndAction("workspace")} />
+                </div>
+              ) : (
+                <div className="xl:col-span-3 flex flex-col">
                 <div className="flex-1">
                   <AnimatePresence mode="wait">
                     <motion.div
@@ -859,6 +865,7 @@ export default function AppWorkspace() {
                   </AnimatePresence>
                 </div>
               </div>
+              )}
 
               {/* Sidebar - removed GroupSelector from right side as per request */}
               <div className="space-y-8 hidden xl:flex flex-col pt-24 pr-2">
@@ -877,7 +884,7 @@ export default function AppWorkspace() {
           onAddPatient={() => setIsNewPatientModalOpen(true)}
         />
       )}
-      <TeamManagement />
+      <TeamManagement onNavigateToAdmin={() => navigateAndAction("admin_financial")} />
       <NewPatientModal
         isOpen={isNewPatientModalOpen}
         onClose={() => setIsNewPatientModalOpen(false)}
