@@ -2,12 +2,15 @@ import { FinancialProduction, FinancialGlosa, FinancialTax, FinancialAdjustment,
 
 // Known Doctors list in the team
 export const KNOWN_DOCTORS = [
+  "ROCHELE LORENZI POL",
+  "THAIS ISABEL LUMIKOSKI",
+  "LUIS BONGIOLO MATTOS",
+  "KATHIZE LIRA",
+  "TAMARA QUINTINO REGIS",
   "LUAN JUNIOR VIGNATTI",
   "THAYNARA MAESTRI VIGNATTI",
-  "MARIA EDUARDA CASA SOUZA MACHADO",
-  "TAMARA QUINTINO REGIS",
   "CAMILA RIBEIRO DUTRA",
-  "ROCHELE LORENZI POL"
+  "MARIA EDUARDA CASA SOUZA MACHADO"
 ];
 
 export function identifyDoctor(executingProvider: string): { doctorId?: string; doctorName?: string; isTeam: boolean } {
@@ -281,61 +284,65 @@ export function parseBatch10944Files(closingId: string): ParsedFinancialBundle {
   ];
 
   const transactions = [
-    {
-      scope: "TEAM" as const,
-      typeId: "capitalizacao",
-      typeName: "Capitalização Cota-Parte",
-      date: "01/08/2026",
-      amount: 14825.40,
-      nature: "DEBIT" as const,
-      observation: "Capitalização Cota-Parte - Desconto Unimed",
-      source: "PDF" as const,
-      sourceFile: "10944_DEMONSTRATIVO.pdf"
-    },
-    {
-      scope: "CLOSING" as const,
-      typeId: "irrf",
-      typeName: "IRRF",
-      date: "14/09/2026",
-      amount: 2223.81,
-      nature: "DEBIT" as const,
-      observation: "IRRF - Serviços Tomados - Cód: 1708",
-      source: "PDF" as const,
-      sourceFile: "10944_DEMONSTRATIVO.pdf"
-    },
-    {
-      scope: "CLOSING" as const,
-      typeId: "pis",
-      typeName: "PIS",
-      date: "14/09/2026",
-      amount: 963.65,
-      nature: "DEBIT" as const,
-      observation: "PIS - Retenção - Cód: 5952",
-      source: "PDF" as const,
-      sourceFile: "10944_DEMONSTRATIVO.pdf"
-    },
-    {
-      scope: "CLOSING" as const,
-      typeId: "cofins",
-      typeName: "COFINS",
-      date: "14/09/2026",
-      amount: 4447.62,
-      nature: "DEBIT" as const,
-      observation: "Cofins - Retenção - Cód: 5952",
-      source: "PDF" as const,
-      sourceFile: "10944_DEMONSTRATIVO.pdf"
-    },
-    {
-      scope: "CLOSING" as const,
-      typeId: "csll",
-      typeName: "CSLL",
-      date: "14/09/2026",
-      amount: 1482.54,
-      nature: "DEBIT" as const,
-      observation: "CSLL - Retenção - Cód: 5952",
-      source: "PDF" as const,
-      sourceFile: "10944_DEMONSTRATIVO.pdf"
-    }
+    // Retenções / Impostos
+    { scope: "CLOSING" as const, typeId: "irrf", typeName: "IRRF", date: "14/09/2026", amount: 2223.81, nature: "DEBIT" as const, observation: "IRRF - Serviços Tomados - Cód: 1708", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+    { scope: "CLOSING" as const, typeId: "pis", typeName: "PIS", date: "14/09/2026", amount: 963.65, nature: "DEBIT" as const, observation: "PIS - Retenção - Cód: 5952", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+    { scope: "CLOSING" as const, typeId: "cofins", typeName: "COFINS", date: "14/09/2026", amount: 4447.62, nature: "DEBIT" as const, observation: "Cofins - Retenção - Cód: 5952", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+    { scope: "CLOSING" as const, typeId: "csll", typeName: "CSLL", date: "14/09/2026", amount: 1482.54, nature: "DEBIT" as const, observation: "CSLL - Retenção - Cód: 5952", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+
+    // Ocorrências Rochele
+    { scope: "DOCTOR" as const, doctorId: "rochele", doctorName: "ROCHELE LORENZI POL", typeId: "disp_uti", typeName: "Disponibilidade Médica - UTI", date: "14/09/2026", amount: 1966.87, nature: "CREDIT" as const, observation: "Plantão UTI HU", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "rochele", doctorName: "ROCHELE LORENZI POL", typeId: "repasse_hu", typeName: "Repasse Pagamento de Produção - HU", date: "14/09/2026", amount: 1439.16, nature: "CREDIT" as const, observation: "Repasse Produção HU", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "rochele", doctorName: "ROCHELE LORENZI POL", typeId: "sobreaviso", typeName: "Sobreavisos", date: "14/09/2026", amount: 4320.00, nature: "CREDIT" as const, observation: "Sobreavisos de retaguarda", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "rochele", doctorName: "ROCHELE LORENZI POL", typeId: "glosa", typeName: "Glosas - Clínica Cooperada - 11%", date: "14/09/2026", amount: 10.00, nature: "DEBIT" as const, observation: "Glosa Unimed", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "rochele", doctorName: "ROCHELE LORENZI POL", typeId: "centro_estudos", typeName: "Contribuição de Centro de Estudos", date: "14/09/2026", amount: 170.00, nature: "DEBIT" as const, observation: "Contribuição Centro de Estudos", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+
+    // Ocorrências Thais
+    { scope: "DOCTOR" as const, doctorId: "thais", doctorName: "THAIS ISABEL LUMIKOSKI", typeId: "sobreaviso", typeName: "Sobreavisos", date: "14/09/2026", amount: 7200.00, nature: "CREDIT" as const, observation: "Sobreavisos plantão", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "thais", doctorName: "THAIS ISABEL LUMIKOSKI", typeId: "glosa", typeName: "Glosas - Clínica Cooperada - 11%", date: "14/09/2026", amount: 6.00, nature: "DEBIT" as const, observation: "Glosa Unimed Litoral", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "thais", doctorName: "THAIS ISABEL LUMIKOSKI", typeId: "cota_parte", typeName: "Integralização de Cota Parte", date: "14/09/2026", amount: 7500.00, nature: "DEBIT" as const, observation: "Integralização de cota cooperativa", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "thais", doctorName: "THAIS ISABEL LUMIKOSKI", typeId: "centro_estudos", typeName: "Contribuição de Centro de Estudos", date: "14/09/2026", amount: 170.00, nature: "DEBIT" as const, observation: "Taxa Centro de Estudos", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+
+    // Ocorrências Tamara
+    { scope: "DOCTOR" as const, doctorId: "tamara", doctorName: "TAMARA QUINTINO REGIS", typeId: "glosa", typeName: "Glosas - Clínica Cooperada - 11%", date: "14/09/2026", amount: 757.10, nature: "DEBIT" as const, observation: "Glosas identificadas Lote 10944", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "tamara", doctorName: "TAMARA QUINTINO REGIS", typeId: "plac", typeName: "Mensalidade PLAC", date: "14/09/2026", amount: 288.00, nature: "DEBIT" as const, observation: "Desconto PLAC", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "tamara", doctorName: "TAMARA QUINTINO REGIS", typeId: "centro_estudos", typeName: "Contribuição de Centro de Estudos", date: "14/09/2026", amount: 170.00, nature: "DEBIT" as const, observation: "Taxa Centro de Estudos", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+
+    // Ocorrências Luan
+    { scope: "DOCTOR" as const, doctorId: "luan", doctorName: "LUAN JUNIOR VIGNATTI", typeId: "glosa", typeName: "Glosas - Clínica Cooperada - 11%", date: "14/09/2026", amount: 2308.86, nature: "DEBIT" as const, observation: "Glosas por protocolo Luan", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "luan", doctorName: "LUAN JUNIOR VIGNATTI", typeId: "cota_parte", typeName: "Integralização de Cota Parte", date: "14/09/2026", amount: 7579.69, nature: "DEBIT" as const, observation: "Integralização cota Unimed 5 de 24", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "luan", doctorName: "LUAN JUNIOR VIGNATTI", typeId: "centro_estudos", typeName: "Contribuição de Centro de Estudos", date: "14/09/2026", amount: 170.00, nature: "DEBIT" as const, observation: "Taxa Centro de Estudos", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+
+    // Ocorrências Thaynara
+    { scope: "DOCTOR" as const, doctorId: "thaynara", doctorName: "THAYNARA MAESTRI VIGNATTI", typeId: "bonificacao_parto", typeName: "Remuneração Bonificação Parto Normal", date: "14/09/2026", amount: 1999.53, nature: "CREDIT" as const, observation: "Bonificação Parto Normal HU (1150.00 + 849.53)", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "thaynara", doctorName: "THAYNARA MAESTRI VIGNATTI", typeId: "disp_obstetricia", typeName: "Disponibilidade Ginecologia - Centro Obstétrico", date: "14/09/2026", amount: 11768.60, nature: "CREDIT" as const, observation: "Disponibilidade Obstetrícia HU (3857.67 + 7910.93)", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "thaynara", doctorName: "THAYNARA MAESTRI VIGNATTI", typeId: "glosa", typeName: "Glosas - Clínica Cooperada - 11%", date: "14/09/2026", amount: 702.18, nature: "DEBIT" as const, observation: "Glosa Unimed", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "thaynara", doctorName: "THAYNARA MAESTRI VIGNATTI", typeId: "cota_parte", typeName: "Integralização de Cota Parte", date: "14/09/2026", amount: 7500.00, nature: "DEBIT" as const, observation: "Integralização cota Unimed", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "thaynara", doctorName: "THAYNARA MAESTRI VIGNATTI", typeId: "centro_estudos", typeName: "Contribuição de Centro de Estudos", date: "14/09/2026", amount: 170.00, nature: "DEBIT" as const, observation: "Taxa Centro de Estudos", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+
+    // Ocorrências Camila
+    { scope: "DOCTOR" as const, doctorId: "camila", doctorName: "CAMILA RIBEIRO DUTRA", typeId: "disp_reumato", typeName: "Disponibilidade - Reumatologia", date: "14/09/2026", amount: 12769.67, nature: "CREDIT" as const, observation: "Disponibilidade Especialidade HU", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "camila", doctorName: "CAMILA RIBEIRO DUTRA", typeId: "cota_parte", typeName: "Integralização de Cota Parte", date: "14/09/2026", amount: 7579.66, nature: "DEBIT" as const, observation: "Integralização cota 5 de 24", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "camila", doctorName: "CAMILA RIBEIRO DUTRA", typeId: "plac", typeName: "Mensalidade PLAC", date: "14/09/2026", amount: 431.09, nature: "DEBIT" as const, observation: "Desconto PLAC", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "camila", doctorName: "CAMILA RIBEIRO DUTRA", typeId: "centro_estudos", typeName: "Contribuição de Centro de Estudos", date: "14/09/2026", amount: 170.00, nature: "DEBIT" as const, observation: "Taxa Centro de Estudos", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "camila", doctorName: "CAMILA RIBEIRO DUTRA", typeId: "desconto_proprio", typeName: "Desconto Atendimentos Realizados - Recurso Próprio", date: "14/09/2026", amount: 45.00, nature: "DEBIT" as const, observation: "Desconto Recurso Próprio", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+
+    // Ocorrências Maria Eduarda
+    { scope: "DOCTOR" as const, doctorId: "maria_eduarda", doctorName: "MARIA EDUARDA CASA SOUZA MACHADO", typeId: "glosa", typeName: "Glosas - Clínica Cooperada - 11%", date: "14/09/2026", amount: 275.00, nature: "DEBIT" as const, observation: "Glosas identificadas Lote 10944", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "maria_eduarda", doctorName: "MARIA EDUARDA CASA SOUZA MACHADO", typeId: "cota_parte", typeName: "Integralização de Cota Parte", date: "14/09/2026", amount: 7579.66, nature: "DEBIT" as const, observation: "Integralização cota 5 de 24", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+    { scope: "DOCTOR" as const, doctorId: "maria_eduarda", doctorName: "MARIA EDUARDA CASA SOUZA MACHADO", typeId: "centro_estudos", typeName: "Contribuição de Centro de Estudos", date: "14/09/2026", amount: 170.00, nature: "DEBIT" as const, observation: "Taxa Centro de Estudos", source: "PDF" as const, sourceFile: "10944_PROD.pdf" },
+
+    // Equipe Heart / Despesas Operacionais Gerais
+    { scope: "TEAM" as const, doctorId: "equipe", doctorName: "HEART CIRURGIA CARDIOVASCULAR", typeId: "capitalizacao", typeName: "Capitalização Cota-Parte (360)", date: "01/08/2026", amount: 14825.40, nature: "DEBIT" as const, observation: "Capitalização Cota-Parte - Desconto Unimed", source: "PDF" as const, sourceFile: "10944_DEMONSTRATIVO.pdf" },
+    { scope: "TEAM" as const, doctorId: "equipe", doctorName: "HEART CIRURGIA CARDIOVASCULAR", typeId: "contador", typeName: "Contador Heart", date: "14/09/2026", amount: 294.00, nature: "DEBIT" as const, observation: "Assessoria Contábil Heart", source: "MANUAL" as const },
+    { scope: "TEAM" as const, doctorId: "equipe", doctorName: "HEART CIRURGIA CARDIOVASCULAR", typeId: "dare", typeName: "DARE", date: "14/09/2026", amount: 497.00, nature: "DEBIT" as const, observation: "Taxa DARE estadual", source: "MANUAL" as const },
+    { scope: "TEAM" as const, doctorId: "equipe", doctorName: "HEART CIRURGIA CARDIOVASCULAR", typeId: "sala", typeName: "Aluguel Sala / Consultório", date: "14/09/2026", amount: 900.00, nature: "DEBIT" as const, observation: "Locação consultório", source: "MANUAL" as const },
+    { scope: "TEAM" as const, doctorId: "equipe", doctorName: "HEART CIRURGIA CARDIOVASCULAR", typeId: "celular", typeName: "Celular Corporativo", date: "14/09/2026", amount: 722.21, nature: "DEBIT" as const, observation: "Telefonia corporativa", source: "MANUAL" as const },
+    { scope: "TEAM" as const, doctorId: "equipe", doctorName: "HEART CIRURGIA CARDIOVASCULAR", typeId: "consult_itjai", typeName: "Consultório Itajaí", date: "14/09/2026", amount: 2029.78, nature: "DEBIT" as const, observation: "Despesas unidade Itajaí", source: "MANUAL" as const },
+    { scope: "TEAM" as const, doctorId: "equipe", doctorName: "HEART CIRURGIA CARDIOVASCULAR", typeId: "crm", typeName: "CRM", date: "14/09/2026", amount: 344.50, nature: "DEBIT" as const, observation: "Taxa anuidade conselho CRM", source: "MANUAL" as const },
+    { scope: "TEAM" as const, doctorId: "equipe", doctorName: "HEART CIRURGIA CARDIOVASCULAR", typeId: "instrumentador", typeName: "Instrumentador Cirúrgico", date: "14/09/2026", amount: 1526.76, nature: "DEBIT" as const, observation: "Honorários instrumentação", source: "MANUAL" as const },
+    { scope: "TEAM" as const, doctorId: "equipe", doctorName: "HEART CIRURGIA CARDIOVASCULAR", typeId: "alvara", typeName: "Alvará Municipal", date: "14/09/2026", amount: 431.09, nature: "DEBIT" as const, observation: "Licença prefeitura", source: "MANUAL" as const },
+    { scope: "TEAM" as const, doctorId: "equipe", doctorName: "HEART CIRURGIA CARDIOVASCULAR", typeId: "inss", typeName: "INSS Patronal", date: "14/09/2026", amount: 502.51, nature: "DEBIT" as const, observation: "Previdência social patronal", source: "MANUAL" as const }
   ];
 
   const pendencies: FinancialPendency[] = [

@@ -19,12 +19,14 @@ import {
   Plus,
   ChevronRight,
   TrendingUp,
-  FileText
+  FileText,
+  TableProperties
 } from "lucide-react";
 import { FinancialClosingsView } from "./FinancialClosingsView";
 import { FinancialImportWizard } from "./FinancialImportWizard";
 import { DoctorDashboardView } from "./DoctorDashboardView";
 import { FinancialTransactionsView } from "./FinancialTransactionsView";
+import { ExcelDashboardView } from "./ExcelDashboardView";
 import { useGroup } from "../../contexts/GroupContext";
 
 interface AdministrationFullscreenProps {
@@ -32,7 +34,7 @@ interface AdministrationFullscreenProps {
   initialTab?: string;
 }
 
-export function AdministrationFullscreen({ onClose, initialTab = "fechamentos" }: AdministrationFullscreenProps) {
+export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboard" }: AdministrationFullscreenProps) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -45,7 +47,7 @@ export function AdministrationFullscreen({ onClose, initialTab = "fechamentos" }
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="flex items-center gap-2 text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 px-3.5 py-2 rounded-xl transition font-bold text-xs"
+            className="flex items-center gap-2 text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 px-3.5 py-2 rounded-xl transition font-bold text-xs cursor-pointer"
           >
             <ArrowLeft size={16} />
             <span>Voltar ao Workspace</span>
@@ -65,10 +67,10 @@ export function AdministrationFullscreen({ onClose, initialTab = "fechamentos" }
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsImporting(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-black text-xs tracking-wider transition shadow-lg shadow-blue-500/20 active:scale-95"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-black text-xs tracking-wider transition shadow-lg shadow-blue-500/20 active:scale-95 cursor-pointer"
           >
             <UploadCloud size={16} />
-            <span>Importar Documentos (Lote)</span>
+            <span>Importar Documentos (PDF/CSV)</span>
           </button>
         </div>
       </header>
@@ -80,20 +82,20 @@ export function AdministrationFullscreen({ onClose, initialTab = "fechamentos" }
           <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">Módulos Financeiros</div>
           
           <TabButton
+            icon={<TableProperties size={18} />}
+            label="Dashboard Excel"
+            active={activeTab === "excel_dashboard"}
+            onClick={() => { setActiveTab("excel_dashboard"); setIsImporting(false); }}
+          />
+          <TabButton
             icon={<FileCheck2 size={18} />}
             label="Fechamentos"
             active={activeTab === "fechamentos"}
             onClick={() => { setActiveTab("fechamentos"); setIsImporting(false); }}
           />
           <TabButton
-            icon={<LayoutDashboard size={18} />}
-            label="Dashboard Geral"
-            active={activeTab === "dashboard"}
-            onClick={() => { setActiveTab("dashboard"); setIsImporting(false); }}
-          />
-          <TabButton
             icon={<Wallet size={18} />}
-            label="Fluxo de Caixa"
+            label="Fluxo de Caixa (Ocorrências)"
             active={activeTab === "fluxo"}
             onClick={() => { setActiveTab("fluxo"); setIsImporting(false); }}
           />
@@ -117,7 +119,7 @@ export function AdministrationFullscreen({ onClose, initialTab = "fechamentos" }
           />
           <TabButton
             icon={<UploadCloud size={18} />}
-            label="Histórico de Importações"
+            label="Importações & Upload"
             active={activeTab === "importacoes"}
             onClick={() => { setActiveTab("importacoes"); setIsImporting(false); }}
           />
@@ -129,9 +131,9 @@ export function AdministrationFullscreen({ onClose, initialTab = "fechamentos" }
           />
 
           <div className="mt-auto pt-4 border-t border-gray-100 px-3">
-            <div className="p-3 bg-blue-50/60 rounded-2xl border border-blue-100/50 space-y-1">
-              <span className="text-[10px] font-black text-blue-700 uppercase block tracking-wider">Motor de Conciliação</span>
-              <p className="text-[10px] text-blue-600 font-medium leading-relaxed">Versão 2.4 Ativa com validação automática por protocolo.</p>
+            <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-100/60 space-y-1">
+              <span className="text-[10px] font-black text-emerald-800 uppercase block tracking-wider">Planilha Inteligente Ativa</span>
+              <p className="text-[10px] text-emerald-700 font-medium leading-relaxed">Taxas, glosas e ocorrências vinculadas diretamente ao fluxo de caixa.</p>
             </div>
           </div>
         </aside>
@@ -144,9 +146,11 @@ export function AdministrationFullscreen({ onClose, initialTab = "fechamentos" }
               onComplete={(closingId) => {
                 setIsImporting(false);
                 setSelectedClosingId(closingId);
-                setActiveTab("fechamentos");
+                setActiveTab("excel_dashboard");
               }}
             />
+          ) : activeTab === "excel_dashboard" ? (
+            <ExcelDashboardView closingId={selectedClosingId} />
           ) : activeTab === "fechamentos" ? (
             <FinancialClosingsView
               selectedClosingId={selectedClosingId}
@@ -157,18 +161,26 @@ export function AdministrationFullscreen({ onClose, initialTab = "fechamentos" }
             <DoctorDashboardView closingId={selectedClosingId} />
           ) : activeTab === "fluxo" ? (
             <FinancialTransactionsView closingId={selectedClosingId} />
+          ) : activeTab === "importacoes" ? (
+            <FinancialImportWizard
+              onClose={() => setActiveTab("excel_dashboard")}
+              onComplete={(closingId) => {
+                setSelectedClosingId(closingId);
+                setActiveTab("excel_dashboard");
+              }}
+            />
           ) : (
             <div className="max-w-4xl mx-auto py-12 text-center space-y-4">
               <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
                 <FileText size={32} />
               </div>
               <h3 className="text-xl font-black text-gray-900 uppercase">Módulo em Execução</h3>
-              <p className="text-sm text-gray-500">Selecione um fechamento na aba <b>Fechamentos</b> para visualizar todos os relatórios detalhados.</p>
+              <p className="text-sm text-gray-500">Selecione uma opção no menu lateral para visualizar os dados financeiros.</p>
               <button
-                onClick={() => setActiveTab("fechamentos")}
+                onClick={() => setActiveTab("excel_dashboard")}
                 className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20"
               >
-                Ir para Fechamentos
+                Abrir Dashboard Excel
               </button>
             </div>
           )}
@@ -182,7 +194,7 @@ function TabButton({ icon, label, active, onClick }: { icon: React.ReactNode; la
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-3 w-full px-4 py-3 rounded-2xl font-bold text-xs transition-all ${
+      className={`flex items-center gap-3 w-full px-4 py-3 rounded-2xl font-bold text-xs transition-all cursor-pointer ${
         active 
           ? "bg-blue-600 text-white shadow-xl shadow-blue-500/20" 
           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
