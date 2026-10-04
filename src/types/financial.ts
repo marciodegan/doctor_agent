@@ -176,7 +176,9 @@ export interface DoctorTeamMember {
   key: string;
   name: string;
   isTeamMember: boolean; // true for Rochele, Thais, Luis, Kathize; false for Thaynara, Tamara, Maria Eduarda, Camila, Luan
-  teamSharePercent: number; // e.g. 29, 29, 29, 13
+  teamSharePercent: number; // e.g. 29, 29, 29, 13 (percentual societário nominal)
+  proporcaoHeartDinamica?: number; // e.g. 26.79, 28.97, 26.79, 17.45 (calculado dinamicamente com base nas receitas do período)
+  disponivelPeriodo?: number; // Receitas recebidas pelo médico no período (base do rateio)
   specialty?: string;
   crm?: string;
 }

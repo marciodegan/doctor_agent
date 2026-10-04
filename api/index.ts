@@ -2211,16 +2211,17 @@ app.post("/api/app/financial/closings/:closingId/status", async (req, res) => {
 
 const DEFAULT_TEAM_CONFIG = {
   doctors: [
-    { key: "rochele", name: "ROCHELE LORENZI POL", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Cardiovascular" },
-    { key: "thais", name: "THAIS ISABEL LUMIKOSKI", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Cardiovascular" },
-    { key: "luis", name: "LUIS BONGIOLO MATTOS", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Geral / Cardio" },
-    { key: "kathize", name: "KATHIZE LIRA", isTeamMember: true, teamSharePercent: 13, specialty: "Médica Assistente" },
-    { key: "tamara", name: "TAMARA QUINTINO REGIS", isTeamMember: false, teamSharePercent: 0, specialty: "Dermatologia Clínica" },
-    { key: "luan", name: "LUAN JUNIOR VIGNATTI", isTeamMember: false, teamSharePercent: 0, specialty: "Cirurgia da Pele / Dermatologia" },
-    { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", isTeamMember: false, teamSharePercent: 0, specialty: "Ginecologia & Obstetrícia" },
-    { key: "camila", name: "CAMILA RIBEIRO DUTRA", isTeamMember: false, teamSharePercent: 0, specialty: "Reumatologia & Infusões" },
-    { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", isTeamMember: false, teamSharePercent: 0, specialty: "Dermatologia & Procedimentos" }
+    { key: "rochele", name: "ROCHELE LORENZI POL", isTeamMember: true, teamSharePercent: 29, proporcaoHeartDinamica: 26.79, disponivelPeriodo: 36086.02, specialty: "Cirurgia Cardiovascular" },
+    { key: "thais", name: "THAIS ISABEL LUMIKOSKI", isTeamMember: true, teamSharePercent: 29, proporcaoHeartDinamica: 28.97, disponivelPeriodo: 39019.05, specialty: "Cirurgia Cardiovascular" },
+    { key: "luis", name: "LUIS BONGIOLO MATTOS", isTeamMember: true, teamSharePercent: 29, proporcaoHeartDinamica: 26.79, disponivelPeriodo: 36086.02, specialty: "Cirurgia Geral / Cardio" },
+    { key: "kathize", name: "KATHIZE LIRA", isTeamMember: true, teamSharePercent: 13, proporcaoHeartDinamica: 17.45, disponivelPeriodo: 23509.08, specialty: "Médica Assistente" },
+    { key: "tamara", name: "TAMARA QUINTINO REGIS", isTeamMember: false, teamSharePercent: 0, proporcaoHeartDinamica: 0, disponivelPeriodo: 0, specialty: "Dermatologia Clínica" },
+    { key: "luan", name: "LUAN JUNIOR VIGNATTI", isTeamMember: false, teamSharePercent: 0, proporcaoHeartDinamica: 0, disponivelPeriodo: 0, specialty: "Cirurgia da Pele / Dermatologia" },
+    { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", isTeamMember: false, teamSharePercent: 0, proporcaoHeartDinamica: 0, disponivelPeriodo: 0, specialty: "Ginecologia & Obstetrícia" },
+    { key: "camila", name: "CAMILA RIBEIRO DUTRA", isTeamMember: false, teamSharePercent: 0, proporcaoHeartDinamica: 0, disponivelPeriodo: 0, specialty: "Reumatologia & Infusões" },
+    { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", isTeamMember: false, teamSharePercent: 0, proporcaoHeartDinamica: 0, disponivelPeriodo: 0, specialty: "Dermatologia & Procedimentos" }
   ],
+  totalDisponivelEquipe: 134700.17,
   teamOnlySources: [
     "AZAMBUJA",
     "MARIETA",
@@ -2330,7 +2331,13 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       const createdItems: any[] = [];
 
       for (const td of teamDoctors) {
-        const shareRatio = (td.teamSharePercent || 0) / 100;
+        // Use dynamic "PROPORÇÃO HEART" by default for team expenses (e.g. 26.79%, 28.97%, 26.79%, 17.45%)
+        const useDynamic = req.body.rateioMethod !== "NOMINAL";
+        const effectivePercent = (useDynamic && td.proporcaoHeartDinamica !== undefined && td.proporcaoHeartDinamica > 0)
+          ? td.proporcaoHeartDinamica
+          : (td.teamSharePercent || 0);
+
+        const shareRatio = effectivePercent / 100;
         const splitVal = Math.round((numAmount * shareRatio) * 100) / 100;
         const splitRef = db.collection("financial_transactions").doc();
         
@@ -2342,12 +2349,13 @@ app.post("/api/app/financial/transactions", async (req, res) => {
           doctorId: td.key,
           doctorName: td.name,
           scope: "TEAM_SPLIT",
-          teamSharePercent: td.teamSharePercent,
-          typeName: `${typeName} (Rateio ${td.teamSharePercent}%)`,
+          teamSharePercent: effectivePercent,
+          rateioMethod: useDynamic ? "PROPORCAO_HEART_DINAMICA" : "SOCIETARIO_NOMINAL",
+          typeName: `${typeName} (Rateio ${effectivePercent}%)`,
           typeId: typeId || "rateio_equipe",
           amount: splitVal,
           nature: nature || "DEBIT",
-          observation: `Rateio proporcional da Equipe: ${td.teamSharePercent}% de R$ ${numAmount.toFixed(2)}${observation ? ` - ${observation}` : ""}`,
+          observation: `Rateio Proporção HeaRT Dinâmica: ${effectivePercent}% de R$ ${numAmount.toFixed(2)}${observation ? ` - ${observation}` : ""}`,
           date: txDate,
           source: source || "RATEIO_EQUIPE",
           createdAt: new Date().toISOString()
