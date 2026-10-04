@@ -169,6 +169,12 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
                 setActiveTab("excel_dashboard");
               }}
             />
+          ) : activeTab === "config" ? (
+            <ExcelDashboardView closingId={selectedClosingId} initialSubTab="config_equipe" />
+          ) : activeTab === "glosas" ? (
+            <ExcelDashboardView closingId={selectedClosingId} initialSubTab="ocorrencias_fluxo" />
+          ) : activeTab === "impostos" ? (
+            <ExcelDashboardView closingId={selectedClosingId} initialSubTab="lotes_unimed" />
           ) : (
             <div className="max-w-4xl mx-auto py-12 text-center space-y-4">
               <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">

@@ -23,22 +23,72 @@ import {
   Eye,
   ChevronDown,
   Layers,
-  Percent
+  Percent,
+  Settings2,
+  UserCheck,
+  UserX,
+  Save,
+  Check,
+  Info
 } from "lucide-react";
+import { DoctorTeamMember, TeamFinancialSettings } from "../../types/financial";
 
 interface ExcelDashboardViewProps {
   closingId: string | null;
+  initialSubTab?: "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe";
 }
 
-export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
+export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }: ExcelDashboardViewProps) {
   const { activeGroup, apiFetch } = useGroup();
   const [closings, setClosings] = useState<any[]>([]);
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(closingId);
   const [details, setDetails] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [activeSubTab, setActiveSubTab] = useState<"visao_geral" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe">("visao_geral");
+  const [activeSubTab, setActiveSubTab] = useState<
+    "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe"
+  >(initialSubTab);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Team settings state
+  const [teamSettings, setTeamSettings] = useState<TeamFinancialSettings>({
+    teamId: "",
+    doctors: [
+      { key: "rochele", name: "ROCHELE LORENZI POL", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Cardiovascular" },
+      { key: "thais", name: "THAIS ISABEL LUMIKOSKI", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Cardiovascular" },
+      { key: "luis", name: "LUIS BONGIOLO MATTOS", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Geral / Cardio" },
+      { key: "kathize", name: "KATHIZE LIRA", isTeamMember: true, teamSharePercent: 13, specialty: "Médica Assistente" },
+      { key: "tamara", name: "TAMARA QUINTINO REGIS", isTeamMember: false, teamSharePercent: 0, specialty: "Dermatologia Clínica" },
+      { key: "luan", name: "LUAN JUNIOR VIGNATTI", isTeamMember: false, teamSharePercent: 0, specialty: "Cirurgia da Pele / Dermatologia" },
+      { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", isTeamMember: false, teamSharePercent: 0, specialty: "Ginecologia & Obstetrícia" },
+      { key: "camila", name: "CAMILA RIBEIRO DUTRA", isTeamMember: false, teamSharePercent: 0, specialty: "Reumatologia & Infusões" },
+      { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", isTeamMember: false, teamSharePercent: 0, specialty: "Dermatologia & Procedimentos" }
+    ],
+    teamOnlySources: ["AZAMBUJA", "MARIETA", "CONSULTORIO", "RECEBIDO_DINHEIRO", "CARTAO", "UNIMED_LUIS"],
+    teamOnlyExpenses: ["CONTADOR_HEART", "DARE", "ALUGUEL_SALA", "CELULAR", "CONSULTORIO_ITAJAI", "CRM", "INSTRUMENTADOR", "ALVARA", "GOOGLE", "INSS_PATRONAL", "CAPITALIZACAO_COTA_PARTE"]
+  });
+
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsSuccess, setSettingsSuccess] = useState(false);
+
+  // Load team settings from backend
+  useEffect(() => {
+    if (!activeGroup) return;
+    const fetchTeamSettings = async () => {
+      try {
+        const res = await apiFetch("/api/app/financial/team-settings");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.doctors) {
+            setTeamSettings(data);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load team settings:", e);
+      }
+    };
+    fetchTeamSettings();
+  }, [activeGroup]);
 
   // Load available closings
   useEffect(() => {
@@ -87,18 +137,28 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
     fetchDetails();
   }, [selectedClosingId, activeGroup]);
 
-  // Standard doctor list and participating percentages from the Excel sheet
-  const doctors = [
-    { key: "rochele", name: "ROCHELE LORENZI POL", initial: "ROCHELE", percent: "29%", specialty: "Cirurgia Cardiovascular" },
-    { key: "thais", name: "THAIS ISABEL LUMIKOSKI", initial: "THAIS", percent: "29%", specialty: "Cirurgia Cardiovascular" },
-    { key: "luis", name: "LUIS BONGIOLO MATTOS", initial: "LUIS", percent: "29%", specialty: "Cirurgia Geral / Cardio" },
-    { key: "kathize", name: "KATHIZE LIRA", initial: "KATHIZE", percent: "13%", specialty: "Médica Assistente" },
-    { key: "tamara", name: "TAMARA QUINTINO REGIS", initial: "TAMARA", percent: "7.15%", specialty: "Dermatologia Clínica" },
-    { key: "luan", name: "LUAN JUNIOR VIGNATTI", initial: "LUAN", percent: "26.79%", specialty: "Cirurgia da Pele / Dermatologia" },
-    { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", initial: "THAYNARA", percent: "31.47%", specialty: "Ginecologia & Obstetrícia" },
-    { key: "camila", name: "CAMILA RIBEIRO DUTRA", initial: "CAMILA", percent: "28.11%", specialty: "Reumatologia & Infusões" },
-    { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", initial: "MARIA EDUARDA", percent: "26.79%", specialty: "Dermatologia & Procedimentos" }
-  ];
+  const handleSaveTeamSettings = async () => {
+    try {
+      setSavingSettings(true);
+      const res = await apiFetch("/api/app/financial/team-settings", {
+        method: "POST",
+        body: JSON.stringify(teamSettings)
+      });
+      if (res.ok) {
+        setSettingsSuccess(true);
+        setTimeout(() => setSettingsSuccess(false), 3000);
+      }
+    } catch (e: any) {
+      alert("Erro ao salvar configurações da equipe: " + e.message);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  // Calculate sum of team percentages
+  const teamSumPercent = teamSettings.doctors
+    .filter(d => d.isTeamMember)
+    .reduce((acc, d) => acc + (Number(d.teamSharePercent) || 0), 0);
 
   // Excel master dataset (SETEMBRO-26)
   const excelData = {
@@ -117,7 +177,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
     // Entradas por Fonte
     fontes: {
       azambuja: {
-        titulo: "AZAMBUJA",
+        titulo: "AZAMBUJA (Exclusivo da Equipe)",
         equipePlantao: 57420.94,
         liquidoPlantao: 46782.71,
         particular: 12600.00,
@@ -132,7 +192,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         ]
       },
       marieta: {
-        titulo: "MARIETA",
+        titulo: "MARIETA (Exclusivo da Equipe)",
         total: 81042.09,
         liquidoTotal: 67645.83,
         rateio: [
@@ -143,7 +203,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         ]
       },
       unimed: {
-        titulo: "UNIMED LITORAL",
+        titulo: "UNIMED LITORAL (Individual por Prestador)",
         total: 277794.83,
         liquidoTotal: 227477.88,
         rateio: [
@@ -157,17 +217,20 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         ]
       },
       consultorio: {
-        titulo: "CONSULTÓRIO PARTICULAR & OUTROS",
+        titulo: "CONSULTÓRIO PARTICULAR & OUTROS (Exclusivo da Equipe)",
         dinheiro: 400.00,
         cartao: 1200.00,
         unimedLuis: 8406.00,
         totalGeral: 10006.00
       }
     },
-    // Consolidado por Médico (Salários & Fechamento)
+    // Consolidado por Médico
     fechamentoMedicos: [
+      // 1. Membros da Equipe (Recebem rateio institucional e dividem custos fixos)
       { 
         nome: "ROCHELE LORENZI POL", 
+        key: "rochele",
+        isTeamMember: true,
         percent: "29%", 
         producao: 27095.00, 
         entradas: 5894.16, 
@@ -180,6 +243,8 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
       },
       { 
         nome: "THAIS ISABEL LUMIKOSKI", 
+        key: "thais",
+        isTeamMember: true,
         percent: "29%", 
         producao: 7706.25, 
         entradas: 7200.00, 
@@ -192,6 +257,8 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
       },
       { 
         nome: "LUIS BONGIOLO MATTOS", 
+        key: "luis",
+        isTeamMember: true,
         percent: "29%", 
         producao: 0.00, 
         entradas: 46461.17, 
@@ -200,10 +267,12 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         divisaoLucros: 16277.74, 
         finalGeral: 60277.74,
         detalhesEntradas: ["Repasses Azambuja + Marieta", "Participação Cirurgias"],
-        detalhesSaidas: ["Nenhuma retenção direta"]
+        detalhesSaidas: ["Sem retenção individual"]
       },
       { 
         nome: "KATHIZE LIRA", 
+        key: "kathize",
+        isTeamMember: true,
         percent: "13%", 
         producao: 0.00, 
         entradas: 12831.53, 
@@ -212,47 +281,56 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         divisaoLucros: 0.00, 
         finalGeral: 12831.53,
         detalhesEntradas: ["Marieta: R$ 8.793,96", "Azambuja: R$ 798,54", "Acertos"],
-        detalhesSaidas: ["Nenhuma dedução"]
+        detalhesSaidas: ["Sem retenção individual"]
       },
+      // 2. Não pertencem à equipe (Cooperados / Prestadores Externos - Sem rateio de despesas corporativas)
       { 
         nome: "TAMARA QUINTINO REGIS", 
-        percent: "7.15%", 
+        key: "tamara",
+        isTeamMember: false,
+        percent: "0%", 
         producao: 21101.25, 
         entradas: 0.00, 
         saidas: 1215.10, 
         liquidoCalculado: 13183.53, 
         divisaoLucros: 1442.69, 
         finalGeral: 14626.22,
-        detalhesEntradas: ["Produção Unimed Integral"],
-        detalhesSaidas: ["Glosas Lote 1485226: R$ 407,57", "Glosas Lote 1490176: R$ 349,53", "Centro de Estudos: R$ 170,00", "Mensalidade PLAC: R$ 288,00"]
+        detalhesEntradas: ["Produção Unimed Própria"],
+        detalhesSaidas: ["Glosas: R$ 757,10", "Centro de Estudos: R$ 170,00", "Mensalidade PLAC: R$ 288,00"]
       },
       { 
         nome: "LUAN JUNIOR VIGNATTI", 
-        percent: "26.79%", 
+        key: "luan",
+        isTeamMember: false,
+        percent: "0%", 
         producao: 37715.27, 
         entradas: 0.00, 
         saidas: 10137.55, 
         liquidoCalculado: 18047.72, 
         divisaoLucros: 0.00, 
         finalGeral: 18047.72,
-        detalhesEntradas: ["Produção Consultórios & HU"],
-        detalhesSaidas: ["Integralização Cota Parte (5/24): R$ 7.579,69", "Glosas Unimed: R$ 2.308,86", "Centro de Estudos: R$ 170,00"]
+        detalhesEntradas: ["Produção Unimed Própria"],
+        detalhesSaidas: ["Cota Parte (5/24): R$ 7.579,69", "Glosas Unimed: R$ 2.308,86", "Centro de Estudos: R$ 170,00"]
       },
       { 
         nome: "THAYNARA MAESTRI VIGNATTI", 
-        percent: "31.47%", 
+        key: "thaynara",
+        isTeamMember: false,
+        percent: "0%", 
         producao: 82700.87, 
         entradas: 13768.13, 
         saidas: 8387.18, 
         liquidoCalculado: 58251.62, 
         divisaoLucros: 0.00, 
         finalGeral: 58251.62,
-        detalhesEntradas: ["Disponibilidade Obstetrícia HU: R$ 7.910,93", "Disponibilidade Ginecologia: R$ 3.857,67", "Bonificação Parto Normal: R$ 1.999,53"],
-        detalhesSaidas: ["Integralização Cota Parte: R$ 7.500,00", "Glosas Unimed: R$ 702,18", "Centro de Estudos: R$ 170,00"]
+        detalhesEntradas: ["Disponibilidade Obstetrícia HU: R$ 7.910,93", "Disponibilidade Ginecologia: R$ 3.857,67", "Bonificação Parto: R$ 1.999,53"],
+        detalhesSaidas: ["Cota Parte: R$ 7.500,00", "Glosas Unimed: R$ 702,18", "Centro de Estudos: R$ 170,00"]
       },
       { 
         nome: "CAMILA RIBEIRO DUTRA", 
-        percent: "28.11%", 
+        key: "camila",
+        isTeamMember: false,
+        percent: "0%", 
         producao: 18924.06, 
         entradas: 12769.67, 
         saidas: 7838.24, 
@@ -260,11 +338,13 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         divisaoLucros: 0.00, 
         finalGeral: 12159.42,
         detalhesEntradas: ["Disponibilidade Reumatologia: R$ 12.769,67"],
-        detalhesSaidas: ["Integralização Cota Parte (5/24): R$ 7.579,66", "Mensalidade PLAC: R$ 431,09", "Centro de Estudos: R$ 170,00", "Recurso Próprio: R$ 45,00"]
+        detalhesSaidas: ["Cota Parte (5/24): R$ 7.579,66", "PLAC: R$ 431,09", "Centro de Estudos: R$ 170,00", "Recurso Próprio: R$ 45,00"]
       },
       { 
         nome: "MARIA EDUARDA CASA SOUZA MACHADO", 
-        percent: "26.79%", 
+        key: "maria_eduarda",
+        isTeamMember: false,
+        percent: "0%", 
         producao: 35174.57, 
         entradas: 0.00, 
         saidas: 7749.66, 
@@ -272,7 +352,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         divisaoLucros: 0.00, 
         finalGeral: 14728.93,
         detalhesEntradas: ["Produção Procedimentos Ambulatoriais"],
-        detalhesSaidas: ["Integralização Cota Parte (5/24): R$ 7.579,66", "Glosas Unimed: R$ 275,00", "Centro de Estudos: R$ 170,00"]
+        detalhesSaidas: ["Cota Parte (5/24): R$ 7.579,66", "Glosas Unimed: R$ 275,00", "Centro de Estudos: R$ 170,00"]
       }
     ],
     // Ocorrências Financeiras detalhadas por Médico
@@ -283,59 +363,60 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
           valor: Math.abs(t.amount || 0),
           natureza: t.nature === "CREDIT" ? "ENTRADA" : "SAIDA",
           desc: t.observation || t.typeName || "Lançamento",
-          data: t.date || "14/09/2026"
+          data: t.date || "14/09/2026",
+          scope: t.scope || "DOCTOR"
         }))
       : [
-          { medico: "ROCHELE LORENZI POL", tipo: "Disponibilidade Médica - UTI", valor: 1966.87, natureza: "ENTRADA", desc: "Plantão UTI HU", data: "14/09/2026" },
-          { medico: "ROCHELE LORENZI POL", tipo: "Repasse Pagamento de Produção - HU", valor: 1439.16, natureza: "ENTRADA", desc: "Produção HU Unimed", data: "14/09/2026" },
-          { medico: "ROCHELE LORENZI POL", tipo: "Repasse Pagamento de Parecer Médico - HU", valor: 135.00, natureza: "ENTRADA", desc: "Pareceres HU", data: "14/09/2026" },
-          { medico: "ROCHELE LORENZI POL", tipo: "Sobreavisos", valor: 4320.00, natureza: "ENTRADA", desc: "Sobreavisos de retaguarda", data: "14/09/2026" },
-          { medico: "ROCHELE LORENZI POL", tipo: "Glosas - Clínica Cooperada - 11%", valor: 10.00, natureza: "SAIDA", desc: "Retenção glosa Unimed Litoral", data: "14/09/2026" },
-          { medico: "ROCHELE LORENZI POL", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Disponibilidade Médica - UTI", valor: 1966.87, natureza: "ENTRADA", desc: "Plantão UTI HU", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Repasse Pagamento de Produção - HU", valor: 1439.16, natureza: "ENTRADA", desc: "Produção HU Unimed", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Repasse Pagamento de Parecer Médico - HU", valor: 135.00, natureza: "ENTRADA", desc: "Pareceres HU", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Sobreavisos", valor: 4320.00, natureza: "ENTRADA", desc: "Sobreavisos de retaguarda", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Glosas - Clínica Cooperada - 11%", valor: 10.00, nature: "SAIDA", desc: "Retenção glosa Unimed", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "ROCHELE LORENZI POL", tipo: "Contribuição de Centro de Estudos", valor: 170.00, nature: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
 
-          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Sobreavisos", valor: 7200.00, natureza: "ENTRADA", desc: "Sobreavisos plantão", data: "14/09/2026" },
-          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 6.00, natureza: "SAIDA", desc: "Glosa Unimed Litoral", data: "14/09/2026" },
-          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
-          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Integralização de Cota Parte", valor: 7500.00, natureza: "SAIDA", desc: "Integralização cota Unimed", data: "14/09/2026" },
+          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Sobreavisos", valor: 7200.00, natureza: "ENTRADA", desc: "Sobreavisos plantão", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 6.00, nature: "SAIDA", desc: "Glosa Unimed", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, nature: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "THAIS ISABEL LUMIKOSKI", tipo: "Integralização de Cota Parte", valor: 7500.00, nature: "SAIDA", desc: "Integralização cota Unimed", data: "14/09/2026", scope: "DOCTOR" },
 
-          { medico: "TAMARA QUINTINO REGIS", tipo: "Glosas - Clínica Cooperada - 11%", valor: 407.57, natureza: "SAIDA", desc: "Glosa Lote 1485226", data: "14/09/2026" },
-          { medico: "TAMARA QUINTINO REGIS", tipo: "Glosas - Clínica Cooperada - 11%", valor: 349.53, natureza: "SAIDA", desc: "Glosa Lote 1490176", data: "14/09/2026" },
-          { medico: "TAMARA QUINTINO REGIS", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
-          { medico: "TAMARA QUINTINO REGIS", tipo: "Mensalidade PLAC", valor: 288.00, natureza: "SAIDA", desc: "Desconto mensal PLAC", data: "14/09/2026" },
+          { medico: "TAMARA QUINTINO REGIS", tipo: "Glosas - Clínica Cooperada - 11%", valor: 407.57, nature: "SAIDA", desc: "Glosa Lote 1485226", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "TAMARA QUINTINO REGIS", tipo: "Glosas - Clínica Cooperada - 11%", valor: 349.53, nature: "SAIDA", desc: "Glosa Lote 1490176", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "TAMARA QUINTINO REGIS", tipo: "Contribuição de Centro de Estudos", valor: 170.00, nature: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "TAMARA QUINTINO REGIS", tipo: "Mensalidade PLAC", valor: 288.00, nature: "SAIDA", desc: "Desconto mensal PLAC", data: "14/09/2026", scope: "DOCTOR" },
 
-          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 2308.86, natureza: "SAIDA", desc: "Glosa Lote 1490176", data: "14/09/2026" },
-          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Integralização de Cota Parte", valor: 7579.69, natureza: "SAIDA", desc: "Integralização Unimed 5 de 24", data: "14/09/2026" },
-          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 2308.86, nature: "SAIDA", desc: "Glosa Lote 1490176", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Integralização de Cota Parte", valor: 7579.69, nature: "SAIDA", desc: "Integralização Unimed 5 de 24", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "LUAN JUNIOR VIGNATTI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, nature: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
 
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Remuneração Bonificação Parto Normal", valor: 1150.00, natureza: "ENTRADA", desc: "Bonificação Parto Normal HU", data: "14/09/2026" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Remuneração Bonificação Parto Normal", valor: 849.53, natureza: "ENTRADA", desc: "Bonificação Parto Normal", data: "14/09/2026" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Disponibilidade Ginecologia - Centro Obstétrico", valor: 3857.67, natureza: "ENTRADA", desc: "Disponibilidade Obstetrícia", data: "14/09/2026" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Disponibilidade Ginecologia - Centro Obstétrico", valor: 7910.93, natureza: "ENTRADA", desc: "Disponibilidade Obstetrícia HU", data: "14/09/2026" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 702.18, natureza: "SAIDA", desc: "Glosa Unimed", data: "14/09/2026" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Integralização de Cota Parte", valor: 7500.00, natureza: "SAIDA", desc: "Integralização cota Unimed", data: "14/09/2026" },
-          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Remuneração Bonificação Parto Normal", valor: 1150.00, natureza: "ENTRADA", desc: "Bonificação Parto Normal HU", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Remuneração Bonificação Parto Normal", valor: 849.53, natureza: "ENTRADA", desc: "Bonificação Parto Normal", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Disponibilidade Ginecologia - Centro Obstétrico", valor: 3857.67, natureza: "ENTRADA", desc: "Disponibilidade Obstetrícia", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Disponibilidade Ginecologia - Centro Obstétrico", valor: 7910.93, natureza: "ENTRADA", desc: "Disponibilidade Obstetrícia HU", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Glosas - Clínica Cooperada - 11%", valor: 702.18, nature: "SAIDA", desc: "Glosa Unimed", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Integralização de Cota Parte", valor: 7500.00, nature: "SAIDA", desc: "Integralização cota Unimed", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "THAYNARA MAESTRI VIGNATTI", tipo: "Contribuição de Centro de Estudos", valor: 170.00, nature: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
 
-          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Disponibilidade - Reumatologia", valor: 12769.67, natureza: "ENTRADA", desc: "Disponibilidade Especialidade", data: "14/09/2026" },
-          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Integralização de Cota Parte", valor: 7579.66, natureza: "SAIDA", desc: "Integralização cota 5 de 24", data: "14/09/2026" },
-          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Mensalidade PLAC", valor: 431.09, natureza: "SAIDA", desc: "Desconto PLAC", data: "14/09/2026" },
-          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
-          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Desconto Atendimentos Realizados - Recurso Próprio", valor: 45.00, natureza: "SAIDA", desc: "Desconto Recurso Próprio", data: "14/09/2026" },
+          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Disponibilidade - Reumatologia", valor: 12769.67, natureza: "ENTRADA", desc: "Disponibilidade Especialidade", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Integralização de Cota Parte", valor: 7579.66, nature: "SAIDA", desc: "Integralização cota 5 de 24", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Mensalidade PLAC", valor: 431.09, nature: "SAIDA", desc: "Desconto PLAC", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Contribuição de Centro de Estudos", valor: 170.00, nature: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "CAMILA RIBEIRO DUTRA", tipo: "Desconto Atendimentos Realizados - Recurso Próprio", valor: 45.00, nature: "SAIDA", desc: "Desconto Recurso Próprio", data: "14/09/2026", scope: "DOCTOR" },
 
-          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Glosas - Clínica Cooperada - 11%", valor: 275.00, natureza: "SAIDA", desc: "Glosa Unimed", data: "14/09/2026" },
-          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Integralização de Cota Parte", valor: 7579.66, natureza: "SAIDA", desc: "Integralização cota 5 de 24", data: "14/09/2026" },
-          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Contribuição de Centro de Estudos", valor: 170.00, natureza: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026" },
+          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Glosas - Clínica Cooperada - 11%", valor: 275.00, nature: "SAIDA", desc: "Glosa Unimed", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Integralização de Cota Parte", valor: 7579.66, nature: "SAIDA", desc: "Integralização cota 5 de 24", data: "14/09/2026", scope: "DOCTOR" },
+          { medico: "MARIA EDUARDA CASA SOUZA MACHADO", tipo: "Contribuição de Centro de Estudos", valor: 170.00, nature: "SAIDA", desc: "Taxa Centro de Estudos", data: "14/09/2026", scope: "DOCTOR" },
 
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Capitalização Cota-Parte (360)", valor: 14825.40, natureza: "SAIDA", desc: "Desconto cota capitalização Unimed", data: "01/08/2026" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Contador Heart", valor: 294.00, natureza: "SAIDA", desc: "Assessoria Contábil Heart", data: "14/09/2026" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "DARE", valor: 497.00, natureza: "SAIDA", desc: "Taxa DARE estadual", data: "14/09/2026" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Aluguel Sala / Consultório", valor: 900.00, natureza: "SAIDA", desc: "Locação consultório", data: "14/09/2026" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Celular Corporativo", valor: 722.21, natureza: "SAIDA", desc: "Telefonia corporativa", data: "14/09/2026" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Consultório Itajaí", valor: 2029.78, natureza: "SAIDA", desc: "Despesas unidade Itajaí", data: "14/09/2026" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "CRM", valor: 344.50, natureza: "SAIDA", desc: "Taxa anuidade conselho CRM", data: "14/09/2026" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Instrumentador Cirúrgico", valor: 1526.76, natureza: "SAIDA", desc: "Honorários instrumentação", data: "14/09/2026" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Alvará Municipal", valor: 431.09, natureza: "SAIDA", desc: "Licença prefeitura", data: "14/09/2026" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Constit Heart LK / Google", valor: 45.00, natureza: "SAIDA", desc: "Serviços digitais e Google", data: "14/09/2026" },
-          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "INSS Patronal", valor: 502.51, natureza: "SAIDA", desc: "Previdência social", data: "14/09/2026" }
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Capitalização Cota-Parte (360)", valor: 14825.40, nature: "SAIDA", desc: "Desconto cota capitalização Unimed", data: "01/08/2026", scope: "TEAM" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Contador Heart", valor: 294.00, nature: "SAIDA", desc: "Assessoria Contábil Heart", data: "14/09/2026", scope: "TEAM" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "DARE", valor: 497.00, nature: "SAIDA", desc: "Taxa DARE estadual", data: "14/09/2026", scope: "TEAM" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Aluguel Sala / Consultório", valor: 900.00, nature: "SAIDA", desc: "Locação consultório", data: "14/09/2026", scope: "TEAM" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Celular Corporativo", valor: 722.21, nature: "SAIDA", desc: "Telefonia corporativa", data: "14/09/2026", scope: "TEAM" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Consultório Itajaí", valor: 2029.78, nature: "SAIDA", desc: "Despesas unidade Itajaí", data: "14/09/2026", scope: "TEAM" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "CRM", valor: 344.50, nature: "SAIDA", desc: "Taxa anuidade conselho CRM", data: "14/09/2026", scope: "TEAM" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Instrumentador Cirúrgico", valor: 1526.76, nature: "SAIDA", desc: "Honorários instrumentação", data: "14/09/2026", scope: "TEAM" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Alvará Municipal", valor: 431.09, nature: "SAIDA", desc: "Licença prefeitura", data: "14/09/2026", scope: "TEAM" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "Constit Heart LK / Google", valor: 45.00, nature: "SAIDA", desc: "Serviços digitais e Google", data: "14/09/2026", scope: "TEAM" },
+          { medico: "HEART CIRURGIA CARDIOVASCULAR", tipo: "INSS Patronal", valor: 502.51, nature: "SAIDA", desc: "Previdência social", data: "14/09/2026", scope: "TEAM" }
         ],
     // Demonstrativo de Lotes Unimed
     lotesUnimed: [
@@ -384,6 +465,17 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
     .filter(o => o.natureza === "SAIDA")
     .reduce((acc, o) => acc + o.valor, 0);
 
+  // Group doctors by team member status
+  const teamDoctors = excelData.fechamentoMedicos.filter(d => {
+    const config = teamSettings.doctors.find(c => c.name === d.nome);
+    return config ? config.isTeamMember : d.isTeamMember;
+  });
+
+  const nonTeamDoctors = excelData.fechamentoMedicos.filter(d => {
+    const config = teamSettings.doctors.find(c => c.name === d.nome);
+    return config ? !config.isTeamMember : !d.isTeamMember;
+  });
+
   return (
     <div className="space-y-6 max-w-[1700px] mx-auto pb-20 font-sans">
       {/* Top Banner / Excel Dashboard Title */}
@@ -395,7 +487,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
               PLANILHA MESTRA • FECHAMENTO {excelData.monthKey}
             </span>
             <span className="px-3 py-1 bg-white/10 text-white/90 text-xs font-bold rounded-full">
-              Sincronizado com Fluxo de Caixa & IA
+              Rateio Diferenciado: Equipe vs. Cooperados
             </span>
           </div>
           <div>
@@ -403,7 +495,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
               <span>Dashboard Financeiro & Rateios HeaRT</span>
             </h2>
             <p className="text-xs text-emerald-100/80 font-medium max-w-3xl mt-1">
-              Painel idêntico à planilha Google Sheets/Excel: controle de faturamento, produções médicas, despesas corporativas, retenções e distribuição de honorários.
+              Controle de rateio para <b>membros da equipe</b> (Rochele, Thais, Luis, Kathize) e <b>cooperados parceiros</b> (Thaynara, Tamara, Maria Eduarda, Camila, Luan) conforme a planilha Google Sheets.
             </p>
           </div>
         </div>
@@ -428,6 +520,14 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
               )}
             </select>
           </div>
+
+          <button
+            onClick={() => setActiveSubTab("config_equipe")}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider transition border border-emerald-400/40 cursor-pointer shadow-sm active:scale-95"
+          >
+            <Settings2 size={15} />
+            <span>Configurar Equipe & %</span>
+          </button>
 
           <button
             onClick={() => window.print()}
@@ -502,6 +602,18 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         </button>
 
         <button
+          onClick={() => setActiveSubTab("config_equipe")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "config_equipe"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <Settings2 size={16} />
+          <span>2. Configurar Membros da Equipe & Rateio</span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab("colunas_medicos")}
           className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
             activeSubTab === "colunas_medicos"
@@ -510,7 +622,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
           }`}
         >
           <Users size={16} />
-          <span>2. Colunas por Médico (Excel View)</span>
+          <span>3. Colunas por Médico (Excel View)</span>
         </button>
 
         <button
@@ -522,7 +634,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
           }`}
         >
           <Wallet size={16} />
-          <span>3. Ocorrências no Fluxo ({excelData.ocorrencias.length})</span>
+          <span>4. Ocorrências no Fluxo ({excelData.ocorrencias.length})</span>
         </button>
 
         <button
@@ -534,7 +646,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
           }`}
         >
           <Building2 size={16} />
-          <span>4. Fontes (Azambuja, Marieta, Unimed)</span>
+          <span>5. Fontes (Azambuja, Marieta, Unimed)</span>
         </button>
 
         <button
@@ -546,7 +658,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
           }`}
         >
           <Receipt size={16} />
-          <span>5. Lotes & Retenções Unimed</span>
+          <span>6. Lotes & Retenções Unimed</span>
         </button>
 
         <button
@@ -558,58 +670,140 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
           }`}
         >
           <FileText size={16} />
-          <span>6. Despesas Equipe Heart</span>
+          <span>7. Despesas Equipe Heart</span>
         </button>
       </div>
 
-      {/* VIEW 1: MAPA MESTRE DE RATEIO E SALÁRIOS */}
+      {/* VIEW 1: MAPA MESTRE DE RATEIO E SALÁRIOS (SEPARADO ENTRE EQUIPE E FORA DA EQUIPE) */}
       {activeSubTab === "visao_geral" && (
-        <div className="space-y-6">
+        <div className="space-y-8">
+          {/* BLOCO 1: MEMBROS DA EQUIPE (SÓCIOS) */}
           <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/70">
+            <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50/50">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-md shadow-emerald-500/20">
-                  <TableProperties size={20} />
+                <div className="w-10 h-10 rounded-2xl bg-emerald-700 text-white flex items-center justify-center font-black shadow-md shadow-emerald-600/20">
+                  <UserCheck size={20} />
                 </div>
                 <div>
-                  <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Mapa de Rateio e Salários Finais</h3>
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
-                    Fechamento / Distribuição e Salário Líquido Final Reajustado
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">1. Membros da Equipe HeaRT (Rateio Institucional)</h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-600 text-white">
+                      Sócios / Equipe
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 font-medium">
+                    Participam do rateio de Azambuja, Marieta, Consultório/Particular e dividem despesas corporativas (Soma dos percentuais: {teamSumPercent}%)
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
-                <span>Salário Final Geral = Líquido Produção + Divisão/Acertos</span>
               </div>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-gray-100/80 text-gray-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
-                    <th className="p-4 pl-6">Médico</th>
-                    <th className="p-4 text-center">Part. %</th>
-                    <th className="p-4 text-right">Produção Bruta</th>
-                    <th className="p-4 text-right">Outras Entradas (Plantão/HU)</th>
+                  <tr className="bg-emerald-100/60 text-emerald-950 font-black uppercase text-[10px] tracking-wider border-b border-emerald-200">
+                    <th className="p-4 pl-6">Médico da Equipe</th>
+                    <th className="p-4 text-center">% Rateio</th>
+                    <th className="p-4 text-right">Produção Unimed</th>
+                    <th className="p-4 text-right">Outras Entradas (Azambuja/Marieta/Plantões)</th>
                     <th className="p-4 text-right">Ocorrências / Deduções</th>
                     <th className="p-4 text-right">Líquido Produção</th>
                     <th className="p-4 text-right">Divisão / Acertos</th>
-                    <th className="p-4 text-right pr-6 bg-emerald-50/80 text-emerald-950 font-black">Salário Final Reajustado</th>
+                    <th className="p-4 text-right pr-6 bg-emerald-100 text-emerald-950 font-black">Salário Final Reajustado</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-                  {excelData.fechamentoMedicos.map((med) => (
-                    <tr key={med.nome} className="hover:bg-blue-50/30 transition-colors">
+                  {teamDoctors.map((med) => (
+                    <tr key={med.nome} className="hover:bg-emerald-50/30 transition-colors">
                       <td className="p-4 pl-6">
-                        <div className="font-black text-gray-900">{med.nome}</div>
+                        <div className="font-black text-gray-900 flex items-center gap-2">
+                          <span>{med.nome}</span>
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-emerald-100 text-emerald-800">Membro da Equipe</span>
+                        </div>
                         <div className="text-[10px] text-gray-400">
-                          {doctors.find(d => d.name === med.nome)?.specialty || "Médico Cooperado"}
+                          {teamSettings.doctors.find(d => d.name === med.nome)?.specialty || "Médico Sócio"}
                         </div>
                       </td>
-                      <td className="p-4 text-center font-black text-gray-600">
-                        <span className="px-2.5 py-1 bg-gray-100 rounded-lg text-[10px]">
-                          {med.percent}
+                      <td className="p-4 text-center font-black text-emerald-700">
+                        <span className="px-2.5 py-1 bg-emerald-100/70 border border-emerald-200 rounded-lg text-xs font-black">
+                          {teamSettings.doctors.find(d => d.name === med.nome)?.teamSharePercent || med.percent}%
+                        </span>
+                      </td>
+                      <td className="p-4 text-right font-bold text-blue-700">
+                        R$ {med.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-4 text-right text-emerald-600 font-bold">
+                        +R$ {med.entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-4 text-right text-rose-600 font-bold">
+                        {med.saidas > 0 ? `-R$ ${med.saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
+                      </td>
+                      <td className="p-4 text-right font-black text-gray-900">
+                        R$ {med.liquidoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-4 text-right text-indigo-600 font-bold">
+                        {med.divisaoLucros > 0 ? `+R$ ${med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
+                      </td>
+                      <td className="p-4 text-right pr-6 font-black text-sm text-emerald-800 bg-emerald-50/50">
+                        R$ {med.finalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* BLOCO 2: MÉDICOS FORA DA EQUIPE (COOPERADOS & PARCEIROS) */}
+          <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-slate-700 text-white flex items-center justify-center font-black shadow-md shadow-slate-600/20">
+                  <UserX size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">2. Médicos Fora da Equipe (Cooperados Parceiros)</h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-200 text-slate-800">
+                      Sem Rateio de Custos Corporativos
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 font-medium">
+                    Recebem a sua própria produção Unimed e plantões específicos, deduzindo apenas ocorrências individuais (sem rateio de Marieta/Azambuja/Consultório/Contador)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
+                    <th className="p-4 pl-6">Médico Cooperado</th>
+                    <th className="p-4 text-center">Escopo</th>
+                    <th className="p-4 text-right">Produção Unimed Própria</th>
+                    <th className="p-4 text-right">Outras Entradas Diretas</th>
+                    <th className="p-4 text-right">Deduções Próprias (Glosas/Cota)</th>
+                    <th className="p-4 text-right">Líquido de Produção</th>
+                    <th className="p-4 text-right">Divisão / Acertos</th>
+                    <th className="p-4 text-right pr-6 bg-slate-100 text-slate-900 font-black">Valor Final a Receber</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                  {nonTeamDoctors.map((med) => (
+                    <tr key={med.nome} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-4 pl-6">
+                        <div className="font-black text-gray-900 flex items-center gap-2">
+                          <span>{med.nome}</span>
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-100 text-slate-600">Cooperado Externo</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          {teamSettings.doctors.find(d => d.name === med.nome)?.specialty || "Médico Cooperado"}
+                        </div>
+                      </td>
+                      <td className="p-4 text-center font-bold text-gray-400">
+                        <span className="px-2 py-1 bg-gray-100 rounded-lg text-[10px]">
+                          Direto (0% Equipe)
                         </span>
                       </td>
                       <td className="p-4 text-right font-bold text-blue-700">
@@ -627,7 +821,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
                       <td className="p-4 text-right text-indigo-600 font-bold">
                         {med.divisaoLucros > 0 ? `+R$ ${med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
                       </td>
-                      <td className="p-4 text-right pr-6 font-black text-sm text-emerald-800 bg-emerald-50/40">
+                      <td className="p-4 text-right pr-6 font-black text-sm text-gray-900 bg-slate-50/50">
                         R$ {med.finalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
@@ -635,14 +829,13 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-100 font-black text-xs text-gray-900 border-t-2 border-gray-300">
-                    <td className="p-4 pl-6 uppercase">TOTAL CONSOLIDADO DA EQUIPE</td>
-                    <td className="p-4 text-center">100.00%</td>
+                    <td colSpan={2} className="p-4 pl-6 uppercase">TOTAL GERAL CONSOLIDADO (EQUIPE + COOPERADOS)</td>
                     <td className="p-4 text-right text-blue-700">R$ 230.417,27</td>
                     <td className="p-4 text-right text-emerald-700">+R$ 39.631,96</td>
                     <td className="p-4 text-right text-rose-700">-R$ 43.953,48</td>
                     <td className="p-4 text-right">R$ 249.359,70</td>
                     <td className="p-4 text-right text-indigo-700">+R$ 16.758,44</td>
-                    <td className="p-4 text-right pr-6 text-emerald-900 bg-emerald-100/70 font-black text-base">
+                    <td className="p-4 text-right pr-6 text-emerald-900 bg-emerald-100/80 font-black text-base">
                       R$ 270.446,21
                     </td>
                   </tr>
@@ -653,83 +846,257 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         </div>
       )}
 
-      {/* VIEW 2: COLUNAS VERTICAIS POR MÉDICO (EXCEL COLUMN VIEW) */}
+      {/* VIEW 2: CONFIGURAÇÃO DE MEMBROS DA EQUIPE & REGRAS DE RATEIO */}
+      {activeSubTab === "config_equipe" && (
+        <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl p-6 lg:p-8 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <Settings2 size={22} className="text-emerald-600" />
+                <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">
+                  Definição de Membros da Equipe & Percentuais de Rateio
+                </h3>
+              </div>
+              <p className="text-xs text-gray-500 font-medium mt-1">
+                Defina quais médicos fazem parte da equipe para rateio de receitas institucionais (Marieta, Azambuja, Consultório) e despesas fixas (Contador, DARE, Aluguel).
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 ${
+                teamSumPercent === 100 
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200" 
+                  : "bg-amber-50 text-amber-800 border border-amber-200"
+              }`}>
+                <span>Soma dos % da Equipe: {teamSumPercent}%</span>
+                {teamSumPercent === 100 ? <Check size={14} /> : <AlertCircle size={14} />}
+              </div>
+
+              <button
+                onClick={handleSaveTeamSettings}
+                disabled={savingSettings}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer"
+              >
+                <Save size={15} />
+                <span>{savingSettings ? "Salvando..." : "Salvar Configuração"}</span>
+              </button>
+            </div>
+          </div>
+
+          {settingsSuccess && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 font-bold flex items-center gap-2">
+              <CheckCircle2 size={16} />
+              <span>Configurações da equipe e percentuais de rateio salvos com sucesso!</span>
+            </div>
+          )}
+
+          {/* Table of doctors and team assignment */}
+          <div className="overflow-x-auto border border-gray-200 rounded-2xl">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-100 text-gray-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
+                  <th className="p-3.5 pl-6">Médico</th>
+                  <th className="p-3.5">Especialidade</th>
+                  <th className="p-3.5 text-center">Membro da Equipe?</th>
+                  <th className="p-3.5 text-center">% Rateio da Equipe</th>
+                  <th className="p-3.5">Regra de Fechamento</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                {teamSettings.doctors.map((doc, idx) => (
+                  <tr key={doc.key} className={doc.isTeamMember ? "bg-emerald-50/20" : "bg-white"}>
+                    <td className="p-3.5 pl-6 font-black text-gray-900">{doc.name}</td>
+                    <td className="p-3.5 text-gray-500">{doc.specialty || "-"}</td>
+                    <td className="p-3.5 text-center">
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={doc.isTeamMember}
+                          onChange={(e) => {
+                            const updated = [...teamSettings.doctors];
+                            updated[idx].isTeamMember = e.target.checked;
+                            if (!e.target.checked) {
+                              updated[idx].teamSharePercent = 0;
+                            }
+                            setTeamSettings({ ...teamSettings, doctors: updated });
+                          }}
+                          className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                        />
+                        <span className={`text-[11px] font-black uppercase ${doc.isTeamMember ? "text-emerald-700" : "text-gray-400"}`}>
+                          {doc.isTeamMember ? "Sim (Equipe)" : "Não (Externo)"}
+                        </span>
+                      </label>
+                    </td>
+                    <td className="p-3.5 text-center">
+                      {doc.isTeamMember ? (
+                        <div className="inline-flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={doc.teamSharePercent}
+                            onChange={(e) => {
+                              const updated = [...teamSettings.doctors];
+                              updated[idx].teamSharePercent = parseFloat(e.target.value) || 0;
+                              setTeamSettings({ ...teamSettings, doctors: updated });
+                            }}
+                            className="w-20 bg-white border border-gray-300 rounded-lg px-2 py-1 text-center font-black text-emerald-700"
+                          />
+                          <span className="font-bold text-gray-500">%</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 font-bold">0% (Não rateia)</span>
+                      )}
+                    </td>
+                    <td className="p-3.5 text-gray-600 text-[11px]">
+                      {doc.isTeamMember ? (
+                        <span className="text-emerald-700 font-bold">
+                          Participa de Marieta, Azambuja, Consultório e rateia custos corporativos HeaRT
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 font-medium">
+                          Recebe somente produção própria Unimed e plantões diretos, sem custos de equipe
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Definition of Team-Only Sources and Expenses */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-3">
+              <span className="text-xs font-black uppercase text-emerald-800 block">
+                Fontes de Receita Exclusivas da Equipe:
+              </span>
+              <p className="text-[11px] text-gray-500">
+                Estas receitas são somadas e rateadas <b>unicamente</b> entre os médicos com status de "Membro da Equipe" segundo os percentuais acima:
+              </p>
+              <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase">
+                {teamSettings.teamOnlySources.map(s => (
+                  <span key={s} className="px-2.5 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-lg shadow-2xs">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-3">
+              <span className="text-xs font-black uppercase text-rose-800 block">
+                Despesas e Custos Fixos Exclusivos da Equipe:
+              </span>
+              <p className="text-[11px] text-gray-500">
+                Estas despesas corporativas são deduzidas <b>somente</b> dos membros da equipe HeaRT e nunca cobradas de cooperados externos:
+              </p>
+              <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase">
+                {teamSettings.teamOnlyExpenses.map(e => (
+                  <span key={e} className="px-2.5 py-1 bg-white border border-rose-300 text-rose-800 rounded-lg shadow-2xs">
+                    {e}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: COLUNAS VERTICAIS POR MÉDICO (EXCEL COLUMN VIEW) */}
       {activeSubTab === "colunas_medicos" && (
         <div className="space-y-4">
           <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Users size={16} />
-              <span className="font-bold">Visualização de Painéis Individuais por Médico (Representação em colunas do Excel)</span>
+              <span className="font-bold">Colunas Individuais por Médico do Excel (4 da Equipe e 5 Cooperados Parceiros)</span>
             </div>
-            <span className="text-[10px] uppercase font-black tracking-wider text-emerald-700">9 Médicos Integrados</span>
+            <span className="text-[10px] uppercase font-black tracking-wider text-emerald-700">9 Painéis Conectados</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {excelData.fechamentoMedicos.map((med) => (
-              <div 
-                key={med.nome}
-                className="bg-white rounded-[28px] border border-gray-200 shadow-md p-6 flex flex-col justify-between space-y-4 hover:border-emerald-400 transition"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 border-b border-gray-100 pb-3">
-                    <div>
-                      <span className="text-[10px] font-black uppercase text-emerald-700 tracking-wider">
-                        Participação: {med.percent}
-                      </span>
-                      <h4 className="font-black text-gray-900 text-sm">{med.nome}</h4>
-                      <p className="text-[10px] text-gray-400">
-                        {doctors.find(d => d.name === med.nome)?.specialty}
-                      </p>
+            {excelData.fechamentoMedicos.map((med) => {
+              const isTeam = med.isTeamMember;
+              return (
+                <div 
+                  key={med.nome}
+                  className={`bg-white rounded-[28px] border shadow-md p-6 flex flex-col justify-between space-y-4 transition ${
+                    isTeam 
+                      ? "border-emerald-300 ring-2 ring-emerald-500/10 hover:border-emerald-500" 
+                      : "border-gray-200 hover:border-gray-400"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 border-b border-gray-100 pb-3">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                            isTeam ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
+                          }`}>
+                            {isTeam ? `Membro Equipe (${med.percent})` : "Cooperado Externo"}
+                          </span>
+                        </div>
+                        <h4 className="font-black text-gray-900 text-sm mt-1">{med.nome}</h4>
+                        <p className="text-[10px] text-gray-400">
+                          {teamSettings.doctors.find(d => d.name === med.nome)?.specialty}
+                        </p>
+                      </div>
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 ${
+                        isTeam ? "bg-emerald-600 text-white" : "bg-gray-200 text-gray-700"
+                      }`}>
+                        {isTeam ? med.percent : "EXT"}
+                      </div>
                     </div>
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xs shrink-0">
-                      {med.percent}
+
+                    <div className="py-3 space-y-2 border-b border-gray-100">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-500">Produção Unimed:</span>
+                        <span className="font-bold text-gray-900">R$ {med.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-emerald-600 font-medium">Outras Entradas:</span>
+                        <span className="font-bold text-emerald-600">+R$ {med.entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-rose-600 font-medium">Ocorrências / Descontos:</span>
+                        <span className="font-bold text-rose-600">-R$ {med.saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-indigo-600 font-medium">Divisão / Acertos:</span>
+                        <span className="font-bold text-indigo-600">+R$ {med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+
+                    {/* Occurrence highlights */}
+                    <div className="py-2 space-y-1 text-[10px]">
+                      <span className="font-black text-gray-400 uppercase tracking-wider block">Lançamentos Alocados:</span>
+                      {med.detalhesEntradas.map((de, idx) => (
+                        <div key={idx} className="text-emerald-700 font-medium truncate">• {de}</div>
+                      ))}
+                      {med.detalhesSaidas.map((ds, idx) => (
+                        <div key={idx} className="text-rose-700 font-medium truncate">• {ds}</div>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="py-3 space-y-2 border-b border-gray-100">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-500">Produção Unimed:</span>
-                      <span className="font-bold text-gray-900">R$ {med.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-emerald-600 font-medium">Outras Entradas:</span>
-                      <span className="font-bold text-emerald-600">+R$ {med.entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-rose-600 font-medium">Ocorrências / Descontos:</span>
-                      <span className="font-bold text-rose-600">-R$ {med.saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-indigo-600 font-medium">Divisão / Acertos:</span>
-                      <span className="font-bold text-indigo-600">+R$ {med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  </div>
-
-                  {/* Occurrence highlights */}
-                  <div className="py-2 space-y-1 text-[10px]">
-                    <span className="font-black text-gray-400 uppercase tracking-wider block">Principais Lançamentos:</span>
-                    {med.detalhesEntradas.map((de, idx) => (
-                      <div key={idx} className="text-emerald-700 font-medium truncate">• {de}</div>
-                    ))}
-                    {med.detalhesSaidas.map((ds, idx) => (
-                      <div key={idx} className="text-rose-700 font-medium truncate">• {ds}</div>
-                    ))}
+                  <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                    isTeam 
+                      ? "bg-emerald-50/70 border-emerald-100" 
+                      : "bg-gray-50 border-gray-200"
+                  }`}>
+                    <span className="text-[10px] font-black text-gray-700 uppercase">Salário Final Líquido:</span>
+                    <span className={`text-base font-black ${isTeam ? "text-emerald-800" : "text-gray-900"}`}>
+                      R$ {med.finalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
                   </div>
                 </div>
-
-                <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                  <span className="text-[10px] font-black text-emerald-900 uppercase">Salário Final Líquido:</span>
-                  <span className="text-base font-black text-emerald-800">
-                    R$ {med.finalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* VIEW 3: OCORRÊNCIAS NO FLUXO DE CAIXA */}
+      {/* VIEW 4: OCORRÊNCIAS NO FLUXO DE CAIXA */}
       {activeSubTab === "ocorrencias_fluxo" && (
         <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden space-y-4">
           <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/70">
@@ -760,8 +1127,8 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
                   className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="ALL">Todos os Médicos & Equipe</option>
-                  {doctors.map(d => (
-                    <option key={d.key} value={d.initial}>{d.initial}</option>
+                  {teamSettings.doctors.map(d => (
+                    <option key={d.key} value={d.name}>{d.name} {d.isTeamMember ? "(Equipe)" : "(Externo)"}</option>
                   ))}
                   <option value="HEART">EQUIPE HEART</option>
                 </select>
@@ -793,6 +1160,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
                 <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
                   <th className="p-3.5 pl-6">Data</th>
                   <th className="p-3.5">Médico / Responsável</th>
+                  <th className="p-3.5">Escopo</th>
                   <th className="p-3.5">Tipo de Despesa / Ocorrência</th>
                   <th className="p-3.5">Descrição</th>
                   <th className="p-3.5 text-center">Natureza</th>
@@ -800,36 +1168,46 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-                {filteredOcorrencias.map((oc, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="p-3.5 pl-6 text-gray-500 font-bold">{oc.data}</td>
-                    <td className="p-3.5 font-bold text-gray-900">{oc.medico}</td>
-                    <td className="p-3.5 font-bold text-gray-700">{oc.tipo}</td>
-                    <td className="p-3.5 text-gray-500">{oc.desc}</td>
-                    <td className="p-3.5 text-center">
-                      <span className={`px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase ${
-                        oc.natureza === "ENTRADA" 
-                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
-                          : "bg-rose-100 text-rose-800 border border-rose-200"
+                {filteredOcorrencias.map((oc, idx) => {
+                  const isTeam = oc.medico.includes("HEART") || teamSettings.doctors.find(d => d.name === oc.medico)?.isTeamMember;
+                  return (
+                    <tr key={idx} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="p-3.5 pl-6 text-gray-500 font-bold">{oc.data}</td>
+                      <td className="p-3.5 font-bold text-gray-900">{oc.medico}</td>
+                      <td className="p-3.5">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                          isTeam ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-700"
+                        }`}>
+                          {isTeam ? "Equipe HeaRT" : "Individual Externo"}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-bold text-gray-700">{oc.tipo}</td>
+                      <td className="p-3.5 text-gray-500">{oc.desc}</td>
+                      <td className="p-3.5 text-center">
+                        <span className={`px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                          oc.natureza === "ENTRADA" 
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
+                            : "bg-rose-100 text-rose-800 border border-rose-200"
+                        }`}>
+                          {oc.natureza}
+                        </span>
+                      </td>
+                      <td className={`p-3.5 text-right pr-6 font-black ${
+                        oc.natureza === "ENTRADA" ? "text-emerald-600" : "text-rose-600"
                       }`}>
-                        {oc.natureza}
-                      </span>
-                    </td>
-                    <td className={`p-3.5 text-right pr-6 font-black ${
-                      oc.natureza === "ENTRADA" ? "text-emerald-600" : "text-rose-600"
-                    }`}>
-                      {oc.natureza === "ENTRADA" ? "+R$ " : "-R$ "}
-                      {oc.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
+                        {oc.natureza === "ENTRADA" ? "+R$ " : "-R$ "}
+                        {oc.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* VIEW 4: FONTES DE ENTRADA (AZAMBUJA, MARIETA, UNIMED, CONSULTÓRIO) */}
+      {/* VIEW 5: FONTES DE ENTRADA (AZAMBUJA, MARIETA, UNIMED, CONSULTÓRIO) */}
       {activeSubTab === "entradas_fontes" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Unimed Litoral Card */}
@@ -841,7 +1219,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
                 </div>
                 <div>
                   <h4 className="font-black text-gray-900 uppercase text-sm">Unimed Litoral</h4>
-                  <p className="text-[10px] text-gray-400">Cooperativa Médica Principal</p>
+                  <p className="text-[10px] text-gray-400">Cooperativa Médica (Produção Individual de Cada Médico)</p>
                 </div>
               </div>
               <div className="text-right">
@@ -864,15 +1242,15 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
           </div>
 
           {/* Marieta Card */}
-          <div className="bg-white rounded-[32px] border border-gray-200 p-6 shadow-md space-y-4">
+          <div className="bg-white rounded-[32px] border border-emerald-300 p-6 shadow-md space-y-4 ring-2 ring-emerald-500/10">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
                   <Building2 size={16} />
                 </div>
                 <div>
                   <h4 className="font-black text-gray-900 uppercase text-sm">Hospital Marieta</h4>
-                  <p className="text-[10px] text-gray-400">Atendimentos & Retaguarda</p>
+                  <p className="text-[10px] text-emerald-700 font-bold">Exclusivo da Equipe HeaRT (29% / 29% / 29% / 13%)</p>
                 </div>
               </div>
               <div className="text-right">
@@ -882,12 +1260,12 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
             </div>
 
             <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase text-gray-400">Rateio por Médico:</span>
+              <span className="text-[10px] font-black uppercase text-gray-400">Rateio Somente entre Membros da Equipe:</span>
               <div className="divide-y divide-gray-50 text-xs">
                 {excelData.fontes.marieta.rateio.map(r => (
-                  <div key={r.medico} className="py-2 flex justify-between items-center">
+                  <div key={r.medico} className="py-2 flex justify-between items-center bg-emerald-50/30 px-3 rounded-lg">
                     <span className="font-bold text-gray-800">{r.medico}</span>
-                    <span className="font-black text-gray-900">R$ {r.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-black text-emerald-800">R$ {r.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                 ))}
               </div>
@@ -895,15 +1273,15 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
           </div>
 
           {/* Azambuja Card */}
-          <div className="bg-white rounded-[32px] border border-gray-200 p-6 shadow-md space-y-4">
+          <div className="bg-white rounded-[32px] border border-emerald-300 p-6 shadow-md space-y-4 ring-2 ring-emerald-500/10">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-black">
+                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-black">
                   <Building2 size={16} />
                 </div>
                 <div>
                   <h4 className="font-black text-gray-900 uppercase text-sm">Hospital Azambuja</h4>
-                  <p className="text-[10px] text-gray-400">Plantões e Cirurgias</p>
+                  <p className="text-[10px] text-purple-700 font-bold">Exclusivo da Equipe HeaRT (Plantões e Retaguarda)</p>
                 </div>
               </div>
               <div className="text-right">
@@ -913,12 +1291,12 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
             </div>
 
             <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase text-gray-400">Rateio por Médico:</span>
+              <span className="text-[10px] font-black uppercase text-gray-400">Rateio Somente entre Membros da Equipe:</span>
               <div className="divide-y divide-gray-50 text-xs">
                 {excelData.fontes.azambuja.rateio.map(r => (
-                  <div key={r.medico} className="py-2 flex justify-between items-center">
+                  <div key={r.medico} className="py-2 flex justify-between items-center bg-purple-50/30 px-3 rounded-lg">
                     <span className="font-bold text-gray-800">{r.medico}</span>
-                    <span className="font-black text-gray-900">R$ {r.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-black text-purple-800">R$ {r.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                 ))}
               </div>
@@ -926,15 +1304,15 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
           </div>
 
           {/* Consultório / Particular Card */}
-          <div className="bg-white rounded-[32px] border border-gray-200 p-6 shadow-md space-y-4">
+          <div className="bg-white rounded-[32px] border border-emerald-300 p-6 shadow-md space-y-4 ring-2 ring-emerald-500/10">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-black">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black">
                   <Wallet size={16} />
                 </div>
                 <div>
                   <h4 className="font-black text-gray-900 uppercase text-sm">Consultório & Particular</h4>
-                  <p className="text-[10px] text-gray-400">Recebimentos Diretos</p>
+                  <p className="text-[10px] text-amber-700 font-bold">Exclusivo da Equipe (Dinheiro, Cartão e Unimed Luis)</p>
                 </div>
               </div>
               <div className="text-right">
@@ -961,7 +1339,7 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         </div>
       )}
 
-      {/* VIEW 5: LOTES UNIMED */}
+      {/* VIEW 6: LOTES UNIMED */}
       {activeSubTab === "lotes_unimed" && (
         <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden space-y-4">
           <div className="p-6 border-b border-gray-100 bg-gray-50/70">
@@ -1022,16 +1400,16 @@ export function ExcelDashboardView({ closingId }: ExcelDashboardViewProps) {
         </div>
       )}
 
-      {/* VIEW 6: DESPESAS DA EQUIPE HEART */}
+      {/* VIEW 7: DESPESAS DA EQUIPE HEART */}
       {activeSubTab === "despesas_equipe" && (
         <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden space-y-4">
           <div className="p-6 border-b border-gray-100 bg-gray-50/70 flex items-center justify-between">
             <div>
               <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Despesas Corporativas & Operacionais (Equipe HeaRT)</h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Custos fixos, tributários e taxas deduzidos no fechamento</p>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Custos fixos, tributários e taxas deduzidos exclusivamente dos membros da equipe</p>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Total Despesas:</span>
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Total Despesas Equipe:</span>
               <span className="font-black text-rose-600 text-base">R$ 21.618,34</span>
             </div>
           </div>

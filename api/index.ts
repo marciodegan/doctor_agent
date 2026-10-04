@@ -2209,28 +2209,173 @@ app.post("/api/app/financial/closings/:closingId/status", async (req, res) => {
   }
 });
 
+const DEFAULT_TEAM_CONFIG = {
+  doctors: [
+    { key: "rochele", name: "ROCHELE LORENZI POL", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Cardiovascular" },
+    { key: "thais", name: "THAIS ISABEL LUMIKOSKI", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Cardiovascular" },
+    { key: "luis", name: "LUIS BONGIOLO MATTOS", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Geral / Cardio" },
+    { key: "kathize", name: "KATHIZE LIRA", isTeamMember: true, teamSharePercent: 13, specialty: "Médica Assistente" },
+    { key: "tamara", name: "TAMARA QUINTINO REGIS", isTeamMember: false, teamSharePercent: 0, specialty: "Dermatologia Clínica" },
+    { key: "luan", name: "LUAN JUNIOR VIGNATTI", isTeamMember: false, teamSharePercent: 0, specialty: "Cirurgia da Pele / Dermatologia" },
+    { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", isTeamMember: false, teamSharePercent: 0, specialty: "Ginecologia & Obstetrícia" },
+    { key: "camila", name: "CAMILA RIBEIRO DUTRA", isTeamMember: false, teamSharePercent: 0, specialty: "Reumatologia & Infusões" },
+    { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", isTeamMember: false, teamSharePercent: 0, specialty: "Dermatologia & Procedimentos" }
+  ],
+  teamOnlySources: [
+    "AZAMBUJA",
+    "MARIETA",
+    "CONSULTORIO",
+    "RECEBIDO_DINHEIRO",
+    "CARTAO",
+    "UNIMED_LUIS"
+  ],
+  teamOnlyExpenses: [
+    "CONTADOR_HEART",
+    "DARE",
+    "ALUGUEL_SALA",
+    "CELULAR",
+    "CONSULTORIO_ITAJAI",
+    "CRM",
+    "INSTRUMENTADOR",
+    "ALVARA",
+    "GOOGLE",
+    "INSS_PATRONAL",
+    "CAPITALIZACAO_COTA_PARTE"
+  ]
+};
+
+app.get("/api/app/financial/team-settings", async (req, res) => {
+  const groupId = getGroupId(req);
+  try {
+    const docRef = db.collection("financial_team_settings").doc(groupId);
+    const doc = await docRef.get();
+    if (doc.exists) {
+      res.json(doc.data());
+    } else {
+      res.json(DEFAULT_TEAM_CONFIG);
+    }
+  } catch (error: any) {
+    handleApiError(res, error, "Get Team Financial Settings");
+  }
+});
+
+app.post("/api/app/financial/team-settings", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { doctors, teamOnlySources, teamOnlyExpenses } = req.body;
+  try {
+    const user = (req as any).user;
+    const docRef = db.collection("financial_team_settings").doc(groupId);
+    const dataToSave = {
+      teamId: groupId,
+      doctors: doctors || DEFAULT_TEAM_CONFIG.doctors,
+      teamOnlySources: teamOnlySources || DEFAULT_TEAM_CONFIG.teamOnlySources,
+      teamOnlyExpenses: teamOnlyExpenses || DEFAULT_TEAM_CONFIG.teamOnlyExpenses,
+      updatedAt: new Date().toISOString(),
+      updatedBy: user.email || user.uid
+    };
+    await docRef.set(dataToSave, { merge: true });
+
+    await db.collection("financial_audit_logs").add({
+      teamId: groupId,
+      userId: user.uid,
+      userName: user.email || "Admin",
+      action: "UPDATE_TEAM_SETTINGS",
+      newValue: "Percentuais de rateio e membros da equipe atualizados.",
+      timestamp: new Date().toISOString()
+    });
+
+    res.json(dataToSave);
+  } catch (error: any) {
+    handleApiError(res, error, "Save Team Financial Settings");
+  }
+});
+
 app.post("/api/app/financial/transactions", async (req, res) => {
   const groupId = getGroupId(req);
-  const { closingId, doctorId, doctorName, scope, typeName, typeId, amount, nature, observation, date, source } = req.body;
+  const { 
+    closingId, 
+    doctorId, 
+    doctorName, 
+    scope, 
+    typeName, 
+    typeId, 
+    amount, 
+    nature, 
+    observation, 
+    date, 
+    source,
+    autoSplitTeam 
+  } = req.body;
+
   if (!closingId || amount === undefined) {
     return res.status(400).json({ error: "closingId and amount are required" });
   }
 
   try {
+    const user = (req as any).user;
+    const numAmount = Number(amount);
+    const txDate = date || new Date().toLocaleDateString("pt-BR");
+    const isTeamScope = scope === "TEAM" || doctorId === "heart_equipe" || doctorId === "equipe";
+
+    // If autoSplitTeam is requested for a team-level transaction:
+    if (isTeamScope && autoSplitTeam) {
+      // Get team configuration
+      const docRef = db.collection("financial_team_settings").doc(groupId);
+      const settingsDoc = await docRef.get();
+      const settings = settingsDoc.exists ? settingsDoc.data() : DEFAULT_TEAM_CONFIG;
+      const teamDoctors = (settings?.doctors || DEFAULT_TEAM_CONFIG.doctors).filter((d: any) => d.isTeamMember);
+
+      const batch = db.batch();
+      const parentId = `team_${Date.now()}`;
+      const createdItems: any[] = [];
+
+      for (const td of teamDoctors) {
+        const shareRatio = (td.teamSharePercent || 0) / 100;
+        const splitVal = Math.round((numAmount * shareRatio) * 100) / 100;
+        const splitRef = db.collection("financial_transactions").doc();
+        
+        const splitItem = {
+          id: splitRef.id,
+          teamId: groupId,
+          closingId,
+          parentId,
+          doctorId: td.key,
+          doctorName: td.name,
+          scope: "TEAM_SPLIT",
+          teamSharePercent: td.teamSharePercent,
+          typeName: `${typeName} (Rateio ${td.teamSharePercent}%)`,
+          typeId: typeId || "rateio_equipe",
+          amount: splitVal,
+          nature: nature || "DEBIT",
+          observation: `Rateio proporcional da Equipe: ${td.teamSharePercent}% de R$ ${numAmount.toFixed(2)}${observation ? ` - ${observation}` : ""}`,
+          date: txDate,
+          source: source || "RATEIO_EQUIPE",
+          createdAt: new Date().toISOString()
+        };
+
+        batch.set(splitRef, splitItem);
+        createdItems.push(splitItem);
+      }
+
+      await batch.commit();
+      return res.json({ success: true, count: createdItems.length, items: createdItems });
+    }
+
+    // Standard individual or team transaction
     const txRef = db.collection("financial_transactions").doc();
     const txData = {
       id: txRef.id,
       teamId: groupId,
       closingId,
-      doctorId: doctorId || "equipe",
-      doctorName: doctorName || "Equipe Geral",
-      scope: scope || "DOCTOR",
+      doctorId: isTeamScope ? "heart_equipe" : (doctorId || "equipe"),
+      doctorName: isTeamScope ? "HEART CIRURGIA CARDIOVASCULAR" : (doctorName || "Equipe Geral"),
+      scope: isTeamScope ? "TEAM" : "DOCTOR",
       typeName: typeName || "Lançamento Avulso",
       typeId: typeId || "avulso",
-      amount: Number(amount),
+      amount: numAmount,
       nature: nature || "DEBIT",
       observation: observation || "",
-      date: date || new Date().toLocaleDateString("pt-BR"),
+      date: txDate,
       source: source || "MANUAL",
       createdAt: new Date().toISOString()
     };

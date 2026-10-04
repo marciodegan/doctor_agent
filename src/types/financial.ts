@@ -171,3 +171,21 @@ export interface FinancialPendency {
   resolved: boolean;
   protocol?: string;
 }
+
+export interface DoctorTeamMember {
+  key: string;
+  name: string;
+  isTeamMember: boolean; // true for Rochele, Thais, Luis, Kathize; false for Thaynara, Tamara, Maria Eduarda, Camila, Luan
+  teamSharePercent: number; // e.g. 29, 29, 29, 13
+  specialty?: string;
+  crm?: string;
+}
+
+export interface TeamFinancialSettings {
+  teamId: string;
+  doctors: DoctorTeamMember[];
+  teamOnlySources: string[];
+  teamOnlyExpenses: string[];
+  updatedAt?: string;
+}
+
