@@ -47,10 +47,17 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
   const [details, setDetails] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
-    "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento"
+    "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento"
   >(initialSubTab);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Manual entries for green plantao / entrada cells
+  const [manualEntradas, setManualEntradas] = useState<Record<string, { azambujaPlantaoTT: number, azambujaPlantaoDS: number, unimedPlantaoTT: number, unimedPlantaoDS: number }>>({
+    thais: { azambujaPlantaoTT: 3600, azambujaPlantaoDS: 2933.04, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
+    kathize: { azambujaPlantaoTT: 9000, azambujaPlantaoDS: 7332.59, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
+    rochele: { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 1966.87, unimedPlantaoDS: 1610.61 }
+  });
 
   // Team settings state
   const [teamSettings, setTeamSettings] = useState<TeamFinancialSettings>({
@@ -462,6 +469,18 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
         </button>
 
         <button
+          onClick={() => setActiveSubTab("matriz_entradas")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "matriz_entradas"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <DollarSign size={16} />
+          <span>Matriz de Entradas (TT & DS)</span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab("config_equipe")}
           className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
             activeSubTab === "config_equipe"
@@ -545,6 +564,242 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
           <span>8. Tipos de Lançamento (Pré-preenchimento)</span>
         </button>
       </div>
+
+      {/* VIEW: MATRIZ DE ENTRADAS (TT & DS) */}
+      {activeSubTab === "matriz_entradas" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Matriz de Entradas — Totais (TT) e Disponíveis para Saque (DS)</h3>
+                <p className="text-xs text-gray-500">Visualização detalhada por médico e fonte. Os campos com fundo <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">verde</span> são editáveis manualmente para lançamentos de plantão.</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-[11px] border-collapse text-center">
+                <thead>
+                  <tr className="bg-slate-900 text-white font-black uppercase tracking-wider">
+                    <th className="p-3 border border-slate-700 text-left pl-4" rowSpan={2}>MÉDICO</th>
+                    <th className="p-3 border border-slate-700" rowSpan={2}>% EQUIPE</th>
+                    <th className="p-3 border border-slate-700 bg-blue-900" colSpan={6}>AZAMBUJA</th>
+                    <th className="p-3 border border-slate-700 bg-indigo-900" colSpan={4}>MARIETA</th>
+                    <th className="p-3 border border-slate-700 bg-teal-900" colSpan={10}>UNIMED</th>
+                    <th className="p-3 border border-slate-700 bg-purple-900" colSpan={2}>CONSULTÓRIO</th>
+                    <th className="p-3 border border-slate-700 bg-amber-900" colSpan={2}>DINHEIRO</th>
+                    <th className="p-3 border border-slate-700 bg-rose-900" colSpan={2}>UNIMED LUIS</th>
+                    <th className="p-3 border border-slate-700 bg-emerald-900" colSpan={6}>TOTAL GERAL</th>
+                  </tr>
+                  <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
+                    {/* Azambuja */}
+                    <th className="p-2 border border-slate-700">Equipe TT</th>
+                    <th className="p-2 border border-slate-700">Equipe DS</th>
+                    <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão TT</th>
+                    <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão DS</th>
+                    <th className="p-2 border border-slate-700">Total TT</th>
+                    <th className="p-2 border border-slate-700">Total DS</th>
+                    {/* Marieta */}
+                    <th className="p-2 border border-slate-700">Equipe TT</th>
+                    <th className="p-2 border border-slate-700">Equipe DS</th>
+                    <th className="p-2 border border-slate-700">Total TT</th>
+                    <th className="p-2 border border-slate-700">Total DS</th>
+                    {/* Unimed */}
+                    <th className="p-2 border border-slate-700">Equipe TT</th>
+                    <th className="p-2 border border-slate-700">Equipe DS</th>
+                    <th className="p-2 border border-slate-700">Part. TT</th>
+                    <th className="p-2 border border-slate-700">Part. DS</th>
+                    <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão TT</th>
+                    <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão DS</th>
+                    <th className="p-2 border border-slate-700">VL Nota TT</th>
+                    <th className="p-2 border border-slate-700">Disp DS</th>
+                    <th className="p-2 border border-slate-700">Prop %</th>
+                    <th className="p-2 border border-slate-700">Disp Unim</th>
+                    {/* Consultorio */}
+                    <th className="p-2 border border-slate-700">TT</th>
+                    <th className="p-2 border border-slate-700">DS</th>
+                    {/* Dinheiro */}
+                    <th className="p-2 border border-slate-700">TT</th>
+                    <th className="p-2 border border-slate-700">DS</th>
+                    {/* Unimed Luis */}
+                    <th className="p-2 border border-slate-700">TT</th>
+                    <th className="p-2 border border-slate-700">DS</th>
+                    {/* Total Geral */}
+                    <th className="p-2 border border-slate-700">TT Geral</th>
+                    <th className="p-2 border border-slate-700">DS Geral</th>
+                    <th className="p-2 border border-slate-700">Prop Heart %</th>
+                    <th className="p-2 border border-slate-700">Disp Período</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
+                  {[
+                    { key: "rochele", name: "ROCHELE LORENZI POL", percent: 29, isTeam: true, unimedProd: 27095.00, unimedDisp: 22176.54 },
+                    { key: "thais", name: "THAIS ISABEL LUMIKOSKI", percent: 29, isTeam: true, unimedProd: 7706.25, unimedDisp: 6307.82 },
+                    { key: "luis", name: "LUIS BONGIOLO MATTOS", percent: 29, isTeam: true, unimedProd: 0.00, unimedDisp: 0.00 },
+                    { key: "kathize", name: "KATHIZE LIRA", percent: 13, isTeam: true, unimedProd: 0.00, unimedDisp: 0.00 },
+                    { key: "tamara", name: "TAMARA QUINTINO REGIS", percent: 0, isTeam: false, unimedProd: 21101.25, unimedDisp: 17279.18 },
+                    { key: "luan", name: "LUAN JUNIOR VIGNATTI", percent: 0, isTeam: false, unimedProd: 37715.27, unimedDisp: 30883.91 },
+                    { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", percent: 0, isTeam: false, unimedProd: 96469.00, unimedDisp: 78995.58 },
+                    { key: "camila", name: "CAMILA RIBEIRO DUTRA", percent: 0, isTeam: false, unimedProd: 31693.73, unimedDisp: 25953.05 },
+                    { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", percent: 0, isTeam: false, unimedProd: 35174.57, unimedDisp: 28803.40 }
+                  ].map((doc) => {
+                    const isTeam = doc.isTeam;
+                    const pct = doc.percent;
+                    const azEqTT = isTeam ? Math.round((pct / 100) * 57420.90 * 100) / 100 : 0;
+                    const azEqDS = isTeam ? Math.round((pct / 100) * 46782.71 * 100) / 100 : 0;
+                    
+                    const man = manualEntradas[doc.key] || { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 0, unimedPlantaoDS: 0 };
+                    const azPlTT = man.azambujaPlantaoTT || 0;
+                    const azPlDS = man.azambujaPlantaoDS || 0;
+                    const azTotTT = azEqTT + azPlTT;
+                    const azTotDS = azEqDS + azPlDS;
+
+                    const marEqTT = isTeam ? Math.round((pct / 100) * 81042.09 * 100) / 100 : 0;
+                    const marEqDS = isTeam ? Math.round((pct / 100) * 67645.83 * 100) / 100 : 0;
+
+                    const unimedEqTT = doc.unimedProd;
+                    const unimedEqDS = doc.unimedDisp;
+                    const unimPlTT = man.unimedPlantaoTT || 0;
+                    const unimPlDS = man.unimedPlantaoDS || 0;
+                    const unimTotTT = unimedEqTT + unimPlTT;
+                    const unimTotDS = unimedEqDS + unimPlDS;
+
+                    const consultTT = isTeam ? Math.round((pct / 100) * 400 * 100) / 100 : 0;
+                    const dinheiroTT = isTeam ? Math.round((pct / 100) * 1200 * 100) / 100 : 0;
+                    const unimLuisTT = isTeam ? Math.round((pct / 100) * 8406 * 100) / 100 : 0;
+                    const unimLuisDS = isTeam ? Math.round((pct / 100) * 7016.49 * 100) / 100 : 0;
+
+                    const totalGeralTT = azTotTT + marEqTT + unimTotTT + consultTT + dinheiroTT + unimLuisTT;
+                    const totalGeralDS = azTotDS + marEqDS + unimTotDS + consultTT + dinheiroTT + unimLuisDS;
+
+                    return (
+                      <tr key={doc.key} className="hover:bg-blue-50/40 transition">
+                        <td className="p-2.5 border border-gray-200 text-left pl-4 font-black text-gray-900">
+                          {doc.name}
+                        </td>
+                        <td className="p-2.5 border border-gray-200 font-bold text-gray-600">
+                          {pct > 0 ? `${pct}%` : "-"}
+                        </td>
+                        {/* Azambuja */}
+                        <td className="p-2.5 border border-gray-200 font-mono">{azEqTT > 0 ? azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono">{azEqDS > 0 ? azEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 bg-emerald-50/60 p-1">
+                          <input
+                            type="number"
+                            value={azPlTT || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const ratio = 0.8147;
+                              setManualEntradas({
+                                ...manualEntradas,
+                                [doc.key]: { ...man, azambujaPlantaoTT: val, azambujaPlantaoDS: Math.round(val * ratio * 100) / 100 }
+                              });
+                            }}
+                            className="w-20 text-center bg-emerald-100/70 border border-emerald-300 rounded font-mono text-xs py-1"
+                            placeholder="0,00"
+                          />
+                        </td>
+                        <td className="p-2.5 border border-gray-200 bg-emerald-50/60 font-mono text-emerald-800 font-bold">
+                          {azPlDS > 0 ? azPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                        </td>
+                        <td className="p-2.5 border border-gray-200 font-mono font-bold">{azTotTT > 0 ? azTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono font-bold text-blue-700">{azTotDS > 0 ? azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+
+                        {/* Marieta */}
+                        <td className="p-2.5 border border-gray-200 font-mono">{marEqTT > 0 ? marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono">{marEqDS > 0 ? marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono font-bold">{marEqTT > 0 ? marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono font-bold text-blue-700">{marEqDS > 0 ? marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+
+                        {/* Unimed */}
+                        <td className="p-2.5 border border-gray-200 font-mono">{unimedEqTT > 0 ? unimedEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono">{unimedEqDS > 0 ? unimedEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono">-</td>
+                        <td className="p-2.5 border border-gray-200 font-mono">-</td>
+                        <td className="p-2.5 border border-gray-200 bg-emerald-50/60 p-1">
+                          <input
+                            type="number"
+                            value={unimPlTT || ""}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const ratio = 0.8189;
+                              setManualEntradas({
+                                ...manualEntradas,
+                                [doc.key]: { ...man, unimedPlantaoTT: val, unimedPlantaoDS: Math.round(val * ratio * 100) / 100 }
+                              });
+                            }}
+                            className="w-20 text-center bg-emerald-100/70 border border-emerald-300 rounded font-mono text-xs py-1"
+                            placeholder="0,00"
+                          />
+                        </td>
+                        <td className="p-2.5 border border-gray-200 bg-emerald-50/60 font-mono text-emerald-800 font-bold">
+                          {unimPlDS > 0 ? unimPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                        </td>
+                        <td className="p-2.5 border border-gray-200 font-mono font-bold">{unimTotTT > 0 ? unimTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono font-bold text-blue-700">{unimTotDS > 0 ? unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono text-gray-500">{(unimTotTT / 277794.83 * 100).toFixed(2)}%</td>
+                        <td className="p-2.5 border border-gray-200 font-mono">{unimTotDS > 0 ? unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+
+                        {/* Consultorio */}
+                        <td className="p-2.5 border border-gray-200 font-mono">{consultTT > 0 ? consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono">{consultTT > 0 ? consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+
+                        {/* Dinheiro */}
+                        <td className="p-2.5 border border-gray-200 font-mono">{dinheiroTT > 0 ? dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono">{dinheiroTT > 0 ? dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+
+                        {/* Unimed Luis */}
+                        <td className="p-2.5 border border-gray-200 font-mono">{unimLuisTT > 0 ? unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono">{unimLuisDS > 0 ? unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+
+                        {/* Total Geral */}
+                        <td className="p-2.5 border border-gray-200 font-mono font-black bg-gray-50 text-gray-900">{totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono font-black bg-emerald-50 text-emerald-900">{totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-2.5 border border-gray-200 font-mono font-bold text-indigo-700 bg-gray-50">{(isTeam ? (totalGeralDS / 36086.02 * 26.79).toFixed(2) : "0.00")}%</td>
+                        <td className="p-2.5 border border-gray-200 font-mono font-black bg-blue-50 text-blue-900">{isTeam ? totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-900 text-white font-black text-xs">
+                    <td className="p-3 border border-slate-700 text-left pl-4 uppercase" colSpan={2}>TOTAL GERAL CONSOLIDADO</td>
+                    <td className="p-3 border border-slate-700 font-mono">57.420,94</td>
+                    <td className="p-3 border border-slate-700 font-mono">46.782,71</td>
+                    <td className="p-3 border border-slate-700 font-mono text-emerald-300">12.600,00</td>
+                    <td className="p-3 border border-slate-700 font-mono text-emerald-300">10.265,63</td>
+                    <td className="p-3 border border-slate-700 font-mono">70.020,94</td>
+                    <td className="p-3 border border-slate-700 font-mono">57.048,34</td>
+                    <td className="p-3 border border-slate-700 font-mono">81.042,09</td>
+                    <td className="p-3 border border-slate-700 font-mono">67.645,83</td>
+                    <td className="p-3 border border-slate-700 font-mono">81.042,09</td>
+                    <td className="p-3 border border-slate-700 font-mono">53.674,14</td>
+                    <td className="p-3 border border-slate-700 font-mono">222.153,82</td>
+                    <td className="p-3 border border-slate-700 font-mono">181.915,12</td>
+                    <td className="p-3 border border-slate-700 font-mono">-</td>
+                    <td className="p-3 border border-slate-700 font-mono">-</td>
+                    <td className="p-3 border border-slate-700 font-mono text-emerald-300">1.966,87</td>
+                    <td className="p-3 border border-slate-700 font-mono text-emerald-300">1.610,61</td>
+                    <td className="p-3 border border-slate-700 font-mono">277.794,83</td>
+                    <td className="p-3 border border-slate-700 font-mono">227.477,88</td>
+                    <td className="p-3 border border-slate-700 font-mono">100.00%</td>
+                    <td className="p-3 border border-slate-700 font-mono">227.477,88</td>
+                    <td className="p-3 border border-slate-700 font-mono">400,00</td>
+                    <td className="p-3 border border-slate-700 font-mono">400,00</td>
+                    <td className="p-3 border border-slate-700 font-mono">1.200,00</td>
+                    <td className="p-3 border border-slate-700 font-mono">1.200,00</td>
+                    <td className="p-3 border border-slate-700 font-mono">8.406,00</td>
+                    <td className="p-3 border border-slate-700 font-mono">7.016,49</td>
+                    <td className="p-3 border border-slate-700 font-mono text-emerald-400">438.863,86</td>
+                    <td className="p-3 border border-slate-700 font-mono text-emerald-400">360.788,54</td>
+                    <td className="p-3 border border-slate-700 font-mono">100.00%</td>
+                    <td className="p-3 border border-slate-700 font-mono text-blue-300">134.700,17</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* VIEW 1: MAPA MESTRE DE RATEIO E SALÁRIOS (SEPARADO ENTRE EQUIPE E FORA DA EQUIPE) */}
       {activeSubTab === "visao_geral" && (
