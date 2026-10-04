@@ -83,43 +83,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (user) {
       import("../lib/crypto").then(async ({ generateUserKeyPair }) => {
-        let attempts = 3;
-        while (attempts > 0) {
-          try {
-            // Force refresh token to ensure Firestore rules recognize auth state after restore/login
-            await user.getIdToken(true).catch(() => {});
-            
-            const privateKeyRef = doc(db, `users/${user.uid}/private`, "keyData");
-            const privateKeySnap = await getDoc(privateKeyRef);
-            if (privateKeySnap.exists()) {
-              const data = privateKeySnap.data();
-              setUserKeys({
-                publicKeyJwk: data.publicKeyJwk,
-                privateKeyJwk: data.privateKeyJwk,
-              });
-              return;
-            } else {
-              const keys = await generateUserKeyPair();
-              await setDoc(privateKeyRef, {
-                publicKeyJwk: keys.publicKeyJwk,
-                privateKeyJwk: keys.privateKeyJwk,
-                createdAt: new Date().toISOString(),
-              });
-              await setDoc(doc(db, "users", user.uid), {
-                publicKeyJwk: keys.publicKeyJwk,
-              }, { merge: true });
-              setUserKeys(keys);
-              return;
-            }
-          } catch (e) {
-            attempts--;
-            console.warn(`[useAuth] Failed to load/create user keys (attempts left: ${attempts}):`, e);
-            if (attempts === 0) {
-              console.error("[useAuth] Exhausted attempts to load/create user keys.");
-            } else {
-              await new Promise((resolve) => setTimeout(resolve, 1500));
-            }
+        try {
+          const privateKeyRef = doc(db, `users/${user.uid}/private`, "keyData");
+          const privateKeySnap = await getDoc(privateKeyRef);
+          if (privateKeySnap.exists()) {
+            const data = privateKeySnap.data();
+            setUserKeys({
+              publicKeyJwk: data.publicKeyJwk,
+              privateKeyJwk: data.privateKeyJwk,
+            });
+          } else {
+            const keys = await generateUserKeyPair();
+            await setDoc(privateKeyRef, {
+              publicKeyJwk: keys.publicKeyJwk,
+              privateKeyJwk: keys.privateKeyJwk,
+              createdAt: new Date().toISOString(),
+            });
+            await setDoc(doc(db, "users", user.uid), {
+              publicKeyJwk: keys.publicKeyJwk,
+            }, { merge: true });
+            setUserKeys(keys);
           }
+        } catch (e) {
+          console.error("[useAuth] Failed to load/create user keys:", e);
         }
       });
     } else {
