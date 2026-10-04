@@ -17,8 +17,15 @@ import {
   Users,
   UserCheck,
   UserX,
-  Sparkles
+  Sparkles,
+  Tag,
+  Settings2,
+  Percent,
+  Sliders,
+  DollarSign
 } from "lucide-react";
+import { TransactionTypesManager } from "./TransactionTypesManager";
+import { FinancialTransactionType } from "../../types/financial";
 
 interface FinancialTransactionsViewProps {
   closingId: string | null;
@@ -36,25 +43,39 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState("ALL");
   const [selectedNatureFilter, setSelectedNatureFilter] = useState("ALL");
 
+  // Transaction Types list loaded from API
+  const [transactionTypes, setTransactionTypes] = useState<FinancialTransactionType[]>([]);
+  const [isTypesModalOpen, setIsTypesModalOpen] = useState(false);
+
   // New Transaction Modal State
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [allocationMode, setAllocationMode] = useState<"TEAM" | "DOCTOR">("TEAM");
   const [autoSplitTeam, setAutoSplitTeam] = useState(true);
+  // Rateio Method: PROPORCAO_HEART (Dynamic based on period revenue) vs NOMINAL (29/29/29/13)
+  const [rateioMethod, setRateioMethod] = useState<"PROPORCAO_HEART" | "NOMINAL">("PROPORCAO_HEART");
 
   const [newForm, setNewForm] = useState({
     doctorId: "rochele",
     doctorName: "ROCHELE LORENZI POL",
-    typeName: "Contador Heart",
-    typeId: "contador",
+    typeName: "Aluguel Sala / Consultório",
+    typeId: "aluguel_sala",
     amount: "",
-    nature: "DEBIT",
+    nature: "DEBIT" as "DEBIT" | "CREDIT",
     observation: "",
     date: new Date().toLocaleDateString("pt-BR")
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Doctors list with team membership
-  const doctors = [
+  // Team Doctors with both Nominal Equity % and Dynamic PROPORÇÃO HEART %
+  const [teamDoctors, setTeamDoctors] = useState([
+    { key: "rochele", name: "ROCHELE LORENZI POL", isTeam: true, percent: 29, proporcaoHeart: 26.79, disponivel: 36086.02 },
+    { key: "thais", name: "THAIS ISABEL LUMIKOSKI", isTeam: true, percent: 29, proporcaoHeart: 28.97, disponivel: 39019.05 },
+    { key: "luis", name: "LUIS BONGIOLO MATTOS", isTeam: true, percent: 29, proporcaoHeart: 26.79, disponivel: 36086.02 },
+    { key: "kathize", name: "KATHIZE LIRA", isTeam: true, percent: 13, proporcaoHeart: 17.45, disponivel: 23509.08 }
+  ]);
+
+  // All doctors list with team status
+  const allDoctors = [
     { key: "rochele", name: "ROCHELE LORENZI POL", isTeam: true, percent: 29 },
     { key: "thais", name: "THAIS ISABEL LUMIKOSKI", isTeam: true, percent: 29 },
     { key: "luis", name: "LUIS BONGIOLO MATTOS", isTeam: true, percent: 29 },
@@ -66,33 +87,45 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", isTeam: false, percent: 0 }
   ];
 
-  const teamDoctors = doctors.filter(d => d.isTeam);
+  // Fetch transaction types
+  const fetchTransactionTypes = async () => {
+    if (!activeGroup) return;
+    try {
+      const res = await apiFetch("/api/app/financial/transaction-types");
+      if (res.ok) {
+        const data = await res.json();
+        setTransactionTypes(data);
+      }
+    } catch (e) {
+      console.error("Failed to load transaction types:", e);
+    }
+  };
 
-  // Common expense and occurrence types
-  const commonTypes = [
-    "Contador Heart",
-    "DARE",
-    "Aluguel Sala / Consultório",
-    "Celular Corporativo",
-    "Consultório Itajaí",
-    "CRM",
-    "Instrumentador Cirúrgico",
-    "Alvará Municipal",
-    "Constit Heart LK / Google",
-    "INSS Patronal",
-    "Capitalização Cota-Parte (360)",
-    "Integralização de Cota Parte",
-    "Glosas - Clínica Cooperada - 11%",
-    "Contribuição de Centro de Estudos",
-    "Mensalidade PLAC",
-    "Desconto Atendimentos Realizados - Recurso Próprio",
-    "Disponibilidade Médica - UTI",
-    "Sobreavisos",
-    "Remuneração Bonificação Parto Normal",
-    "Repasse Pagamento de Produção - HU",
-    "Repasse Pagamento de Parecer Médico - HU",
-    "Outro Lançamento"
-  ];
+  // Fetch team settings
+  const fetchTeamSettings = async () => {
+    if (!activeGroup) return;
+    try {
+      const res = await apiFetch("/api/app/financial/team-settings");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.doctors && data.doctors.length > 0) {
+          const members = data.doctors.filter((d: any) => d.isTeamMember).map((d: any) => ({
+            key: d.key,
+            name: d.name,
+            isTeam: true,
+            percent: d.teamSharePercent || 0,
+            proporcaoHeart: d.proporcaoHeartDinamica || (d.teamSharePercent || 0),
+            disponivel: d.disponivelPeriodo || 0
+          }));
+          if (members.length > 0) {
+            setTeamDoctors(members);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load team settings:", e);
+    }
+  };
 
   // Load closings list if no closing is selected
   useEffect(() => {
@@ -112,6 +145,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       }
     };
     fetchClosings();
+    fetchTransactionTypes();
+    fetchTeamSettings();
   }, [activeGroup]);
 
   // Sync selectedClosingId
@@ -141,6 +176,42 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     fetchTransactions();
   }, [selectedClosingId, activeGroup]);
 
+  // When user selects a transaction type from the dropdown, PRE-FILL the nature (ENTRADA / SAÍDA) and suggested scope!
+  const handleSelectTransactionType = (typeName: string) => {
+    const matched = transactionTypes.find(t => t.name === typeName);
+    if (matched) {
+      setNewForm(prev => ({
+        ...prev,
+        typeName: matched.name,
+        typeId: matched.id,
+        nature: matched.nature // AUTO-PREFILL NATURE (CREDIT / DEBIT)
+      }));
+
+      // Suggest allocation mode
+      if (matched.defaultScope === "TEAM") {
+        setAllocationMode("TEAM");
+      } else if (matched.defaultScope === "DOCTOR") {
+        setAllocationMode("DOCTOR");
+      }
+
+      // Automatically set rateio method:
+      // For Entradas da equipe (ex: Azambuja, Marieta, Consultório), default to NOMINAL (29%, 29%, 29%, 13%)
+      // For Despesas operacionais da equipe (ex: Aluguel, Celular), default to PROPORCAO_HEART dinâmica
+      if (matched.defaultRateioMethod) {
+        setRateioMethod(matched.defaultRateioMethod);
+      } else if (matched.nature === "CREDIT") {
+        setRateioMethod("NOMINAL");
+      } else {
+        setRateioMethod("PROPORCAO_HEART");
+      }
+    } else {
+      setNewForm(prev => ({
+        ...prev,
+        typeName
+      }));
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Deseja realmente excluir este lançamento financeiro do fluxo de caixa?")) return;
     try {
@@ -160,8 +231,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         body: JSON.stringify(editForm)
       });
       if (res.ok) {
+        setTransactions(transactions.map(t => t.id === id ? { ...t, ...editForm } : t));
         setEditingId(null);
-        fetchTransactions();
       }
     } catch (e: any) {
       alert("Erro ao salvar: " + e.message);
@@ -170,7 +241,14 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
 
   const handleCreateTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClosingId || !newForm.amount) return;
+    if (!selectedClosingId) {
+      alert("Por favor, selecione um fechamento / competência.");
+      return;
+    }
+    if (!newForm.amount || parseFloat(newForm.amount) <= 0) {
+      alert("Por favor, informe um valor válido.");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -184,13 +262,14 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
           doctorName: isTeam ? "HEART CIRURGIA CARDIOVASCULAR" : newForm.doctorName,
           scope: isTeam ? "TEAM" : "DOCTOR",
           typeName: newForm.typeName,
-          typeId: newForm.typeName.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+          typeId: newForm.typeId || "avulso",
           amount: parseFloat(newForm.amount),
           nature: newForm.nature,
           observation: newForm.observation,
           date: newForm.date,
           source: isTeam ? "RATEIO_EQUIPE" : "MANUAL",
-          autoSplitTeam: isTeam && autoSplitTeam
+          autoSplitTeam: isTeam && autoSplitTeam,
+          rateioMethod: isTeam ? rateioMethod : undefined
         })
       });
 
@@ -199,8 +278,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         setNewForm({
           doctorId: "rochele",
           doctorName: "ROCHELE LORENZI POL",
-          typeName: "Contador Heart",
-          typeId: "contador",
+          typeName: "Aluguel Sala / Consultório",
+          typeId: "aluguel_sala",
           amount: "",
           nature: "DEBIT",
           observation: "",
@@ -255,35 +334,45 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
             </div>
             <div>
               <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">Fluxo de Caixa & Ocorrências</h2>
-              <p className="text-xs text-gray-500 font-medium">Lançamentos de despesas corporativas HeaRT e ocorrências individuais de médicos</p>
+              <p className="text-xs text-gray-500 font-medium">
+                Lançamentos de despesas corporativas HeaRT e ocorrências individuais com rateio dinâmico (Proporção HeaRT)
+              </p>
             </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Closing Month Selector */}
-          <div className="bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 flex items-center gap-2 text-xs">
-            <Calendar size={14} className="text-emerald-600" />
+          {/* Competência Selector */}
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-2xl px-3.5 py-2 text-xs">
+            <Calendar size={15} className="text-gray-400" />
+            <span className="font-black text-gray-500 uppercase text-[10px]">Competência:</span>
             <select
               value={selectedClosingId || ""}
               onChange={e => setSelectedClosingId(e.target.value)}
-              className="bg-transparent text-gray-800 font-bold outline-none cursor-pointer pr-2"
+              className="bg-transparent font-black text-gray-900 outline-none cursor-pointer"
             >
-              {closings.length > 0 ? (
-                closings.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.monthKey}
-                  </option>
-                ))
-              ) : (
-                <option value="">SETEMBRO-26</option>
-              )}
+              {closings.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.monthKey} ({c.status})
+                </option>
+              ))}
+              {closings.length === 0 && <option value="">Nenhum fechamento</option>}
             </select>
           </div>
 
+          {/* Gerenciar Tipos de Lançamento */}
+          <button
+            onClick={() => setIsTypesModalOpen(true)}
+            className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider transition cursor-pointer active:scale-95"
+          >
+            <Tag size={15} />
+            <span>Tipos de Lançamento</span>
+          </button>
+
+          {/* Novo Lançamento Button */}
           <button
             onClick={() => setIsNewModalOpen(true)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer"
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer"
           >
             <Plus size={16} />
             <span>Novo Lançamento</span>
@@ -291,155 +380,166 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         </div>
       </div>
 
-      {/* Metric Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs flex flex-col justify-between space-y-1">
-          <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Entradas / Créditos</span>
-          <span className="text-xl font-black text-emerald-600">
-            +R$ {totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </span>
-          <span className="text-[10px] text-gray-400 font-medium">Plantões, bonificações e repasses</span>
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-gray-200/80 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Entradas no Fluxo</span>
+            <span className="text-xl font-black text-emerald-600">
+              +R$ {totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <ArrowUpRight size={20} />
+          </div>
         </div>
 
-        <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs flex flex-col justify-between space-y-1">
-          <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Saídas / Débitos</span>
-          <span className="text-xl font-black text-rose-600">
-            -R$ {totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </span>
-          <span className="text-[10px] text-gray-400 font-medium">Cota parte, glosas, contador e sala</span>
+        <div className="bg-white p-5 rounded-3xl border border-gray-200/80 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Saídas & Deduções</span>
+            <span className="text-xl font-black text-rose-600">
+              -R$ {totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+            <ArrowDownRight size={20} />
+          </div>
         </div>
 
-        <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs flex flex-col justify-between space-y-1">
-          <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Saldo das Ocorrências</span>
-          <span className={`text-xl font-black ${totalEntradas - totalSaidas >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-            R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </span>
-          <span className="text-[10px] text-gray-400 font-medium">Impacto líquido nas contas</span>
-        </div>
-
-        <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs flex flex-col justify-between space-y-1">
-          <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Total de Registros</span>
-          <span className="text-xl font-black text-gray-900">{filtered.length} lançamentos</span>
-          <span className="text-[10px] text-gray-400 font-medium">Conciliados neste fechamento</span>
+        <div className="bg-white p-5 rounded-3xl border border-gray-200/80 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Total Ocorrências</span>
+            <span className="text-xl font-black text-gray-900">{filtered.length} lançamentos</span>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <TrendingUp size={20} />
+          </div>
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="relative flex-1 min-w-[240px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar por descrição, tipo de despesa ou médico..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-        </div>
-
+      {/* Filters Bar */}
+      <div className="bg-white p-4 rounded-3xl border border-gray-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-black uppercase text-gray-400">Médico:</span>
+          {/* Search */}
+          <div className="relative">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar tipo, médico ou descrição..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-3.5 py-2 text-xs font-semibold text-gray-800 placeholder-gray-400 outline-none focus:border-emerald-500 w-64"
+            />
+          </div>
+
+          {/* Doctor filter */}
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs">
+            <Users size={14} className="text-gray-400" />
             <select
               value={selectedDoctorFilter}
               onChange={e => setSelectedDoctorFilter(e.target.value)}
-              className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer"
+              className="bg-transparent font-bold text-gray-700 outline-none cursor-pointer"
             >
-              <option value="ALL">Todos os Médicos & Equipe</option>
-              {doctors.map(d => (
-                <option key={d.key} value={d.name}>{d.name} {d.isTeam ? "(Equipe)" : "(Externo)"}</option>
+              <option value="ALL">Todos os Médicos / Equipe</option>
+              <option value="HEART">Rateio Equipe HeaRT (Sócios)</option>
+              {allDoctors.map(d => (
+                <option key={d.key} value={d.name}>
+                  {d.name} {d.isTeam ? "(Equipe)" : "(Externo)"}
+                </option>
               ))}
-              <option value="HEART">EQUIPE HEART GERAL</option>
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-black uppercase text-gray-400">Natureza:</span>
+          {/* Nature filter */}
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs">
+            <Filter size={14} className="text-gray-400" />
             <select
               value={selectedNatureFilter}
               onChange={e => setSelectedNatureFilter(e.target.value)}
-              className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer"
+              className="bg-transparent font-bold text-gray-700 outline-none cursor-pointer"
             >
               <option value="ALL">Todas as Naturezas</option>
-              <option value="CREDIT">Entradas (Créditos)</option>
-              <option value="DEBIT">Saídas (Débitos)</option>
+              <option value="CREDIT">Apenas Entradas (+)</option>
+              <option value="DEBIT">Apenas Saídas (-)</option>
             </select>
           </div>
+        </div>
+
+        <div className="text-xs font-bold text-gray-400">
+          Mostrando {filtered.length} de {transactions.length} registros
         </div>
       </div>
 
       {/* Transactions Table */}
-      <div className="bg-white rounded-[32px] border border-gray-200/80 shadow-xl overflow-hidden">
+      <div className="bg-white rounded-[32px] border border-gray-200/80 shadow-xs overflow-hidden">
         {loading ? (
-          <div className="py-20 text-center space-y-3">
-            <Loader2 size={32} className="animate-spin text-emerald-600 mx-auto" />
-            <p className="text-xs text-gray-400 font-bold uppercase">Carregando Fluxo de Caixa...</p>
+          <div className="p-12 text-center space-y-2">
+            <Loader2 size={28} className="animate-spin text-emerald-600 mx-auto" />
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Carregando fluxo de caixa...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center space-y-3">
-            <Wallet size={32} className="text-gray-300 mx-auto" />
-            <p className="text-sm text-gray-500 font-bold">Nenhum lançamento financeiro encontrado.</p>
-            <p className="text-xs text-gray-400">Importe arquivos na aba "Importações" ou crie um lançamento avulso.</p>
+          <div className="p-12 text-center space-y-2">
+            <Wallet size={36} className="text-gray-300 mx-auto" />
+            <p className="font-black text-gray-700 text-sm">Nenhum lançamento encontrado</p>
+            <p className="text-xs text-gray-400">Clique em "Novo Lançamento" para adicionar uma ocorrência ou despesa de equipe.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
+                <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-400 font-black uppercase text-[10px] tracking-wider">
                   <th className="p-4 pl-6">Data</th>
-                  <th className="p-4">Médico / Responsável</th>
-                  <th className="p-4">Escopo do Rateio</th>
-                  <th className="p-4">Tipo de Despesa / Ocorrência</th>
-                  <th className="p-4 text-center">Natureza</th>
+                  <th className="p-4">Médico / Destinatário</th>
+                  <th className="p-4">Tipo de Lançamento</th>
                   <th className="p-4">Descrição / Observação</th>
-                  <th className="p-4 text-right">Valor (R$)</th>
-                  <th className="p-4 pr-6 text-center">Ações</th>
+                  <th className="p-4 text-center">Origem / Rateio</th>
+                  <th className="p-4 text-right pr-6">Valor (R$)</th>
+                  <th className="p-4 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+              <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
                 {filtered.map(t => {
-                  const isEditing = editingId === t.id;
-                  const isCredit = t.nature === "CREDIT";
-                  const isTeamRateio = t.scope === "TEAM" || t.scope === "TEAM_SPLIT" || (t.doctorName && t.doctorName.includes("HEART"));
+                  const isDebit = t.nature === "DEBIT";
+                  const isHeartTeam = t.scope === "TEAM" || (t.doctorName && t.doctorName.includes("HEART"));
+                  const isTeamSplit = t.scope === "TEAM_SPLIT";
 
                   return (
-                    <tr key={t.id} className="hover:bg-gray-50/80 transition-colors">
-                      <td className="p-4 pl-6 text-gray-500 font-bold">{t.date || "-"}</td>
-                      <td className="p-4 font-black text-gray-900">
-                        {t.doctorName || "Equipe HeaRT"}
+                    <tr key={t.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="p-4 pl-6 text-gray-500 font-mono text-[11px] whitespace-nowrap">
+                        {t.date || "14/09/2026"}
                       </td>
+
                       <td className="p-4">
-                        <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider ${
-                          isTeamRateio 
-                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
-                            : "bg-slate-100 text-slate-700 border border-slate-200"
-                        }`}>
-                          {isTeamRateio ? "Rateio Equipe HeaRT" : "Individual Direto"}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-gray-900">{t.doctorName}</span>
+                          {isHeartTeam && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800">
+                              Equipe HeaRT
+                            </span>
+                          )}
+                          {isTeamSplit && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-blue-100 text-blue-800">
+                              Rateio {t.teamSharePercent ? `${t.teamSharePercent}%` : "HeaRT"}
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="p-4">
-                        {isEditing ? (
+
+                      <td className="p-4 font-bold text-gray-800">
+                        {editingId === t.id ? (
                           <input
                             type="text"
                             value={editForm.typeName}
                             onChange={e => setEditForm({ ...editForm, typeName: e.target.value })}
-                            className="border border-gray-300 rounded px-2 py-1 text-xs w-full"
+                            className="border border-gray-300 rounded px-2 py-1 text-xs font-bold"
                           />
                         ) : (
-                          <span className="font-bold text-gray-800">{t.typeName || t.typeId}</span>
+                          t.typeName || t.typeId
                         )}
                       </td>
-                      <td className="p-4 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase ${
-                          isCredit 
-                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
-                            : "bg-rose-100 text-rose-800 border border-rose-200"
-                        }`}>
-                          {isCredit ? "ENTRADA" : "SAÍDA"}
-                        </span>
-                      </td>
-                      <td className="p-4 text-gray-600 max-w-xs truncate">
-                        {isEditing ? (
+
+                      <td className="p-4 text-gray-500 text-[11px] max-w-xs truncate">
+                        {editingId === t.id ? (
                           <input
                             type="text"
                             value={editForm.observation}
@@ -447,45 +547,57 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                             className="border border-gray-300 rounded px-2 py-1 text-xs w-full"
                           />
                         ) : (
-                          <span>{t.observation || "-"}</span>
+                          t.observation || "—"
                         )}
                       </td>
-                      <td className={`p-4 text-right font-black text-sm ${
-                        isCredit ? "text-emerald-600" : "text-rose-600"
-                      }`}>
-                        {isEditing ? (
+
+                      <td className="p-4 text-center">
+                        <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase ${
+                          isTeamSplit
+                            ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                            : isHeartTeam
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-gray-100 text-gray-600"
+                        }`}>
+                          {t.source || "FLUXO"}
+                        </span>
+                      </td>
+
+                      <td className="p-4 text-right pr-6 whitespace-nowrap">
+                        {editingId === t.id ? (
                           <input
                             type="number"
                             step="0.01"
                             value={editForm.amount}
                             onChange={e => setEditForm({ ...editForm, amount: e.target.value })}
-                            className="border border-gray-300 rounded px-2 py-1 text-xs w-24 text-right"
+                            className="border border-gray-300 rounded px-2 py-1 text-xs font-black text-right w-24"
                           />
                         ) : (
-                          <span>
-                            {isCredit ? "+R$ " : "-R$ "}
-                            {Math.abs(Number(t.amount) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          <span className={`font-black text-xs ${isDebit ? "text-rose-600" : "text-emerald-600"}`}>
+                            {isDebit ? "-R$ " : "+R$ "}
+                            {Math.abs(t.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </span>
                         )}
                       </td>
-                      <td className="p-4 pr-6 text-center">
-                        {isEditing ? (
-                          <div className="flex items-center justify-center gap-1.5">
+
+                      <td className="p-4 text-right whitespace-nowrap">
+                        {editingId === t.id ? (
+                          <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => handleSaveEdit(t.id)}
-                              className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                              className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 cursor-pointer"
                             >
-                              <Check size={13} />
+                              <Check size={14} />
                             </button>
                             <button
                               onClick={() => setEditingId(null)}
-                              className="p-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                              className="w-7 h-7 rounded-lg bg-gray-200 text-gray-600 flex items-center justify-center hover:bg-gray-300 cursor-pointer"
                             >
-                              <X size={13} />
+                              <X size={14} />
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center justify-center gap-1.5 text-gray-400">
+                          <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => {
                                 setEditingId(t.id);
@@ -495,15 +607,15 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                                   typeName: t.typeName || ""
                                 });
                               }}
-                              className="p-1.5 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                             >
-                              <Edit3 size={14} />
+                              <Edit3 size={15} />
                             </button>
                             <button
                               onClick={() => handleDelete(t.id)}
-                              className="p-1.5 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={15} />
                             </button>
                           </div>
                         )}
@@ -517,14 +629,16 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         )}
       </div>
 
-      {/* Modal: New Manual Transaction with Team Rateio Logic */}
+      {/* Modal: New Manual Transaction with Team Dynamic Rateio Logic */}
       {isNewModalOpen && (
-        <div className="fixed inset-0 z-[250] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[32px] p-6 lg:p-8 max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 font-sans">
+        <div className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] p-6 lg:p-8 max-w-xl w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 font-sans max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-100 pb-4">
               <div>
                 <h3 className="font-black text-gray-900 text-base uppercase">Novo Lançamento no Fluxo de Caixa</h3>
-                <p className="text-xs text-gray-500">Lançamento de despesa da equipe ou ocorrência individual</p>
+                <p className="text-xs text-gray-500">
+                  Lançamento com pré-preenchimento automático e rateio dinâmico (Proporção HeaRT)
+                </p>
               </div>
               <button 
                 onClick={() => setIsNewModalOpen(false)}
@@ -535,6 +649,48 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
             </div>
 
             <form onSubmit={handleCreateTransaction} className="space-y-4 text-xs font-bold">
+              {/* Tipo de Despesa / Ocorrência - AUTO-PREFILLS NATURE AND SCOPE */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">
+                    Tipo de Lançamento *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsTypesModalOpen(true)}
+                    className="text-[10px] font-black text-blue-600 hover:text-blue-800 underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Tag size={12} /> Gerenciar / Editar Tipos
+                  </button>
+                </div>
+                <select
+                  value={newForm.typeName}
+                  onChange={e => handleSelectTransactionType(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                >
+                  {transactionTypes.length > 0 ? (
+                    transactionTypes.map(t => (
+                      <option key={t.id} value={t.name}>
+                        {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Aluguel Sala / Consultório">Aluguel Sala / Consultório — [SAÍDA] (Equipe)</option>
+                      <option value="Celular Corporativo">Celular Corporativo — [SAÍDA] (Equipe)</option>
+                      <option value="Consultório Itajaí">Consultório Itajaí — [SAÍDA] (Equipe)</option>
+                      <option value="Contador Heart">Contador Heart — [SAÍDA] (Equipe)</option>
+                      <option value="DARE">DARE — [SAÍDA] (Equipe)</option>
+                      <option value="Disponibilidade Médica - UTI">Disponibilidade Médica - UTI — [ENTRADA] (Médico)</option>
+                      <option value="Sobreavisos">Sobreavisos — [ENTRADA] (Médico)</option>
+                    </>
+                  )}
+                </select>
+                <span className="text-[10px] text-gray-400 block font-normal">
+                  * Ao selecionar o tipo, o campo de <strong>Entrada / Saída</strong> é pré-preenchido automaticamente!
+                </span>
+              </div>
+
               {/* Allocation Mode: Team vs Individual */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
@@ -551,7 +707,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                     }`}
                   >
                     <UserCheck size={16} />
-                    <span>Rateio da Equipe (29/29/29/13)</span>
+                    <span>Rateio da Equipe HeaRT</span>
                   </button>
 
                   <button
@@ -569,6 +725,104 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                 </div>
               </div>
 
+              {/* If Team: Rateio Method Selector (CRITICAL USER REQUIREMENT) */}
+              {allocationMode === "TEAM" && (
+                <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-blue-900 tracking-wider flex items-center gap-1.5">
+                      <Sliders size={13} />
+                      Método de Rateio da Equipe
+                    </span>
+                    <span className="text-[9px] font-bold px-2 py-0.5 bg-blue-200/60 text-blue-800 rounded-md">
+                      {rateioMethod === "PROPORCAO_HEART" ? "Dinâmico (Período)" : "Nominal Societário"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setRateioMethod("NOMINAL")}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        rateioMethod === "NOMINAL"
+                          ? "bg-white border-emerald-500 text-emerald-950 font-black shadow-xs ring-2 ring-emerald-500/20"
+                          : "bg-blue-100/50 border-blue-200 text-blue-700 hover:bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="font-black text-xs text-emerald-900">29% / 29% / 29% / 13%</span>
+                        {newForm.nature === "CREDIT" && (
+                          <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">Recomendado p/ Entradas</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-500 leading-tight">
+                        Rateio societário nominal fixo da equipe (Rochele 29%, Thais 29%, Luis 29%, Kathize 13%). Indicado para <strong>Entradas Azambuja, Marieta, Consultório</strong>.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRateioMethod("PROPORCAO_HEART")}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        rateioMethod === "PROPORCAO_HEART"
+                          ? "bg-white border-blue-500 text-blue-950 font-black shadow-xs ring-2 ring-blue-500/20"
+                          : "bg-blue-100/50 border-blue-200 text-blue-700 hover:bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="font-black text-xs text-blue-900">PROPORÇÃO HEART</span>
+                        {newForm.nature === "DEBIT" && (
+                          <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.2 rounded">Recomendado p/ Despesas</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-500 leading-tight">
+                        Rateio dinâmico proporcional ao disponível recebido no período. Indicado para <strong>Despesas Operacionais (Aluguel, Celular, etc.)</strong>.
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Live Breakdown Table */}
+                  {inputAmount > 0 && (
+                    <div className="pt-2 border-t border-blue-200/60 space-y-1.5">
+                      <span className="text-[10px] font-black uppercase text-blue-900 block">
+                        Divisão calculada de R$ {inputAmount.toFixed(2)}:
+                      </span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {teamDoctors.map(td => {
+                          const percent = rateioMethod === "PROPORCAO_HEART" ? td.proporcaoHeart : td.percent;
+                          const splitVal = (inputAmount * percent) / 100;
+                          return (
+                            <div key={td.key} className="bg-white p-2 rounded-xl border border-blue-100 flex items-center justify-between text-[11px]">
+                              <div>
+                                <span className="font-black text-gray-900 block">{td.name.split(" ")[0]}</span>
+                                <span className="text-[9px] text-blue-600 font-bold">
+                                  {percent.toFixed(2)}% {rateioMethod === "PROPORCAO_HEART" && `(disp: R$ ${td.disponivel ? td.disponivel.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : "-"})`}
+                                </span>
+                              </div>
+                              <span className="font-black text-emerald-700 text-xs">
+                                R$ {splitVal.toFixed(2)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="pt-1.5 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="autoSplit"
+                          checked={autoSplitTeam}
+                          onChange={e => setAutoSplitTeam(e.target.checked)}
+                          className="w-3.5 h-3.5 text-blue-600 rounded cursor-pointer"
+                        />
+                        <label htmlFor="autoSplit" className="text-[10px] text-blue-900 cursor-pointer">
+                          Gerar lançamentos individuais rateados automaticamente para cada médico da equipe
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* If Individual: Doctor selector */}
               {allocationMode === "DOCTOR" && (
                 <div className="space-y-1.5 animate-in fade-in">
@@ -576,7 +830,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   <select
                     value={newForm.doctorName}
                     onChange={e => {
-                      const sel = doctors.find(d => d.name === e.target.value);
+                      const sel = allDoctors.find(d => d.name === e.target.value);
                       setNewForm({
                         ...newForm,
                         doctorName: e.target.value,
@@ -585,72 +839,37 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                     }}
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none"
                   >
-                    {doctors.map(d => (
+                    {allDoctors.map(d => (
                       <option key={d.key} value={d.name}>
-                        {d.name} {d.isTeam ? "(Membro da Equipe)" : "(Cooperado Externo)"}
+                        {d.name} {d.isTeam ? "(Membro da Equipe HeaRT)" : "(Cooperado Externo)"}
                       </option>
                     ))}
                   </select>
                 </div>
               )}
 
-              {/* If Team: Live rateio preview */}
-              {allocationMode === "TEAM" && inputAmount > 0 && (
-                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-1.5 text-[11px] animate-in fade-in">
-                  <span className="font-black uppercase text-emerald-800 block text-[10px] tracking-wider">
-                    Prévia do Rateio entre os Membros da Equipe:
-                  </span>
-                  <div className="grid grid-cols-2 gap-2 text-emerald-900 font-bold">
-                    {teamDoctors.map(td => (
-                      <div key={td.key} className="flex justify-between bg-white px-2.5 py-1.5 rounded-lg border border-emerald-100">
-                        <span>{td.name.split(" ")[0]} ({td.percent}%):</span>
-                        <span className="font-black">R$ {((inputAmount * td.percent) / 100).toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pt-1 flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="autoSplit"
-                      checked={autoSplitTeam}
-                      onChange={e => setAutoSplitTeam(e.target.checked)}
-                      className="w-3.5 h-3.5 text-emerald-600 rounded cursor-pointer"
-                    />
-                    <label htmlFor="autoSplit" className="text-[10px] text-emerald-800 cursor-pointer">
-                      Gerar lançamentos individuais rateados automaticamente para cada médico da equipe
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Tipo de Despesa / Ocorrência</label>
-                <select
-                  value={newForm.typeName}
-                  onChange={e => setNewForm({ ...newForm, typeName: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none"
-                >
-                  {commonTypes.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-
+              {/* Nature and Amount */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Natureza</label>
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">
+                    Natureza (Pré-Preenchida)
+                  </label>
                   <select
                     value={newForm.nature}
-                    onChange={e => setNewForm({ ...newForm, nature: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none"
+                    onChange={e => setNewForm({ ...newForm, nature: e.target.value as "DEBIT" | "CREDIT" })}
+                    className={`w-full border rounded-xl p-3 outline-none font-black text-xs ${
+                      newForm.nature === "DEBIT" 
+                        ? "bg-rose-50 text-rose-800 border-rose-200" 
+                        : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    }`}
                   >
-                    <option value="DEBIT">Saída / Desconto (Débito)</option>
-                    <option value="CREDIT">Entrada / Remuneração (Crédito)</option>
+                    <option value="DEBIT">Saída / Despesa (Débito)</option>
+                    <option value="CREDIT">Entrada / Receita (Crédito)</option>
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Valor (R$)</label>
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Valor Total (R$) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -658,40 +877,73 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                     required
                     value={newForm.amount}
                     onChange={e => setNewForm({ ...newForm, amount: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-black text-xs"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Observação / Justificativa</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Contador HeaRT, DARE, Aluguel Sala, Glosa Lote 1490176..."
-                  value={newForm.observation}
-                  onChange={e => setNewForm({ ...newForm, observation: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none"
-                />
+              {/* Data and Observação */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5 col-span-1">
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Data</label>
+                  <input
+                    type="text"
+                    value={newForm.date}
+                    onChange={e => setNewForm({ ...newForm, date: e.target.value })}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Observação / Justificativa</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Aluguel sala mês 09, Conta celular corporativo..."
+                    value={newForm.observation}
+                    onChange={e => setNewForm({ ...newForm, observation: e.target.value })}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs"
+                  />
+                </div>
               </div>
 
+              {/* Submit Buttons */}
               <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setIsNewModalOpen(false)}
-                  className="px-5 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black uppercase shadow-lg shadow-emerald-500/20 active:scale-95 transition flex items-center gap-2 cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 transition disabled:opacity-50"
                 >
                   {isSubmitting && <Loader2 size={14} className="animate-spin" />}
-                  <span>Salvar no Fluxo de Caixa</span>
+                  <span>Confirmar e Lançar</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Gerenciar Tipos de Lançamento */}
+      {isTypesModalOpen && (
+        <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl relative">
+            <TransactionTypesManager
+              onSelectTypeForNewTransaction={(type) => {
+                handleSelectTransactionType(type.name);
+                setIsTypesModalOpen(false);
+                setIsNewModalOpen(true);
+              }}
+              onClose={() => {
+                setIsTypesModalOpen(false);
+                fetchTransactionTypes();
+              }}
+            />
           </div>
         </div>
       )}

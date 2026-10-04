@@ -147,6 +147,10 @@ export interface FinancialTransactionType {
   name: string;
   nature: "CREDIT" | "DEBIT";
   defaultScope: "DOCTOR" | "TEAM" | "CLOSING";
+  defaultRateioMethod?: "NOMINAL" | "PROPORCAO_HEART";
+  category?: string;
+  description?: string;
+  isCustom?: boolean;
 }
 
 export interface FinancialAuditLog {

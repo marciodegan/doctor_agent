@@ -2266,9 +2266,27 @@ app.post("/api/app/financial/team-settings", async (req, res) => {
   try {
     const user = (req as any).user;
     const docRef = db.collection("financial_team_settings").doc(groupId);
+
+    // Recalculate dynamic PROPORÇÃO HEART based on disponivelPeriodo if present
+    const rawDoctors = doctors || DEFAULT_TEAM_CONFIG.doctors;
+    const teamMembers = rawDoctors.filter((d: any) => d.isTeamMember);
+    const sumDisponivel = teamMembers.reduce((acc: number, d: any) => acc + (Number(d.disponivelPeriodo) || 0), 0);
+
+    const processedDoctors = rawDoctors.map((d: any) => {
+      if (d.isTeamMember && sumDisponivel > 0 && d.disponivelPeriodo !== undefined) {
+        const dynamicPercent = Math.round(((Number(d.disponivelPeriodo) || 0) / sumDisponivel) * 10000) / 100;
+        return {
+          ...d,
+          proporcaoHeartDinamica: dynamicPercent
+        };
+      }
+      return d;
+    });
+
     const dataToSave = {
       teamId: groupId,
-      doctors: doctors || DEFAULT_TEAM_CONFIG.doctors,
+      doctors: processedDoctors,
+      totalDisponivelEquipe: sumDisponivel > 0 ? sumDisponivel : (DEFAULT_TEAM_CONFIG.totalDisponivelEquipe || 134700.17),
       teamOnlySources: teamOnlySources || DEFAULT_TEAM_CONFIG.teamOnlySources,
       teamOnlyExpenses: teamOnlyExpenses || DEFAULT_TEAM_CONFIG.teamOnlyExpenses,
       updatedAt: new Date().toISOString(),
@@ -2288,6 +2306,166 @@ app.post("/api/app/financial/team-settings", async (req, res) => {
     res.json(dataToSave);
   } catch (error: any) {
     handleApiError(res, error, "Save Team Financial Settings");
+  }
+});
+
+// Default pre-seeded types of transactions with their nature (CREDIT/DEBIT)
+const DEFAULT_TRANSACTION_TYPES = [
+  { id: "aluguel_sala", name: "Aluguel Sala / Consultório", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Infraestrutura", description: "Locação de salas e consultório" },
+  { id: "celular_corporativo", name: "Celular Corporativo", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Comunicação", description: "Contas de telefonia móvel corporativa" },
+  { id: "consultorio_itajai", name: "Consultório Itajaí", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Infraestrutura", description: "Despesas e manutenção unidade Itajaí" },
+  { id: "contador_heart", name: "Contador Heart", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Contabilidade", description: "Honorários contábeis HeaRT" },
+  { id: "dare", name: "DARE", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Tributário Estadual", description: "Taxas e custas estaduais" },
+  { id: "alvara_municipal", name: "Alvará Municipal", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Taxa Municipal", description: "Licença prefeitura" },
+  { id: "crm", name: "CRM", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Conselho de Classe", description: "Anuidade e taxas CRM" },
+  { id: "instrumentador", name: "Instrumentador Cirúrgico", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Equipe Cirúrgica", description: "Honorários instrumentação cirúrgica" },
+  { id: "google_tech", name: "Constit Heart LK / Google", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Tecnologia", description: "Workspace Google e serviços digitais" },
+  { id: "inss_patronal", name: "INSS Patronal", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Tributário", description: "Previdência patronal" },
+  { id: "capitalizacao_cota", name: "Capitalização Cota-Parte (360)", nature: "DEBIT", defaultScope: "TEAM", defaultRateioMethod: "NOMINAL", category: "Operacional Unimed", description: "Desconto cota capitalização Unimed" },
+  { id: "integralizacao_cota", name: "Integralização de Cota Parte", nature: "DEBIT", defaultScope: "DOCTOR", category: "Cooperativa", description: "Desconto individual de cota-parte médica" },
+  { id: "glosas_clinica", name: "Glosas - Clínica Cooperada - 11%", nature: "DEBIT", defaultScope: "DOCTOR", category: "Glosas", description: "Retenção de glosas Unimed" },
+  { id: "centro_estudos", name: "Contribuição de Centro de Estudos", nature: "DEBIT", defaultScope: "DOCTOR", category: "Taxas", description: "Taxa de centro de estudos e biblioteca" },
+  { id: "mensalidade_plac", name: "Mensalidade PLAC", nature: "DEBIT", defaultScope: "DOCTOR", category: "Benefícios", description: "Plano assistencial cooperado" },
+  { id: "recurso_proprio", name: "Desconto Atendimentos Realizados - Recurso Próprio", nature: "DEBIT", defaultScope: "DOCTOR", category: "Descontos", description: "Atendimentos em recurso próprio hospitalar" },
+  { id: "disponibilidade_uti", name: "Disponibilidade Médica - UTI", nature: "CREDIT", defaultScope: "DOCTOR", category: "Plantões", description: "Plantão e retaguarda UTI" },
+  { id: "sobreavisos", name: "Sobreavisos", nature: "CREDIT", defaultScope: "DOCTOR", category: "Sobreavisos", description: "Sobreavisos de plantão cirúrgico" },
+  { id: "parto_normal", name: "Remuneração Bonificação Parto Normal", nature: "CREDIT", defaultScope: "DOCTOR", category: "Produção", description: "Incentivo e bonificação parto normal" },
+  { id: "repasse_producao_hu", name: "Repasse Pagamento de Produção - HU", nature: "CREDIT", defaultScope: "DOCTOR", category: "Produção", description: "Produção ambulatorial/cirúrgica HU" },
+  { id: "repasse_parecer_hu", name: "Repasse Pagamento de Parecer Médico - HU", nature: "CREDIT", defaultScope: "DOCTOR", category: "Pareceres", description: "Pareceres médicos HU" },
+  { id: "azambuja_plantao", name: "Entradas Azambuja (Plantão/Cirurgia)", nature: "CREDIT", defaultScope: "TEAM", defaultRateioMethod: "NOMINAL", category: "Receitas Equipe", description: "Produção e plantões Hospital Azambuja (Rateio Nominal 29/29/29/13)" },
+  { id: "marieta_plantao", name: "Entradas Marieta (Plantão/Cirurgia)", nature: "CREDIT", defaultScope: "TEAM", defaultRateioMethod: "NOMINAL", category: "Receitas Equipe", description: "Produção e plantões Hospital Marieta (Rateio Nominal 29/29/29/13)" },
+  { id: "consultorio_dinheiro", name: "Consultório Particular / Dinheiro", nature: "CREDIT", defaultScope: "TEAM", defaultRateioMethod: "NOMINAL", category: "Receitas Equipe", description: "Consultas particulares recebidas em dinheiro (Rateio 29/29/29/13)" },
+  { id: "consultorio_cartao", name: "Consultório Cartão", nature: "CREDIT", defaultScope: "TEAM", defaultRateioMethod: "NOMINAL", category: "Receitas Equipe", description: "Consultas recebidas via máquina de cartão (Rateio 29/29/29/13)" },
+  { id: "unimed_luis", name: "Unimed Luis", nature: "CREDIT", defaultScope: "TEAM", defaultRateioMethod: "NOMINAL", category: "Receitas Equipe", description: "Honorários Unimed direcionados à equipe (Rateio 29/29/29/13)" }
+];
+
+app.get("/api/app/financial/transaction-types", async (req, res) => {
+  const groupId = getGroupId(req);
+  try {
+    const snap = await db.collection("financial_transaction_types")
+      .where("teamId", "==", groupId)
+      .get();
+    
+    // Always map stored items
+    const customTypes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // Merge with defaults if not already present
+    const customIds = new Set(customTypes.map(t => t.id));
+    const merged = [
+      ...customTypes,
+      ...DEFAULT_TRANSACTION_TYPES.filter(d => !customIds.has(d.id)).map(d => ({
+        ...d,
+        teamId: groupId,
+        isCustom: false
+      }))
+    ];
+
+    res.json(merged);
+  } catch (error: any) {
+    handleApiError(res, error, "Get Financial Transaction Types");
+  }
+});
+
+app.post("/api/app/financial/transaction-types", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { name, nature, defaultScope, defaultRateioMethod, category, description } = req.body;
+  if (!name || !nature) {
+    return res.status(400).json({ error: "name and nature are required" });
+  }
+  try {
+    const user = (req as any).user;
+    const docRef = db.collection("financial_transaction_types").doc();
+    const typeData = {
+      id: docRef.id,
+      teamId: groupId,
+      name: name.trim(),
+      nature: nature === "CREDIT" ? "CREDIT" : "DEBIT",
+      defaultScope: defaultScope || "TEAM",
+      defaultRateioMethod: defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
+      category: category?.trim() || "Geral",
+      description: description?.trim() || "",
+      isCustom: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await docRef.set(typeData);
+
+    await db.collection("financial_audit_logs").add({
+      teamId: groupId,
+      userId: user.uid,
+      userName: user.email || "Admin",
+      action: "CREATE_TRANSACTION_TYPE",
+      newValue: `${typeData.name} (${typeData.nature})`,
+      timestamp: new Date().toISOString()
+    });
+
+    res.json(typeData);
+  } catch (error: any) {
+    handleApiError(res, error, "Create Financial Transaction Type");
+  }
+});
+
+app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { id } = req.params;
+  const { name, nature, defaultScope, defaultRateioMethod, category, description } = req.body;
+  try {
+    const user = (req as any).user;
+    const docRef = db.collection("financial_transaction_types").doc(id);
+    const existing = await docRef.get();
+    
+    const updateData: any = {
+      teamId: groupId,
+      ...(name !== undefined && { name: name.trim() }),
+      ...(nature !== undefined && { nature: nature === "CREDIT" ? "CREDIT" : "DEBIT" }),
+      ...(defaultScope !== undefined && { defaultScope }),
+      ...(defaultRateioMethod !== undefined && { defaultRateioMethod }),
+      ...(category !== undefined && { category: category.trim() }),
+      ...(description !== undefined && { description: description.trim() }),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (existing.exists) {
+      await docRef.update(updateData);
+    } else {
+      const matchedDefault = DEFAULT_TRANSACTION_TYPES.find(d => d.id === id);
+      await docRef.set({
+        id,
+        teamId: groupId,
+        name: name?.trim() || matchedDefault?.name || id,
+        nature: nature || matchedDefault?.nature || "DEBIT",
+        defaultScope: defaultScope || matchedDefault?.defaultScope || "TEAM",
+        defaultRateioMethod: defaultRateioMethod || matchedDefault?.defaultRateioMethod || "NOMINAL",
+        category: category?.trim() || matchedDefault?.category || "Geral",
+        description: description?.trim() || matchedDefault?.description || "",
+        isCustom: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    await db.collection("financial_audit_logs").add({
+      teamId: groupId,
+      userId: user.uid,
+      userName: user.email || "Admin",
+      action: "UPDATE_TRANSACTION_TYPE",
+      newValue: `${name || id} (${nature})`,
+      timestamp: new Date().toISOString()
+    });
+
+    res.json({ success: true, id, ...updateData });
+  } catch (error: any) {
+    handleApiError(res, error, "Update Financial Transaction Type");
+  }
+});
+
+app.delete("/api/app/financial/transaction-types/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.collection("financial_transaction_types").doc(id).delete();
+    res.json({ success: true });
+  } catch (error: any) {
+    handleApiError(res, error, "Delete Financial Transaction Type");
   }
 });
 
@@ -2330,9 +2508,14 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       const parentId = `team_${Date.now()}`;
       const createdItems: any[] = [];
 
+      const isCredit = (nature === "CREDIT" || nature === "ENTRADA");
+      
       for (const td of teamDoctors) {
-        // Use dynamic "PROPORÇÃO HEART" by default for team expenses (e.g. 26.79%, 28.97%, 26.79%, 17.45%)
-        const useDynamic = req.body.rateioMethod !== "NOMINAL";
+        // Entradas da equipe (ex: Azambuja, Marieta, Consultório) rateiam por padrão na proporção nominal (29%, 29%, 29%, 13%)
+        // Despesas operacionais da equipe (ex: Aluguel de sala, celular, consultório itajaí) rateiam por padrão na PROPORÇÃO HEART dinâmica
+        const useNominal = req.body.rateioMethod === "NOMINAL" || (isCredit && !req.body.rateioMethod);
+        const useDynamic = !useNominal;
+
         const effectivePercent = (useDynamic && td.proporcaoHeartDinamica !== undefined && td.proporcaoHeartDinamica > 0)
           ? td.proporcaoHeartDinamica
           : (td.teamSharePercent || 0);
@@ -2341,6 +2524,10 @@ app.post("/api/app/financial/transactions", async (req, res) => {
         const splitVal = Math.round((numAmount * shareRatio) * 100) / 100;
         const splitRef = db.collection("financial_transactions").doc();
         
+        const methodLabel = useDynamic 
+          ? `Proporção HeaRT Dinâmica (${effectivePercent}%)` 
+          : `Rateio Societário Nominal 29/29/29/13 (${effectivePercent}%)`;
+
         const splitItem = {
           id: splitRef.id,
           teamId: groupId,
@@ -2351,11 +2538,11 @@ app.post("/api/app/financial/transactions", async (req, res) => {
           scope: "TEAM_SPLIT",
           teamSharePercent: effectivePercent,
           rateioMethod: useDynamic ? "PROPORCAO_HEART_DINAMICA" : "SOCIETARIO_NOMINAL",
-          typeName: `${typeName} (Rateio ${effectivePercent}%)`,
+          typeName: `${typeName} (${effectivePercent}%)`,
           typeId: typeId || "rateio_equipe",
           amount: splitVal,
-          nature: nature || "DEBIT",
-          observation: `Rateio Proporção HeaRT Dinâmica: ${effectivePercent}% de R$ ${numAmount.toFixed(2)}${observation ? ` - ${observation}` : ""}`,
+          nature: isCredit ? "CREDIT" : "DEBIT",
+          observation: `${isCredit ? "Entrada" : "Despesa"} da Equipe Rateada - ${methodLabel} de R$ ${numAmount.toFixed(2)}${observation ? ` - ${observation}` : ""}`,
           date: txDate,
           source: source || "RATEIO_EQUIPE",
           createdAt: new Date().toISOString()

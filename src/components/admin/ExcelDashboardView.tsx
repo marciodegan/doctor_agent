@@ -29,13 +29,15 @@ import {
   UserX,
   Save,
   Check,
-  Info
+  Info,
+  Tag
 } from "lucide-react";
 import { DoctorTeamMember, TeamFinancialSettings } from "../../types/financial";
+import { TransactionTypesManager } from "./TransactionTypesManager";
 
 interface ExcelDashboardViewProps {
   closingId: string | null;
-  initialSubTab?: "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe";
+  initialSubTab?: "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento";
 }
 
 export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }: ExcelDashboardViewProps) {
@@ -45,7 +47,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
   const [details, setDetails] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
-    "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe"
+    "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento"
   >(initialSubTab);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
@@ -54,15 +56,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
   const [teamSettings, setTeamSettings] = useState<TeamFinancialSettings>({
     teamId: "",
     doctors: [
-      { key: "rochele", name: "ROCHELE LORENZI POL", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Cardiovascular" },
-      { key: "thais", name: "THAIS ISABEL LUMIKOSKI", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Cardiovascular" },
-      { key: "luis", name: "LUIS BONGIOLO MATTOS", isTeamMember: true, teamSharePercent: 29, specialty: "Cirurgia Geral / Cardio" },
-      { key: "kathize", name: "KATHIZE LIRA", isTeamMember: true, teamSharePercent: 13, specialty: "Médica Assistente" },
-      { key: "tamara", name: "TAMARA QUINTINO REGIS", isTeamMember: false, teamSharePercent: 0, specialty: "Dermatologia Clínica" },
-      { key: "luan", name: "LUAN JUNIOR VIGNATTI", isTeamMember: false, teamSharePercent: 0, specialty: "Cirurgia da Pele / Dermatologia" },
-      { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", isTeamMember: false, teamSharePercent: 0, specialty: "Ginecologia & Obstetrícia" },
-      { key: "camila", name: "CAMILA RIBEIRO DUTRA", isTeamMember: false, teamSharePercent: 0, specialty: "Reumatologia & Infusões" },
-      { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", isTeamMember: false, teamSharePercent: 0, specialty: "Dermatologia & Procedimentos" }
+      { key: "rochele", name: "ROCHELE LORENZI POL", isTeamMember: true, teamSharePercent: 29, proporcaoHeartDinamica: 26.79, disponivelPeriodo: 36086.02, specialty: "Cirurgia Cardiovascular" },
+      { key: "thais", name: "THAIS ISABEL LUMIKOSKI", isTeamMember: true, teamSharePercent: 29, proporcaoHeartDinamica: 28.97, disponivelPeriodo: 39019.05, specialty: "Cirurgia Cardiovascular" },
+      { key: "luis", name: "LUIS BONGIOLO MATTOS", isTeamMember: true, teamSharePercent: 29, proporcaoHeartDinamica: 26.79, disponivelPeriodo: 36086.02, specialty: "Cirurgia Geral / Cardio" },
+      { key: "kathize", name: "KATHIZE LIRA", isTeamMember: true, teamSharePercent: 13, proporcaoHeartDinamica: 17.45, disponivelPeriodo: 23509.08, specialty: "Médica Assistente" },
+      { key: "tamara", name: "TAMARA QUINTINO REGIS", isTeamMember: false, teamSharePercent: 0, proporcaoHeartDinamica: 0, disponivelPeriodo: 0, specialty: "Dermatologia Clínica" },
+      { key: "luan", name: "LUAN JUNIOR VIGNATTI", isTeamMember: false, teamSharePercent: 0, proporcaoHeartDinamica: 0, disponivelPeriodo: 0, specialty: "Cirurgia da Pele / Dermatologia" },
+      { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", isTeamMember: false, teamSharePercent: 0, proporcaoHeartDinamica: 0, disponivelPeriodo: 0, specialty: "Ginecologia & Obstetrícia" },
+      { key: "camila", name: "CAMILA RIBEIRO DUTRA", isTeamMember: false, teamSharePercent: 0, proporcaoHeartDinamica: 0, disponivelPeriodo: 0, specialty: "Reumatologia & Infusões" },
+      { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", isTeamMember: false, teamSharePercent: 0, proporcaoHeartDinamica: 0, disponivelPeriodo: 0, specialty: "Dermatologia & Procedimentos" }
     ],
     teamOnlySources: ["AZAMBUJA", "MARIETA", "CONSULTORIO", "RECEBIDO_DINHEIRO", "CARTAO", "UNIMED_LUIS"],
     teamOnlyExpenses: ["CONTADOR_HEART", "DARE", "ALUGUEL_SALA", "CELULAR", "CONSULTORIO_ITAJAI", "CRM", "INSTRUMENTADOR", "ALVARA", "GOOGLE", "INSS_PATRONAL", "CAPITALIZACAO_COTA_PARTE"]
@@ -70,6 +72,19 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
+
+  // Recalculates dynamic PROPORÇÃO HEART based on disponivelPeriodo
+  const recalculateHeartProportions = (docs: DoctorTeamMember[]) => {
+    const teamMembers = docs.filter(d => d.isTeamMember);
+    const sumDisponivel = teamMembers.reduce((acc, d) => acc + (Number(d.disponivelPeriodo) || 0), 0);
+    return docs.map(d => {
+      if (d.isTeamMember && sumDisponivel > 0 && d.disponivelPeriodo !== undefined) {
+        const dyn = Math.round(((Number(d.disponivelPeriodo) || 0) / sumDisponivel) * 10000) / 100;
+        return { ...d, proporcaoHeartDinamica: dyn };
+      }
+      return d;
+    });
+  };
 
   // Load team settings from backend
   useEffect(() => {
@@ -672,6 +687,18 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
           <FileText size={16} />
           <span>7. Despesas Equipe Heart</span>
         </button>
+
+        <button
+          onClick={() => setActiveSubTab("tipos_lancamento")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "tipos_lancamento"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <Tag size={16} />
+          <span>8. Tipos de Lançamento (Pré-preenchimento)</span>
+        </button>
       </div>
 
       {/* VIEW 1: MAPA MESTRE DE RATEIO E SALÁRIOS (SEPARADO ENTRE EQUIPE E FORA DA EQUIPE) */}
@@ -698,14 +725,30 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
               </div>
             </div>
 
+            {/* Explanatory Callout Banner */}
+            <div className="mx-6 my-3.5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl flex items-start gap-3.5 text-xs text-blue-950">
+              <Info size={20} className="text-blue-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-black text-blue-900 uppercase tracking-wide block text-[11px]">
+                  Regra Contábil de Rateio da Equipe HeaRT:
+                </span>
+                <p className="leading-relaxed text-blue-900">
+                  • <strong>Entradas da Equipe (Azambuja, Marieta, Consultório Particular, Cartão, Dinheiro):</strong> entram no rateio nominal societário de <strong>29% (Rochele), 29% (Thais), 29% (Luis) e 13% (Kathize)</strong>.<br />
+                  • <strong>Despesas Operacionais e Fixas (Aluguel Sala, Celular, Consultório Itajaí, DARE, Contador):</strong> utilizam a <strong>PROPORÇÃO HEART</strong> (calculada dinamicamente pelo faturamento recebido por cada sócio no período: 26,79%, 28,97%, 26,79%, 17,45%).
+                </p>
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-emerald-100/60 text-emerald-950 font-black uppercase text-[10px] tracking-wider border-b border-emerald-200">
                     <th className="p-4 pl-6">Médico da Equipe</th>
-                    <th className="p-4 text-center">% Rateio</th>
+                    <th className="p-4 text-center">% Nominal (Entradas)</th>
+                    <th className="p-4 text-center bg-blue-100/70 text-blue-950">PROPORÇÃO HEART (Despesas)</th>
+                    <th className="p-4 text-right">Disponível no Mês</th>
                     <th className="p-4 text-right">Produção Unimed</th>
-                    <th className="p-4 text-right">Outras Entradas (Azambuja/Marieta/Plantões)</th>
+                    <th className="p-4 text-right">Outras Entradas (Azambuja/Marieta)</th>
                     <th className="p-4 text-right">Ocorrências / Deduções</th>
                     <th className="p-4 text-right">Líquido Produção</th>
                     <th className="p-4 text-right">Divisão / Acertos</th>
@@ -713,42 +756,57 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-                  {teamDoctors.map((med) => (
-                    <tr key={med.nome} className="hover:bg-emerald-50/30 transition-colors">
-                      <td className="p-4 pl-6">
-                        <div className="font-black text-gray-900 flex items-center gap-2">
-                          <span>{med.nome}</span>
-                          <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-emerald-100 text-emerald-800">Membro da Equipe</span>
-                        </div>
-                        <div className="text-[10px] text-gray-400">
-                          {teamSettings.doctors.find(d => d.name === med.nome)?.specialty || "Médico Sócio"}
-                        </div>
-                      </td>
-                      <td className="p-4 text-center font-black text-emerald-700">
-                        <span className="px-2.5 py-1 bg-emerald-100/70 border border-emerald-200 rounded-lg text-xs font-black">
-                          {teamSettings.doctors.find(d => d.name === med.nome)?.teamSharePercent || med.percent}%
-                        </span>
-                      </td>
-                      <td className="p-4 text-right font-bold text-blue-700">
-                        R$ {med.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="p-4 text-right text-emerald-600 font-bold">
-                        +R$ {med.entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="p-4 text-right text-rose-600 font-bold">
-                        {med.saidas > 0 ? `-R$ ${med.saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
-                      </td>
-                      <td className="p-4 text-right font-black text-gray-900">
-                        R$ {med.liquidoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="p-4 text-right text-indigo-600 font-bold">
-                        {med.divisaoLucros > 0 ? `+R$ ${med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
-                      </td>
-                      <td className="p-4 text-right pr-6 font-black text-sm text-emerald-800 bg-emerald-50/50">
-                        R$ {med.finalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
+                  {teamDoctors.map((med) => {
+                    const docConfig = teamSettings.doctors.find(d => d.name === med.nome);
+                    const nominalPct = docConfig?.teamSharePercent || med.percent;
+                    const dynamicHeartPct = docConfig?.proporcaoHeartDinamica || (med.key === 'kathize' ? 17.45 : med.key === 'thais' ? 28.97 : 26.79);
+                    const dispMes = docConfig?.disponivelPeriodo || (med.key === 'thais' ? 39019.05 : med.key === 'kathize' ? 23509.08 : 36086.02);
+
+                    return (
+                      <tr key={med.nome} className="hover:bg-emerald-50/30 transition-colors">
+                        <td className="p-4 pl-6">
+                          <div className="font-black text-gray-900 flex items-center gap-2">
+                            <span>{med.nome}</span>
+                            <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-emerald-100 text-emerald-800">Membro da Equipe</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400">
+                            {docConfig?.specialty || "Médico Sócio"}
+                          </div>
+                        </td>
+                        <td className="p-4 text-center font-black text-emerald-700">
+                          <span className="px-2.5 py-1 bg-emerald-100/70 border border-emerald-200 rounded-lg text-xs font-black">
+                            {nominalPct}%
+                          </span>
+                        </td>
+                        <td className="p-4 text-center font-black text-blue-900 bg-blue-50/40">
+                          <span className="px-2.5 py-1 bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-xs font-black">
+                            {dynamicHeartPct.toFixed(2)}%
+                          </span>
+                        </td>
+                        <td className="p-4 text-right font-mono font-bold text-gray-700">
+                          R$ {dispMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-4 text-right font-bold text-blue-700">
+                          R$ {med.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-4 text-right text-emerald-600 font-bold">
+                          +R$ {med.entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-4 text-right text-rose-600 font-bold">
+                          {med.saidas > 0 ? `-R$ ${med.saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
+                        </td>
+                        <td className="p-4 text-right font-black text-gray-900">
+                          R$ {med.liquidoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-4 text-right text-indigo-600 font-bold">
+                          {med.divisaoLucros > 0 ? `+R$ ${med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
+                        </td>
+                        <td className="p-4 text-right pr-6 font-black text-sm text-emerald-800 bg-emerald-50/50">
+                          R$ {med.finalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

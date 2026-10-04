@@ -20,13 +20,15 @@ import {
   ChevronRight,
   TrendingUp,
   FileText,
-  TableProperties
+  TableProperties,
+  Tag
 } from "lucide-react";
 import { FinancialClosingsView } from "./FinancialClosingsView";
 import { FinancialImportWizard } from "./FinancialImportWizard";
 import { DoctorDashboardView } from "./DoctorDashboardView";
 import { FinancialTransactionsView } from "./FinancialTransactionsView";
 import { ExcelDashboardView } from "./ExcelDashboardView";
+import { TransactionTypesManager } from "./TransactionTypesManager";
 import { useGroup } from "../../contexts/GroupContext";
 
 interface AdministrationFullscreenProps {
@@ -124,6 +126,12 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
             onClick={() => { setActiveTab("importacoes"); setIsImporting(false); }}
           />
           <TabButton
+            icon={<Tag size={18} />}
+            label="Tipos de Lançamento"
+            active={activeTab === "tipos_lancamento"}
+            onClick={() => { setActiveTab("tipos_lancamento"); setIsImporting(false); }}
+          />
+          <TabButton
             icon={<Settings2 size={18} />}
             label="Configurações Financeiras"
             active={activeTab === "config"}
@@ -169,6 +177,8 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
                 setActiveTab("excel_dashboard");
               }}
             />
+          ) : activeTab === "tipos_lancamento" ? (
+            <TransactionTypesManager />
           ) : activeTab === "config" ? (
             <ExcelDashboardView closingId={selectedClosingId} initialSubTab="config_equipe" />
           ) : activeTab === "glosas" ? (
