@@ -300,9 +300,105 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["pacienteId", "codigoUsuario", "codigoAMB"]
+    },
+    "FinancialClosing": {
+      "title": "Financial Closing",
+      "description": "Financial closing period (e.g. SETEMBRO-26)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "competencia": { "type": "string" },
+        "mes": { "type": "integer" },
+        "ano": { "type": "integer" },
+        "status": { "type": "string", "enum": ["ABERTO", "EM_CONFERENCIA", "FECHADO"] },
+        "dataCriacao": { "type": "string" },
+        "dataFechamento": { "type": "string" },
+        "observacao": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "nome", "status"]
+    },
+    "FinancialTransaction": {
+      "title": "Financial Transaction",
+      "description": "Financial transaction entry from PDF, CSV or manual input",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teamId": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "doctorName": { "type": "string" },
+        "tipoLancamentoId": { "type": "string" },
+        "tipoLancamentoNome": { "type": "string" },
+        "dataLancamento": { "type": "string" },
+        "valor": { "type": "number" },
+        "natureza": { "type": "string", "enum": ["CREDITO", "DEBITO"] },
+        "observacao": { "type": "string" },
+        "fechamentoId": { "type": "string" },
+        "fechamentoNome": { "type": "string" },
+        "origem": { "type": "string" },
+        "origemArquivo": { "type": "string" },
+        "loteImportacaoId": { "type": "string" },
+        "criadoManualmente": { "type": "boolean" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "teamId", "doctorName", "valor", "natureza"]
+    },
+    "FinancialTransactionType": {
+      "title": "Financial Transaction Type",
+      "description": "Types of financial transactions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "categoria": { "type": "string" },
+        "naturezaPadrao": { "type": "string" },
+        "ativo": { "type": "boolean" },
+        "ordem": { "type": "integer" }
+      },
+      "required": ["id", "nome"]
+    },
+    "FinancialImport": {
+      "title": "Financial Import",
+      "description": "Record of financial document imports",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teamId": { "type": "string" },
+        "tipoArquivo": { "type": "string" },
+        "nomeArquivo": { "type": "string" },
+        "fechamentoId": { "type": "string" },
+        "fechamentoNome": { "type": "string" },
+        "quantidadeLancamentos": { "type": "integer" },
+        "valorTotalCreditos": { "type": "number" },
+        "valorTotalDebitos": { "type": "number" },
+        "valorTotal": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "teamId", "nomeArquivo", "status"]
     }
   },
   "firestore": {
+    "/financial_closings/{closingId}": {
+      "schema": "FinancialClosing",
+      "description": "Financial closing periods"
+    },
+    "/financial_transactions/{transactionId}": {
+      "schema": "FinancialTransaction",
+      "description": "Financial transactions"
+    },
+    "/financial_transaction_types/{typeId}": {
+      "schema": "FinancialTransactionType",
+      "description": "Financial transaction types"
+    },
+    "/financial_imports/{importId}": {
+      "schema": "FinancialImport",
+      "description": "Financial import history"
+    },
     "/procedimentos/{procedimentoId}": {
       "schema": "Procedimento",
       "description": "Collection de procedimentos médicos importados do CSV"
