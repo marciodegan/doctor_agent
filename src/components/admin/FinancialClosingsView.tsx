@@ -15,7 +15,8 @@ import {
   TrendingUp,
   ArrowRight,
   ShieldAlert,
-  Users
+  Users,
+  Trash2
 } from "lucide-react";
 
 interface FinancialClosingsViewProps {
@@ -115,6 +116,22 @@ export function FinancialClosingsView({ selectedClosingId, onSelectClosing, onOp
       }
     } catch (err: any) {
       alert("Erro ao atualizar status: " + err.message);
+    }
+  };
+
+  const handleDeleteClosing = async (closingId: string, monthKey: string) => {
+    if (!confirm(`Deseja realmente EXCLUIR o fechamento "${monthKey}" e todos os seus lançamentos, produções e dados importados? Esta ação é irreversível e removerá todos os dados do período.`)) return;
+    try {
+      const res = await apiFetch(`/api/app/financial/closings/${closingId}`, { method: "DELETE" });
+      if (res.ok) {
+        const remaining = closings.filter(c => c.id !== closingId);
+        setClosings(remaining);
+        if (selectedClosingId === closingId) {
+          onSelectClosing(remaining.length > 0 ? remaining[0].id : null);
+        }
+      }
+    } catch (err: any) {
+      alert("Erro ao excluir fechamento: " + err.message);
     }
   };
 
@@ -249,6 +266,15 @@ export function FinancialClosingsView({ selectedClosingId, onSelectClosing, onOp
                   >
                     {closingDetails.closing.status === "FECHADO" ? <Unlock size={16} /> : <Lock size={16} />}
                     <span>{closingDetails.closing.status === "FECHADO" ? "Reabrir Mês" : "Fechar Mês"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteClosing(closingDetails.closing.id, closingDetails.closing.monthKey)}
+                    className="px-4 py-3 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer"
+                    title="Excluir Fechamento e Dados Importados"
+                  >
+                    <Trash2 size={16} />
+                    <span>Excluir Fechamento</span>
                   </button>
                 </div>
               </div>

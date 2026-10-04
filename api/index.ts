@@ -1905,6 +1905,74 @@ app.post("/api/app/financial/closings", async (req, res) => {
   }
 });
 
+// DELETE Closing and all associated data (production, glosas, taxes, adjustments, transactions, imports, audit logs)
+app.delete("/api/app/financial/closings/:closingId", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { closingId } = req.params;
+  try {
+    const closingDoc = await db.collection("financial_closings").doc(closingId).get();
+    if (!closingDoc.exists) return res.status(404).json({ error: "Fechamento não encontrado" });
+
+    const [prodSnap, glosaSnap, taxSnap, adjSnap, txSnap, auditSnap, importSnap] = await Promise.all([
+      db.collection("financial_production").where("closingId", "==", closingId).get(),
+      db.collection("financial_glosas").where("closingId", "==", closingId).get(),
+      db.collection("financial_taxes").where("closingId", "==", closingId).get(),
+      db.collection("financial_adjustments").where("closingId", "==", closingId).get(),
+      db.collection("financial_transactions").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_audit_logs").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_imports").where("teamId", "==", groupId).where("closingId", "==", closingId).get()
+    ]);
+
+    const batch = db.batch();
+    batch.delete(db.collection("financial_closings").doc(closingId));
+
+    prodSnap.docs.forEach(d => batch.delete(d.ref));
+    glosaSnap.docs.forEach(d => batch.delete(d.ref));
+    taxSnap.docs.forEach(d => batch.delete(d.ref));
+    adjSnap.docs.forEach(d => batch.delete(d.ref));
+    txSnap.docs.forEach(d => batch.delete(d.ref));
+    auditSnap.docs.forEach(d => batch.delete(d.ref));
+    importSnap.docs.forEach(d => batch.delete(d.ref));
+
+    await batch.commit();
+    res.json({ success: true, message: "Fechamento e todos os dados associados excluídos com sucesso." });
+  } catch (error: any) {
+    handleApiError(res, error, "Delete Closing");
+  }
+});
+
+// DELETE Specific Import batch and its associated items
+app.delete("/api/app/financial/imports/:importId", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { importId } = req.params;
+  try {
+    const importDoc = await db.collection("financial_imports").doc(importId).get();
+    if (!importDoc.exists) return res.status(404).json({ error: "Importação não encontrada" });
+
+    const [prodSnap, glosaSnap, taxSnap, adjSnap, txSnap] = await Promise.all([
+      db.collection("financial_production").where("importId", "==", importId).get(),
+      db.collection("financial_glosas").where("importId", "==", importId).get(),
+      db.collection("financial_taxes").where("importId", "==", importId).get(),
+      db.collection("financial_adjustments").where("importId", "==", importId).get(),
+      db.collection("financial_transactions").where("importId", "==", importId).get()
+    ]);
+
+    const batch = db.batch();
+    batch.delete(db.collection("financial_imports").doc(importId));
+
+    prodSnap.docs.forEach(d => batch.delete(d.ref));
+    glosaSnap.docs.forEach(d => batch.delete(d.ref));
+    taxSnap.docs.forEach(d => batch.delete(d.ref));
+    adjSnap.docs.forEach(d => batch.delete(d.ref));
+    txSnap.docs.forEach(d => batch.delete(d.ref));
+
+    await batch.commit();
+    res.json({ success: true, message: "Dados importados excluídos com sucesso." });
+  } catch (error: any) {
+    handleApiError(res, error, "Delete Import");
+  }
+});
+
 app.post("/api/app/financial/import", async (req, res) => {
   const groupId = getGroupId(req);
   const { closingId, batchNumber } = req.body;
