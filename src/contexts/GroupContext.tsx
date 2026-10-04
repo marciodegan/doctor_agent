@@ -776,8 +776,48 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
           });
         }
       } else {
-        setActiveGroup(null);
-        safeLocalStorage.setItem("activeGroupId", "");
+        if (membershipsLoaded && ownedGroupsLoaded && user && user.uid !== "demo-doctor-preview") {
+          const defaultGroupId = `team-${user.uid}`;
+          const defaultGroupName = "Equipe Médica - Plantão Geral";
+          const groupRef = doc(db, "groups", defaultGroupId);
+          getDoc(groupRef).then(async (snap) => {
+            if (!snap.exists()) {
+              await setDoc(groupRef, {
+                id: defaultGroupId,
+                name: defaultGroupName,
+                createdBy: user.uid,
+                groupType: "professional",
+                status: "active",
+                createdAt: serverTimestamp()
+              });
+              await setDoc(doc(db, `groups/${defaultGroupId}/members`, user.uid), {
+                userId: user.uid,
+                userEmail: user.email || "rechgan@gmail.com",
+                role: "owner",
+                status: "active"
+              });
+            }
+            const defaultGroupObj: Group = {
+              id: defaultGroupId,
+              name: defaultGroupName,
+              createdBy: user.uid,
+              groupType: "professional",
+              status: "active",
+              active: true,
+              ativo: true,
+              role: "owner"
+            };
+            setActiveGroup(defaultGroupObj);
+            safeLocalStorage.setItem("activeGroupId", defaultGroupId);
+          }).catch(err => {
+            console.error("Failed to auto-create default group:", err);
+            setActiveGroup(null);
+            safeLocalStorage.setItem("activeGroupId", "");
+          });
+        } else {
+          setActiveGroup(null);
+          safeLocalStorage.setItem("activeGroupId", "");
+        }
       }
     }
     
