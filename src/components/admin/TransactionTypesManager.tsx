@@ -195,10 +195,15 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
     }
   };
 
-  const filteredTypes = types.filter(t => {
-    const matchSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (t.category && t.category.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (t.description && t.description.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredTypes = (types || []).filter(t => {
+    if (!t) return false;
+    const nameStr = t.name || "";
+    const catStr = t.category || "";
+    const descStr = t.description || "";
+    const term = searchTerm || "";
+    const matchSearch = nameStr.toLowerCase().includes(term.toLowerCase()) ||
+      catStr.toLowerCase().includes(term.toLowerCase()) ||
+      descStr.toLowerCase().includes(term.toLowerCase());
     const matchNature = natureFilter === "ALL" ? true : t.nature === natureFilter;
     const matchScope = scopeFilter === "ALL" ? true : (t.defaultScope || "TEAM") === scopeFilter;
     return matchSearch && matchNature && matchScope;
