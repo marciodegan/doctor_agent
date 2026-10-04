@@ -631,134 +631,152 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
-                  {[
-                    { key: "rochele", name: "ROCHELE LORENZI POL", percent: 29, isTeam: true, unimedProd: 27095.00, unimedDisp: 22176.54 },
-                    { key: "thais", name: "THAIS ISABEL LUMIKOSKI", percent: 29, isTeam: true, unimedProd: 7706.25, unimedDisp: 6307.82 },
-                    { key: "luis", name: "LUIS BONGIOLO MATTOS", percent: 29, isTeam: true, unimedProd: 0.00, unimedDisp: 0.00 },
-                    { key: "kathize", name: "KATHIZE LIRA", percent: 13, isTeam: true, unimedProd: 0.00, unimedDisp: 0.00 },
-                    { key: "tamara", name: "TAMARA QUINTINO REGIS", percent: 0, isTeam: false, unimedProd: 21101.25, unimedDisp: 17279.18 },
-                    { key: "luan", name: "LUAN JUNIOR VIGNATTI", percent: 0, isTeam: false, unimedProd: 37715.27, unimedDisp: 30883.91 },
-                    { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", percent: 0, isTeam: false, unimedProd: 96469.00, unimedDisp: 78995.58 },
-                    { key: "camila", name: "CAMILA RIBEIRO DUTRA", percent: 0, isTeam: false, unimedProd: 31693.73, unimedDisp: 25953.05 },
-                    { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", percent: 0, isTeam: false, unimedProd: 35174.57, unimedDisp: 28803.40 }
-                  ].map((doc) => {
-                    const isTeam = doc.isTeam;
-                    const pct = doc.percent;
-                    const azEqTT = isTeam ? Math.round((pct / 100) * 57420.90 * 100) / 100 : 0;
-                    const azEqDS = isTeam ? Math.round((pct / 100) * 46782.71 * 100) / 100 : 0;
-                    
-                    const man = manualEntradas[doc.key] || { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 0, unimedPlantaoDS: 0 };
-                    const azPlTT = man.azambujaPlantaoTT || 0;
-                    const azPlDS = man.azambujaPlantaoDS || 0;
-                    const azTotTT = azEqTT + azPlTT;
-                    const azTotDS = azEqDS + azPlDS;
+                  {(() => {
+                    const hasClosing = Boolean(details?.closing);
+                    const getDoctorUnimed = (doctorName: string) => {
+                      if (!hasClosing || !details?.doctorsSummary) return { prod: 0, disp: 0 };
+                      const found = details.doctorsSummary.find((d: any) => d.doctorName?.trim().toUpperCase() === doctorName.trim().toUpperCase());
+                      if (!found) return { prod: 0, disp: 0 };
+                      return {
+                        prod: found.productionTotal || found.honorValue || 0,
+                        disp: found.netProduction || found.productionTotal || 0
+                      };
+                    };
 
-                    const marEqTT = isTeam ? Math.round((pct / 100) * 81042.09 * 100) / 100 : 0;
-                    const marEqDS = isTeam ? Math.round((pct / 100) * 67645.83 * 100) / 100 : 0;
+                    return [
+                      { key: "rochele", name: "ROCHELE LORENZI POL", percent: 29, isTeam: true },
+                      { key: "thais", name: "THAIS ISABEL LUMIKOSKI", percent: 29, isTeam: true },
+                      { key: "luis", name: "LUIS BONGIOLO MATTOS", percent: 29, isTeam: true },
+                      { key: "kathize", name: "KATHIZE LIRA", percent: 13, isTeam: true },
+                      { key: "tamara", name: "TAMARA QUINTINO REGIS", percent: 0, isTeam: false },
+                      { key: "luan", name: "LUAN JUNIOR VIGNATTI", percent: 0, isTeam: false },
+                      { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", percent: 0, isTeam: false },
+                      { key: "camila", name: "CAMILA RIBEIRO DUTRA", percent: 0, isTeam: false },
+                      { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", percent: 0, isTeam: false }
+                    ].map((doc) => {
+                      const isTeam = doc.isTeam;
+                      const pct = doc.percent;
+                      const mul = hasClosing ? 1 : 0;
+                      const azEqTT = isTeam ? Math.round((pct / 100) * 57420.90 * 100 * mul) / 100 : 0;
+                      const azEqDS = isTeam ? Math.round((pct / 100) * 46782.71 * 100 * mul) / 100 : 0;
+                      
+                      const man = manualEntradas[doc.key] || { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 0, unimedPlantaoDS: 0 };
+                      const azPlTT = man.azambujaPlantaoTT || 0;
+                      const azPlDS = man.azambujaPlantaoDS || 0;
+                      const azTotTT = azEqTT + azPlTT;
+                      const azTotDS = azEqDS + azPlDS;
 
-                    const unimedEqTT = doc.unimedProd;
-                    const unimedEqDS = doc.unimedDisp;
-                    const unimPlTT = man.unimedPlantaoTT || 0;
-                    const unimPlDS = man.unimedPlantaoDS || 0;
-                    const unimTotTT = unimedEqTT + unimPlTT;
-                    const unimTotDS = unimedEqDS + unimPlDS;
+                      const marEqTT = isTeam ? Math.round((pct / 100) * 81042.09 * 100 * mul) / 100 : 0;
+                      const marEqDS = isTeam ? Math.round((pct / 100) * 67645.83 * 100 * mul) / 100 : 0;
 
-                    const consultTT = isTeam ? Math.round((pct / 100) * 400 * 100) / 100 : 0;
-                    const dinheiroTT = isTeam ? Math.round((pct / 100) * 1200 * 100) / 100 : 0;
-                    const unimLuisTT = isTeam ? Math.round((pct / 100) * 8406 * 100) / 100 : 0;
-                    const unimLuisDS = isTeam ? Math.round((pct / 100) * 7016.49 * 100) / 100 : 0;
+                      const unimedData = getDoctorUnimed(doc.name);
+                      const unimedEqTT = unimedData.prod;
+                      const unimedEqDS = unimedData.disp;
+                      const unimPlTT = man.unimedPlantaoTT || 0;
+                      const unimPlDS = man.unimedPlantaoDS || 0;
+                      const unimTotTT = unimedEqTT + unimPlTT;
+                      const unimTotDS = unimedEqDS + unimPlDS;
 
-                    const totalGeralTT = azTotTT + marEqTT + unimTotTT + consultTT + dinheiroTT + unimLuisTT;
-                    const totalGeralDS = azTotDS + marEqDS + unimTotDS + consultTT + dinheiroTT + unimLuisDS;
+                      const consultTT = isTeam ? Math.round((pct / 100) * 400 * 100 * mul) / 100 : 0;
+                      const dinheiroTT = isTeam ? Math.round((pct / 100) * 1200 * 100 * mul) / 100 : 0;
+                      const unimLuisTT = isTeam ? Math.round((pct / 100) * 8406 * 100 * mul) / 100 : 0;
+                      const unimLuisDS = isTeam ? Math.round((pct / 100) * 7016.49 * 100 * mul) / 100 : 0;
 
-                    return (
-                      <tr key={doc.key} className="hover:bg-blue-50/40 transition">
-                        <td className="p-2.5 border border-gray-200 text-left pl-4 font-black text-gray-900">
-                          {doc.name}
-                        </td>
-                        <td className="p-2.5 border border-gray-200 font-bold text-gray-600">
-                          {pct > 0 ? `${pct}%` : "-"}
-                        </td>
-                        {/* Azambuja */}
-                        <td className="p-2.5 border border-gray-200 font-mono">{azEqTT > 0 ? azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono">{azEqDS > 0 ? azEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 bg-emerald-50/60 p-1">
-                          <input
-                            type="number"
-                            value={azPlTT || ""}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              const ratio = 0.8147;
-                              setManualEntradas({
-                                ...manualEntradas,
-                                [doc.key]: { ...man, azambujaPlantaoTT: val, azambujaPlantaoDS: Math.round(val * ratio * 100) / 100 }
-                              });
-                            }}
-                            className="w-20 text-center bg-emerald-100/70 border border-emerald-300 rounded font-mono text-xs py-1"
-                            placeholder="0,00"
-                          />
-                        </td>
-                        <td className="p-2.5 border border-gray-200 bg-emerald-50/60 font-mono text-emerald-800 font-bold">
-                          {azPlDS > 0 ? azPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
-                        </td>
-                        <td className="p-2.5 border border-gray-200 font-mono font-bold">{azTotTT > 0 ? azTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono font-bold text-blue-700">{azTotDS > 0 ? azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                      const totalGeralTT = azTotTT + marEqTT + unimTotTT + consultTT + dinheiroTT + unimLuisTT;
+                      const totalGeralDS = azTotDS + marEqDS + unimTotDS + consultTT + dinheiroTT + unimLuisDS;
 
-                        {/* Marieta */}
-                        <td className="p-2.5 border border-gray-200 font-mono">{marEqTT > 0 ? marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono">{marEqDS > 0 ? marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono font-bold">{marEqTT > 0 ? marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono font-bold text-blue-700">{marEqDS > 0 ? marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                      return (
+                        <tr key={doc.key} className="even:bg-slate-50/70 hover:bg-emerald-50/40 transition-colors">
+                          <td className="p-3 border border-slate-200 text-left pl-4 font-black text-gray-900 bg-white">
+                            <div className="flex items-center gap-2">
+                              <span>{doc.name}</span>
+                              {isTeam && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">Sócio</span>}
+                            </div>
+                          </td>
+                          <td className="p-3 border border-slate-200 font-bold text-gray-700 bg-slate-50">
+                            {pct > 0 ? `${pct}%` : "-"}
+                          </td>
+                          {/* Azambuja */}
+                          <td className="p-3 border border-slate-200 font-mono text-gray-700">{azEqTT > 0 ? azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono text-gray-700">{azEqDS > 0 ? azEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 bg-emerald-50/60 p-1">
+                            <input
+                              type="number"
+                              value={azPlTT || ""}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                const ratio = 0.8147;
+                                setManualEntradas({
+                                  ...manualEntradas,
+                                  [doc.key]: { ...man, azambujaPlantaoTT: val, azambujaPlantaoDS: Math.round(val * ratio * 100) / 100 }
+                                });
+                              }}
+                              className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                              placeholder="0,00"
+                            />
+                          </td>
+                          <td className="p-3 border border-slate-200 bg-emerald-50/30 font-mono text-emerald-800 font-bold">
+                            {azPlDS > 0 ? azPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                          </td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{azTotTT > 0 ? azTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-300">{azTotDS > 0 ? azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Unimed */}
-                        <td className="p-2.5 border border-gray-200 font-mono">{unimedEqTT > 0 ? unimedEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono">{unimedEqDS > 0 ? unimedEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono">-</td>
-                        <td className="p-2.5 border border-gray-200 font-mono">-</td>
-                        <td className="p-2.5 border border-gray-200 bg-emerald-50/60 p-1">
-                          <input
-                            type="number"
-                            value={unimPlTT || ""}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              const ratio = 0.8189;
-                              setManualEntradas({
-                                ...manualEntradas,
-                                [doc.key]: { ...man, unimedPlantaoTT: val, unimedPlantaoDS: Math.round(val * ratio * 100) / 100 }
-                              });
-                            }}
-                            className="w-20 text-center bg-emerald-100/70 border border-emerald-300 rounded font-mono text-xs py-1"
-                            placeholder="0,00"
-                          />
-                        </td>
-                        <td className="p-2.5 border border-gray-200 bg-emerald-50/60 font-mono text-emerald-800 font-bold">
-                          {unimPlDS > 0 ? unimPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
-                        </td>
-                        <td className="p-2.5 border border-gray-200 font-mono font-bold">{unimTotTT > 0 ? unimTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono font-bold text-blue-700">{unimTotDS > 0 ? unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono text-gray-500">{(unimTotTT / 277794.83 * 100).toFixed(2)}%</td>
-                        <td className="p-2.5 border border-gray-200 font-mono">{unimTotDS > 0 ? unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          {/* Marieta */}
+                          <td className="p-3 border border-slate-200 font-mono text-gray-700">{marEqTT > 0 ? marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono text-gray-700">{marEqDS > 0 ? marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{marEqTT > 0 ? marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-300">{marEqDS > 0 ? marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Consultorio */}
-                        <td className="p-2.5 border border-gray-200 font-mono">{consultTT > 0 ? consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono">{consultTT > 0 ? consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          {/* Unimed */}
+                          <td className="p-3 border border-slate-200 font-mono text-gray-700">{unimedEqTT > 0 ? unimedEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono text-gray-700">{unimedEqDS > 0 ? unimedEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono text-gray-500">-</td>
+                          <td className="p-3 border border-slate-200 font-mono text-gray-500">-</td>
+                          <td className="p-3 border border-slate-200 bg-emerald-50/60 p-1">
+                            <input
+                              type="number"
+                              value={unimPlTT || ""}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                const ratio = 0.8189;
+                                setManualEntradas({
+                                  ...manualEntradas,
+                                  [doc.key]: { ...man, unimedPlantaoTT: val, unimedPlantaoDS: Math.round(val * ratio * 100) / 100 }
+                                });
+                              }}
+                              className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                              placeholder="0,00"
+                            />
+                          </td>
+                          <td className="p-3 border border-slate-200 bg-emerald-50/30 font-mono text-emerald-800 font-bold">
+                            {unimPlDS > 0 ? unimPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                          </td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{unimTotTT > 0 ? unimTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700">{unimTotDS > 0 ? unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono text-gray-500">{unimTotTT > 0 ? (unimTotTT / 277794.83 * 100).toFixed(2) : "0.00"}%</td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-teal-800 border-r-2 border-slate-300">{unimTotDS > 0 ? unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Dinheiro */}
-                        <td className="p-2.5 border border-gray-200 font-mono">{dinheiroTT > 0 ? dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono">{dinheiroTT > 0 ? dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          {/* Consultorio */}
+                          <td className="p-3 border border-slate-200 font-mono text-gray-700">{consultTT > 0 ? consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-purple-900 border-r-2 border-slate-300">{consultTT > 0 ? consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Unimed Luis */}
-                        <td className="p-2.5 border border-gray-200 font-mono">{unimLuisTT > 0 ? unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono">{unimLuisDS > 0 ? unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          {/* Dinheiro */}
+                          <td className="p-3 border border-slate-200 font-mono text-gray-700">{dinheiroTT > 0 ? dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-amber-900 border-r-2 border-slate-300">{dinheiroTT > 0 ? dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Total Geral */}
-                        <td className="p-2.5 border border-gray-200 font-mono font-black bg-gray-50 text-gray-900">{totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono font-black bg-emerald-50 text-emerald-900">{totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-2.5 border border-gray-200 font-mono font-bold text-indigo-700 bg-gray-50">{(isTeam ? (totalGeralDS / 36086.02 * 26.79).toFixed(2) : "0.00")}%</td>
-                        <td className="p-2.5 border border-gray-200 font-mono font-black bg-blue-50 text-blue-900">{isTeam ? totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                      </tr>
-                    );
-                  })}
+                          {/* Unimed Luis */}
+                          <td className="p-3 border border-slate-200 font-mono text-gray-700">{unimLuisTT > 0 ? unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-rose-900 border-r-2 border-slate-300">{unimLuisDS > 0 ? unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+
+                          {/* Total Geral */}
+                          <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-gray-900">{totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-950">{totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{(isTeam && totalGeralDS > 0 ? (totalGeralDS / 36086.02 * 26.79).toFixed(2) : "0.00")}%</td>
+                          <td className="p-3 border border-slate-200 font-mono font-black bg-blue-50 text-blue-950">{isTeam ? totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-900 text-white font-black text-xs">
@@ -986,17 +1004,27 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-gray-100 font-black text-xs text-gray-900 border-t-2 border-gray-300">
-                    <td colSpan={2} className="p-4 pl-6 uppercase">TOTAL GERAL CONSOLIDADO (EQUIPE + COOPERADOS)</td>
-                    <td className="p-4 text-right text-blue-700">R$ 230.417,27</td>
-                    <td className="p-4 text-right text-emerald-700">+R$ 39.631,96</td>
-                    <td className="p-4 text-right text-rose-700">-R$ 43.953,48</td>
-                    <td className="p-4 text-right">R$ 249.359,70</td>
-                    <td className="p-4 text-right text-indigo-700">+R$ 16.758,44</td>
-                    <td className="p-4 text-right pr-6 text-emerald-900 bg-emerald-100/80 font-black text-base">
-                      R$ 270.446,21
-                    </td>
-                  </tr>
+                  {(() => {
+                    const ntProd = nonTeamDoctors.reduce((acc, d) => acc + (d.producao || 0), 0);
+                    const ntEnt = nonTeamDoctors.reduce((acc, d) => acc + (d.entradas || 0), 0);
+                    const ntSai = nonTeamDoctors.reduce((acc, d) => acc + (d.saidas || 0), 0);
+                    const ntLiq = nonTeamDoctors.reduce((acc, d) => acc + (d.liquidoCalculado || 0), 0);
+                    const ntDiv = nonTeamDoctors.reduce((acc, d) => acc + (d.divisaoLucros || 0), 0);
+                    const ntFin = nonTeamDoctors.reduce((acc, d) => acc + (d.finalGeral || 0), 0);
+                    return (
+                      <tr className="bg-gray-100 font-black text-xs text-gray-900 border-t-2 border-gray-300">
+                        <td colSpan={2} className="p-4 pl-6 uppercase">TOTAL GERAL CONSOLIDADO (COOPERADOS)</td>
+                        <td className="p-4 text-right text-blue-700">R$ {ntProd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-4 text-right text-emerald-700">{ntEnt > 0 ? `+R$ ${ntEnt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "R$ 0,00"}</td>
+                        <td className="p-4 text-right text-rose-700">{ntSai > 0 ? `-R$ ${ntSai.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "R$ 0,00"}</td>
+                        <td className="p-4 text-right">R$ {ntLiq.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-4 text-right text-indigo-700">{ntDiv > 0 ? `+R$ ${ntDiv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "R$ 0,00"}</td>
+                        <td className="p-4 text-right pr-6 text-emerald-900 bg-emerald-100/80 font-black text-base">
+                          R$ {ntFin.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    );
+                  })()}
                 </tfoot>
               </table>
             </div>
