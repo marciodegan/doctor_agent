@@ -36,6 +36,8 @@ import {
 import { DoctorTeamMember, TeamFinancialSettings } from "../../types/financial";
 import { TransactionTypesManager } from "./TransactionTypesManager";
 
+const KNOWN_DOCTORS = ['ROCHELE', 'THAIS', 'LUIS', 'KATHIZE'];
+
 interface ExcelDashboardViewProps {
   closingId: string | null;
   initialSubTab?: "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento";
@@ -55,7 +57,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
   const [removedLotes, setRemovedLotes] = useState<string[]>([]);
 
   // Manual entries for green plantao / entrada cells
-  const [manualEntradas, setManualEntradas] = useState<Record<string, { azambujaPlantaoTT: number, azambujaPlantaoDS: number, unimedPlantaoTT: number, unimedPlantaoDS: number }>>({
+  const [manualEntradas, setManualEntradas] = useState<Record<string, any>>({
     thais: { azambujaPlantaoTT: 3600, azambujaPlantaoDS: 2933.04, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
     kathize: { azambujaPlantaoTT: 9000, azambujaPlantaoDS: 7332.59, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
     rochele: { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 1966.87, unimedPlantaoDS: 1610.61 }
