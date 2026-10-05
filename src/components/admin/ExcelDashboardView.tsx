@@ -1107,12 +1107,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       const marTotDS = marEqDS;
 
                       const unimedData = getDoctorUnimed(doc.name);
-                      const unimedEqTT = unimedData.prod * mul;
-                      const unimedEqDS = unimedData.disp * mul;
+                      const unimedEqTT = isTeam ? (unimedData.prod * mul) : 0;
+                      const unimedEqDS = isTeam ? (unimedData.disp * mul) : 0;
+                      const unimedPartTT = !isTeam ? (unimedData.prod * mul) : 0;
+                      const unimedPartDS = !isTeam ? (unimedData.disp * mul) : 0;
                       const unimPlTT = (man.unimedPlantaoTT || 0) * mul;
                       const unimPlDS = (man.unimedPlantaoDS || 0) * mul;
-                      const unimTotTT = unimedEqTT + unimPlTT;
-                      const unimTotDS = unimedEqDS + unimPlDS;
+                      const unimTotTT = unimedEqTT + unimedPartTT + unimPlTT;
+                      const unimTotDS = unimedEqDS + unimedPartDS + unimPlDS;
 
                       const consultTT = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioTT * 100) / 100 * mul : 0;
                       const consultDS = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioDS * 100) / 100 * mul : 0;
@@ -1128,7 +1130,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         ...doc,
                         azEqTT, azEqDS, azPlTT, azPlDS, azTotTT, azTotDS,
                         marEqTT, marEqDS, marTotTT, marTotDS,
-                        unimedEqTT, unimedEqDS, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
+                        unimedEqTT, unimedEqDS, unimedPartTT, unimedPartDS, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
                         consultTT, consultDS, dinheiroTT, dinheiroDS, unimLuisTT, unimLuisDS,
                         totalGeralTT, totalGeralDS
                       };
@@ -1182,8 +1184,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         {/* Unimed (Equipe from imports, Plantao manual) */}
                         <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedEqTT > 0 ? r.unimedEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedEqDS > 0 ? r.unimedEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-500">-</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-500">-</td>
+                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedPartTT > 0 ? r.unimedPartTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedPartDS > 0 ? r.unimedPartDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 bg-emerald-50/60 p-1">
                           <input
                             type="number"
@@ -1251,8 +1253,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marEqDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedEqTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedEqDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">-</td>
-                        <td className="p-3 border border-slate-700 font-mono">-</td>
+                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedPartTT'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedPartDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('unimPlTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('unimPlDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimTotTT'))}</td>
