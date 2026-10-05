@@ -204,6 +204,30 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
     }
   };
 
+  const handleRemoveLote = async (loteNumber: string) => {
+    if (!confirm(`Deseja realmente remover o lote/nota ${loteNumber} da conciliação atual do fechamento e apagá-lo do banco de dados (Firebase)?`)) return;
+
+    setRemovedLotes([...removedLotes, loteNumber]);
+
+    if (selectedClosingId) {
+      try {
+        const res = await apiFetch(`/api/app/financial/closings/${selectedClosingId}/taxes/${loteNumber}`, {
+          method: "DELETE"
+        });
+        if (res.ok) {
+          const detailsRes = await apiFetch(`/api/app/financial/closings/${selectedClosingId}/details`);
+          if (detailsRes.ok) {
+            const data = await detailsRes.json();
+            setDetails(data);
+          }
+        }
+      } catch (err: any) {
+        console.error("Failed to delete lote from Firebase:", err);
+        alert("Erro ao remover nota do Firebase: " + err.message);
+      }
+    }
+  };
+
   // Calculate sum of team percentages
   const teamSumPercent = teamSettings.doctors
     .filter(d => d.isTeamMember)
@@ -1795,7 +1819,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                       </td>
                       <td className="p-3.5 text-center pr-6">
                         <button
-                          onClick={() => setRemovedLotes([...removedLotes, lote.lote])}
+                          onClick={() => handleRemoveLote(lote.lote)}
                           className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-[10px]"
                           title="Remover nota do fechamento"
                         >

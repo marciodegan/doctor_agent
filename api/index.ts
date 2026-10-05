@@ -2272,6 +2272,40 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
   }
 });
 
+// Delete a tax/lote from a closing
+app.delete("/api/app/financial/closings/:closingId/taxes/:loteId", async (req, res) => {
+  const { closingId, loteId } = req.params;
+  try {
+    const snap = await db.collection("financial_taxes")
+      .where("closingId", "==", closingId)
+      .get();
+
+    const batch = db.batch();
+    let deletedCount = 0;
+    snap.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.lote === loteId || data.number === loteId || data.id === loteId || doc.id === loteId) {
+        batch.delete(doc.ref);
+        deletedCount++;
+      }
+    });
+
+    if (deletedCount === 0) {
+      const docRef = db.collection("financial_taxes").doc(loteId);
+      const docSnap = await docRef.get();
+      if (docSnap.exists) {
+        batch.delete(docRef);
+        deletedCount++;
+      }
+    }
+
+    await batch.commit();
+    res.json({ success: true, deletedCount });
+  } catch (error: any) {
+    handleApiError(res, error, "Delete Lote/Tax");
+  }
+});
+
 app.post("/api/app/financial/closings/:closingId/status", async (req, res) => {
   const groupId = getGroupId(req);
   const { closingId } = req.params;
