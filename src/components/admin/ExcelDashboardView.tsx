@@ -346,7 +346,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
       : [],
     // Demonstrativo de Lotes Unimed
     lotesUnimed: (details?.taxes && details.taxes.length > 0
-      ? details.taxes.map((tax: any) => ({
+      ? details.taxes
+          .filter((tax: any) => Boolean(tax.lote))
+          .map((tax: any) => ({
           lote: tax.lote || tax.number || "1490176",
           tipo: tax.tipo || tax.typeName || "Lote Unimed",
           vencimento: tax.date || "14/09/2026",

@@ -1189,7 +1189,12 @@ function parseBatch10944FilesForServer(closingId: string) {
     { type: "IRRF", code: "1708", description: "IRRF - Serviços Tomados - Cód: 1708", baseValue: 148253.88, taxValue: 2223.81, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
     { type: "PIS", code: "5952", description: "PIS - Retenção - Cód: 5952 - Lei 13137", baseValue: 148253.88, taxValue: 963.65, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
     { type: "COFINS", code: "5952", description: "Cofins - Retenção - Cód: 5952 - Lei13137", baseValue: 148253.88, taxValue: 4447.62, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
-    { type: "CSLL", code: "5952", description: "CSLL - Retenção - Cód: 5952 - Lei13137", baseValue: 148253.88, taxValue: 1482.54, sourceDocument: "10944_DEMONSTRATIVO.pdf" }
+    { type: "CSLL", code: "5952", description: "CSLL - Retenção - Cód: 5952 - Lei13137", baseValue: 148253.88, taxValue: 1482.54, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
+    { lote: "1478356", tipo: "Lote Complementar", vencimento: "25/08/2026", bruto: 670.00, glosa: 0.00, irrf: 10.05, pis: 4.36, cofins: 20.10, csll: 6.70, liquido: 561.79, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
+    { lote: "1479142", tipo: "Lote Complementar", vencimento: "25/08/2026", bruto: 300.00, glosa: 0.00, irrf: 4.50, pis: 1.95, cofins: 9.00, csll: 3.00, liquido: 256.05, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
+    { lote: "1485226", tipo: "Clínica Cooperada", vencimento: "14/09/2026", bruto: 87281.12, glosa: 491.69, irrf: 1904.95, pis: 825.48, cofins: 3809.90, csll: 1269.97, liquido: 66778.75, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
+    { lote: "1489867", tipo: "Lote Complementar", vencimento: "11/09/2026", bruto: 1574.16, glosa: 0.00, irrf: 23.61, pis: 10.23, cofins: 47.22, csll: 15.74, liquido: 1477.36, sourceDocument: "10944_DEMONSTRATIVO.pdf" },
+    { lote: "1490176", tipo: "Clínica Cooperada IN", vencimento: "14/09/2026", bruto: 148253.88, glosa: 7098.85, irrf: 2223.81, pis: 963.65, cofins: 4447.62, csll: 1482.54, liquido: 124310.86, sourceDocument: "10944_DEMONSTRATIVO.pdf" }
   ];
 
   const adjustments = [
