@@ -351,23 +351,32 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
       ? details.taxes
           .filter((tax: any) => Boolean(tax.lote))
           .map((tax: any) => ({
-          lote: tax.lote || tax.number || "1490176",
-          tipo: tax.tipo || tax.typeName || "Lote Unimed",
-          vencimento: tax.date || "14/09/2026",
-          bruto: tax.amount || tax.bruto || 148253.88,
+          lote: tax.lote || tax.number || "10944",
+          tipo: tax.tipo || tax.typeName || "Clínica Cooperada IN",
+          competencia: tax.competencia || "01/09/2026",
+          titulo: tax.titulo || tax.lote || "1490176",
+          vencimento: tax.vencimento || tax.date || "14/09/2026",
+          bruto: tax.bruto || tax.amount || 148253.88,
           glosa: tax.glosa || 0,
-          irrf: tax.irrf || 2223.81,
           pis: tax.pis || 963.65,
           cofins: tax.cofins || 4447.62,
           csll: tax.csll || 1482.54,
-          liquido: tax.liquido || tax.amount || 124310.86
+          irrf: tax.irrf || 2223.81,
+          ttImpostosNota: tax.ttImpostosNota || 9117.61,
+          ttRetencao: tax.ttRetencao || 16530.31,
+          lucroPresumido: tax.lucroPresumido || 47441.24,
+          irpj: tax.irpj || 4892.38,
+          csll9: tax.csll9 || 2787.17,
+          add10: tax.add10 || 4744.12,
+          reservaImposto: tax.reservaImposto || 12423.68,
+          liquido: tax.liquido || tax.amount || 119299.90
         }))
       : [
-          { lote: "1478356", tipo: "Lote Complementar", vencimento: "25/08/2026", bruto: 670.00, glosa: 0.00, irrf: 10.05, pis: 4.36, cofins: 20.10, csll: 6.70, liquido: 561.79 },
-          { lote: "1479142", tipo: "Lote Complementar", vencimento: "25/08/2026", bruto: 300.00, glosa: 0.00, irrf: 4.50, pis: 1.95, cofins: 9.00, csll: 3.00, liquido: 256.05 },
-          { lote: "1485226", tipo: "Clínica Cooperada", vencimento: "14/09/2026", bruto: 87281.12, glosa: 491.69, irrf: 1904.95, pis: 825.48, cofins: 3809.90, csll: 1269.97, liquido: 66778.75 },
-          { lote: "1489867", tipo: "Lote Complementar", vencimento: "11/09/2026", bruto: 1574.16, glosa: 0.00, irrf: 23.61, pis: 10.23, cofins: 47.22, csll: 15.74, liquido: 1477.36 },
-          { lote: "1490176", tipo: "Clínica Cooperada", vencimento: "14/09/2026", bruto: 148253.88, glosa: 7098.85, irrf: 2223.81, pis: 963.65, cofins: 4447.62, csll: 1482.54, liquido: 124310.86 }
+          { lote: "10860", tipo: "Lote Complementar", competencia: "01/08/2026", titulo: "1478356", vencimento: "25/08/2026", bruto: 670.00, glosa: 0.00, irrf: 10.05, pis: 4.36, cofins: 20.10, csll: 6.70, ttImpostosNota: 41.21, ttRetencao: 74.71, lucroPresumido: 214.40, irpj: 22.11, csll9: 12.60, add10: 21.44, reservaImposto: 56.15, liquido: 539.15 },
+          { lote: "10861", tipo: "Lote Complementar", competencia: "01/08/2026", titulo: "1479142", vencimento: "25/08/2026", bruto: 300.00, glosa: 0.00, irrf: 4.50, pis: 1.95, cofins: 9.00, csll: 3.00, ttImpostosNota: 18.45, ttRetencao: 33.45, lucroPresumido: 96.00, irpj: 9.90, csll9: 5.64, add10: 9.60, reservaImposto: 25.14, liquido: 241.41 },
+          { lote: "10886", tipo: "Clínica Cooperada", competencia: "01/08/2026", titulo: "1485226", vencimento: "14/09/2026", bruto: 87281.12, glosa: 491.69, irrf: 1904.95, pis: 825.48, cofins: 3809.90, csll: 1269.97, ttImpostosNota: 7810.30, ttRetencao: 14160.14, lucroPresumido: 40638.97, irpj: 4190.89, csll9: 2387.54, add10: 4063.90, reservaImposto: 10642.33, liquido: 102194.32 },
+          { lote: "10931", tipo: "Lote Complementar", competencia: "01/09/2026", titulo: "1489867", vencimento: "11/09/2026", bruto: 1574.16, glosa: 0.00, irrf: 23.61, pis: 10.23, cofins: 47.22, csll: 15.74, ttImpostosNota: 96.81, ttRetencao: 175.52, lucroPresumido: 503.73, irpj: 51.95, csll9: 29.59, add10: 50.37, reservaImposto: 131.91, liquido: 1266.73 },
+          { lote: "10944", tipo: "Clínica Cooperada IN", competencia: "01/09/2026", titulo: "1490176", vencimento: "14/09/2026", bruto: 148253.88, glosa: 7098.85, irrf: 2223.81, pis: 963.65, cofins: 4447.62, csll: 1482.54, ttImpostosNota: 9117.61, ttRetencao: 16530.31, lucroPresumido: 47441.24, irpj: 4892.38, csll9: 2787.17, add10: 4744.12, reservaImposto: 12423.68, liquido: 119299.90 }
         ]).filter((lote: any) => !removedLotes.includes(lote.lote)),
     // Despesas Equipe Heart
     despesasEquipe: details?.transactions && details.transactions.length > 0
@@ -1813,45 +1822,63 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-left border-collapse text-[11px]">
               <thead>
-                <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
-                  <th className="p-3.5 pl-6">Lote</th>
-                  <th className="p-3.5">Título / Natureza</th>
-                  <th className="p-3.5">Dt Vencimento</th>
-                  <th className="p-3.5 text-right">Bruto (R$)</th>
-                  <th className="p-3.5 text-right">Glosas (R$)</th>
-                  <th className="p-3.5 text-right">IRRF 1.5%</th>
-                  <th className="p-3.5 text-right">PIS 0.65%</th>
-                  <th className="p-3.5 text-right">COFINS 3%</th>
-                  <th className="p-3.5 text-right">CSLL 1%</th>
-                  <th className="p-3.5 text-right bg-blue-50 font-black text-blue-900">Líquido (R$)</th>
-                  <th className="p-3.5 text-center pr-6">Remover</th>
+                <tr className="bg-gray-100 text-gray-700 font-black uppercase text-[9px] tracking-wider border-b border-gray-200">
+                  <th className="p-3 pl-4">Lote</th>
+                  <th className="p-3">Comp.</th>
+                  <th className="p-3">Período / Natureza</th>
+                  <th className="p-3">Título</th>
+                  <th className="p-3">Vencimento</th>
+                  <th className="p-3 text-right">Bruto (R$)</th>
+                  <th className="p-3 text-right">Glosas</th>
+                  <th className="p-3 text-right">PIS</th>
+                  <th className="p-3 text-right">COFINS</th>
+                  <th className="p-3 text-right">CSLL</th>
+                  <th className="p-3 text-right">IRRF</th>
+                  <th className="p-3 text-right font-black">TT Impostos</th>
+                  <th className="p-3 text-right font-black">TT Retenção</th>
+                  <th className="p-3 text-right">Lucro Presum.</th>
+                  <th className="p-3 text-right">IRPJ</th>
+                  <th className="p-3 text-right">CSLL 9%</th>
+                  <th className="p-3 text-right">ADD 10%</th>
+                  <th className="p-3 text-right">Reserva Imp.</th>
+                  <th className="p-3 text-right bg-blue-50 font-black text-blue-900">Líquido (R$)</th>
+                  <th className="p-3 text-center pr-4">Remover</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
                 {excelData.lotesUnimed.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="p-8 text-center text-gray-400 font-medium italic">
+                    <td colSpan={20} className="p-8 text-center text-gray-400 font-medium italic">
                       Nenhum lote/nota fiscal Unimed no fechamento (todos foram removidos).
                     </td>
                   </tr>
                 ) : (
-                  excelData.lotesUnimed.map((lote) => (
+                  excelData.lotesUnimed.map((lote: any) => (
                     <tr key={lote.lote} className="hover:bg-blue-50/20 transition-colors">
-                      <td className="p-3.5 pl-6 font-black text-gray-900">{lote.lote}</td>
-                      <td className="p-3.5 font-bold text-gray-700">{lote.tipo}</td>
-                      <td className="p-3.5 text-gray-500">{lote.vencimento}</td>
-                      <td className="p-3.5 text-right font-bold text-gray-900">R$ {lote.bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3.5 text-right text-rose-600 font-bold">{lote.glosa > 0 ? `-R$ ${lote.glosa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}</td>
-                      <td className="p-3.5 text-right text-gray-500">R$ {lote.irrf.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3.5 text-right text-gray-500">R$ {lote.pis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3.5 text-right text-gray-500">R$ {lote.cofins.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3.5 text-right text-gray-500">R$ {lote.csll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3.5 text-right font-black text-blue-700 bg-blue-50/50">
+                      <td className="p-3 pl-4 font-black text-gray-900">{lote.lote}</td>
+                      <td className="p-3 text-gray-600">{lote.competencia}</td>
+                      <td className="p-3 font-bold text-gray-700">{lote.tipo}</td>
+                      <td className="p-3 font-mono text-gray-600">{lote.titulo}</td>
+                      <td className="p-3 text-gray-500">{lote.vencimento}</td>
+                      <td className="p-3 text-right font-bold text-gray-900">R$ {lote.bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-rose-600 font-bold">{lote.glosa > 0 ? `-R$ ${lote.glosa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}</td>
+                      <td className="p-3 text-right text-gray-500">R$ {lote.pis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-gray-500">R$ {lote.cofins.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-gray-500">R$ {lote.csll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-gray-500">R$ {lote.irrf.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right font-black text-gray-700">R$ {lote.ttImpostosNota.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right font-black text-purple-700">R$ {lote.ttRetencao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-gray-500">R$ {lote.lucroPresumido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-gray-500">R$ {lote.irpj.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-gray-500">R$ {lote.csll9.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-gray-500">R$ {lote.add10.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-amber-700 font-bold">R$ {lote.reservaImposto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50">
                         R$ {lote.liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="p-3.5 text-center pr-6">
+                      <td className="p-3 text-center pr-4">
                         <button
                           onClick={() => handleRemoveLote(lote.lote)}
                           className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-[10px]"
@@ -1872,20 +1899,34 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
                   const totPis = excelData.lotesUnimed.reduce((acc, l) => acc + l.pis, 0);
                   const totCofins = excelData.lotesUnimed.reduce((acc, l) => acc + l.cofins, 0);
                   const totCsll = excelData.lotesUnimed.reduce((acc, l) => acc + l.csll, 0);
+                  const totImp = excelData.lotesUnimed.reduce((acc, l) => acc + l.ttImpostosNota, 0);
+                  const totRet = excelData.lotesUnimed.reduce((acc, l) => acc + l.ttRetencao, 0);
+                  const totLucro = excelData.lotesUnimed.reduce((acc, l) => acc + l.lucroPresumido, 0);
+                  const totIrpj = excelData.lotesUnimed.reduce((acc, l) => acc + l.irpj, 0);
+                  const totCsll9 = excelData.lotesUnimed.reduce((acc, l) => acc + l.csll9, 0);
+                  const totAdd10 = excelData.lotesUnimed.reduce((acc, l) => acc + l.add10, 0);
+                  const totReserva = excelData.lotesUnimed.reduce((acc, l) => acc + l.reservaImposto, 0);
                   const totLiq = excelData.lotesUnimed.reduce((acc, l) => acc + l.liquido, 0);
                   return (
                     <tr className="bg-gray-100 font-black text-xs text-gray-900 border-t-2 border-gray-300">
-                      <td colSpan={3} className="p-3.5 pl-6 uppercase">TOTAL CONSOLIDADO DOS LOTES</td>
-                      <td className="p-3.5 text-right">R$ {totBruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3.5 text-right text-rose-600">{totGlosa > 0 ? `-R$ ${totGlosa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}</td>
-                      <td className="p-3.5 text-right">R$ {totIrrf.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3.5 text-right">R$ {totPis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3.5 text-right">R$ {totCofins.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3.5 text-right">R$ {totCsll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3.5 text-right text-blue-800 bg-blue-100 font-black text-sm">
+                      <td colSpan={5} className="p-3 pl-4 uppercase">TOTAL CONSOLIDADO DOS LOTES</td>
+                      <td className="p-3 text-right">R$ {totBruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-rose-600">{totGlosa > 0 ? `-R$ ${totGlosa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}</td>
+                      <td className="p-3 text-right">R$ {totPis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right">R$ {totCofins.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right">R$ {totCsll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right">R$ {totIrrf.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right">R$ {totImp.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-purple-800">R$ {totRet.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right">R$ {totLucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right">R$ {totIrpj.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right">R$ {totCsll9.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right">R$ {totAdd10.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-amber-800">R$ {totReserva.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-blue-800 bg-blue-100 font-black text-sm">
                         R$ {totLiq.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="p-3.5"></td>
+                      <td className="p-3"></td>
                     </tr>
                   );
                 })()}
