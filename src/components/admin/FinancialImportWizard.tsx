@@ -137,9 +137,13 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
     setProcessingStage("Verificando Fechamento de destino...");
 
     try {
-      // 1. Ensure target closing exists
+      // 1. Ensure target closing exists and matches closingKey
       let closingId = targetClosingId;
-      if (!closingId) {
+      const existingMatch = availableClosings.find(c => c.monthKey === closingKey || c.id === closingId);
+      if (existingMatch) {
+        closingId = existingMatch.id;
+        setTargetClosingId(closingId);
+      } else {
         const createRes = await apiFetch("/api/app/financial/closings", {
           method: "POST",
           body: JSON.stringify({ monthKey: closingKey })
@@ -189,7 +193,8 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
 
   // Step 4 -> Confirm & Save definitively to Firestore
   const handleConfirmImport = async () => {
-    if (!parsedPreview || !targetClosingId) {
+    const effectiveClosingId = targetClosingId || parsedPreview?.closingId || closingKey;
+    if (!parsedPreview || !effectiveClosingId) {
       setErrorMessage("Dados de prévia ausentes para salvar.");
       return;
     }
@@ -201,7 +206,7 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
       const commitRes = await apiFetch("/api/app/financial/ai-commit", {
         method: "POST",
         body: JSON.stringify({
-          closingId: targetClosingId,
+          closingId: effectiveClosingId,
           parsedData: parsedPreview.parsedData,
           fileName: selectedFile?.name || "10944_PROD.PDF",
           reprocess: reprocessMode
@@ -274,7 +279,11 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
                     <button
                       key={k}
                       type="button"
-                      onClick={() => setClosingKey(k)}
+                      onClick={() => {
+                        setClosingKey(k);
+                        const match = availableClosings.find(c => c.monthKey === k);
+                        setTargetClosingId(match ? match.id : "");
+                      }}
                       className={`py-3 px-5 rounded-2xl border text-xs font-black uppercase transition cursor-pointer ${
                         closingKey === k 
                           ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20" 
@@ -688,7 +697,10 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
 
           <div className="flex justify-end pt-3 border-t border-gray-100">
             <button
-              onClick={() => onComplete(targetClosingId!)}
+              onClick={() => {
+                const finalCid = targetClosingId || parsedPreview?.closingId || closingKey;
+                onComplete(finalCid);
+              }}
               className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-xl shadow-emerald-500/20 flex items-center gap-2 active:scale-95 transition cursor-pointer"
             >
               <CheckCircle2 size={16} />

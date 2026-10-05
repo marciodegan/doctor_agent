@@ -185,6 +185,25 @@ export interface DoctorTeamMember {
   disponivelPeriodo?: number; // Receitas recebidas pelo médico no período (base do rateio)
   specialty?: string;
   crm?: string;
+  participaUnimed?: boolean; // Participação permanente na divisão da UNIMED (Rochele, Thais, Luis = true)
+  unimedDistributionRule?: "EQUAL" | string; // Regra de divisão UNIMED (padrão: "EQUAL")
+}
+
+export interface UnimedDistributionAuditRecord {
+  doctorId: string;
+  doctorName: string;
+  participaUnimed: boolean;
+  distributionRule: "EQUAL" | string;
+  participantsCount: number;
+  distributedAmount: number;
+  distributedAmountDS?: number;
+  particularAmount?: number;
+  particularAmountDS?: number;
+  plantaoAmount?: number;
+  plantaoAmountDS?: number;
+  totalUnimedTT?: number;
+  totalUnimedDS?: number;
+  proporcaoUnimedPercent?: number;
 }
 
 export interface TeamFinancialSettings {
