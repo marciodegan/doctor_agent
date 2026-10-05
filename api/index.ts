@@ -2306,6 +2306,22 @@ app.delete("/api/app/financial/closings/:closingId/taxes/:loteId", async (req, r
   }
 });
 
+// Update removed lotes for a closing
+app.post("/api/app/financial/closings/:closingId/removed-lotes", async (req, res) => {
+  const { closingId } = req.params;
+  const { removedLotes } = req.body;
+  try {
+    const closingRef = db.collection("financial_closings").doc(closingId);
+    await closingRef.update({
+      removedLotes: removedLotes || [],
+      updatedAt: new Date().toISOString()
+    });
+    res.json({ success: true, removedLotes });
+  } catch (error: any) {
+    handleApiError(res, error, "Update Removed Lotes");
+  }
+});
+
 app.post("/api/app/financial/closings/:closingId/status", async (req, res) => {
   const groupId = getGroupId(req);
   const { closingId } = req.params;

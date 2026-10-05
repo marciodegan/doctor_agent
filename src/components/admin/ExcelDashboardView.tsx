@@ -186,6 +186,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
     fetchDetails();
   }, [selectedClosingId, activeGroup]);
 
+  useEffect(() => {
+    if (details?.closing?.removedLotes && Array.isArray(details.closing.removedLotes)) {
+      setRemovedLotes(details.closing.removedLotes);
+    }
+  }, [details]);
+
   const handleSaveTeamSettings = async () => {
     try {
       setSavingSettings(true);
@@ -205,25 +211,49 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
   };
 
   const handleRemoveLote = async (loteNumber: string) => {
-    if (!confirm(`Deseja realmente remover o lote/nota ${loteNumber} da conciliação atual do fechamento e apagá-lo do banco de dados (Firebase)?`)) return;
+    if (!confirm(`Deseja realmente remover o lote/nota ${loteNumber} da conciliação atual do fechamento e salvá-lo no Firebase?`)) return;
 
-    setRemovedLotes([...removedLotes, loteNumber]);
+    const updatedRemoved = [...removedLotes, loteNumber];
+    setRemovedLotes(updatedRemoved);
 
     if (selectedClosingId) {
       try {
-        const res = await apiFetch(`/api/app/financial/closings/${selectedClosingId}/taxes/${loteNumber}`, {
+        await apiFetch(`/api/app/financial/closings/${selectedClosingId}/removed-lotes`, {
+          method: "POST",
+          body: JSON.stringify({ removedLotes: updatedRemoved })
+        });
+
+        await apiFetch(`/api/app/financial/closings/${selectedClosingId}/taxes/${loteNumber}`, {
           method: "DELETE"
         });
-        if (res.ok) {
-          const detailsRes = await apiFetch(`/api/app/financial/closings/${selectedClosingId}/details`);
-          if (detailsRes.ok) {
-            const data = await detailsRes.json();
-            setDetails(data);
-          }
+
+        const detailsRes = await apiFetch(`/api/app/financial/closings/${selectedClosingId}/details`);
+        if (detailsRes.ok) {
+          const data = await detailsRes.json();
+          setDetails(data);
         }
       } catch (err: any) {
-        console.error("Failed to delete lote from Firebase:", err);
-        alert("Erro ao remover nota do Firebase: " + err.message);
+        console.error("Failed to update removed lotes in Firebase:", err);
+        alert("Erro ao salvar alteração no Firebase: " + err.message);
+      }
+    }
+  };
+
+  const handleRestoreLotes = async () => {
+    setRemovedLotes([]);
+    if (selectedClosingId) {
+      try {
+        await apiFetch(`/api/app/financial/closings/${selectedClosingId}/removed-lotes`, {
+          method: "POST",
+          body: JSON.stringify({ removedLotes: [] })
+        });
+        const detailsRes = await apiFetch(`/api/app/financial/closings/${selectedClosingId}/details`);
+        if (detailsRes.ok) {
+          const data = await detailsRes.json();
+          setDetails(data);
+        }
+      } catch (err: any) {
+        console.error("Failed to restore lotes:", err);
       }
     }
   };
@@ -1770,7 +1800,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "visao_geral" }:
             </div>
             {removedLotes.length > 0 && (
               <button
-                onClick={() => setRemovedLotes([])}
+                onClick={handleRestoreLotes}
                 className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-black rounded-xl transition-colors"
               >
                 Restaurar Notas Removidas ({removedLotes.length})
