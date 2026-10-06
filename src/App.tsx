@@ -6,6 +6,7 @@ import { fetchLatestVersion, APP_VERSION, VersionConfig } from "./lib/versionChe
 import { VersionUpdateModal } from "./components/VersionUpdateModal";
 import { useAuth } from "./hooks/useAuth";
 import { StudioPreviewHelper } from "./components/StudioPreviewHelper";
+import { runMigration } from "./lib/firestoreUtils";
 
 // Lazy-load AppWorkspace
 const AppWorkspace = lazy(() => import("./AppWorkspace"));
@@ -60,6 +61,9 @@ export default function App() {
 
   useEffect(() => {
     checkForAppUpdate();
+    if (!localStorage.getItem("doctor_migration_done")) {
+      runMigration().then(() => localStorage.setItem("doctor_migration_done", "true"));
+    }
   }, []);
 
   // Determine which page to render

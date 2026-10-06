@@ -183,6 +183,39 @@
       },
       "required": ["name", "groupId"]
     },
+    "Doctor": {
+      "title": "Doctor",
+      "description": "Global doctor registry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "specialty": { "type": "string" },
+        "crm": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "specialty", "active"]
+    },
+    "TeamDoctor": {
+      "title": "Team Doctor",
+      "description": "Relationship between team and doctor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teamId": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "isTeamMember": { "type": "boolean" },
+        "participaUnimed": { "type": "boolean" },
+        "percentualNominal": { "type": "number" },
+        "proporcaoHeart": { "type": "number" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "teamId", "doctorId", "active"]
+    },
     "DoctorProviderMapping": {
       "title": "Doctor Provider Mapping",
       "description": "Mapping configuration between Executante, Prestador, and Doctor",
@@ -495,6 +528,14 @@
     "/image_types/{typeId}": {
       "schema": "ImageType",
       "description": "Categorias de anexos de imagem"
+    },
+    "/doctors/{doctorId}": {
+      "schema": "Doctor",
+      "description": "Global doctor registry"
+    },
+    "/team_doctors/{teamDoctorId}": {
+      "schema": "TeamDoctor",
+      "description": "Team-doctor relationships"
     },
     "/doctor_provider_mappings/{mappingId}": {
       "schema": "DoctorProviderMapping",

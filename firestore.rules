@@ -260,6 +260,18 @@ service cloud.firestore {
       );
     }
 
+    // Doctors (Global)
+    match /doctors/{doctorId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn(); // Add proper admin/owner checks
+    }
+
+    // Team Doctors
+    match /team_doctors/{teamDoctorId} {
+      allow read: if isMember(resource.data.teamId);
+      allow create, update, delete: if isOwner(incoming().teamId || existing().teamId);
+    }
+
     match /doctor_provider_mappings/{mappingId} {
       allow read: if isSignedIn() && isMember(resource.data.teamId);
       allow create: if isSignedIn() && isOwner(incoming().teamId) && 
