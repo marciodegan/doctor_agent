@@ -189,6 +189,18 @@ export interface DoctorTeamMember {
   unimedDistributionRule?: "EQUAL" | string; // Regra de divisão UNIMED (padrão: "EQUAL")
 }
 
+export interface DoctorProviderMapping {
+  id: string;
+  teamId: string;
+  doctorId: string;
+  doctorName: string;
+  executante: string;
+  prestador: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UnimedDistributionAuditRecord {
   doctorId: string;
   doctorName: string;

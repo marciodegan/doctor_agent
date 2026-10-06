@@ -260,6 +260,18 @@ service cloud.firestore {
       );
     }
 
+    match /doctor_provider_mappings/{mappingId} {
+      allow read: if isSignedIn() && isMember(resource.data.teamId);
+      allow create: if isSignedIn() && isOwner(incoming().teamId) && 
+                       incoming().createdAt == request.time &&
+                       isValidId(mappingId);
+      allow update: if isSignedIn() && isOwner(existing().teamId) &&
+                       incoming().teamId == existing().teamId &&
+                       incoming().doctorId == existing().doctorId &&
+                       incoming().updatedAt == request.time;
+      allow delete: if isSignedIn() && isOwner(existing().teamId);
+    }
+
     match /financial_closings/{closingId} {
       allow read: if isMember(resource.data.teamId || resource.data.groupId);
       allow write: if isOwner(resource.data.teamId || resource.data.groupId || incoming().teamId || incoming().groupId);

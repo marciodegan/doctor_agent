@@ -39,6 +39,7 @@ import {
 import { DoctorTeamMember, TeamFinancialSettings } from "../../types/financial";
 import { TransactionTypesManager } from "./TransactionTypesManager";
 import { FinancialImportWizard } from "./FinancialImportWizard";
+import { DoctorProviderMappingsManager } from "./DoctorProviderMappingsManager";
 
 const KNOWN_DOCTORS = ['ROCHELE', 'THAIS', 'LUIS', 'KATHIZE'];
 
@@ -841,6 +842,18 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         >
           <FileText size={16} />
           <span>7. Despesas Equipe Heart</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("config_prestadores")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "config_prestadores"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <UserCheck size={16} />
+          <span>Prestadores</span>
         </button>
 
         <button
@@ -2334,6 +2347,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       {activeSubTab === "tipos_lancamento" && (
         <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden p-2">
           <TransactionTypesManager />
+        </div>
+      )}
+
+      {/* VIEW 9: GERENCIADOR DE PRESTADORES */}
+      {activeSubTab === "config_prestadores" && (
+        <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden p-6">
+          <DoctorProviderMappingsManager />
         </div>
       )}
 

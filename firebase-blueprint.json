@@ -183,6 +183,23 @@
       },
       "required": ["name", "groupId"]
     },
+    "DoctorProviderMapping": {
+      "title": "Doctor Provider Mapping",
+      "description": "Mapping configuration between Executante, Prestador, and Doctor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teamId": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "doctorName": { "type": "string" },
+        "executante": { "type": "string" },
+        "prestador": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "teamId", "doctorId", "doctorName", "executante", "prestador", "active"]
+    },
     "User": {
       "title": "User",
       "description": "Application user profile",
@@ -478,6 +495,10 @@
     "/image_types/{typeId}": {
       "schema": "ImageType",
       "description": "Categorias de anexos de imagem"
+    },
+    "/doctor_provider_mappings/{mappingId}": {
+      "schema": "DoctorProviderMapping",
+      "description": "Mapping configuration between Executante, Prestador, and Doctor"
     },
     "/users/{userId}": {
       "schema": "User",
