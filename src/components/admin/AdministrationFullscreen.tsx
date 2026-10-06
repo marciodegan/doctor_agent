@@ -21,7 +21,8 @@ import {
   TrendingUp,
   FileText,
   TableProperties,
-  Tag
+  Tag,
+  UserPlus
 } from "lucide-react";
 import { FinancialClosingsView } from "./FinancialClosingsView";
 import { FinancialImportWizard } from "./FinancialImportWizard";
