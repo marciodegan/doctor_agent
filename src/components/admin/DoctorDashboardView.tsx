@@ -77,7 +77,15 @@ export function DoctorDashboardView({ closingId }: DoctorDashboardViewProps) {
             <div className="space-y-3 pt-4 border-t border-gray-100 text-xs">
               <div className="flex justify-between">
                 <span className="text-gray-500 font-medium">Honorários Brutos:</span>
-                <span className="font-black text-gray-900">R$ {doc.productionTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="font-black text-gray-900">R$ {doc.honorValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 font-medium">Operacional:</span>
+                <span className="font-black text-gray-900">R$ {doc.operationalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 font-medium">Filme:</span>
+                <span className="font-black text-gray-900">R$ {doc.filmValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500 font-medium">Glosas Aplicadas:</span>

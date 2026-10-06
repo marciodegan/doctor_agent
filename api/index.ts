@@ -2400,7 +2400,7 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     const doctorsSummary = Array.from(doctorMap.values()).map(d => ({
       ...d,
       protocolCount: d.protocolCount.size,
-      netProduction: d.productionTotal - d.glosaTotal
+      netProduction: (d.honorValue + d.operationalValue + d.filmValue) - d.glosaTotal
     }));
 
     // Ensure unimedDistributionAudit is present (from historical snapshot or evaluated from permanent doctor settings)
