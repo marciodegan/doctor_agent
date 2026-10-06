@@ -2970,8 +2970,8 @@ Extraia com precisão máxima todas as informações do documento estruturado:
 4. Seção OCORRÊNCIAS FINANCEIRAS (MUITO IMPORTANTE):
    - Extraia cada ocorrência (ex: "Capitalização Cota-Parte", data "01/08/2026", valor -14825.40, prestador "HEART CIRURGIA CARDIOVASCULAR").
    - Identifique a natureza: "DEBIT" para descontos/negativos, "CREDIT" para proventos.
-5. Produção por Executante / Médico:
-   - Para cada executante/médico citado: nome, quantidade, produção total, honorários, operacional, glosa.
+5. Produção por Executante / Médico & Prestadores sob Heart:
+   - ATENÇÃO: Quando o documento indicar "Executante: HEART CIRURGIA CARDIOVASCULAR", interprete os blocos internos de acordo com o respectivo "Prestador: [Nome do Médico]" (ex: THAYNARA MAESTRI VIGNATTI, LUAN JUNIOR VIGNATTI, etc.). Agrupe e lance corretamente por médico em termos de quantidade, produção total, honorário (Vlr.Hon.), operacional (Vlr.Oper.) e filme (Vlr.Filme).
 
 Retorne ESTRITAMENTE um JSON válido (sem tags markdown nem explicações fora do JSON):
 {
@@ -2995,7 +2995,7 @@ Retorne ESTRITAMENTE um JSON válido (sem tags markdown nem explicações fora d
     { "date": string, "description": string, "amount": number, "nature": "DEBIT"|"CREDIT", "provider": string }
   ],
   "doctors": [
-    { "name": string, "quantity": number, "productionTotal": number, "honorario": number, "operacional": number, "glosa": number }
+    { "name": string, "quantity": number, "productionTotal": number, "honorario": number, "operacional": number, "filme": number, "glosa": number }
   ]
 }`;
 
