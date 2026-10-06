@@ -973,21 +973,27 @@ app.post("/api/auth/logout", (req, res) => {
 
 app.use("/api/app", verifyMembership);
 
-// --- Financial Fechamento & Conciliação API ---
+interface DoctorProviderMapping {
+  id: string;
+  teamId: string;
+  doctorId: string;
+  doctorName: string;
+  executante: string;
+  prestador: string;
+  active: boolean;
+}
 
-export const KNOWN_DOCTORS = [
-  "ROCHELE LORENZI POL",
-  "THAIS ISABEL LUMIKOSKI",
-  "LUIS BONGIOLO MATTOS",
-  "KATHIZE LIRA",
-  "TAMARA QUINTINO REGIS",
-  "LUAN JUNIOR VIGNATTI",
-  "THAYNARA MAESTRI VIGNATTI",
-  "CAMILA RIBEIRO DUTRA",
-  "MARIA EDUARDA CASA SOUZA MACHADO"
-];
+function getDoctorFromMapping(mappings: DoctorProviderMapping[], executante: string, prestador: string) {
+  const cleanExec = (executante || "").trim().toUpperCase();
+  const cleanPrest = (prestador || "").trim().toUpperCase();
+  return mappings.find(m => 
+    m.active &&
+    m.executante.trim().toUpperCase() === cleanExec && 
+    m.prestador.trim().toUpperCase() === cleanPrest
+  );
+}
 
-function parseBatch10944FilesForServer(closingId: string) {
+async function parseBatch10944FilesForServer(closingId: string, teamId: string) {
   const productionRecords = [
     {
       protocol: "1937592",
@@ -1122,6 +1128,22 @@ function parseBatch10944FilesForServer(closingId: string) {
     }
   ];
 
+  const mappingSnap = await db.collection("doctor_provider_mappings")
+    .where("teamId", "==", teamId)
+    .where("active", "==", true)
+    .get();
+  const mappings = mappingSnap.docs.map(d => ({ id: d.id, ...d.data() })) as DoctorProviderMapping[];
+
+  productionRecords.forEach(p => {
+    const executante = p.executingProvider || "";
+    const prestador = p.protocolProvider || p.paymentProvider || "";
+    const mapping = getDoctorFromMapping(mappings, executante, prestador);
+    if (mapping) {
+      p.doctorId = mapping.doctorId;
+      p.doctorName = mapping.doctorName;
+    }
+  });
+  
   const glosas = [
     {
       protocol: "1937592",
@@ -2098,7 +2120,7 @@ app.post("/api/app/financial/import", async (req, res) => {
       });
     }
 
-    const bundle = parseBatch10944FilesForServer(closingId);
+    const bundle = await parseBatch10944FilesForServer(closingId, groupId || "default");
 
     const importRef = db.collection("financial_imports").doc();
     const importId = importRef.id;
@@ -2342,6 +2364,12 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       filmValue: number;
     }>();
 
+    const mappingSnap = await db.collection("doctor_provider_mappings")
+      .where("teamId", "==", groupId)
+      .where("active", "==", true)
+      .get();
+    const mappings = mappingSnap.docs.map(d => ({ id: d.id, ...d.data() })) as DoctorProviderMapping[];
+
     KNOWN_DOCTORS.forEach(docName => {
       const docId = docName.toLowerCase().replace(/[^a-z0-9]/g, "_");
       doctorMap.set(docId, {
@@ -2359,12 +2387,23 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     });
 
     production.forEach((p: any) => {
-      const rawDocName = p.doctorName || p.protocolProvider || (p.executingProvider !== "HEART CIRURGIA CARDIOVASCULAR" ? p.executingProvider : null) || p.protocolProvider;
-      const docName = (rawDocName && rawDocName !== "HEART CIRURGIA CARDIOVASCULAR") ? rawDocName : (p.protocolProvider || "Equipe Geral");
-      const id = p.doctorId || (docName !== "Equipe Geral" ? docName.toLowerCase().replace(/[^a-z0-9]/g, "_") : "equipe");
-      if (!doctorMap.has(id) && docName && !docName.includes("HEART")) {
-        doctorMap.set(id, {
-          doctorId: id,
+      const executante = p.executingProvider || "";
+      const prestador = p.protocolProvider || p.paymentProvider || ""; // Assuming protocolProvider is Prestador
+      const mapping = getDoctorFromMapping(mappings, executante, prestador);
+
+      let docId, docName;
+      if (mapping) {
+        docId = mapping.doctorId;
+        docName = mapping.doctorName;
+      } else {
+        const rawDocName = p.doctorName || p.protocolProvider || (p.executingProvider !== "HEART CIRURGIA CARDIOVASCULAR" ? p.executingProvider : null) || p.protocolProvider;
+        docName = (rawDocName && rawDocName !== "HEART CIRURGIA CARDIOVASCULAR") ? rawDocName : (p.protocolProvider || "Equipe Geral");
+        docId = p.doctorId || (docName !== "Equipe Geral" ? docName.toLowerCase().replace(/[^a-z0-9]/g, "_") : "equipe");
+      }
+      
+      if (!doctorMap.has(docId) && docName && !docName.includes("HEART")) {
+        doctorMap.set(docId, {
+          doctorId: docId,
           doctorName: docName,
           productionTotal: 0,
           glosaTotal: 0,
@@ -2376,7 +2415,7 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
           filmValue: 0
         });
       }
-      const entry = doctorMap.get(id);
+      const entry = doctorMap.get(docId);
       if (entry) {
         const itemVal = (Number(p.honorValue) || 0) + (Number(p.operationalValue) || 0) + (Number(p.filmValue) || 0) || Number(p.productionTotal) || Number(p.valueProcessed) || 0;
         entry.productionTotal += itemVal;

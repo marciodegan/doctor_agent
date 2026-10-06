@@ -267,7 +267,6 @@ service cloud.firestore {
                        isValidId(mappingId);
       allow update: if isSignedIn() && isOwner(existing().teamId) &&
                        incoming().teamId == existing().teamId &&
-                       incoming().doctorId == existing().doctorId &&
                        incoming().updatedAt == request.time;
       allow delete: if isSignedIn() && isOwner(existing().teamId);
     }
