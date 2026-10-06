@@ -2339,6 +2339,7 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       protocolCount: Set<string>;
       honorValue: number;
       operationalValue: number;
+      filmValue: number;
     }>();
 
     KNOWN_DOCTORS.forEach(docName => {
@@ -2352,13 +2353,15 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
         procedureCount: 0,
         protocolCount: new Set(),
         honorValue: 0,
-        operationalValue: 0
+        operationalValue: 0,
+        filmValue: 0
       });
     });
 
     production.forEach((p: any) => {
-      const docName = p.doctorName || p.protocolProvider || p.executingProvider;
-      const id = p.doctorId || (docName ? docName.toLowerCase().replace(/[^a-z0-9]/g, "_") : "equipe");
+      const rawDocName = p.doctorName || p.protocolProvider || (p.executingProvider !== "HEART CIRURGIA CARDIOVASCULAR" ? p.executingProvider : null) || p.protocolProvider;
+      const docName = (rawDocName && rawDocName !== "HEART CIRURGIA CARDIOVASCULAR") ? rawDocName : (p.protocolProvider || "Equipe Geral");
+      const id = p.doctorId || (docName !== "Equipe Geral" ? docName.toLowerCase().replace(/[^a-z0-9]/g, "_") : "equipe");
       if (!doctorMap.has(id) && docName && !docName.includes("HEART")) {
         doctorMap.set(id, {
           doctorId: id,
@@ -2369,15 +2372,17 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
           procedureCount: 0,
           protocolCount: new Set(),
           honorValue: 0,
-          operationalValue: 0
+          operationalValue: 0,
+          filmValue: 0
         });
       }
       const entry = doctorMap.get(id);
       if (entry) {
-        const itemVal = (Number(p.honorValue) || 0) + (Number(p.operationalValue) || 0) || Number(p.productionTotal) || Number(p.valueProcessed) || 0;
+        const itemVal = (Number(p.honorValue) || 0) + (Number(p.operationalValue) || 0) + (Number(p.filmValue) || 0) || Number(p.productionTotal) || Number(p.valueProcessed) || 0;
         entry.productionTotal += itemVal;
         entry.honorValue += Number(p.honorValue) || Number(p.productionTotal) || 0;
         entry.operationalValue += Number(p.operationalValue) || 0;
+        entry.filmValue += Number(p.filmValue) || 0;
         entry.procedureCount += Number(p.quantity) || 1;
         if (p.protocol) entry.protocolCount.add(p.protocol);
       }

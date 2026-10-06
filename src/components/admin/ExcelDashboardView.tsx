@@ -61,6 +61,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const [searchTerm, setSearchTerm] = useState("");
   const [removedLotes, setRemovedLotes] = useState<string[]>([]);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [matrixModalData, setMatrixModalData] = useState<{
+    isOpen: boolean;
+    title: string;
+    doctorName: string;
+    source: string;
+    records: any[];
+  }>({ isOpen: false, title: "", doctorName: "", source: "", records: [] });
 
   // Manual entries for green plantao / entrada cells
   const [manualEntradas, setManualEntradas] = useState<Record<string, any>>({
@@ -1012,6 +1019,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <th className="p-2 border border-slate-700">Equipe DS</th>
                     <th className="p-2 border border-slate-700">Part. TT</th>
                     <th className="p-2 border border-slate-700">Part. DS</th>
+                    <th className="p-2 border border-slate-700 bg-teal-950/80 text-teal-300">Operacional</th>
+                    <th className="p-2 border border-slate-700 bg-teal-950/80 text-teal-300">Filme</th>
                     <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão TT</th>
                     <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão DS</th>
                     <th className="p-2 border border-slate-700">VL Nota TT</th>
@@ -1038,12 +1047,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   {(() => {
                     const hasClosing = Boolean(details?.closing);
                     const getDoctorUnimed = (doctorName: string) => {
-                      if (!hasClosing || !details?.doctorsSummary) return { prod: 0, disp: 0 };
+                      if (!hasClosing || !details?.doctorsSummary) return { prod: 0, disp: 0, operational: 0, film: 0 };
                       const found = details.doctorsSummary.find((d: any) => d.doctorName?.trim().toUpperCase() === doctorName.trim().toUpperCase());
-                      if (!found) return { prod: 0, disp: 0 };
+                      if (!found) return { prod: 0, disp: 0, operational: 0, film: 0 };
                       return {
                         prod: found.productionTotal || found.honorValue || 0,
-                        disp: found.netProduction || found.productionTotal || 0
+                        disp: found.netProduction || found.productionTotal || 0,
+                        operational: found.operationalValue || 0,
+                        film: found.filmValue || 0
                       };
                     };
 
@@ -1111,10 +1122,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       const unimedEqDS = isTeam ? (unimedData.disp * mul) : 0;
                       const unimedPartTT = !isTeam ? (unimedData.prod * mul) : 0;
                       const unimedPartDS = !isTeam ? (unimedData.disp * mul) : 0;
+                      const unimedOp = unimedData.operational * mul;
+                      const unimedFilm = unimedData.film * mul;
                       const unimPlTT = (man.unimedPlantaoTT || 0) * mul;
                       const unimPlDS = (man.unimedPlantaoDS || 0) * mul;
-                      const unimTotTT = unimedEqTT + unimedPartTT + unimPlTT;
-                      const unimTotDS = unimedEqDS + unimedPartDS + unimPlDS;
+                      const unimTotTT = unimedEqTT + unimedPartTT + unimedOp + unimedFilm + unimPlTT;
+                      const unimTotDS = unimedEqDS + unimedPartDS + unimedOp + unimedFilm + unimPlDS;
 
                       const consultTT = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioTT * 100) / 100 * mul : 0;
                       const consultDS = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioDS * 100) / 100 * mul : 0;
@@ -1130,7 +1143,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         ...doc,
                         azEqTT, azEqDS, azPlTT, azPlDS, azTotTT, azTotDS,
                         marEqTT, marEqDS, marTotTT, marTotDS,
-                        unimedEqTT, unimedEqDS, unimedPartTT, unimedPartDS, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
+                        unimedEqTT, unimedEqDS, unimedPartTT, unimedPartDS, unimedOp, unimedFilm, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
                         consultTT, consultDS, dinheiroTT, dinheiroDS, unimLuisTT, unimLuisDS,
                         totalGeralTT, totalGeralDS
                       };
@@ -1182,10 +1195,60 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-500">{r.marTotDS > 0 ? r.marTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Unimed (Equipe from imports, Plantao manual) */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedEqTT > 0 ? r.unimedEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedEqDS > 0 ? r.unimedEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedPartTT > 0 ? r.unimedPartTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimedPartDS > 0 ? r.unimedPartDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td 
+                          onClick={() => {
+                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            setMatrixModalData({ isOpen: true, title: `Produção Unimed (Equipe) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
+                          }}
+                          className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                        >
+                          {r.unimedEqTT > 0 ? r.unimedEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                        </td>
+                        <td 
+                          onClick={() => {
+                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            setMatrixModalData({ isOpen: true, title: `Produção Unimed (Equipe DS) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
+                          }}
+                          className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                        >
+                          {r.unimedEqDS > 0 ? r.unimedEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                        </td>
+                        <td 
+                          onClick={() => {
+                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            setMatrixModalData({ isOpen: true, title: `Produção Unimed (Part. TT) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
+                          }}
+                          className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                        >
+                          {r.unimedPartTT > 0 ? r.unimedPartTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                        </td>
+                        <td 
+                          onClick={() => {
+                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            setMatrixModalData({ isOpen: true, title: `Produção Unimed (Part. DS) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
+                          }}
+                          className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                        >
+                          {r.unimedPartDS > 0 ? r.unimedPartDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                        </td>
+                        <td 
+                          onClick={() => {
+                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            setMatrixModalData({ isOpen: true, title: `Operacional Unimed — ${r.name}`, doctorName: r.name, source: "OPERACIONAL", records: recs });
+                          }}
+                          className="p-3 border border-slate-200 font-mono text-teal-800 font-bold cursor-pointer hover:bg-teal-50 transition-colors"
+                        >
+                          {r.unimedOp > 0 ? r.unimedOp.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                        </td>
+                        <td 
+                          onClick={() => {
+                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            setMatrixModalData({ isOpen: true, title: `Filme Unimed — ${r.name}`, doctorName: r.name, source: "FILME", records: recs });
+                          }}
+                          className="p-3 border border-slate-200 font-mono text-teal-800 font-bold cursor-pointer hover:bg-teal-50 transition-colors"
+                        >
+                          {r.unimedFilm > 0 ? r.unimedFilm.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                        </td>
                         <td className="p-3 border border-slate-200 bg-emerald-50/60 p-1">
                           <input
                             type="number"
@@ -1255,6 +1318,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedEqDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedPartTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedPartDS'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono text-teal-300">{fmt(sum('unimedOp'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono text-teal-300">{fmt(sum('unimedFilm'))}</td>
                         <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('unimPlTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('unimPlDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimTotTT'))}</td>
@@ -2298,6 +2363,63 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                 }
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalhamento de Célula da Matriz */}
+      {matrixModalData.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] border border-gray-200 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+              <div>
+                <h3 className="text-base font-black text-gray-900 uppercase tracking-tight">{matrixModalData.title}</h3>
+                <p className="text-xs text-gray-500 font-medium mt-0.5">Detalhamento dos lançamentos e procedimentos associados</p>
+              </div>
+              <button
+                onClick={() => setMatrixModalData({ isOpen: false, title: "", doctorName: "", source: "", records: [] })}
+                className="w-9 h-9 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-black flex items-center justify-center transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {matrixModalData.records.length === 0 ? (
+                <p className="text-center text-gray-500 py-12 text-xs font-bold">Nenhum lançamento encontrado para este item.</p>
+              ) : (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
+                      <th className="p-3 pl-4">Data</th>
+                      <th className="p-3">Protocolo</th>
+                      <th className="p-3">Paciente / Descrição</th>
+                      <th className="p-3">Código AMB</th>
+                      <th className="p-3 text-right">Honorários</th>
+                      <th className="p-3 text-right">Operacional</th>
+                      <th className="p-3 text-right">Filme</th>
+                      <th className="p-3 text-right font-black">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                    {matrixModalData.records.map((rec, idx) => (
+                      <tr key={idx} className="hover:bg-blue-50/20 transition-colors">
+                        <td className="p-3 pl-4 text-gray-600">{rec.date || "-"}</td>
+                        <td className="p-3 font-bold text-gray-900">{rec.protocol || "-"}</td>
+                        <td className="p-3">
+                          <div className="font-bold text-gray-900">{rec.patientName || rec.procedureDescription || "Procedimento"}</div>
+                          <div className="text-[10px] text-gray-400">{rec.procedureDescription}</div>
+                        </td>
+                        <td className="p-3 font-mono text-gray-600">{rec.ambCode || "-"}</td>
+                        <td className="p-3 text-right font-mono text-gray-700">R$ {(rec.honorValue || rec.productionTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 text-right font-mono text-teal-700">R$ {(rec.operationalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 text-right font-mono text-teal-700">R$ {(rec.filmValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 text-right font-mono font-black text-blue-700">R$ {((rec.honorValue || rec.productionTotal || 0) + (rec.operationalValue || 0) + (rec.filmValue || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
       )}
