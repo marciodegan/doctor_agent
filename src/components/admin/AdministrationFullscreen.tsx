@@ -26,6 +26,7 @@ import {
 import { FinancialClosingsView } from "./FinancialClosingsView";
 import { FinancialImportWizard } from "./FinancialImportWizard";
 import { DoctorDashboardView } from "./DoctorDashboardView";
+import { DoctorManager } from "./DoctorManager";
 import { FinancialTransactionsView } from "./FinancialTransactionsView";
 import { ExcelDashboardView } from "./ExcelDashboardView";
 import { TransactionTypesManager } from "./TransactionTypesManager";
@@ -108,6 +109,12 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
             onClick={() => { setActiveTab("medicos"); setIsImporting(false); }}
           />
           <TabButton
+            icon={<UserPlus size={18} />}
+            label="Gerenciar Médicos"
+            active={activeTab === "gerenciar_medicos"}
+            onClick={() => { setActiveTab("gerenciar_medicos"); setIsImporting(false); }}
+          />
+          <TabButton
             icon={<AlertOctagon size={18} />}
             label="Glosas & Rateios"
             active={activeTab === "glosas"}
@@ -167,6 +174,8 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
             />
           ) : activeTab === "medicos" ? (
             <DoctorDashboardView closingId={selectedClosingId} />
+          ) : activeTab === "gerenciar_medicos" ? (
+            <DoctorManager />
           ) : activeTab === "fluxo" ? (
             <FinancialTransactionsView closingId={selectedClosingId} />
           ) : activeTab === "importacoes" ? (
