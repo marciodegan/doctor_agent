@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Loader2, Check } from "lucide-react";
 import { db } from "../../lib/firebase";
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, deleteDoc, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, doc, serverTimestamp, deleteDoc } from "firebase/firestore";
 import { DoctorProviderMapping, Doctor } from "../../types/financial";
 import { useGroup } from "../../contexts/GroupContext";
 
@@ -12,118 +12,120 @@ export function DoctorProviderMappingsManager() {
   const [loading, setLoading] = useState(true);
   const [newExecutante, setNewExecutante] = useState("");
   const [newPrestador, setNewPrestador] = useState("");
-  const [selectedDoctor, setSelectedDoctor] = useState(""); // Stores "id|name"
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeGroup) return;
-    fetchMappings();
-    fetchDoctors();
+    fetchData();
   }, [activeGroup]);
 
+  const fetchData = async () => {
+    setLoading(true);
+    await Promise.all([fetchDoctors(), fetchMappings()]);
+    setLoading(false);
+  };
+
   const fetchDoctors = async () => {
+    console.log("[Doctors] carregando");
     try {
-      const q = query(collection(db, "doctors"), where("active", "==", true), orderBy("name"));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Doctor));
-      console.log("DEBUG: Doctors fetched", data);
-      setDoctors(data);
-    } catch (e) {
-      console.error("Error fetching doctors:", e);
+      const doctorsRef = collection(db, "doctors");
+      const doctorsSnapshot = await getDocs(doctorsRef);
+      const doctorsData = doctorsSnapshot.docs
+        .map(d => ({ id: d.id, ...d.data() } as Doctor))
+        .filter(d => d.active !== false);
+      
+      console.log("[Doctors] quantidade:", doctorsData.length);
+      console.log("[Doctors] dados:", doctorsData);
+      setDoctors(doctorsData);
+    } catch (error) {
+      console.error("[Doctors] ERRO AO CARREGAR MÉDICOS", error);
     }
   };
 
   const fetchMappings = async () => {
-    setLoading(true);
+    console.log("[Mappings] carregando", { teamId: activeGroup.id });
     try {
       const q = query(collection(db, "doctor_provider_mappings"), where("teamId", "==", activeGroup.id));
       const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DoctorProviderMapping));
+      const data = querySnapshot.docs.map(documentSnapshot => ({
+        id: documentSnapshot.id,
+        ...documentSnapshot.data()
+      })) as DoctorProviderMapping[];
       
-      const doctorMap = new Map(doctors.map(doctor => [doctor.id, doctor]));
-      const enhancedData = data.map(mapping => ({
-        ...mapping,
-        displayDoctorName: doctorMap.get(mapping.doctorId)?.name || mapping.doctorName || "Médico não encontrado"
-      }));
-      setMappings(enhancedData);
-    } catch (e) {
-      console.error("Error fetching mappings:", e);
-    } finally {
-      setLoading(false);
+      data.forEach(m => console.log("[Mappings] registro:", { id: m.id, teamId: m.teamId, doctorId: m.doctorId }));
+      
+      setMappings(data);
+      console.log("[Mappings] carregado");
+    } catch (error) {
+      console.error("[Mappings] erro", error);
     }
   };
 
   const handleAdd = async () => {
-    if (!newExecutante || !newPrestador || !selectedDoctor) return;
+    if (!newExecutante || !newPrestador || !selectedDoctorId || !activeGroup) return;
     
-    const [doctorId, doctorName] = selectedDoctor.split("|");
+    const selectedDoctor = doctors.find(d => d.id === selectedDoctorId);
+    if (!selectedDoctor) return;
+
+    const payload = {
+      teamId: activeGroup.id,
+      doctorId: selectedDoctor.id,
+      doctorName: selectedDoctor.name,
+      executante: newExecutante.trim(),
+      prestador: newPrestador.trim(),
+      active: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+    
+    console.log("[Mapping] criando", payload);
     setAdding(true);
     try {
-      const q = query(collection(db, "doctor_provider_mappings"), 
-        where("teamId", "==", activeGroup.id),
-        where("executante", "==", newExecutante),
-        where("prestador", "==", newPrestador)
-      );
-      const snapshot = await getDocs(q);
-      
-      if (!snapshot.empty) {
-        alert("Já existe uma associação para essa combinação de Executante e Prestador.");
-        setAdding(false);
-        return;
-      }
-
-      await addDoc(collection(db, "doctor_provider_mappings"), {
-        teamId: activeGroup.id,
-        executante: newExecutante,
-        prestador: newPrestador,
-        doctorId,
-        doctorName,
-        active: true,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      await addDoc(collection(db, "doctor_provider_mappings"), payload);
+      console.log("[Mapping] criado");
       setNewExecutante("");
       setNewPrestador("");
-      setSelectedDoctor("");
+      setSelectedDoctorId("");
       fetchMappings();
-    } catch (e) {
-      console.error("Error adding mapping:", e);
-      alert("Erro ao adicionar mapping");
+    } catch (error) {
+      console.error("[Mapping] erro", error);
     } finally {
       setAdding(false);
     }
   };
 
-  const handleRemove = async (m: DoctorProviderMapping) => {
-    if (!confirm(`Remover este vínculo?\nExecutante: ${m.executante}\nPrestador: ${m.prestador}\nMédico: ${m.displayDoctorName || m.doctorName}`)) return;
-    
-    console.log("DEBUG: Removing mapping", { mappingId: m.id, teamId: m.teamId });
-    setRemoving(m.id);
+  const handleDeleteMapping = async (mapping: DoctorProviderMapping) => {
+    console.log("[Mapping] tentativa de exclusão", {
+      id: mapping.id,
+      teamId: mapping.teamId,
+      executante: mapping.executante,
+      prestador: mapping.prestador,
+      doctorId: mapping.doctorId
+    });
+
+    if (!mapping.id) {
+      console.error("[Mapping] ID DO DOCUMENTO AUSENTE", mapping);
+      return;
+    }
+
+    setRemoving(mapping.id);
     try {
-      await deleteDoc(doc(db, "doctor_provider_mappings", m.id));
-      setMappings(mappings.filter(item => item.id !== m.id));
-    } catch (e) {
-      console.error("Error removing mapping:", e);
-      alert("Erro ao remover vínculo: " + (e as Error).message);
+      const mappingRef = doc(db, "doctor_provider_mappings", mapping.id);
+      await deleteDoc(mappingRef);
+      console.log("[Mapping] excluído com sucesso:", mapping.id);
+      setMappings(prev => prev.filter(item => item.id !== mapping.id));
+    } catch (error) {
+      console.error("[Mapping] ERRO AO EXCLUIR", { error, mappingId: mapping.id, teamId: mapping.teamId });
     } finally {
       setRemoving(null);
     }
   };
 
-  const handleToggleActive = async (id: string, active: boolean) => {
-    try {
-      await updateDoc(doc(db, "doctor_provider_mappings", id), {
-        active: !active,
-        updatedAt: serverTimestamp()
-      });
-      fetchMappings();
-    } catch (e) {
-      console.error("Error updating mapping:", e);
-    }
-  };
-
   if (loading) return <div className="p-12 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" /></div>;
+
+  const doctorMap = new Map(doctors.map(doctor => [doctor.id, doctor]));
 
   return (
     <div className="space-y-6">
@@ -133,10 +135,10 @@ export function DoctorProviderMappingsManager() {
         <div className="grid grid-cols-3 gap-4">
           <input placeholder="Executante" value={newExecutante} onChange={e => setNewExecutante(e.target.value)} className="p-3 border rounded-xl text-sm" />
           <input placeholder="Prestador" value={newPrestador} onChange={e => setNewPrestador(e.target.value)} className="p-3 border rounded-xl text-sm" />
-          <select value={selectedDoctor} onChange={e => setSelectedDoctor(e.target.value)} className="p-3 border rounded-xl text-sm">
+          <select value={selectedDoctorId} onChange={e => setSelectedDoctorId(e.target.value)} className="p-3 border rounded-xl text-sm">
             <option value="">Selecione o Médico</option>
             {doctors.map((d) => (
-              <option key={d.id} value={`${d.id}|${d.name}`}>{d.name}</option>
+              <option key={d.id} value={d.id}>{d.name}</option>
             ))}
           </select>
         </div>
@@ -157,21 +159,22 @@ export function DoctorProviderMappingsManager() {
             </tr>
           </thead>
           <tbody>
-            {mappings.map(m => (
-              <tr key={m.id} className="border-t">
-                <td className="p-4">{m.executante}</td>
-                <td className="p-4">{m.prestador}</td>
-                <td className="p-4">{m.displayDoctorName}</td>
-                <td className="p-4 text-center flex items-center justify-center gap-2">
-                  <button onClick={() => handleToggleActive(m.id, m.active)} className={m.active ? "text-emerald-600" : "text-gray-400"}>
-                    <Check size={16} />
-                  </button>
-                  <button onClick={() => handleRemove(m)} className="text-rose-600 hover:text-rose-800 transition">
-                    {removing === m.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {mappings.map(m => {
+              const doctor = doctorMap.get(m.doctorId);
+              const displayDoctorName = doctor?.name || m.doctorName || "Médico não encontrado";
+              return (
+                <tr key={m.id} className="border-t">
+                  <td className="p-4">{m.executante}</td>
+                  <td className="p-4">{m.prestador}</td>
+                  <td className="p-4">{displayDoctorName}</td>
+                  <td className="p-4 text-center flex items-center justify-center gap-2">
+                    <button onClick={() => handleDeleteMapping(m)} className="text-rose-600 hover:text-rose-800 transition">
+                      {removing === m.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
