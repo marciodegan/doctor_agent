@@ -47,7 +47,7 @@ import {
 import { DoctorTeamMember, TeamFinancialSettings } from "../../types/financial";
 import { TransactionTypesManager } from "./TransactionTypesManager";
 import { FinancialImportWizard } from "./FinancialImportWizard";
-import { DoctorProviderMappingsManager } from "./DoctorProviderMappingsManager";
+import { ProviderLinker } from "./ProviderLinker";
 
 const KNOWN_DOCTORS = ['ROCHELE', 'THAIS', 'LUIS', 'KATHIZE'];
 
@@ -2156,7 +2156,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       {/* VIEW 9: GERENCIADOR DE PRESTADORES */}
       {activeSubTab === "config_prestadores" && (
         <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden p-6">
-          <DoctorProviderMappingsManager />
+          <ProviderLinker doctors={doctors} />
         </div>
       )}
 
