@@ -274,7 +274,7 @@ service cloud.firestore {
 
     match /doctor_provider_mappings/{mappingId} {
       allow read: if isSignedIn() && isMember(resource.data.teamId);
-      allow create: if isSignedIn() && isOwner(incoming().teamId) && 
+      allow create: if isSignedIn() && isMember(incoming().teamId) && 
                        incoming().createdAt == request.time &&
                        isValidId(mappingId);
       allow update: if isSignedIn() && isOwner(existing().teamId) &&
