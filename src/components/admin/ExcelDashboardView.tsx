@@ -70,6 +70,25 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     records: any[];
   }>({ isOpen: false, title: "", doctorName: "", source: "", records: [] });
 
+  const [doctors, setDoctors] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      const q = query(collection(db, "doctors"), where("active", "==", true), orderBy("name"));
+      const snapshot = await getDocs(q);
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setDoctors(docs);
+    };
+    fetchDoctors();
+  }, []);
+
+  const rowsData = React.useMemo(() => doctors.map(doc => ({
+    key: doc.id,
+    name: doc.name,
+    percent: teamSettings.doctors.find(d => d.key === doc.id)?.teamSharePercent || 0,
+    isTeam: teamSettings.doctors.find(d => d.key === doc.id)?.isTeamMember || false
+  })), [doctors, teamSettings]);
+
   // Manual entries for green plantao / entrada cells
   const [manualEntradas, setManualEntradas] = useState<Record<string, any>>({
     thais: { azambujaPlantaoTT: 3600, azambujaPlantaoDS: 2933.04, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
@@ -1050,25 +1069,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         film: found.filmValue || 0
                       };
                     };
-
-                    const [doctors, setDoctors] = useState<any[]>([]);
-
-                    useEffect(() => {
-                      const fetchDoctors = async () => {
-                        const q = query(collection(db, "doctors"), where("active", "==", true), orderBy("name"));
-                        const snapshot = await getDocs(q);
-                        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                        setDoctors(docs);
-                      };
-                      fetchDoctors();
-                    }, []);
-
-                    const rowsData = doctors.map(doc => ({
-                      key: doc.id,
-                      name: doc.name,
-                      percent: teamSettings.doctors.find(d => d.key === doc.id)?.teamSharePercent || 0,
-                      isTeam: teamSettings.doctors.find(d => d.key === doc.id)?.isTeamMember || false
-                    }));
 
                     const mul = hasClosing ? 1 : 0;
 

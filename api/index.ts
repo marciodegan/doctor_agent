@@ -2343,7 +2343,7 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
 
     // Fallback: If taxes or production is completely empty, populate from standard demonstrativo
     if (taxes.length === 0 || !taxes.some((t: any) => t.lote || t.batchNumber)) {
-      const bundle = parseBatch10944FilesForServer(actualDocId);
+      const bundle = await parseBatch10944FilesForServer(actualDocId, groupId || "default");
       taxes = bundle.taxes;
       if (production.length === 0) production = bundle.productionRecords;
       if (glosas.length === 0) glosas = bundle.glosas;
