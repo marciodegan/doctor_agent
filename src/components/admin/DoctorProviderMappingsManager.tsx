@@ -40,7 +40,13 @@ export function DoctorProviderMappingsManager() {
       const q = query(collection(db, "doctor_provider_mappings"), where("teamId", "==", activeGroup.id));
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DoctorProviderMapping));
-      setMappings(data);
+      
+      const doctorMap = new Map(doctors.map(doctor => [doctor.id, doctor]));
+      const enhancedData = data.map(mapping => ({
+        ...mapping,
+        displayDoctorName: doctorMap.get(mapping.doctorId)?.name || mapping.doctorName || "Médico não encontrado"
+      }));
+      setMappings(enhancedData);
     } catch (e) {
       console.error("Error fetching mappings:", e);
     } finally {
@@ -90,16 +96,16 @@ export function DoctorProviderMappingsManager() {
   };
 
   const handleRemove = async (m: DoctorProviderMapping) => {
-    if (!confirm(`Remover este vínculo?\nExecutante: ${m.executante}\nPrestador: ${m.prestador}\nMédico: ${m.doctorName}`)) return;
+    if (!confirm(`Remover este vínculo?\nExecutante: ${m.executante}\nPrestador: ${m.prestador}\nMédico: ${m.displayDoctorName || m.doctorName}`)) return;
     
+    console.log("DEBUG: Removing mapping", { mappingId: m.id, teamId: m.teamId });
     setRemoving(m.id);
     try {
       await deleteDoc(doc(db, "doctor_provider_mappings", m.id));
       setMappings(mappings.filter(item => item.id !== m.id));
-      alert("Vínculo removido com sucesso.");
     } catch (e) {
       console.error("Error removing mapping:", e);
-      alert("Erro ao remover mapping.");
+      alert("Erro ao remover vínculo: " + (e as Error).message);
     } finally {
       setRemoving(null);
     }
@@ -155,7 +161,7 @@ export function DoctorProviderMappingsManager() {
               <tr key={m.id} className="border-t">
                 <td className="p-4">{m.executante}</td>
                 <td className="p-4">{m.prestador}</td>
-                <td className="p-4">{m.doctorName}</td>
+                <td className="p-4">{m.displayDoctorName}</td>
                 <td className="p-4 text-center flex items-center justify-center gap-2">
                   <button onClick={() => handleToggleActive(m.id, m.active)} className={m.active ? "text-emerald-600" : "text-gray-400"}>
                     <Check size={16} />
