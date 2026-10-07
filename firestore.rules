@@ -279,7 +279,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && isOwner(existing().teamId) &&
                        incoming().teamId == existing().teamId &&
                        incoming().updatedAt == request.time;
-      allow delete: if isSignedIn() && isOwner(existing().teamId);
+      allow delete: if isSignedIn() && isMember(existing().teamId);
     }
 
     match /financial_closings/{closingId} {
