@@ -62,6 +62,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const [closings, setClosings] = useState<any[]>([]);
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(closingId || "SETEMBRO-26");
   const [details, setDetails] = useState<any>(null);
+  const production = details?.productionRecords || [];
   const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
     "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores"
@@ -79,6 +80,38 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   }>({ isOpen: false, title: "", doctorName: "", source: "", records: [] });
 
   const [doctors, setDoctors] = useState<any[]>([]);
+
+  // Manual entries for green plantao / entrada cells
+  const [manualEntradas, setManualEntradas] = useState<Record<string, any>>({
+    thais: { azambujaPlantaoTT: 3600, azambujaPlantaoDS: 2933.04, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
+    kathize: { azambujaPlantaoTT: 9000, azambujaPlantaoDS: 7332.59, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
+    rochele: { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 1966.87, unimedPlantaoDS: 1610.61 }
+  });
+
+  // Global manual entries for totals at the top of sections
+  const [globalEntradas, setGlobalEntradas] = useState<{
+    azambujaTT: number;
+    azambujaDS: number;
+    marietaTT: number;
+    marietaDS: number;
+    consultorioTT: number;
+    consultorioDS: number;
+    dinheiroTT: number;
+    dinheiroDS: number;
+    unimedLuisTT: number;
+    unimedLuisDS: number;
+  }>({
+    azambujaTT: 70020.94,
+    azambujaDS: 57048.34,
+    marietaTT: 81042.09,
+    marietaDS: 67645.83,
+    consultorioTT: 400,
+    consultorioDS: 400,
+    dinheiroTT: 1200,
+    dinheiroDS: 1200,
+    unimedLuisTT: 8406,
+    unimedLuisDS: 7016.49
+  });
 
   useEffect(() => {
     const fetchDoctors = async () => {

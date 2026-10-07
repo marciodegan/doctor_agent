@@ -22,7 +22,8 @@ import {
   FileText,
   TableProperties,
   Tag,
-  UserPlus
+  UserPlus,
+  UserCheck
 } from "lucide-react";
 import { FinancialClosingsView } from "./FinancialClosingsView";
 import { FinancialImportWizard } from "./FinancialImportWizard";
