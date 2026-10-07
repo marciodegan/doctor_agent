@@ -973,7 +973,7 @@ app.post("/api/auth/logout", (req, res) => {
 
 app.use("/api/app", verifyMembership);
 
-interface DoctorProviderMapping {
+export interface DoctorProviderMapping {
   id: string;
   teamId: string;
   doctorId: string;
@@ -981,15 +981,24 @@ interface DoctorProviderMapping {
   executante: string;
   prestador: string;
   active: boolean;
+  createdAt: any;
+  updatedAt: any;
 }
 
 function getDoctorFromMapping(mappings: DoctorProviderMapping[], executante: string, prestador: string) {
   const cleanExec = (executante || "").trim().toUpperCase();
   const cleanPrest = (prestador || "").trim().toUpperCase();
+  
+  // Normalization logic: trim, uppercase, remove duplicate spaces
+  const normalize = (s: string) => s.trim().toUpperCase().replace(/\s+/g, ' ');
+  
+  const normalizedExec = normalize(cleanExec);
+  const normalizedPrest = normalize(cleanPrest);
+  
   return mappings.find(m => 
     m.active &&
-    m.executante.trim().toUpperCase() === cleanExec && 
-    m.prestador.trim().toUpperCase() === cleanPrest
+    normalize(m.executante) === normalizedExec && 
+    normalize(m.prestador) === normalizedPrest
   );
 }
 
@@ -1142,6 +1151,19 @@ async function parseBatch10944FilesForServer(closingId: string, teamId: string) 
     if (mapping) {
       p.doctorId = mapping.doctorId;
       p.doctorName = mapping.doctorName;
+      (p as any).allocationStatus = "ALLOCATED";
+    } else {
+      p.doctorId = undefined;
+      p.doctorName = undefined;
+      (p as any).allocationStatus = "PENDING_REVIEW";
+      pendencies.push({
+        id: `pend-${p.protocol}-${p.document}`,
+        type: "MAPPING_NOT_FOUND",
+        description: `Mapeamento não encontrado: ${executante} + ${prestador}`,
+        severity: "ERROR",
+        resolved: false
+      });
+      console.error(`[Mapping] PENDENTE: ${executante} + ${prestador}`);
     }
   });
   
@@ -2397,10 +2419,11 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       if (mapping) {
         docId = mapping.doctorId;
         docName = mapping.doctorName;
+        p.allocationStatus = "ALLOCATED";
       } else {
-        const rawDocName = p.doctorName || p.protocolProvider || (p.executingProvider !== "HEART CIRURGIA CARDIOVASCULAR" ? p.executingProvider : null) || p.protocolProvider;
-        docName = (rawDocName && rawDocName !== "HEART CIRURGIA CARDIOVASCULAR") ? rawDocName : (p.protocolProvider || "Equipe Geral");
-        docId = p.doctorId || (docName !== "Equipe Geral" ? docName.toLowerCase().replace(/[^a-z0-9]/g, "_") : "equipe");
+        docId = undefined;
+        docName = undefined;
+        p.allocationStatus = "PENDING_REVIEW";
       }
       
       if (!doctorMap.has(docId) && docName && !docName.includes("HEART")) {
