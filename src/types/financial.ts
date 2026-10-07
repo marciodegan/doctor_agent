@@ -1,3 +1,13 @@
+export interface Doctor {
+  id: string;
+  name: string;
+  specialty: string;
+  crm: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ClosingStatus = "PROCESSING" | "PENDING" | "CONCILIADO" | "CONCILIADO_COM_AVISOS" | "COM_DIFERENCA" | "FECHADO";
 
 export interface FinancialClosing {

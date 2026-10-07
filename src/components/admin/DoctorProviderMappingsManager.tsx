@@ -1,24 +1,38 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Loader2, Check } from "lucide-react";
 import { db } from "../../lib/firebase";
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from "firebase/firestore";
-import { DoctorProviderMapping } from "../../types/financial";
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, deleteDoc, orderBy } from "firebase/firestore";
+import { DoctorProviderMapping, Doctor } from "../../types/financial";
 import { useGroup } from "../../contexts/GroupContext";
 
 export function DoctorProviderMappingsManager() {
   const { activeGroup } = useGroup();
   const [mappings, setMappings] = useState<DoctorProviderMapping[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [newExecutante, setNewExecutante] = useState("");
   const [newPrestador, setNewPrestador] = useState("");
-  const [selectedDoctor, setSelectedDoctor] = useState(""); // Stores "key|name"
+  const [selectedDoctor, setSelectedDoctor] = useState(""); // Stores "id|name"
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeGroup) return;
     fetchMappings();
+    fetchDoctors();
   }, [activeGroup]);
+
+  const fetchDoctors = async () => {
+    try {
+      const q = query(collection(db, "doctors"), where("active", "==", true), orderBy("name"));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Doctor));
+      console.log("DEBUG: Doctors fetched", data);
+      setDoctors(data);
+    } catch (e) {
+      console.error("Error fetching doctors:", e);
+    }
+  };
 
   const fetchMappings = async () => {
     setLoading(true);
@@ -115,8 +129,8 @@ export function DoctorProviderMappingsManager() {
           <input placeholder="Prestador" value={newPrestador} onChange={e => setNewPrestador(e.target.value)} className="p-3 border rounded-xl text-sm" />
           <select value={selectedDoctor} onChange={e => setSelectedDoctor(e.target.value)} className="p-3 border rounded-xl text-sm">
             <option value="">Selecione o Médico</option>
-            {activeGroup?.doctors?.map((d: any) => (
-              <option key={d.key} value={`${d.key}|${d.name}`}>{d.name}</option>
+            {doctors.map((d) => (
+              <option key={d.id} value={`${d.id}|${d.name}`}>{d.name}</option>
             ))}
           </select>
         </div>
