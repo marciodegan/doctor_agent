@@ -4,6 +4,7 @@ import { db } from "../../lib/firebase";
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from "firebase/firestore";
 import { useGroup } from "../../contexts/GroupContext";
 import { TeamRateioConfig } from "../TeamRateioConfig";
+import { ProviderLinker } from "./ProviderLinker";
 
 interface Doctor {
   id: string;
@@ -144,6 +145,8 @@ export function DoctorManager() {
             </tbody>
           </table>
         </div>
+        
+        <ProviderLinker doctors={doctors} />
       </div>
 
       {teamSettings && (

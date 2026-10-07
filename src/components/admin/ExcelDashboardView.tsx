@@ -640,6 +640,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     return config ? !config.isTeamMember : !d.isTeamMember;
   });
 
+  if (!activeGroup) return <div className="p-8 text-center text-gray-500">Grupo não selecionado.</div>;
+
   return (
     <div className="space-y-6 max-w-[1700px] mx-auto pb-20 font-sans">
       {/* Top Banner / Excel Dashboard Title */}

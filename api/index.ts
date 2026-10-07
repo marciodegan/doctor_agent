@@ -994,6 +994,7 @@ function getDoctorFromMapping(mappings: DoctorProviderMapping[], executante: str
 }
 
 async function parseBatch10944FilesForServer(closingId: string, teamId: string) {
+  console.log(`[API] parseBatch10944FilesForServer called with closingId=${closingId}, teamId=${teamId}`);
   const productionRecords = [
     {
       protocol: "1937592",
@@ -2252,6 +2253,7 @@ app.post("/api/app/financial/import", async (req, res) => {
 app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
   const groupId = getGroupId(req);
   const { closingId } = req.params;
+  console.log(`[API] Fetching details for ${closingId}, group ${groupId}`);
   try {
     // 1. Locate closing document by docId, monthKey, or fallback scan
     let closingDoc = await db.collection("financial_closings").doc(closingId).get();
