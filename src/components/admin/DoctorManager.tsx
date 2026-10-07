@@ -54,11 +54,31 @@ export function DoctorManager() {
   const handleSaveSettings = async () => {
     try {
       setSavingSettings(true);
+      // Ensure teamSettings has all doctors
+      const updatedDoctors = doctors.map(d => {
+        const existing = teamSettings.doctors.find((td: any) => td.key === d.id);
+        return existing ? { ...existing, name: d.name, specialty: d.specialty, crm: d.crm } : {
+          key: d.id,
+          name: d.name,
+          specialty: d.specialty,
+          crm: d.crm,
+          isTeamMember: false,
+          teamSharePercent: 0,
+          proporcaoHeartDinamica: 0,
+          disponivelPeriodo: 0,
+          participaUnimed: false,
+          unimedDistributionRule: "EQUAL"
+        };
+      });
+
+      const updatedSettings = { ...teamSettings, doctors: updatedDoctors };
+
       const res = await apiFetch("/api/app/financial/team-settings", {
         method: "POST",
-        body: JSON.stringify(teamSettings)
+        body: JSON.stringify(updatedSettings)
       });
       if (res.ok) {
+        setTeamSettings(updatedSettings);
         setSettingsSuccess(true);
         setTimeout(() => setSettingsSuccess(false), 3000);
       }
