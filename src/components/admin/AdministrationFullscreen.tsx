@@ -145,6 +145,12 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
             active={activeTab === "config"}
             onClick={() => { setActiveTab("config"); setIsImporting(false); }}
           />
+          <TabButton
+            icon={<UserCheck size={18} />}
+            label="Prestadores"
+            active={activeTab === "config_prestadores"}
+            onClick={() => { setActiveTab("config_prestadores"); setIsImporting(false); }}
+          />
 
           <div className="mt-auto pt-4 border-t border-gray-100 px-3">
             <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-100/60 space-y-1">
@@ -191,6 +197,8 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
             <TransactionTypesManager />
           ) : activeTab === "config" ? (
             <ExcelDashboardView closingId={selectedClosingId} initialSubTab="config_equipe" />
+          ) : activeTab === "config_prestadores" ? (
+            <ExcelDashboardView closingId={selectedClosingId} initialSubTab="config_prestadores" />
           ) : activeTab === "glosas" ? (
             <ExcelDashboardView closingId={selectedClosingId} initialSubTab="ocorrencias_fluxo" />
           ) : activeTab === "impostos" ? (

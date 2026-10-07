@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useGroup } from "../../contexts/GroupContext";
 import { 
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy
+} from "firebase/firestore";
+import { db } from "../../lib/firebase";
+import { 
   TableProperties, 
   Download, 
   Calendar, 
@@ -45,7 +53,7 @@ const KNOWN_DOCTORS = ['ROCHELE', 'THAIS', 'LUIS', 'KATHIZE'];
 
 interface ExcelDashboardViewProps {
   closingId: string | null;
-  initialSubTab?: "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento";
+  initialSubTab?: "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores";
   onOpenImport?: () => void;
 }
 
@@ -56,7 +64,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const [details, setDetails] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
-    "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento"
+    "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores"
   >(initialSubTab);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
@@ -74,52 +82,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
   useEffect(() => {
     const fetchDoctors = async () => {
-      const q = query(collection(db, "doctors"), where("active", "==", true), orderBy("name"));
+      const doctorsCol = collection(db, "doctors");
+      const q = query(doctorsCol, where("active", "==", true), orderBy("name"));
       const snapshot = await getDocs(q);
       const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setDoctors(docs);
     };
     fetchDoctors();
   }, []);
-
-  const rowsData = React.useMemo(() => doctors.map(doc => ({
-    key: doc.id,
-    name: doc.name,
-    percent: teamSettings.doctors.find(d => d.key === doc.id)?.teamSharePercent || 0,
-    isTeam: teamSettings.doctors.find(d => d.key === doc.id)?.isTeamMember || false
-  })), [doctors, teamSettings]);
-
-  // Manual entries for green plantao / entrada cells
-  const [manualEntradas, setManualEntradas] = useState<Record<string, any>>({
-    thais: { azambujaPlantaoTT: 3600, azambujaPlantaoDS: 2933.04, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
-    kathize: { azambujaPlantaoTT: 9000, azambujaPlantaoDS: 7332.59, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
-    rochele: { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 1966.87, unimedPlantaoDS: 1610.61 }
-  });
-
-  // Global manual entries for totals at the top of sections
-  const [globalEntradas, setGlobalEntradas] = useState<{
-    azambujaTT: number;
-    azambujaDS: number;
-    marietaTT: number;
-    marietaDS: number;
-    consultorioTT: number;
-    consultorioDS: number;
-    dinheiroTT: number;
-    dinheiroDS: number;
-    unimedLuisTT: number;
-    unimedLuisDS: number;
-  }>({
-    azambujaTT: 70020.94,
-    azambujaDS: 57048.34,
-    marietaTT: 81042.09,
-    marietaDS: 67645.83,
-    consultorioTT: 400,
-    consultorioDS: 400,
-    dinheiroTT: 1200,
-    dinheiroDS: 1200,
-    unimedLuisTT: 8406,
-    unimedLuisDS: 7016.49
-  });
 
   // Team settings state
   const [teamSettings, setTeamSettings] = useState<TeamFinancialSettings>({
@@ -138,6 +108,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     teamOnlySources: ["AZAMBUJA", "MARIETA", "CONSULTORIO", "RECEBIDO_DINHEIRO", "CARTAO", "UNIMED_LUIS"],
     teamOnlyExpenses: ["CONTADOR_HEART", "DARE", "ALUGUEL_SALA", "CELULAR", "CONSULTORIO_ITAJAI", "CRM", "INSTRUMENTADOR", "ALVARA", "GOOGLE", "INSS_PATRONAL", "CAPITALIZACAO_COTA_PARTE"]
   });
+
+  const rowsData = React.useMemo(() => doctors.map(doc => ({
+    key: doc.id,
+    name: doc.name,
+    percent: teamSettings.doctors.find(d => d.key === doc.id)?.teamSharePercent || 0,
+    isTeam: teamSettings.doctors.find(d => d.key === doc.id)?.isTeamMember || false
+  })), [doctors, teamSettings]);
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
