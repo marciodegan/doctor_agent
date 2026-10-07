@@ -681,14 +681,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           </button>
 
           <button
-            onClick={() => setActiveSubTab("config_equipe")}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider transition border border-emerald-400/40 cursor-pointer shadow-sm active:scale-95"
-          >
-            <Settings2 size={15} />
-            <span>Configurar Equipe & %</span>
-          </button>
-
-          <button
             onClick={() => window.print()}
             className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider transition border border-white/20 cursor-pointer shadow-sm active:scale-95"
           >
@@ -770,18 +762,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         >
           <DollarSign size={16} />
           <span>Matriz de Entradas (TT & DS)</span>
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab("config_equipe")}
-          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
-            activeSubTab === "config_equipe"
-              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
-              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
-          }`}
-        >
-          <Settings2 size={16} />
-          <span>2. Configurar Membros da Equipe & Rateio</span>
         </button>
 
         <button
@@ -1071,17 +1051,24 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       };
                     };
 
-                    const rowsData = [
-                      { key: "rochele", name: "ROCHELE LORENZI POL", percent: 29, isTeam: true },
-                      { key: "thais", name: "THAIS ISABEL LUMIKOSKI", percent: 29, isTeam: true },
-                      { key: "luis", name: "LUIS BONGIOLO MATTOS", percent: 29, isTeam: true },
-                      { key: "kathize", name: "KATHIZE LIRA", percent: 13, isTeam: true },
-                      { key: "tamara", name: "TAMARA QUINTINO REGIS", percent: 0, isTeam: false },
-                      { key: "luan", name: "LUAN JUNIOR VIGNATTI", percent: 0, isTeam: false },
-                      { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", percent: 0, isTeam: false },
-                      { key: "camila", name: "CAMILA RIBEIRO DUTRA", percent: 0, isTeam: false },
-                      { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", percent: 0, isTeam: false }
-                    ];
+                    const [doctors, setDoctors] = useState<any[]>([]);
+
+                    useEffect(() => {
+                      const fetchDoctors = async () => {
+                        const q = query(collection(db, "doctors"), where("active", "==", true), orderBy("name"));
+                        const snapshot = await getDocs(q);
+                        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                        setDoctors(docs);
+                      };
+                      fetchDoctors();
+                    }, []);
+
+                    const rowsData = doctors.map(doc => ({
+                      key: doc.id,
+                      name: doc.name,
+                      percent: teamSettings.doctors.find(d => d.key === doc.id)?.teamSharePercent || 0,
+                      isTeam: teamSettings.doctors.find(d => d.key === doc.id)?.isTeamMember || false
+                    }));
 
                     const mul = hasClosing ? 1 : 0;
 
@@ -1567,202 +1554,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   })()}
                 </tfoot>
               </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VIEW 2: CONFIGURAÇÃO DE MEMBROS DA EQUIPE & REGRAS DE RATEIO */}
-      {activeSubTab === "config_equipe" && (
-        <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl p-6 lg:p-8 space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-5">
-            <div>
-              <div className="flex items-center gap-2">
-                <Settings2 size={22} className="text-emerald-600" />
-                <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">
-                  Definição de Membros da Equipe & Percentuais de Rateio
-                </h3>
-              </div>
-              <p className="text-xs text-gray-500 font-medium mt-1">
-                Defina quais médicos fazem parte da equipe para rateio de receitas institucionais (Marieta, Azambuja, Consultório) e despesas fixas (Contador, DARE, Aluguel).
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 ${
-                teamSumPercent === 100 
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200" 
-                  : "bg-amber-50 text-amber-800 border border-amber-200"
-              }`}>
-                <span>Soma dos % da Equipe: {teamSumPercent}%</span>
-                {teamSumPercent === 100 ? <Check size={14} /> : <AlertCircle size={14} />}
-              </div>
-
-              <button
-                onClick={handleSaveTeamSettings}
-                disabled={savingSettings}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer"
-              >
-                <Save size={15} />
-                <span>{savingSettings ? "Salvando..." : "Salvar Configuração"}</span>
-              </button>
-            </div>
-          </div>
-
-          {settingsSuccess && (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 font-bold flex items-center gap-2">
-              <CheckCircle2 size={16} />
-              <span>Configurações da equipe e percentuais de rateio salvos com sucesso!</span>
-            </div>
-          )}
-
-          {/* Table of doctors and team assignment */}
-          <div className="overflow-x-auto border border-gray-200 rounded-2xl">
-            <table className="w-full text-left border-collapse text-xs">
-               <thead>
-                <tr className="bg-gray-100 text-gray-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
-                  <th className="p-3.5 pl-6">Médico</th>
-                  <th className="p-3.5">Especialidade</th>
-                  <th className="p-3.5 text-center">Membro da Equipe?</th>
-                  <th className="p-3.5 text-center bg-emerald-50 text-emerald-900">Participa UNIMED?</th>
-                  <th className="p-3.5 text-center">% Nominal (Entradas)</th>
-                  <th className="p-3.5 text-center bg-blue-50 text-blue-900">PROPORÇÃO HEART (Despesas)</th>
-                  <th className="p-3.5">Regra de Fechamento</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-                {teamSettings.doctors.map((doc, idx) => (
-                  <tr key={doc.key} className={doc.isTeamMember ? "bg-emerald-50/20" : "bg-white"}>
-                    <td className="p-3.5 pl-6 font-black text-gray-900">{doc.name}</td>
-                    <td className="p-3.5 text-gray-500">{doc.specialty || "-"}</td>
-                    <td className="p-3.5 text-center">
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={doc.isTeamMember}
-                          onChange={(e) => {
-                            const updated = [...teamSettings.doctors];
-                            updated[idx].isTeamMember = e.target.checked;
-                            if (!e.target.checked) {
-                              updated[idx].teamSharePercent = 0;
-                              updated[idx].proporcaoHeartDinamica = 0;
-                            }
-                            const recalced = recalculateHeartProportions(updated);
-                            setTeamSettings({ ...teamSettings, doctors: recalced });
-                          }}
-                          className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
-                        />
-                        <span className={`text-[11px] font-black uppercase ${doc.isTeamMember ? "text-emerald-700" : "text-gray-400"}`}>
-                          {doc.isTeamMember ? "Sim (Equipe)" : "Não (Externo)"}
-                        </span>
-                      </label>
-                    </td>
-
-                    {/* Participa UNIMED (Permanente) */}
-                    <td className="p-3.5 text-center bg-emerald-50/30">
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(doc.participaUnimed)}
-                          onChange={(e) => {
-                            const updated = [...teamSettings.doctors];
-                            updated[idx].participaUnimed = e.target.checked;
-                            updated[idx].unimedDistributionRule = e.target.checked ? "EQUAL" : (updated[idx].unimedDistributionRule || "EQUAL");
-                            setTeamSettings({ ...teamSettings, doctors: updated });
-                          }}
-                          className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
-                        />
-                        <span className={`text-[11px] font-black uppercase ${doc.participaUnimed ? "text-emerald-700" : "text-gray-400"}`}>
-                          {doc.participaUnimed ? "Participa (EQUAL)" : "Não participa"}
-                        </span>
-                      </label>
-                    </td>
-
-                    {/* % Nominal Societário (Entradas da Equipe) */}
-                    <td className="p-3.5 text-center">
-                      {doc.isTeamMember ? (
-                        <div className="inline-flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            value={doc.teamSharePercent}
-                            onChange={(e) => {
-                              const updated = [...teamSettings.doctors];
-                              updated[idx].teamSharePercent = parseFloat(e.target.value) || 0;
-                              const recalced = recalculateHeartProportions(updated);
-                              setTeamSettings({ ...teamSettings, doctors: recalced });
-                            }}
-                            className="w-16 bg-white border border-gray-300 rounded-lg px-2 py-1 text-center font-black text-emerald-700"
-                          />
-                          <span className="font-bold text-gray-500">%</span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 font-bold">0%</span>
-                      )}
-                    </td>
-
-                    {/* PROPORÇÃO HEART Calculada Dinamicamente */}
-                    <td className="p-3.5 text-center bg-blue-50/40">
-                      {doc.isTeamMember ? (
-                        <span className="px-2.5 py-1 bg-blue-100 text-blue-900 border border-blue-200 rounded-lg font-black text-xs">
-                          {(doc.proporcaoHeartDinamica || 0).toFixed(2)}%
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 font-bold">0%</span>
-                      )}
-                    </td>
-
-                    <td className="p-3.5 text-gray-600 text-[11px]">
-                      {doc.isTeamMember ? (
-                        <span className="text-emerald-700 font-bold">
-                          Entradas rateadas a {doc.teamSharePercent}% (Nominal) e despesas rateadas a {(doc.proporcaoHeartDinamica || 0).toFixed(2)}% (Proporção HeaRT)
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 font-medium">
-                          Recebe somente produção própria Unimed e plantões diretos, sem rateio de custos corporativos
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Definition of Team-Only Sources and Expenses */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-3">
-              <span className="text-xs font-black uppercase text-emerald-800 block">
-                Fontes de Receita Exclusivas da Equipe:
-              </span>
-              <p className="text-[11px] text-gray-500">
-                Estas receitas são somadas e rateadas <b>unicamente</b> entre os médicos com status de "Membro da Equipe" segundo os percentuais acima:
-              </p>
-              <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase">
-                {teamSettings.teamOnlySources.map(s => (
-                  <span key={s} className="px-2.5 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-lg shadow-2xs">
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-3">
-              <span className="text-xs font-black uppercase text-rose-800 block">
-                Despesas e Custos Fixos Exclusivos da Equipe:
-              </span>
-              <p className="text-[11px] text-gray-500">
-                Estas despesas corporativas são deduzidas <b>somente</b> dos membros da equipe HeaRT e nunca cobradas de cooperados externos:
-              </p>
-              <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase">
-                {teamSettings.teamOnlyExpenses.map(e => (
-                  <span key={e} className="px-2.5 py-1 bg-white border border-rose-300 text-rose-800 rounded-lg shadow-2xs">
-                    {e}
-                  </span>
-                ))}
-              </div>
             </div>
           </div>
         </div>
