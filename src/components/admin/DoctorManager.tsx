@@ -25,6 +25,25 @@ export function DoctorManager() {
   const [isEditing, setIsEditing] = useState<Doctor | null>(null);
   const [formData, setFormData] = useState({ name: "", specialty: "", crm: "" });
 
+  const mergedDoctors = React.useMemo(() => {
+    if (!teamSettings) return [];
+    return doctors.map(d => {
+      const existing = teamSettings.doctors.find((td: any) => td.key === d.id);
+      return existing ? { ...existing, name: d.name, specialty: d.specialty, crm: d.crm } : {
+        key: d.id,
+        name: d.name,
+        specialty: d.specialty,
+        crm: d.crm,
+        isTeamMember: false,
+        teamSharePercent: 0,
+        proporcaoHeartDinamica: 0,
+        disponivelPeriodo: 0,
+        participaUnimed: false,
+        unimedDistributionRule: "EQUAL"
+      };
+    });
+  }, [doctors, teamSettings]);
+
   useEffect(() => {
     if (!activeGroup) return;
 
@@ -54,24 +73,7 @@ export function DoctorManager() {
   const handleSaveSettings = async () => {
     try {
       setSavingSettings(true);
-      // Ensure teamSettings has all doctors
-      const updatedDoctors = doctors.map(d => {
-        const existing = teamSettings.doctors.find((td: any) => td.key === d.id);
-        return existing ? { ...existing, name: d.name, specialty: d.specialty, crm: d.crm } : {
-          key: d.id,
-          name: d.name,
-          specialty: d.specialty,
-          crm: d.crm,
-          isTeamMember: false,
-          teamSharePercent: 0,
-          proporcaoHeartDinamica: 0,
-          disponivelPeriodo: 0,
-          participaUnimed: false,
-          unimedDistributionRule: "EQUAL"
-        };
-      });
-
-      const updatedSettings = { ...teamSettings, doctors: updatedDoctors };
+      const updatedSettings = { ...teamSettings, doctors: mergedDoctors };
 
       const res = await apiFetch("/api/app/financial/team-settings", {
         method: "POST",
@@ -171,8 +173,8 @@ export function DoctorManager() {
 
       {teamSettings && (
         <TeamRateioConfig 
-          teamSettings={teamSettings}
-          setTeamSettings={setTeamSettings}
+          teamSettings={{ ...teamSettings, doctors: mergedDoctors }}
+          setTeamSettings={(newSettings) => setTeamSettings(newSettings)}
           onSave={handleSaveSettings}
           saving={savingSettings}
           success={settingsSuccess}
