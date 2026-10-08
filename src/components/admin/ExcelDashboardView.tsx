@@ -318,303 +318,104 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const closingDebits = Number(details?.closing?.totalOtherDebits || details?.closing?.otherDebits || 14825.40);
   const closingNet = Number(details?.closing?.totalNet || details?.closing?.netValue || 124310.86);
 
-  const excelData = {
-    monthKey: details?.closing?.monthKey || (closings.length > 0 ? closings[0].monthKey : "SETEMBRO-26"),
-    totals: {
-      entradasGerais: closingProd,
-      saidasOperacionais: closingDebits,
-      outrasSaidas: closingTaxes,
-      totalSaidas: closingTaxes,
-      totalFaturado: closingProd,
-      totalRecebimentos: closingProd,
-      totalDistribuicao: closingNet,
-      totalReservadoImpostos: closingTaxes,
-      saldoFinal: Math.max(0, Math.round((closingProd - closingTaxes - closingDebits - closingNet) * 100) / 100)
-    },
-    // Entradas por Fonte
-    fontes: {
-      azambuja: {
-        titulo: "AZAMBUJA (Exclusivo da Equipe)",
-        equipePlantao: 12600,
-        liquidoPlantao: 10265.63,
-        particular: 0,
-        liquidoParticular: 0,
-        total: 70020.94,
-        liquidoTotal: 57048.34,
-        rateio: [
-          { medico: "ROCHELE LORENZI POL", valor: 16544.02 },
-          { medico: "THAIS ISABEL LUMIKOSKI", valor: 19477.06 },
-          { medico: "LUIS BONGIOLO MATTOS", valor: 16544.02 },
-          { medico: "KATHIZE LIRA", valor: 14748.88 }
-        ]
-      },
-      marieta: {
-        titulo: "MARIETA (Exclusivo da Equipe)",
-        total: 81042.09,
-        liquidoTotal: 67645.83,
-        rateio: [
-          { medico: "ROCHELE LORENZI POL", valor: 19617.29 },
-          { medico: "THAIS ISABEL LUMIKOSKI", valor: 19617.29 },
-          { medico: "LUIS BONGIOLO MATTOS", valor: 19617.29 },
-          { medico: "KATHIZE LIRA", valor: 8793.96 }
-        ]
-      },
-      unimed: {
-        titulo: "UNIMED LITORAL (Individual por Prestador)",
-        total: closingProd,
-        liquidoTotal: closingNet,
-        rateio: (() => {
-          const list = details?.doctorsSummary && details.doctorsSummary.length > 0
-            ? details.doctorsSummary
-                .filter((d: any) => (d.productionTotal || d.honorValue || 0) > 0)
-                .map((d: any) => ({ medico: d.doctorName, valor: d.netProduction || d.productionTotal || 0 }))
-            : [];
-          if (list.length > 0) return list;
-          return [
-            { medico: "THAYNARA MAESTRI VIGNATTI", valor: 75326.62 },
-            { medico: "LUAN JUNIOR VIGNATTI", valor: 32705.27 },
-            { medico: "MARIA EDUARDA CASA SOUZA MACHADO", valor: 18892.67 },
-            { medico: "TAMARA QUINTINO REGIS", valor: 9223.71 },
-            { medico: "CAMILA RIBEIRO DUTRA", valor: 6121.57 },
-            { medico: "ROCHELE LORENZI POL", valor: 2425.00 }
-          ];
-        })()
-      },
-      consultorio: {
-        titulo: "CONSULTÓRIO PARTICULAR & OUTROS (Exclusivo da Equipe)",
-        dinheiro: 1200,
-        cartao: 0,
-        unimedLuis: 8406,
-        totalGeral: 10006
+  // Dynamically calculate aggregated doctor data
+  const { doctorsAggregated, totalUnimedTT, totalUnimedDS, pendingRecords } = React.useMemo(() => {
+    if (!details?.productionRecords || !details?.glosas) return { doctorsAggregated: [], totalUnimedTT: 0, totalUnimedDS: 0, pendingRecords: [] };
+
+    const aggr = new Map<string, any>();
+    const pending: any[] = [];
+    
+    // Aggregate production
+    details.productionRecords.forEach((p: any) => {
+      if (p.allocationStatus === "PENDING_REVIEW" || !p.doctorId) {
+        pending.push(p);
+        return;
       }
-    },
-    // Consolidado por Médico (Todos os 9 médicos presentes e conectados)
-    fechamentoMedicos: (() => {
-      const canonical = [
-        { key: "rochele", name: "ROCHELE LORENZI POL", isTeam: true, percent: "29%", defaultProd: 2425.00, defaultEntradas: 36161.31, defaultSaidas: 0, defaultFinal: 36086.02 },
-        { key: "thais", name: "THAIS ISABEL LUMIKOSKI", isTeam: true, percent: "29%", defaultProd: 0, defaultEntradas: 39094.35, defaultSaidas: 0, defaultFinal: 39019.05 },
-        { key: "luis", name: "LUIS BONGIOLO MATTOS", isTeam: true, percent: "29%", defaultProd: 0, defaultEntradas: 36161.31, defaultSaidas: 0, defaultFinal: 36086.02 },
-        { key: "kathize", name: "KATHIZE LIRA", isTeam: true, percent: "13%", defaultProd: 0, defaultEntradas: 23542.84, defaultSaidas: 0, defaultFinal: 23509.08 },
-        { key: "thaynara", name: "THAYNARA MAESTRI VIGNATTI", isTeam: false, percent: "0%", defaultProd: 75326.62, defaultEntradas: 0, defaultSaidas: 0, defaultFinal: 75326.62 },
-        { key: "luan", name: "LUAN JUNIOR VIGNATTI", isTeam: false, percent: "0%", defaultProd: 32705.27, defaultEntradas: 0, defaultSaidas: 0, defaultFinal: 32705.27 },
-        { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", isTeam: false, percent: "0%", defaultProd: 18892.67, defaultEntradas: 0, defaultSaidas: 0, defaultFinal: 18892.67 },
-        { key: "tamara", name: "TAMARA QUINTINO REGIS", isTeam: false, percent: "0%", defaultProd: 9223.71, defaultEntradas: 0, defaultSaidas: 0, defaultFinal: 9223.71 },
-        { key: "camila", name: "CAMILA RIBEIRO DUTRA", isTeam: false, percent: "0%", defaultProd: 6121.57, defaultEntradas: 0, defaultSaidas: 0, defaultFinal: 6121.57 }
-      ];
+      
+      if (!aggr.has(p.doctorId)) {
+        aggr.set(p.doctorId, {
+          doctorId: p.doctorId,
+          doctorName: p.doctorName || "Médico",
+          honorTT: 0,
+          glosa: 0,
+          operationalTT: 0,
+          filmTT: 0,
+          plantaoTT: 0,
+          plantaoDS: 0
+        });
+      }
+      
+      const entry = aggr.get(p.doctorId);
+      entry.honorTT += (p.honorValue || 0);
+      entry.operationalTT += (p.operationalValue || 0);
+      entry.filmTT += (p.filmValue || 0);
+    });
 
-      return canonical.map(item => {
-        const found = details?.doctorsSummary?.find((d: any) => 
-          d.doctorName?.trim().toUpperCase() === item.name.trim().toUpperCase() ||
-          d.doctorId === item.key
-        );
-
-        const prod = found ? (found.productionTotal || found.honorValue || 0) : item.defaultProd;
-        const glosa = found ? (found.glosaTotal || found.glosaValue || 0) : item.defaultSaidas;
-        const entradas = item.defaultEntradas;
-        const liquido = Math.round((prod + entradas - glosa) * 100) / 100;
-        const finalGeral = item.isTeam ? item.defaultFinal : (prod - glosa);
-
-        return {
-          nome: item.name,
-          key: item.key,
-          isTeamMember: item.isTeam,
-          percent: item.percent,
-          producao: prod,
-          entradas: entradas,
-          saidas: glosa,
-          liquidoCalculado: liquido,
-          divisaoLucros: 0,
-          finalGeral: finalGeral,
-          detalhesEntradas: [
-            prod > 0 ? `Produção Unimed: R$ ${prod.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null,
-            entradas > 0 ? `Rateio Equipe: R$ ${entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null
-          ].filter(Boolean) as string[],
-          detalhesSaidas: [
-            glosa > 0 ? `Glosas: R$ ${glosa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null
-          ].filter(Boolean) as string[]
-        };
-      });
-    })(),
-    // Ocorrências Financeiras detalhadas por Médico
-    ocorrencias: (() => {
-      const list = details?.transactions && details.transactions.length > 0
-        ? details.transactions.map((t: any) => ({
-            medico: t.doctorName || "HEART CIRURGIA CARDIOVASCULAR",
-            tipo: t.typeName || t.typeId || "Ocorrência",
-            valor: Math.abs(t.amount || 0),
-            natureza: t.nature === "CREDIT" || t.nature === "ENTRADA" ? "ENTRADA" : "SAIDA",
-            desc: t.observation || t.typeName || "Lançamento",
-            data: t.date || "01/08/2026",
-            scope: t.scope || "TEAM"
-          }))
-        : [];
-      if (list.length > 0) return list;
-      return [
-        {
-          medico: "HEART CIRURGIA CARDIOVASCULAR",
-          tipo: "Capitalização Cota-Parte",
-          valor: 14825.40,
-          natureza: "SAIDA",
-          desc: "Capitalização Cota-Parte (Retenção Unimed)",
-          data: "01/08/2026",
-          scope: "TEAM"
+    // Aggregate Glosas
+    details.glosas.forEach((g: any) => {
+        if (!g.doctorId) return;
+        if (aggr.has(g.doctorId)) {
+            aggr.get(g.doctorId).glosa += (g.glosaValue || 0);
         }
-      ];
-    })(),
-    // Demonstrativo de Lotes Unimed
-    lotesUnimed: (() => {
-      const rows: any[] = [];
-      const seenLotes = new Set<string>();
+    });
 
-      // 1. From details.taxes containing lotes
-      if (details?.taxes && Array.isArray(details.taxes)) {
-        details.taxes
-          .filter((tax: any) => Boolean(tax.lote || tax.batchNumber || tax.lucroPresumido !== undefined || tax.ttImpostosNota !== undefined))
-          .forEach((tax: any) => {
-            const loteId = String(tax.lote || tax.batchNumber || "10944");
-            if (seenLotes.has(loteId)) return;
-            seenLotes.add(loteId);
-
-            const brutoVal = Number(tax.bruto || tax.amount || tax.baseValue || closingProd);
-            const glosaVal = Number(tax.glosa || details?.closing?.glosaValue || 7098.85);
-            const pisVal = Number(tax.pis || 963.65);
-            const cofinsVal = Number(tax.cofins || 4447.62);
-            const csllVal = Number(tax.csll || 1482.54);
-            const irrfVal = Number(tax.irrf || 2223.81);
-            const ttImpVal = Number(tax.ttImpostosNota || (pisVal + cofinsVal + csllVal + irrfVal) || 9117.62);
-            const ttRetVal = Number(tax.ttRetencao || 16530.31);
-            const lucroVal = Number(tax.lucroPresumido || Math.round(brutoVal * 0.32 * 100) / 100);
-            const irpjVal = Number(tax.irpj || 4892.38);
-            const csll9Val = Number(tax.csll9 || 2787.17);
-            const add10Val = Number(tax.add10 || 4744.12);
-            const reservaVal = Number(tax.reservaImposto || 12423.68);
-            const liqVal = Number(tax.liquido || 119299.90);
-
-            rows.push({
-              lote: loteId,
-              tipo: tax.tipo || tax.typeName || "Clínica Cooperada IN",
-              competencia: tax.competencia || "01/09/2026",
-              titulo: tax.titulo || (loteId === "10944" ? "1490176" : loteId),
-              vencimento: tax.vencimento || tax.creditDate || tax.date || "14/09/2026",
-              bruto: brutoVal,
-              glosa: glosaVal,
-              pis: pisVal,
-              cofins: cofinsVal,
-              csll: csllVal,
-              irrf: irrfVal,
-              ttImpostosNota: ttImpVal,
-              ttRetencao: ttRetVal,
-              lucroPresumido: lucroVal,
-              irpj: irpjVal,
-              csll9: csll9Val,
-              add10: add10Val,
-              reservaImposto: reservaVal,
-              liquido: liqVal
-            });
-          });
-      }
-
-      // 2. From details.batches if any batch is not yet present
-      if (details?.batches && Array.isArray(details.batches)) {
-        details.batches.forEach((b: any) => {
-          const bNum = String(b.batchNumber || "10944");
-          if (seenLotes.has(bNum)) return;
-          seenLotes.add(bNum);
-
-          const bruto = Number(b.productionValue) || closingProd;
-          const glosa = Number(b.totalGlosas) || (bNum === "10944" ? 7098.85 : 0);
-          const imp = Number(b.totalTaxes) || closingTaxes;
-          const liq = bNum === "10944" ? 119299.90 : (Number(b.netValue) || closingNet);
-          const lucro = Math.round(bruto * 0.32 * 100) / 100;
-
-          rows.push({
-            lote: bNum,
-            tipo: "Clínica Cooperada IN",
-            competencia: b.creditDate ? `01/${b.creditDate.split('/')[1]}/${b.creditDate.split('/')[2]}` : "01/09/2026",
-            titulo: bNum === "10944" ? "1490176" : bNum,
-            vencimento: b.creditDate || "14/09/2026",
-            bruto,
-            glosa,
-            pis: 963.65,
-            cofins: 4447.62,
-            csll: 1482.54,
-            irrf: 2223.81,
-            ttImpostosNota: imp,
-            ttRetencao: 16530.31,
-            lucroPresumido: lucro,
-            irpj: 4892.38,
-            csll9: 2787.17,
-            add10: 4744.12,
-            reservaImposto: 12423.68,
-            liquido: liq
-          });
-        });
-      }
-
-      // 3. Fallback for SETEMBRO-26 or closing with registered production
-      if (rows.length === 0) {
-        rows.push({
-          lote: "10944",
-          tipo: "Clínica Cooperada IN",
-          competencia: "01/09/2026",
-          titulo: "1490176",
-          vencimento: "14/09/2026",
-          bruto: closingProd,
-          glosa: details?.closing?.glosaValue || 7098.85,
-          pis: 963.65,
-          cofins: 4447.62,
-          csll: 1482.54,
-          irrf: 2223.81,
-          ttImpostosNota: closingTaxes,
-          ttRetencao: 16530.31,
-          lucroPresumido: Math.round(closingProd * 0.32 * 100) / 100,
-          irpj: 4892.38,
-          csll9: 2787.17,
-          add10: 4744.12,
-          reservaImposto: 12423.68,
-          liquido: 119299.90
-        });
-      }
-
-      return rows;
-    })().filter((lote: any) => !removedLotes.includes(lote.lote)),
-    // Despesas Equipe Heart
-    despesasEquipe: (() => {
-      const defaultExpenses = [
-        { despesa: "Capitalização Cota-Parte (360)", categoria: "Operacional Unimed", valor: 14825.40, status: "DESCONTADO" },
-        { despesa: "Consultório Itajaí", categoria: "Infraestrutura", valor: 2029.78, status: "PAGO" },
-        { despesa: "Instrumentador Cirúrgico", categoria: "Equipe Cirúrgica", valor: 1526.76, status: "PAGO" },
-        { despesa: "Aluguel Sala / Consultório", categoria: "Infraestrutura", valor: 900.00, status: "PAGO" },
-        { despesa: "Celular Corporativo", categoria: "Comunicação", valor: 722.21, status: "PAGO" },
-        { despesa: "INSS Patronal", categoria: "Tributário", valor: 502.51, status: "PAGO" },
-        { despesa: "DARE", categoria: "Tributário Estadual", valor: 497.00, status: "PAGO" },
-        { despesa: "Alvará Municipal", categoria: "Taxa Municipal", valor: 431.09, status: "PAGO" },
-        { despesa: "CRM", categoria: "Conselho de Classe", valor: 344.50, status: "PAGO" },
-        { despesa: "Contador Heart", categoria: "Contabilidade", valor: 294.00, status: "PAGO" },
-        { despesa: "Constit Heart LK / Google", categoria: "Tecnologia", valor: 45.00, status: "PAGO" }
-      ];
-
-      if (details?.transactions && details.transactions.length > 0) {
-        const fromTx = details.transactions
-          .filter((t: any) => t.nature === "DEBIT" && (t.scope === "TEAM" || t.doctorId === "heart_equipe" || t.doctorId === "heart_cirurgia"))
-          .map((t: any) => ({
-            despesa: t.typeName || t.observation || "Despesa",
-            categoria: t.source || "Operacional",
-            valor: Math.abs(t.amount || 0),
-            status: "PAGO"
-          }));
+    // Compute derived columns and totals
+    let totalTT = 0;
+    let totalDS = 0;
+    
+    const processedDoctors = Array.from(aggr.values()).map(d => {
+        const man = manualEntradas[d.doctorId] || {};
         
-        const existingNames = new Set(fromTx.map((x: any) => x.despesa.toLowerCase()));
-        defaultExpenses.forEach(def => {
-          if (!existingNames.has(def.despesa.toLowerCase()) && !def.despesa.includes("Capitalização")) {
-            fromTx.push(def);
-          }
-        });
-        return fromTx;
-      }
-      return defaultExpenses;
-    })()
-  };
+        // Calculate Equipe vs Part based on doctor config
+        const docConfig = teamSettings.doctors.find(c => c.name === d.doctorName);
+        const isTeam = docConfig?.isTeamMember || false;
+        
+        const honorTT = d.honorTT;
+        const honorDS = Math.max(0, honorTT - d.glosa);
+        
+        const plantaoTT = (man.plantaoTT || 0);
+        const plantaoDS = (man.plantaoDS || 0);
+        
+        const vlNotaTT = honorTT + d.operationalTT + d.filmTT + plantaoTT;
+        const dispDS = (isTeam ? honorDS : honorTT) + d.operationalTT + d.filmTT + plantaoDS; // Simplification based on reqs
+        
+        totalTT += vlNotaTT;
+        totalDS += dispDS;
+        
+        return {
+            ...d,
+            isTeam,
+            honorDS,
+            plantaoTT,
+            plantaoDS,
+            vlNotaTT,
+            dispDS
+        };
+    });
+
+    return { doctorsAggregated: processedDoctors, totalUnimedTT: totalTT, totalUnimedDS: totalDS, pendingRecords: pending };
+  }, [details, manualEntradas, teamSettings.doctors]);
+
+  const excelData = React.useMemo(() => ({
+    monthKey: details?.closing?.monthKey || "FECHAMENTO",
+    totals: {
+      entradasGerais: totalUnimedTT,
+      saldoFinal: totalUnimedDS
+    },
+    fechamentoMedicos: doctorsAggregated.map(d => ({
+        nome: d.doctorName,
+        key: d.doctorId,
+        isTeamMember: d.isTeam,
+        producao: d.honorTT,
+        entradas: d.plantaoTT,
+        saidas: d.glosa,
+        liquidoCalculado: d.honorDS,
+        finalGeral: d.dispDS
+    })),
+    ocorrencias: details?.transactions || [],
+    lotesUnimed: [],
+    despesasEquipe: []
+  }), [doctorsAggregated, totalUnimedTT, totalUnimedDS, details]);
 
   // Filter occurrences
   const filteredOcorrencias = excelData.ocorrencias.filter(o => {
