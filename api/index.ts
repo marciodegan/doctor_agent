@@ -2972,16 +2972,20 @@ app.post("/api/app/financial/transactions", async (req, res) => {
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) => {
-  const models = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"];
+  const models = [
+    { name: "gemini-3.1-flash-lite", attempts: 2 },
+    { name: "gemini-3.5-flash-lite", attempts: 1 }
+  ];
   let lastError: any = null;
 
-  for (const model of models) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
+  for (const modelConfig of models) {
+    const model = modelConfig.name;
+    for (let attempt = 1; attempt <= modelConfig.attempts; attempt++) {
       try {
         console.log(`[AI Financial Parse] Trying ${model}, attempt ${attempt}/2`);
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`TIMEOUT: Gemini ${model} did not respond within 30 seconds.`)), 30000)
+          setTimeout(() => reject(new Error(`TIMEOUT: Gemini ${model} did not respond within 18 seconds.`)), 18000)
         );
 
         const response = await Promise.race([
@@ -3016,7 +3020,7 @@ const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) =>
           throw error;
         }
 
-        if (attempt < 2) {
+        if (attempt < modelConfig.attempts) {
           await sleep(1500 * Math.pow(2, attempt - 1));
         }
       }
