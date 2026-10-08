@@ -869,7 +869,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       };
                     };
 
-                    const mul = 1;
                     const mul = hasClosing ? 1 : 0;
 
                     const totalAzambujaPlantaoTT = rowsData.reduce((acc, doc) => {
