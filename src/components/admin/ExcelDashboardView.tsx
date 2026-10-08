@@ -318,19 +318,17 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const closingDebits = Number(details?.closing?.totalOtherDebits || details?.closing?.otherDebits || 0);
   const closingNet = Number(details?.closing?.totalNet || details?.closing?.netValue || 0);
 
-  // Dynamically calculate aggregated doctor data
+  // UNIMED: aggregate only imported financial_production records already mapped by doctorId.
   const { doctorsAggregated, totalUnimedTT, totalUnimedDS, pendingRecords } = React.useMemo(() => {
-    if (!details?.productionRecords || !details?.glosas) return { doctorsAggregated: [], totalUnimedTT: 0, totalUnimedDS: 0, pendingRecords: [] };
-
+    const productionRecords = Array.isArray(details?.productionRecords) ? details.productionRecords : [];
     const aggr = new Map<string, any>();
     const pending: any[] = [];
-    
-    details.productionRecords.forEach((p: any) => {
+
+    productionRecords.forEach((p: any) => {
       if (p.allocationStatus === "PENDING_REVIEW" || !p.doctorId) {
         pending.push(p);
         return;
       }
-      
       if (!aggr.has(p.doctorId)) {
         aggr.set(p.doctorId, {
           doctorId: p.doctorId,
@@ -343,45 +341,46 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           plantaoDS: 0
         });
       }
-      
       const entry = aggr.get(p.doctorId);
-      entry.honorTT += (p.honorValue || 0);
-      entry.operationalTT += (p.operationalValue || 0);
-      entry.filmTT += (p.filmValue || 0);
+      entry.honorTT += Number(p.honorValue) || 0;
+      entry.operationalTT += Number(p.operationalValue) || 0;
+      entry.filmTT += Number(p.filmValue) || 0;
     });
 
-    details.glosas.forEach((g: any) => {
+    if (Array.isArray(details?.glosas)) {
+      details.glosas.forEach((g: any) => {
         if (!g.doctorId || !aggr.has(g.doctorId)) return;
-        aggr.get(g.doctorId).glosa += (g.glosaValue || 0);
-    });
+        aggr.get(g.doctorId).glosa += Number(g.glosaValue) || 0;
+      });
+    }
 
     let totalTT = 0;
     let totalDS = 0;
-    
     const processedDoctors = Array.from(aggr.values()).map(d => {
-        const man = manualEntradas[d.doctorId] || {};
-        const docConfig = teamSettings.doctors.find(c => c.key === d.doctorId);
-        const isTeam = docConfig?.isTeamMember || false;
-        const percent = docConfig?.teamSharePercent || 0;
-        
-        const honorTT = d.honorTT;
-        const honorDS = Math.max(0, honorTT - d.glosa);
-        const plantaoTT = (man.plantaoTT || 0);
-        const plantaoDS = (man.plantaoDS || 0);
-        
-        const vlNotaTT = honorTT + d.operationalTT + d.filmTT + plantaoTT;
-        const dispDS = (isTeam ? honorDS : honorTT) + d.operationalTT + d.filmTT + plantaoDS;
-        
-        totalTT += vlNotaTT;
-        totalDS += dispDS;
-        
-        return {
-            ...d, isTeam, percent, honorDS, plantaoTT, plantaoDS, vlNotaTT, dispDS
-        };
+      const man = manualEntradas[d.doctorId] || {};
+      const docConfig = teamSettings.doctors.find(c => c.key === d.doctorId);
+      const isTeam = Boolean(docConfig?.isTeamMember);
+      const percent = Number(docConfig?.teamSharePercent) || 0;
+      const honorTT = Number(d.honorTT) || 0;
+      const honorDS = Math.max(0, honorTT - (Number(d.glosa) || 0));
+      const plantaoTT = Number(man.plantaoTT) || 0;
+      const plantaoDS = Number(man.plantaoDS) || 0;
+      const vlNotaTT = honorTT + d.operationalTT + d.filmTT + plantaoTT;
+      const dispDS = (isTeam ? honorDS : honorTT) + d.operationalTT + d.filmTT + plantaoDS;
+
+      totalTT += vlNotaTT;
+      totalDS += dispDS;
+
+      return { ...d, isTeam, percent, honorDS, plantaoTT, plantaoDS, vlNotaTT, dispDS };
     });
 
-    return { doctorsAggregated: processedDoctors, totalUnimedTT: totalTT, totalUnimedDS: totalDS, pendingRecords: pending };
-  }, [details, manualEntradas, teamSettings.doctors]);
+    return {
+      doctorsAggregated: processedDoctors,
+      totalUnimedTT: totalTT,
+      totalUnimedDS: totalDS,
+      pendingRecords: pending
+    };
+  }, [details?.productionRecords, details?.glosas, manualEntradas, teamSettings.doctors]);
 
   const excelData = React.useMemo(() => ({
     monthKey: details?.closing?.monthKey || "FECHAMENTO",
@@ -736,9 +735,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <span className="font-black">UNIMED</span>
                         <div className="flex items-center gap-2 bg-teal-950/80 px-2.5 py-1 rounded-lg border border-teal-700/60 font-mono text-[10px]">
                           <span className="text-teal-200 font-bold uppercase">VL NOTA:</span>
-                          <span className="text-white font-black">{closingProd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-white font-black">{totalUnimedTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                           <span className="text-teal-200 font-bold uppercase ml-2">DS:</span>
-                          <span className="text-emerald-300 font-black">{(123236.28).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-emerald-300 font-black">{totalUnimedDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </div>
                       </div>
                     </th>
@@ -858,18 +857,19 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
                   {(() => {
                     const hasClosing = Boolean(details?.closing);
-                    const getDoctorUnimed = (doctorName: string) => {
-                      if (!hasClosing || !details?.doctorsSummary) return { prod: 0, disp: 0, operational: 0, film: 0 };
-                      const found = details.doctorsSummary.find((d: any) => d.doctorName?.trim().toUpperCase() === doctorName.trim().toUpperCase());
+                    const doctorAggById = new Map(doctorsAggregated.map((d: any) => [d.doctorId, d]));
+                    const getDoctorUnimed = (doctorId: string) => {
+                      const found: any = doctorAggById.get(doctorId);
                       if (!found) return { prod: 0, disp: 0, operational: 0, film: 0 };
                       return {
-                        prod: found.productionTotal || found.honorValue || 0,
-                        disp: found.netProduction || found.productionTotal || 0,
-                        operational: found.operationalValue || 0,
-                        film: found.filmValue || 0
+                        prod: Number(found.honorTT) || 0,
+                        disp: Number(found.honorDS) || 0,
+                        operational: Number(found.operationalTT) || 0,
+                        film: Number(found.filmTT) || 0
                       };
                     };
 
+                    const mul = 1;
                     const mul = hasClosing ? 1 : 0;
 
                     const totalAzambujaPlantaoTT = rowsData.reduce((acc, doc) => {
@@ -917,7 +917,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       const marTotTT = marEqTT;
                       const marTotDS = marEqDS;
 
-                      const unimedData = getDoctorUnimed(doc.name);
+                      const unimedData = getDoctorUnimed(doc.key);
                       const unimedEqTT = isTeam ? (unimedData.prod * mul) : 0;
                       const unimedEqDS = isTeam ? (unimedData.disp * mul) : 0;
                       const unimedPartTT = !isTeam ? (unimedData.prod * mul) : 0;
@@ -997,7 +997,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         {/* Unimed (Equipe from imports, Plantao manual) */}
                         <td 
                           onClick={() => {
-                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Equipe) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
                           className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
@@ -1006,7 +1006,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </td>
                         <td 
                           onClick={() => {
-                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Equipe DS) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
                           className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
@@ -1015,7 +1015,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </td>
                         <td 
                           onClick={() => {
-                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Part. TT) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
                           className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
@@ -1024,7 +1024,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </td>
                         <td 
                           onClick={() => {
-                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Part. DS) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
                           className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
@@ -1033,7 +1033,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </td>
                         <td 
                           onClick={() => {
-                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Operacional Unimed — ${r.name}`, doctorName: r.name, source: "OPERACIONAL", records: recs });
                           }}
                           className="p-3 border border-slate-200 font-mono text-teal-800 font-bold cursor-pointer hover:bg-teal-50 transition-colors"
@@ -1042,7 +1042,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </td>
                         <td 
                           onClick={() => {
-                            const recs = production.filter(p => (p.doctorName || p.protocolProvider || p.executingProvider || "").trim().toUpperCase() === r.name.trim().toUpperCase());
+                            const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Filme Unimed — ${r.name}`, doctorName: r.name, source: "FILME", records: recs });
                           }}
                           className="p-3 border border-slate-200 font-mono text-teal-800 font-bold cursor-pointer hover:bg-teal-50 transition-colors"
@@ -1071,7 +1071,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{r.unimTotTT > 0 ? r.unimTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-500">{r.unimTotTT > 0 ? (r.unimTotTT / 277794.83 * 100).toFixed(2) : "0.00"}%</td>
+                        <td className="p-3 border border-slate-200 font-mono text-gray-500">{r.unimTotTT > 0 ? (totalUnimedTT > 0 ? (r.unimTotTT / totalUnimedTT * 100) : 0).toFixed(2) : "0.00"}%</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-teal-800 border-r-2 border-slate-500">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Consultorio */}
