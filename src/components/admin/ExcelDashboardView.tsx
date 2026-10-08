@@ -313,10 +313,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
   // Excel master dataset linked dynamically with imported closing details (zero fallback if no closing)
   const hasClosing = Boolean(details?.closing);
-  const closingProd = Number(details?.closing?.totalProduction || details?.closing?.processedValue || 148253.88);
-  const closingTaxes = Number(details?.closing?.totalTaxes || details?.closing?.taxValue || 9117.62);
-  const closingDebits = Number(details?.closing?.totalOtherDebits || details?.closing?.otherDebits || 14825.40);
-  const closingNet = Number(details?.closing?.totalNet || details?.closing?.netValue || 124310.86);
+  const closingProd = Number(details?.closing?.totalProduction || details?.closing?.processedValue || 0);
+  const closingTaxes = Number(details?.closing?.totalTaxes || details?.closing?.taxValue || 0);
+  const closingDebits = Number(details?.closing?.totalOtherDebits || details?.closing?.otherDebits || 0);
+  const closingNet = Number(details?.closing?.totalNet || details?.closing?.netValue || 0);
 
   // Dynamically calculate aggregated doctor data
   const { doctorsAggregated, totalUnimedTT, totalUnimedDS, pendingRecords } = React.useMemo(() => {
@@ -325,7 +325,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const aggr = new Map<string, any>();
     const pending: any[] = [];
     
-    // Aggregate production
     details.productionRecords.forEach((p: any) => {
       if (p.allocationStatus === "PENDING_REVIEW" || !p.doctorId) {
         pending.push(p);
@@ -351,45 +350,33 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       entry.filmTT += (p.filmValue || 0);
     });
 
-    // Aggregate Glosas
     details.glosas.forEach((g: any) => {
-        if (!g.doctorId) return;
-        if (aggr.has(g.doctorId)) {
-            aggr.get(g.doctorId).glosa += (g.glosaValue || 0);
-        }
+        if (!g.doctorId || !aggr.has(g.doctorId)) return;
+        aggr.get(g.doctorId).glosa += (g.glosaValue || 0);
     });
 
-    // Compute derived columns and totals
     let totalTT = 0;
     let totalDS = 0;
     
     const processedDoctors = Array.from(aggr.values()).map(d => {
         const man = manualEntradas[d.doctorId] || {};
-        
-        // Calculate Equipe vs Part based on doctor config
-        const docConfig = teamSettings.doctors.find(c => c.name === d.doctorName);
+        const docConfig = teamSettings.doctors.find(c => c.key === d.doctorId);
         const isTeam = docConfig?.isTeamMember || false;
+        const percent = docConfig?.teamSharePercent || 0;
         
         const honorTT = d.honorTT;
         const honorDS = Math.max(0, honorTT - d.glosa);
-        
         const plantaoTT = (man.plantaoTT || 0);
         const plantaoDS = (man.plantaoDS || 0);
         
         const vlNotaTT = honorTT + d.operationalTT + d.filmTT + plantaoTT;
-        const dispDS = (isTeam ? honorDS : honorTT) + d.operationalTT + d.filmTT + plantaoDS; // Simplification based on reqs
+        const dispDS = (isTeam ? honorDS : honorTT) + d.operationalTT + d.filmTT + plantaoDS;
         
         totalTT += vlNotaTT;
         totalDS += dispDS;
         
         return {
-            ...d,
-            isTeam,
-            honorDS,
-            plantaoTT,
-            plantaoDS,
-            vlNotaTT,
-            dispDS
+            ...d, isTeam, percent, honorDS, plantaoTT, plantaoDS, vlNotaTT, dispDS
         };
     });
 

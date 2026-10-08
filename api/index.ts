@@ -3357,9 +3357,25 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       }
     }
 
-    // 5. financial_production - Doctors production
-    if (Array.isArray(parsedData.doctors)) {
-      for (const doc of parsedData.doctors) {
+    // 5. financial_production - Doctors production (Rebuilt with strict mapping)
+    const mappingSnap = await db.collection("doctor_provider_mappings")
+        .where("teamId", "==", groupId)
+        .where("active", "==", true)
+        .get();
+    const mappings = mappingSnap.docs.map(d => ({ id: d.id, ...d.data() })) as DoctorProviderMapping[];
+
+    const normalize = (s: string) => (s || "").trim().toUpperCase().replace(/\s+/g, ' ');
+
+    if (Array.isArray(parsedData.productionRecords)) {
+      for (const p of parsedData.productionRecords) {
+        const executante = p.executingProvider || "";
+        const prestador = p.protocolProvider || p.paymentProvider || "";
+        
+        const mapping = mappings.find(m => 
+          normalize(m.executante) === normalize(executante) && 
+          normalize(m.prestador) === normalize(prestador)
+        );
+
         const prodRef = db.collection("financial_production").doc();
         batch.set(prodRef, {
           id: prodRef.id,
@@ -3367,13 +3383,21 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
           closingId,
           importId,
           batchNumber: bNum,
-          doctorId: doc.name.toLowerCase().replace(/[^a-z0-9]/g, "_"),
-          doctorName: doc.name,
-          quantity: Number(doc.quantity) || 1,
-          productionTotal: Number(doc.productionTotal) || 0,
-          honorValue: Number(doc.honorario) || Number(doc.productionTotal) || 0,
-          operationalValue: Number(doc.operacional) || 0,
-          glosaValue: Number(doc.glosa) || 0,
+          protocol: p.protocol,
+          date: p.date,
+          patientName: p.patientName,
+          document: p.document,
+          quantity: Number(p.quantity) || 1,
+          ambCode: p.ambCode,
+          procedureDescription: p.procedureDescription,
+          honorValue: Number(p.honorValue) || 0,
+          operationalValue: Number(p.operationalValue) || 0,
+          filmValue: Number(p.filmValue) || 0,
+          executingProvider: executante,
+          protocolProvider: prestador,
+          doctorId: mapping?.doctorId || null,
+          doctorName: mapping?.doctorName || null,
+          allocationStatus: mapping ? "ALLOCATED" : "PENDING_REVIEW",
           source: "PDF_AI",
           sourceFile: srcFile,
           createdAt: new Date().toISOString()
