@@ -2968,6 +2968,64 @@ app.post("/api/app/financial/transactions", async (req, res) => {
   }
 });
 
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) => {
+  const models = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"];
+  let lastError: any = null;
+
+  for (const model of models) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(`[AI Financial Parse] Trying ${model}, attempt ${attempt}/2`);
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`TIMEOUT: Gemini ${model} did not respond within 30 seconds.`)), 30000)
+        );
+
+        const response = await Promise.race([
+          ai.models.generateContent({
+            model,
+            contents,
+            config: {
+              responseMimeType: "application/json"
+            }
+          }),
+          timeoutPromise
+        ]);
+
+        console.log(`[AI Financial Parse] Success with ${model}`);
+        return response as any;
+      } catch (error: any) {
+        lastError = error;
+        const message = String(error?.message || error || "");
+        const isTransient =
+          message.includes("503") ||
+          message.includes("UNAVAILABLE") ||
+          message.includes("429") ||
+          message.includes("RESOURCE_EXHAUSTED") ||
+          message.includes("TIMEOUT") ||
+          message.includes("500") ||
+          message.includes("502") ||
+          message.includes("504");
+
+        console.error(`[AI Financial Parse] ${model} attempt ${attempt} failed:`, message);
+
+        if (!isTransient) {
+          throw error;
+        }
+
+        if (attempt < 2) {
+          await sleep(1500 * Math.pow(2, attempt - 1));
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error("Nenhum modelo Gemini conseguiu processar o PDF.");
+};
+
 app.post("/api/app/financial/ai-parse", async (req, res) => {
   const groupId = getGroupId(req);
   const { closingId, files, reprocess } = req.body;
@@ -3004,13 +3062,7 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
           }
         }
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash-lite",
-          contents,
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
+        const response = await generateGeminiFinancialParse(ai, contents);
 
         const rawText = response.text || "";
         const cleanJson = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
