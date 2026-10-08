@@ -167,7 +167,9 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
 
       if (!parseRes.ok) {
         const errData = await parseRes.json().catch(() => ({}));
-        throw new Error(errData.error || "Erro ao processar PDF com IA.");
+        console.error("[FinancialImportWizard] ai-parse failed:", errData);
+        const detail = errData.details ? ` ${errData.details}` : "";
+        throw new Error((errData.error || "Erro ao processar PDF com IA.") + detail);
       }
 
       const parseData = await parseRes.json();
