@@ -3005,7 +3005,7 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
         }
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
+          model: "gemini-3.5-flash-lite",
           contents,
           config: {
             responseMimeType: "application/json"
@@ -3483,8 +3483,11 @@ Analise o demonstrativo e retorne JSON com totals (production, taxes, glosas, ne
         }
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents
+          model: "gemini-3.5-flash-lite",
+          contents,
+          config: {
+            responseMimeType: "application/json"
+          }
         });
 
         const rawText = response.text || "";
