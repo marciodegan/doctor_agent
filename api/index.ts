@@ -2317,18 +2317,18 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
         id: actualDocId,
         monthKey: monthKey,
         teamId: groupId || "default",
-        status: "CONCILIADO",
-        totalProduction: 148253.88,
-        totalTaxes: 9117.62,
-        totalOtherDebits: 14825.40,
-        totalNet: 124310.86,
-        informedValue: 148253.88,
-        processedValue: 148253.88,
-        releasedValue: 148253.88,
-        glosaValue: 7098.85,
-        netValue: 124310.86,
-        taxValue: 9117.62,
-        otherDebits: 14825.40,
+        status: "PENDENTE_CONFERENCIA",
+        totalProduction: 0,
+        totalTaxes: 0,
+        totalOtherDebits: 0,
+        totalNet: 0,
+        informedValue: 0,
+        processedValue: 0,
+        releasedValue: 0,
+        glosaValue: 0,
+        netValue: 0,
+        taxValue: 0,
+        otherDebits: 0,
         removedLotes: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -2458,38 +2458,24 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       netProduction: (d.honorValue + d.operationalValue + d.filmValue) - d.glosaTotal
     }));
 
-    // Ensure unimedDistributionAudit is present (from historical snapshot or evaluated from permanent doctor settings)
+    // A Matriz UNIMED deve refletir somente os lançamentos realmente importados.
+    // Não criar distribuição fictícia quando não existir snapshot de uma importação real.
     let unimedDistributionAudit = closing?.unimedDistributionAudit;
-    if (!unimedDistributionAudit || !Array.isArray(unimedDistributionAudit) || unimedDistributionAudit.length === 0) {
-      const teamDoc = await db.collection("financial_team_settings").doc(groupId).get();
-      const currentTeamCfg = teamDoc.exists ? teamDoc.data() : DEFAULT_TEAM_CONFIG;
-      const allDocs = currentTeamCfg.doctors || DEFAULT_TEAM_CONFIG.doctors;
-      const participants = allDocs.filter((d: any) => Boolean(d.participaUnimed));
-      const pCount = participants.length > 0 ? participants.length : 3;
-
-      const vlNotaVal = Number(closing?.totalProduction) || 148253.88;
-      const partDocsTotal = production
-        .filter((p: any) => {
-          const docName = (p.doctorName || p.executingProvider || "").trim().toUpperCase();
-          return !participants.some((part: any) => part.name.trim().toUpperCase() === docName);
-        })
-        .reduce((sum: number, p: any) => sum + (Number(p.productionTotal) || Number(p.honorValue) || 0), 0) || 142269.84;
-      
-      const plantaoVal = 1966.87;
-      const totalEquipeVal = Math.round(Math.max(0, vlNotaVal - partDocsTotal - plantaoVal) * 100) / 100; // 4017.17
-      const perDoc = pCount > 0 ? Math.round((totalEquipeVal / pCount) * 100) / 100 : 0; // 1339.06
-
-      unimedDistributionAudit = allDocs.map((d: any) => {
-        const isPart = Boolean(d.participaUnimed);
-        return {
-          doctorId: d.key || d.name.toLowerCase().replace(/[^a-z0-9]/g, "_"),
-          doctorName: d.name,
-          participaUnimed: isPart,
-          distributionRule: d.unimedDistributionRule || "EQUAL",
-          participantsCount: isPart ? pCount : 0,
-          distributedAmount: isPart ? perDoc : 0
-        };
-      });
+    if (!unimedDistributionAudit) {
+      unimedDistributionAudit = {
+        totalProductionRecords: production.length,
+        allocatedRecords: production.filter((p: any) => p.allocationStatus === "ALLOCATED").length,
+        pendingRecords: production.filter((p: any) => p.allocationStatus === "PENDING_REVIEW").length,
+        allocatedHonorValue: production
+          .filter((p: any) => p.allocationStatus === "ALLOCATED")
+          .reduce((s: number, p: any) => s + (Number(p.honorValue) || 0), 0),
+        allocatedOperationalValue: production
+          .filter((p: any) => p.allocationStatus === "ALLOCATED")
+          .reduce((s: number, p: any) => s + (Number(p.operationalValue) || 0), 0),
+        allocatedFilmValue: production
+          .filter((p: any) => p.allocationStatus === "ALLOCATED")
+          .reduce((s: number, p: any) => s + (Number(p.filmValue) || 0), 0)
+      };
     }
 
     res.json({
@@ -2994,6 +2980,7 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
     const closingData = closingDoc.data();
 
     let aiParsed: any = null;
+    let aiParseError = "";
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (apiKey) {
@@ -3019,23 +3006,40 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
 
         const response = await ai.models.generateContent({
           model: "gemini-3.8-flash",
-          contents
+          contents,
+          config: {
+            responseMimeType: "application/json"
+          }
         });
 
         const rawText = response.text || "";
         const cleanJson = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
         aiParsed = JSON.parse(cleanJson);
       } catch (geminiError: any) {
-        console.warn("[AI Financial Parse] Gemini fallback:", geminiError.message);
+        aiParseError = String(geminiError?.message || geminiError || "Erro desconhecido no Gemini");
+        console.error("[AI Financial Parse] Gemini error:", aiParseError);
       }
     }
 
     // Não usar dados fictícios como fallback.
-    if (!aiParsed || !aiParsed.batchNumber) {
-      return res.status(422).json({ error: "Não foi possível interpretar o PDF com segurança.", details: "O parser não retornou os dados obrigatórios do documento." });
+    if (!aiParsed) {
+      return res.status(422).json({
+        error: "Não foi possível interpretar o PDF com segurança.",
+        details: aiParseError || "O Gemini não retornou um JSON válido.",
+        closingId
+      });
+    }
+
+    // O lote pode vir do PDF, mas nunca deve ser obrigatório para a leitura dos lançamentos.
+    if (!aiParsed.batchNumber) {
+      aiParsed.batchNumber = closingData?.batchNumber || closingData?.lote || closingId;
     }
     if (!Array.isArray(aiParsed.productionRecords) || aiParsed.productionRecords.length === 0) {
-      return res.status(422).json({ error: "Nenhum lançamento individual foi identificado no PDF.", details: "A importação foi interrompida para evitar uma matriz vazia ou uma alocação incorreta." });
+      return res.status(422).json({
+        error: "Nenhum lançamento individual foi identificado no PDF.",
+        details: "O Gemini retornou o documento, mas não retornou productionRecords. A importação foi interrompida para não inventar valores.",
+        parsedKeys: Object.keys(aiParsed || {})
+      });
     }
     const doctorSummary = new Map<string, any>();
     for (const record of aiParsed.productionRecords) {
