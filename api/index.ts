@@ -1943,18 +1943,18 @@ app.get("/api/app/financial/closings", async (req, res) => {
         id: "SETEMBRO-26",
         teamId: groupId || "default",
         monthKey: "SETEMBRO-26",
-        status: "CONCILIADO",
-        totalProduction: 148253.88,
-        totalTaxes: 9117.62,
-        totalOtherDebits: 14825.40,
-        totalNet: 124310.86,
-        informedValue: 148253.88,
-        processedValue: 148253.88,
-        releasedValue: 148253.88,
-        glosaValue: 7098.85,
-        netValue: 124310.86,
-        taxValue: 9117.62,
-        otherDebits: 14825.40,
+        status: "PENDENTE_CONFERENCIA",
+        totalProduction: 0,
+        totalTaxes: 0,
+        totalOtherDebits: 0,
+        totalNet: 0,
+        informedValue: 0,
+        processedValue: 0,
+        releasedValue: 0,
+        glosaValue: 0,
+        netValue: 0,
+        taxValue: 0,
+        otherDebits: 0,
         removedLotes: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -2365,16 +2365,7 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     let batches = batchSnap.docs.map(d => d.data());
     let reconciliation = reconSnap.docs.map(d => d.data());
 
-    // Fallback: If taxes or production is completely empty, populate from standard demonstrativo
-    if (taxes.length === 0 || !taxes.some((t: any) => t.lote || t.batchNumber)) {
-      const bundle = await parseBatch10944FilesForServer(actualDocId, groupId || "default");
-      taxes = bundle.taxes;
-      if (production.length === 0) production = bundle.productionRecords;
-      if (glosas.length === 0) glosas = bundle.glosas;
-      if (transactions.length === 0) transactions = bundle.transactions;
-      if (adjustments.length === 0) adjustments = bundle.adjustments;
-    }
-
+    // Não reconstruir produção a partir de dados de exemplo. A tela reflete apenas o que foi realmente importado.
     const doctorMap = new Map<string, {
       doctorId: string;
       doctorName: string;
