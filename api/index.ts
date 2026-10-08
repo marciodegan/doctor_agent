@@ -3009,59 +3009,7 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
       try {
         const ai = new GoogleGenAI({ apiKey });
         const contents: any[] = [];
-        const promptText = `Você é um auditor e especialista em faturamento e conciliação contábil-médica da Unimed e hospitais.
-Analise com extrema atenção e fidelidade o arquivo PDF/demonstrativo enviado.
-Extraia com precisão máxima todas as informações do documento estruturado:
-1. Cabeçalho / Identificação:
-   - prestador (ex: HEART CIRURGIA CARDIOVASCULAR)
-   - lote (número do lote no cabeçalho, ex: 10944)
-   - holerit (número do holerite, ex: 2590979)
-   - demonstrativo (ex: "Clinica Cooperada IN" ou tipo de demonstrativo)
-   - referencia (ex: "Setembro / 2026")
-   - dataCredito (ex: "14/09/2026")
-   - dataEmissao (ex: "16/09/2026")
-2. Seção TRIBUTOS:
-   - Extraia CADA imposto com descrição, código, valor base e valor do imposto:
-     * IRRF (code: "1708", baseValue, taxValue)
-     * PIS (code: "5952", baseValue, taxValue)
-     * COFINS (code: "5952", baseValue, taxValue)
-     * CSLL (code: "5952", baseValue, taxValue)
-   - total de impostos
-3. Resumo de Valores:
-   - valorProducao (VALOR PRODUÇÃO no cabeçalho)
-   - valorLiquido (VALOR LÍQUIDO no cabeçalho)
-   - glosas (glosas totais se houver, ou 0)
-4. Seção OCORRÊNCIAS FINANCEIRAS (MUITO IMPORTANTE):
-   - Extraia cada ocorrência (ex: "Capitalização Cota-Parte", data "01/08/2026", valor -14825.40, prestador "HEART CIRURGIA CARDIOVASCULAR").
-   - Identifique a natureza: "DEBIT" para descontos/negativos, "CREDIT" para proventos.
-5. Produção por Executante / Médico & Prestadores sob Heart:
-   - ATENÇÃO: Quando o documento indicar "Executante: HEART CIRURGIA CARDIOVASCULAR", interprete os blocos internos de acordo com o respectivo "Prestador: [Nome do Médico]" (ex: THAYNARA MAESTRI VIGNATTI, LUAN JUNIOR VIGNATTI, etc.). Agrupe e lance corretamente por médico em termos de quantidade, produção total, honorário (Vlr.Hon.), operacional (Vlr.Oper.) e filme (Vlr.Filme).
-
-Retorne ESTRITAMENTE um JSON válido (sem tags markdown nem explicações fora do JSON):
-{
-  "providerName": string,
-  "batchNumber": string,
-  "holerit": string,
-  "demonstrativo": string,
-  "reference": string,
-  "creditDate": string,
-  "issueDate": string,
-  "totals": {
-    "production": number,
-    "taxes": number,
-    "glosas": number,
-    "net": number
-  },
-  "taxesList": [
-    { "type": "IRRF"|"PIS"|"COFINS"|"CSLL", "code": string, "description": string, "baseValue": number, "taxValue": number }
-  ],
-  "occurrences": [
-    { "date": string, "description": string, "amount": number, "nature": "DEBIT"|"CREDIT", "provider": string }
-  ],
-  "doctors": [
-    { "name": string, "quantity": number, "productionTotal": number, "honorario": number, "operacional": number, "filme": number, "glosa": number }
-  ]
-}`;
+        const promptText = "Você é um auditor especialista em faturamento médico da Unimed. Analise o PDF com máxima fidelidade e retorne SOMENTE JSON válido.\nREGRAS CRÍTICAS:\n1. Extraia TODOS os lançamentos/procedimentos individuais das tabelas de produção.\n2. Para CADA lançamento preserve o EXECUTANTE e o PRESTADOR do respectivo lançamento/bloco.\n3. A combinação Executante + Prestador será usada posteriormente em doctor_provider_mappings. NÃO infira doctorId ou doctorName.\n4. Quando houver Executante: HEART CIRURGIA CARDIOVASCULAR, mantenha o Prestador interno do bloco como protocolProvider e nunca misture blocos.\n5. Quando houver Executante: CAMILA RIBEIRO DUTRA e Prestador: CONSULTORIO MEDICO - HU ITJ, todos os lançamentos daquele bloco devem preservar exatamente esses campos.\n6. honorValue = Vlr.Hon.; operationalValue = Vlr.Oper.; filmValue = Vlr.Filme.\n7. Não use productionTotal como substituto de honorValue quando os valores individuais estiverem disponíveis.\n8. Não invente valores. Se um campo não existir no lançamento, use string vazia ou zero.\n9. doctors é apenas um resumo. A fonte principal é productionRecords.\n\nRetorne JSON com:\nproviderName, batchNumber, holerit, demonstrativo, reference, creditDate, issueDate, totals, taxesList, occurrences, productionRecords e doctors.\n\nproductionRecords deve conter, para CADA lançamento:\nprotocol, date, patientName, patientCode, document, quantity, ambCode, procedureDescription, honorValue, operationalValue, filmValue, administrativeFee, executingProvider, protocolProvider, paymentProvider.\n\nJSON esperado:\n{\n  \"providerName\": string, \"batchNumber\": string, \"holerit\": string, \"demonstrativo\": string, \"reference\": string, \"creditDate\": string, \"issueDate\": string,\n  \"totals\": { \"production\": number, \"taxes\": number, \"glosas\": number, \"net\": number },\n  \"taxesList\": [ { \"type\": \"IRRF\"|\"PIS\"|\"COFINS\"|\"CSLL\", \"code\": string, \"description\": string, \"baseValue\": number, \"taxValue\": number } ],\n  \"occurrences\": [ { \"date\": string, \"description\": string, \"amount\": number, \"nature\": \"DEBIT\"|\"CREDIT\", \"provider\": string } ],\n  \"productionRecords\": [ { \"protocol\": string, \"date\": string, \"patientName\": string, \"patientCode\": string, \"document\": string, \"quantity\": number, \"ambCode\": string, \"procedureDescription\": string, \"honorValue\": number, \"operationalValue\": number, \"filmValue\": number, \"administrativeFee\": number, \"executingProvider\": string, \"protocolProvider\": string, \"paymentProvider\": string } ],\n  \"doctors\": [ { \"name\": string, \"quantity\": number, \"productionTotal\": number, \"honorario\": number, \"operacional\": number, \"filme\": number, \"glosa\": number } ]\n}";
 
         contents.push({ text: promptText });
         for (const f of files) {
@@ -3091,41 +3039,25 @@ Retorne ESTRITAMENTE um JSON válido (sem tags markdown nem explicações fora d
       }
     }
 
-    // Robust parsing fallback if model didn't parse or Gemini key unavailable
+    // Não usar dados fictícios como fallback.
     if (!aiParsed || !aiParsed.batchNumber) {
-      aiParsed = {
-        providerName: "HEART CIRURGIA CARDIOVASCULAR",
-        batchNumber: "10944",
-        holerit: "2590979",
-        demonstrativo: "Clinica Cooperada IN",
-        reference: "Setembro / 2026",
-        creditDate: "14/09/2026",
-        issueDate: "16/09/2026",
-        totals: {
-          production: 148253.88,
-          taxes: 9117.62,
-          glosas: 7590.54,
-          net: 124310.86
-        },
-        taxesList: [
-          { type: "IRRF", code: "1708", description: "IRRF - Serviços Tomados - Cód: 1708", baseValue: 148253.88, taxValue: 2223.81 },
-          { type: "PIS", code: "5952", description: "PIS - Retenção - Cód: 5952 - Lei 13137", baseValue: 148253.88, taxValue: 963.65 },
-          { type: "COFINS", code: "5952", description: "Cofins - Retenção - Cód: 5952 - Lei13137", baseValue: 148253.88, taxValue: 4447.62 },
-          { type: "CSLL", code: "5952", description: "CSLL - Retenção - Cód: 5952 - Lei13137", baseValue: 148253.88, taxValue: 1482.54 }
-        ],
-        occurrences: [
-          { date: "01/08/2026", description: "Capitalização Cota-Parte", amount: -14825.40, nature: "DEBIT", provider: "HEART CIRURGIA CARDIOVASCULAR" }
-        ],
-        doctors: [
-          { name: "ROCHELE LORENZI POL", quantity: 6, productionTotal: 2425.00, honorario: 2425.00, operacional: 0, glosa: 0 },
-          { name: "TAMARA QUINTINO REGIS", quantity: 140, productionTotal: 9223.71, honorario: 9223.71, operacional: 0, glosa: 0 },
-          { name: "CAMILA RIBEIRO DUTRA", quantity: 47, productionTotal: 6121.57, honorario: 6121.57, operacional: 0, glosa: 0 },
-          { name: "THAYNARA MAESTRI VIGNATTI", quantity: 349, productionTotal: 75326.62, honorario: 75326.62, operacional: 0, glosa: 0 },
-          { name: "MARIA EDUARDA CASA SOUZA MACHADO", quantity: 145, productionTotal: 18892.67, honorario: 18892.67, operacional: 0, glosa: 0 },
-          { name: "LUAN JUNIOR VIGNATTI", quantity: 454, productionTotal: 32705.27, honorario: 32705.27, operacional: 0, glosa: 0 }
-        ]
-      };
+      return res.status(422).json({ error: "Não foi possível interpretar o PDF com segurança.", details: "O parser não retornou os dados obrigatórios do documento." });
     }
+    if (!Array.isArray(aiParsed.productionRecords) || aiParsed.productionRecords.length === 0) {
+      return res.status(422).json({ error: "Nenhum lançamento individual foi identificado no PDF.", details: "A importação foi interrompida para evitar uma matriz vazia ou uma alocação incorreta." });
+    }
+    const doctorSummary = new Map<string, any>();
+    for (const record of aiParsed.productionRecords) {
+      const key = String(record.protocolProvider || record.executingProvider || "SEM_PRESTADOR").trim().toUpperCase();
+      const current = doctorSummary.get(key) || { name: record.protocolProvider || record.executingProvider || 'Sem prestador', quantity: 0, productionTotal: 0, honorario: 0, operacional: 0, filme: 0, glosa: 0 };
+      current.quantity += Number(record.quantity) || 1;
+      current.productionTotal += Number(record.honorValue) || 0;
+      current.honorario += Number(record.honorValue) || 0;
+      current.operacional += Number(record.operationalValue) || 0;
+      current.filme += Number(record.filmValue) || 0;
+      doctorSummary.set(key, current);
+    }
+    aiParsed.doctors = Array.from(doctorSummary.values());
 
     const bNum = String(aiParsed.batchNumber || "10944");
 
@@ -3151,20 +3083,20 @@ Retorne ESTRITAMENTE um JSON válido (sem tags markdown nem explicações fora d
     const isReconciled = diff < 0.05;
 
     // Build the Lote row for "Lotes & Retenções Unimed" table matching the spreadsheet structure
-    const irrfVal = aiParsed.taxesList?.find((t: any) => t.type === "IRRF")?.taxValue || Math.round(prodVal * 0.015 * 100) / 100;
-    const pisVal = aiParsed.taxesList?.find((t: any) => t.type === "PIS")?.taxValue || Math.round(prodVal * 0.0065 * 100) / 100;
-    const cofinsVal = aiParsed.taxesList?.find((t: any) => t.type === "COFINS")?.taxValue || Math.round(prodVal * 0.03 * 100) / 100;
-    const csllVal = aiParsed.taxesList?.find((t: any) => t.type === "CSLL")?.taxValue || Math.round(prodVal * 0.01 * 100) / 100;
+    const irrfVal = Number(aiParsed.taxesList?.find((t: any) => t.type === "IRRF")?.taxValue) || 0;
+    const pisVal = Number(aiParsed.taxesList?.find((t: any) => t.type === "PIS")?.taxValue) || 0;
+    const cofinsVal = Number(aiParsed.taxesList?.find((t: any) => t.type === "COFINS")?.taxValue) || 0;
+    const csllVal = Number(aiParsed.taxesList?.find((t: any) => t.type === "CSLL")?.taxValue) || 0;
     const calculatedTaxesNota = Math.round((irrfVal + pisVal + cofinsVal + csllVal) * 100) / 100;
     const effectiveTaxesNota = taxVal > 0 ? taxVal : calculatedTaxesNota;
 
     const lucroPresum = Math.round(prodVal * 0.32 * 100) / 100;
-    const irpjVal = bNum === "10944" ? 4892.38 : Math.round(Math.max(0, (lucroPresum * 0.15) - irrfVal) * 100) / 100;
-    const csll9Val = bNum === "10944" ? 2787.17 : Math.round(Math.max(0, (lucroPresum * 0.09) - csllVal) * 100) / 100;
-    const add10Val = bNum === "10944" ? 4744.12 : Math.round((lucroPresum * 0.10) * 100) / 100;
-    const reservaImposto = bNum === "10944" ? 12423.68 : Math.round((irpjVal + csll9Val + add10Val) * 100) / 100;
-    const ttRetencao = bNum === "10944" ? 16530.31 : Math.round((effectiveTaxesNota + (reservaImposto * 0.596)) * 100) / 100;
-    const liqSpreadsheet = bNum === "10944" ? 119299.90 : (netReported || Math.round((prodVal - effectiveTaxesNota - debitOccurrences) * 100) / 100);
+    const irpjVal = Math.round(Math.max(0, (lucroPresum * 0.15) - irrfVal) * 100) / 100;
+    const csll9Val = Math.round(Math.max(0, (lucroPresum * 0.09) - csllVal) * 100) / 100;
+    const add10Val = Math.round((lucroPresum * 0.10) * 100) / 100;
+    const reservaImposto = Math.round((irpjVal + csll9Val + add10Val) * 100) / 100;
+    const ttRetencao = Math.round((effectiveTaxesNota + (reservaImposto * 0.596)) * 100) / 100;
+    const liqSpreadsheet = netReported || Math.round((prodVal - effectiveTaxesNota - debitOccurrences) * 100) / 100;
 
     const loteRow = {
       lote: bNum,
@@ -3174,7 +3106,7 @@ Retorne ESTRITAMENTE um JSON válido (sem tags markdown nem explicações fora d
       titulo: aiParsed.holerit || "1490176",
       vencimento: aiParsed.creditDate || "14/09/2026",
       bruto: prodVal,
-      glosa: aiParsed.totals?.glosas || (bNum === "10944" ? 7098.85 : 0),
+      glosa: Number(aiParsed.totals?.glosas) || 0,
       pis: pisVal,
       cofins: cofinsVal,
       csll: csllVal,
@@ -3269,8 +3201,13 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       status: parsedData.mathValidation?.isReconciled ? "CONCILIADO" : "PENDENTE_CONFERENCIA",
       importedAt: new Date().toISOString(),
       importedBy: user.email || user.uid,
-      recordsCreated: (parsedData.taxesList?.length || 0) + (parsedData.occurrences?.length || 0) + (parsedData.doctors?.length || 0) + 1,
-      warnings: parsedData.mathValidation?.isReconciled ? [] : ["Divergência entre o líquido calculado e o líquido informado."],
+      recordsCreated: (parsedData.taxesList?.length || 0) + (parsedData.occurrences?.length || 0) + (parsedData.productionRecords?.length || 0) + 1,
+      warnings: [
+        ...(parsedData.mathValidation?.isReconciled ? [] : ["Divergência entre o líquido calculado e o líquido informado."]),
+        ...((parsedData.productionRecords || []).some((p: any) => p.allocationStatus === "PENDING_REVIEW")
+          ? ["Existem lançamentos com combinação Executante + Prestador sem mapeamento."]
+          : [])
+      ],
       errors: []
     });
 
@@ -3386,6 +3323,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
           protocol: p.protocol,
           date: p.date,
           patientName: p.patientName,
+          patientCode: p.patientCode,
           document: p.document,
           quantity: Number(p.quantity) || 1,
           ambCode: p.ambCode,
@@ -3393,6 +3331,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
           honorValue: Number(p.honorValue) || 0,
           operationalValue: Number(p.operationalValue) || 0,
           filmValue: Number(p.filmValue) || 0,
+          administrativeFee: Number(p.administrativeFee) || 0,
           executingProvider: executante,
           protocolProvider: prestador,
           doctorId: mapping?.doctorId || null,
@@ -3405,37 +3344,33 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       }
     }
 
-    // 5.5 UNIMED Equal Distribution Calculation & Permanent Doctor Settings Audit Snapshot
-    const teamDocSnap = await db.collection("financial_team_settings").doc(groupId).get();
-    const teamSettingsObj = teamDocSnap.exists ? teamDocSnap.data() : DEFAULT_TEAM_CONFIG;
-    const doctorsList = teamSettingsObj?.doctors || DEFAULT_TEAM_CONFIG.doctors;
-
-    const participants = doctorsList.filter((d: any) => Boolean(d.participaUnimed));
-    const participantsCount = participants.length > 0 ? participants.length : 3;
-
-    const vlNotaVal = Number(parsedData.totals?.production) || 148253.88;
-    const docItems = parsedData.doctors || [];
-
-    // Particular: sum of procedures from non-participating doctors
-    const totalParticularVal = docItems
-      .filter((doc: any) => !participants.some((p: any) => p.name.trim().toUpperCase() === doc.name.trim().toUpperCase()))
-      .reduce((acc: number, doc: any) => acc + (Number(doc.productionTotal) || Number(doc.honorario) || 0), 0) || 142269.84;
-
-    const totalPlantaoVal = parsedData.plantaoTotal !== undefined ? Number(parsedData.plantaoTotal) : (bNum === "10944" ? 1966.87 : 0);
-    const totalEquipeVal = Math.round(Math.max(0, vlNotaVal - totalParticularVal - totalPlantaoVal) * 100) / 100; // 4017.17
-    const distributedAmountPerDoctor = participantsCount > 0 ? Math.round((totalEquipeVal / participantsCount) * 100) / 100 : 0; // 1339.06
-
-    const unimedDistributionAudit = doctorsList.map((d: any) => {
-      const isPart = Boolean(d.participaUnimed);
-      return {
-        doctorId: d.key || d.name.toLowerCase().replace(/[^a-z0-9]/g, "_"),
-        doctorName: d.name,
-        participaUnimed: isPart,
-        distributionRule: d.unimedDistributionRule || "EQUAL",
-        participantsCount: isPart ? participantsCount : 0,
-        distributedAmount: isPart ? distributedAmountPerDoctor : 0
-      };
-    });
+    // 5.5 UNIMED: auditoria da alocação real. Não distribuir produção por proporção.
+    const allocatedRecords = aiParsed.productionRecords.filter((p: any) => p.allocationStatus !== 'PENDING_REVIEW');
+    const pendingProductionRecords = aiParsed.productionRecords.filter((p: any) => p.allocationStatus === 'PENDING_REVIEW');
+    const allocatedHonor = allocatedRecords.reduce((sum: number, p: any) => sum + (Number(p.honorValue) || 0), 0);
+    const allocatedOperational = allocatedRecords.reduce((sum: number, p: any) => sum + (Number(p.operationalValue) || 0), 0);
+    const allocatedFilm = allocatedRecords.reduce((sum: number, p: any) => sum + (Number(p.filmValue) || 0), 0);
+    const unimedDistributionAudit = {
+      totalProductionRecords: aiParsed.productionRecords.length,
+      allocatedRecords: allocatedRecords.length,
+      pendingRecords: pendingProductionRecords.length,
+      allocatedHonorValue: Math.round(allocatedHonor * 100) / 100,
+      allocatedOperationalValue: Math.round(allocatedOperational * 100) / 100,
+      allocatedFilmValue: Math.round(allocatedFilm * 100) / 100,
+      pendingCombinations: pendingProductionRecords.reduce((acc: any[], p: any) => {
+        const key = normalize(p.executingProvider) + ' | ' + normalize(p.protocolProvider || p.paymentProvider);
+        const existing = acc.find(x => x.key === key);
+        const value = (Number(p.honorValue) || 0) + (Number(p.operationalValue) || 0) + (Number(p.filmValue) || 0);
+        if (existing) { existing.quantity += Number(p.quantity) || 1; existing.value += value; }
+        else acc.push({ key, executante: p.executingProvider || '', prestador: p.protocolProvider || p.paymentProvider || '', quantity: Number(p.quantity) || 1, value });
+        return acc;
+      }, [])
+    };
+    const totalParticularVal = 0;
+    const totalPlantaoVal = parsedData.plantaoTotal !== undefined ? Number(parsedData.plantaoTotal) : 0;
+    const totalEquipeVal = 0;
+    const distributedAmountPerDoctor = 0;
+    const participantsCount = 0;
 
     // 6. financial_reconciliation
     const reconRef = db.collection("financial_reconciliation").doc();
@@ -3446,7 +3381,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       batchId: bNum,
       productionValue: Number(parsedData.totals?.production) || 0,
       taxesValue: Number(parsedData.totals?.taxes) || 0,
-      otherDebits: parsedData.mathValidation?.otherDebits || 14825.40,
+      otherDebits: parsedData.mathValidation?.otherDebits || 0,
       credits: 0,
       netValue: Number(parsedData.totals?.net) || 0,
       calculatedNetValue: parsedData.mathValidation?.calculatedNet || Number(parsedData.totals?.net) || 0,
