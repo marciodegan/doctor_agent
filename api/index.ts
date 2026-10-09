@@ -2482,6 +2482,7 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     res.json({
       closing,
       production,
+      productionRecords: production,
       glosas,
       taxes,
       adjustments,
