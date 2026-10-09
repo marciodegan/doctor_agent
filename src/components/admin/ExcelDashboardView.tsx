@@ -426,7 +426,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const cotaFromTransactions = (Array.isArray(details?.transactions) ? details.transactions : [])
       .filter((item: any) => /capitaliza.*cota|cota.*parte/i.test(String(item.typeName || item.observation || item.description || "")))
       .reduce((sum: number, item: any) => sum + Math.abs(Number(item.amount) || 0), 0);
-    const cotaParte = Number(noteSettings.cotaParte) || cotaFromTransactions;
+    const cotaParte = Number(noteSettings.cotaParte);
     const internalDSTotal = Math.max(0, Math.round((productionBase - operationalTotal - filmTotal - cotaParte - noteSettings.otherDeductions - retentionTotal - reserveTotal) * 100) / 100;
 
     productionRecords.forEach((p: any) => {
@@ -1853,9 +1853,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           </div>
 
           {(() => {
-            const lots = excelData.lotesUnimed || [];
-            const productionBase = lots.reduce((sum: number, lot: any) => sum + (Number(lot.bruto) || 0), 0);
-            const officialNet = lots.reduce((sum: number, lot: any) => sum + (Number(lot.liquido) || 0), 0);
+            const lots = (Array.isArray(details?.taxes) ? details.taxes : []).filter((item: any) => item.bruto !== undefined && item.liquido !== undefined);
+            const productionBase = lots.reduce((sum: number, lot: any) => sum + (Number(lot.bruto) || 0), 0)
+              || production.reduce((sum: number, item: any) => sum + (Number(item.honorValue) || 0) + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
+            const officialNet = lots.reduce((sum: number, lot: any) => sum + (Number(lot.netReported ?? lot.liquido) || 0), 0);
             const operational = production.reduce((sum: number, item: any) => sum + (Number(item.operationalValue) || 0), 0);
             const film = production.reduce((sum: number, item: any) => sum + (Number(item.filmValue) || 0), 0);
             const money = (value: number) => (Number(value) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
