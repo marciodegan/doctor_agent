@@ -564,11 +564,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         lote.csll9 = Math.max(0, money(lote.lucroPresumido * lote.aliquotas.csll9 / 100 - lote.csll));
         lote.add10 = money(lote.lucroPresumido * lote.aliquotas.adicional / 100);
         lote.reservaImposto = money(lote.irpj + lote.csll9 + lote.add10);
-        const allProduction = Array.isArray(details?.productionRecords) ? details.productionRecords : [];
-        const productionBaseTotal = (Array.isArray(details?.taxes) ? details.taxes : []).filter((item: any) => item.bruto !== undefined).reduce((sum: number, item: any) => sum + (Number(item.bruto) || 0), 0) || lote.bruto;
-        const opFilmTotal = allProduction.reduce((sum: number, item: any) => sum + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
-        const opFilmForLot = productionBaseTotal > 0 ? opFilmTotal * lote.bruto / productionBaseTotal : 0;
-        lote.dsSaque = money(lote.bruto - lote.glosa - lote.ttRetencao - lote.reservaImposto - (Number(loteAliquotas[String(lote.lote)]?.cotaParte) || 0) - opFilmForLot);
+        // DS de saque é calculado somente pelo bruto menos retenções e reserva de impostos.
+        lote.dsSaque = money(lote.bruto - lote.ttRetencao - lote.reservaImposto);
         return lote;
       }),
     despesasEquipe: []
