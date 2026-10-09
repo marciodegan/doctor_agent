@@ -1968,10 +1968,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   <th className="p-2 text-right">ISS % / R$</th>
                   <th className="p-3 text-right font-black">TT Impostos</th>
                   <th className="p-3 text-right font-black">TT Retenção</th>
-                  <th className="p-3 text-right">Lucro Presum.</th>
-                  <th className="p-3 text-right">IRPJ</th>
-                  <th className="p-3 text-right">CSLL 9%</th>
-                  <th className="p-3 text-right">ADD 10%</th>
+                  <th className="p-2 text-right">Lucro Presum. % / R$</th>
+                  <th className="p-2 text-right">IRPJ % / R$</th>
+                  <th className="p-2 text-right">CSLL 9% / R$</th>
+                  <th className="p-2 text-right">ADD % / R$</th>
                   <th className="p-3 text-right">Reserva Imp.</th>
                   <th className="p-3 text-right bg-blue-50 font-black text-blue-900">Líquido oficial (R$)</th>
                   <th className="p-3 text-right bg-emerald-50 font-black text-emerald-900">DS saque (R$)</th>
@@ -2036,10 +2036,22 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       </td>
                       <td className="p-3 text-right font-black text-gray-700">R$ {lote.ttImpostosNota.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right font-black text-purple-700">R$ {lote.ttRetencao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3 text-right text-gray-500">R$ {lote.lucroPresumido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3 text-right text-gray-500">R$ {lote.irpj.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3 text-right text-gray-500">R$ {lote.csll9.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3 text-right text-gray-500">R$ {lote.add10.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-2 text-right text-gray-700 whitespace-nowrap">
+                        <input aria-label={`lucroPresumido aliquota lote ${lote.lote}`} type="number" min="0" step="0.01" value={lote.aliquotas.lucroPresumido} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), lucroPresumido: Number(event.target.value) } }))} className="w-14 p-1 text-right border border-gray-200 rounded text-[10px]" />%
+                        <div className="font-bold">R$ {lote.lucroPresumido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                      </td>
+                      <td className="p-2 text-right text-gray-700 whitespace-nowrap">
+                        <input aria-label={`irpj aliquota lote ${lote.lote}`} type="number" min="0" step="0.01" value={lote.aliquotas.irpj} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), irpj: Number(event.target.value) } }))} className="w-14 p-1 text-right border border-gray-200 rounded text-[10px]" />%
+                        <div className="font-bold">R$ {lote.irpj.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                      </td>
+                      <td className="p-2 text-right text-gray-700 whitespace-nowrap">
+                        <input aria-label={`csll9 aliquota lote ${lote.lote}`} type="number" min="0" step="0.01" value={lote.aliquotas.csll9} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), csll9: Number(event.target.value) } }))} className="w-14 p-1 text-right border border-gray-200 rounded text-[10px]" />%
+                        <div className="font-bold">R$ {lote.csll9.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                      </td>
+                      <td className="p-2 text-right text-gray-700 whitespace-nowrap">
+                        <input aria-label={`adicional aliquota lote ${lote.lote}`} type="number" min="0" step="0.01" value={lote.aliquotas.adicional} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), adicional: Number(event.target.value) } }))} className="w-14 p-1 text-right border border-gray-200 rounded text-[10px]" />%
+                        <div className="font-bold">R$ {lote.add10.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                      </td>
                       <td className="p-3 text-right text-amber-700 font-bold">R$ {lote.reservaImposto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50">
                         R$ {lote.liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
