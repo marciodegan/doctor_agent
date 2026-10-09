@@ -2276,236 +2276,179 @@ app.post("/api/app/financial/import", async (req, res) => {
 app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
   const groupId = getGroupId(req);
   const { closingId } = req.params;
-  console.log(`[API] Fetching details for ${closingId}, group ${groupId}`);
+  console.log(`[API] Fetching financial details: closingId=${closingId}, groupId=${groupId}`);
+
   try {
-    // 1. Locate closing document by docId, monthKey, or fallback scan
-    let closingDoc = await db.collection("financial_closings").doc(closingId).get();
-
-    if (!closingDoc.exists) {
-      const snap = await db.collection("financial_closings")
-        .where("monthKey", "==", closingId.toUpperCase())
-        .limit(1)
-        .get();
-      if (!snap.empty) {
-        closingDoc = snap.docs[0];
-      }
-    }
-
-    if (!closingDoc.exists) {
-      const allSnap = await db.collection("financial_closings").get();
-      const match = allSnap.docs.find(d => 
-        d.id === closingId || 
-        d.data().monthKey?.toUpperCase() === closingId.toUpperCase() ||
-        d.data().id === closingId
-      );
-      if (match) {
-        closingDoc = match;
-      }
-    }
-
-    let closingData: any;
-    let actualDocId = closingId;
-    let monthKey = closingId.toUpperCase();
-
-    if (closingDoc && closingDoc.exists) {
-      closingData = { id: closingDoc.id, ...closingDoc.data() };
-      actualDocId = closingDoc.id;
-      monthKey = (closingData.monthKey || closingId).toUpperCase();
-    } else {
-      // Auto-create closing document so it is never 404
-      actualDocId = closingId;
-      closingData = {
-        id: actualDocId,
-        monthKey: monthKey,
-        teamId: groupId || "default",
-        status: "PENDENTE_CONFERENCIA",
-        totalProduction: 0,
-        totalTaxes: 0,
-        totalOtherDebits: 0,
-        totalNet: 0,
-        informedValue: 0,
-        processedValue: 0,
-        releasedValue: 0,
-        glosaValue: 0,
-        netValue: 0,
-        taxValue: 0,
-        otherDebits: 0,
-        removedLotes: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      await db.collection("financial_closings").doc(actualDocId).set(closingData, { merge: true });
-    }
-
-    // Determine all ID aliases that could be attached to subcollections
-    const validClosingIds = Array.from(new Set([
-      closingId,
-      actualDocId,
-      monthKey,
-      monthKey.toLowerCase()
-    ].filter(Boolean)));
-
-    const safeQuery = async (collectionName: string) => {
-      try {
-        return await db.collection(collectionName).where("closingId", "in", validClosingIds).get();
-      } catch (error: any) {
-        console.error(`[API] Details query failed for ${collectionName}:`, error?.message || error);
-        return { docs: [] } as any;
-      }
+    // The matrix depends primarily on the imported production records.
+    // Keep this endpoint intentionally resilient: optional collections must not
+    // make the entire financial dashboard return HTTP 500.
+    let closingData: any = {
+      id: closingId,
+      monthKey: closingId.toUpperCase(),
+      teamId: groupId || "default-group",
+      status: "PENDENTE_CONFERENCIA",
+      totalProduction: 0,
+      totalTaxes: 0,
+      totalOtherDebits: 0,
+      totalNet: 0
     };
 
-    const [prodSnap, glosaSnap, taxSnap, adjSnap, txSnap, auditSnap, batchSnap, reconSnap] = await Promise.all([
-      safeQuery("financial_production"),
-      safeQuery("financial_glosas"),
-      safeQuery("financial_taxes"),
-      safeQuery("financial_adjustments"),
-      safeQuery("financial_transactions"),
-      safeQuery("financial_audit_logs"),
-      safeQuery("financial_batches"),
-      safeQuery("financial_reconciliation")
+    try {
+      const directClosing = await db.collection("financial_closings").doc(closingId).get();
+      if (directClosing.exists) {
+        closingData = { id: directClosing.id, ...directClosing.data() };
+      } else {
+        const byMonth = await db.collection("financial_closings")
+          .where("monthKey", "==", closingId.toUpperCase())
+          .limit(1)
+          .get();
+        if (!byMonth.empty) {
+          closingData = { id: byMonth.docs[0].id, ...byMonth.docs[0].data() };
+        }
+      }
+    } catch (closingError: any) {
+      console.error("[API] Closing lookup failed:", closingError?.message || closingError);
+    }
+
+    const actualClosingId = closingData.id || closingId;
+    const ids = Array.from(new Set([closingId, actualClosingId, closingData.monthKey].filter(Boolean)));
+
+    const queryCollection = async (name: string) => {
+      for (const id of ids) {
+        try {
+          const snap = await db.collection(name).where("closingId", "==", id).get();
+          if (!snap.empty) return snap;
+        } catch (error: any) {
+          console.error(`[API] ${name} query failed for ${id}:`, error?.message || error);
+        }
+      }
+      return { docs: [] } as any;
+    };
+
+    const [prodSnap, glosaSnap, taxSnap, adjSnap, txSnap, batchSnap, reconSnap] = await Promise.all([
+      queryCollection("financial_production"),
+      queryCollection("financial_glosas"),
+      queryCollection("financial_taxes"),
+      queryCollection("financial_adjustments"),
+      queryCollection("financial_transactions"),
+      queryCollection("financial_batches"),
+      queryCollection("financial_reconciliation")
     ]);
 
-    const closing = closingData;
-    let production = prodSnap.docs.map(d => d.data());
-    let glosas = glosaSnap.docs.map(d => d.data());
-    let taxes = taxSnap.docs.map(d => d.data());
-    let adjustments = adjSnap.docs.map(d => d.data());
-    let transactions = txSnap.docs.map(d => d.data());
-    let auditLogs = auditSnap.docs.map(d => d.data());
-    let batches = batchSnap.docs.map(d => d.data());
-    let reconciliation = reconSnap.docs.map(d => d.data());
+    const production = prodSnap.docs.map((d: any) => d.data());
+    const glosas = glosaSnap.docs.map((d: any) => d.data());
+    const taxes = taxSnap.docs.map((d: any) => d.data());
+    const adjustments = adjSnap.docs.map((d: any) => d.data());
+    const transactions = txSnap.docs.map((d: any) => d.data());
+    const batches = batchSnap.docs.map((d: any) => d.data());
+    const reconciliation = reconSnap.docs.map((d: any) => d.data());
 
-    // Não reconstruir produção a partir de dados de exemplo. A tela reflete apenas o que foi realmente importado.
-    const doctorMap = new Map<string, {
-      doctorId: string;
-      doctorName: string;
-      productionTotal: number;
-      glosaTotal: number;
-      netProduction: number;
-      procedureCount: number;
-      protocolCount: Set<string>;
-      honorValue: number;
-      operationalValue: number;
-      filmValue: number;
-    }>();
-
+    // Preserve the allocation saved during import. Only use mappings as a
+    // fallback for legacy records that do not already have doctorId.
     let mappings: DoctorProviderMapping[] = [];
     try {
       const mappingSnap = await db.collection("doctor_provider_mappings")
         .where("teamId", "==", groupId)
         .where("active", "==", true)
         .get();
-      mappings = mappingSnap.docs.map(d => ({ id: d.id, ...d.data() })) as DoctorProviderMapping[];
-    } catch (mappingError: any) {
-      console.error("[API] Could not load doctor_provider_mappings:", mappingError?.message || mappingError);
+      mappings = mappingSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })) as DoctorProviderMapping[];
+    } catch (error: any) {
+      console.error("[API] Mapping lookup failed:", error?.message || error);
     }
 
-    KNOWN_DOCTORS.forEach(docName => {
-      const docId = docName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-      doctorMap.set(docId, {
-        doctorId: docId,
-        doctorName: docName,
-        productionTotal: 0,
-        glosaTotal: 0,
-        netProduction: 0,
-        procedureCount: 0,
-        protocolCount: new Set(),
-        honorValue: 0,
-        operationalValue: 0,
-        filmValue: 0
-      });
-    });
+    const normalize = (s: string) => String(s || "").trim().toUpperCase().replace(/\s+/g, " ");
+    const doctorsSummary: any[] = [];
+    const summaryMap = new Map<string, any>();
 
-    production.forEach((p: any) => {
-      const executante = p.executingProvider || "";
-      const prestador = p.protocolProvider || p.paymentProvider || ""; // Assuming protocolProvider is Prestador
-      const mapping = getDoctorFromMapping(mappings, executante, prestador);
+    for (const p of production) {
+      let doctorId = p.doctorId || "";
+      let doctorName = p.doctorName || "";
 
-      let docId = p.doctorId || undefined;
-      let docName = p.doctorName || undefined;
-      if (mapping) {
-        docId = mapping.doctorId;
-        docName = mapping.doctorName;
+      if (!doctorId) {
+        const mapping = getDoctorFromMapping(
+          mappings,
+          p.executingProvider || "",
+          p.protocolProvider || p.paymentProvider || ""
+        );
+        if (mapping) {
+          doctorId = mapping.doctorId;
+          doctorName = mapping.doctorName;
+        }
       }
-      p.allocationStatus = docId ? "ALLOCATED" : "PENDING_REVIEW";
-      
-      if (!doctorMap.has(docId) && docName && !docName.includes("HEART")) {
-        doctorMap.set(docId, {
-          doctorId: docId,
-          doctorName: docName,
+
+      p.doctorId = doctorId || null;
+      p.doctorName = doctorName || null;
+      p.allocationStatus = doctorId ? "ALLOCATED" : "PENDING_REVIEW";
+
+      if (!doctorId) continue;
+
+      if (!summaryMap.has(doctorId)) {
+        summaryMap.set(doctorId, {
+          doctorId,
+          doctorName: doctorName || "Médico",
           productionTotal: 0,
           glosaTotal: 0,
           netProduction: 0,
           procedureCount: 0,
-          protocolCount: new Set(),
+          protocolCount: new Set<string>(),
           honorValue: 0,
           operationalValue: 0,
           filmValue: 0
         });
       }
-      const entry = doctorMap.get(docId);
-      if (entry) {
-        const itemVal = (Number(p.honorValue) || 0) + (Number(p.operationalValue) || 0) + (Number(p.filmValue) || 0) || Number(p.productionTotal) || Number(p.valueProcessed) || 0;
-        entry.productionTotal += itemVal;
-        entry.honorValue += Number(p.honorValue) || Number(p.productionTotal) || 0;
-        entry.operationalValue += Number(p.operationalValue) || 0;
-        entry.filmValue += Number(p.filmValue) || 0;
-        entry.procedureCount += Number(p.quantity) || 1;
-        if (p.protocol) entry.protocolCount.add(p.protocol);
-      }
-    });
 
-    glosas.forEach((g: any) => {
-      if (g.doctorId && doctorMap.has(g.doctorId)) {
-        const entry = doctorMap.get(g.doctorId);
-        if (entry) {
-          entry.glosaTotal += Number(g.glosaValue) || 0;
-        }
-      }
-    });
-
-    const doctorsSummary = Array.from(doctorMap.values()).map(d => ({
-      ...d,
-      protocolCount: d.protocolCount.size,
-      netProduction: (d.honorValue + d.operationalValue + d.filmValue) - d.glosaTotal
-    }));
-
-    // A Matriz UNIMED deve refletir somente os lançamentos realmente importados.
-    // Não criar distribuição fictícia quando não existir snapshot de uma importação real.
-    let unimedDistributionAudit = closing?.unimedDistributionAudit;
-    if (!unimedDistributionAudit) {
-      unimedDistributionAudit = {
-        totalProductionRecords: production.length,
-        allocatedRecords: production.filter((p: any) => p.allocationStatus === "ALLOCATED").length,
-        pendingRecords: production.filter((p: any) => p.allocationStatus === "PENDING_REVIEW").length,
-        allocatedHonorValue: production
-          .filter((p: any) => p.allocationStatus === "ALLOCATED")
-          .reduce((s: number, p: any) => s + (Number(p.honorValue) || 0), 0),
-        allocatedOperationalValue: production
-          .filter((p: any) => p.allocationStatus === "ALLOCATED")
-          .reduce((s: number, p: any) => s + (Number(p.operationalValue) || 0), 0),
-        allocatedFilmValue: production
-          .filter((p: any) => p.allocationStatus === "ALLOCATED")
-          .reduce((s: number, p: any) => s + (Number(p.filmValue) || 0), 0)
-      };
+      const d = summaryMap.get(doctorId);
+      d.honorValue += Number(p.honorValue) || 0;
+      d.operationalValue += Number(p.operationalValue) || 0;
+      d.filmValue += Number(p.filmValue) || 0;
+      d.productionTotal += (Number(p.honorValue) || 0) + (Number(p.operationalValue) || 0) + (Number(p.filmValue) || 0);
+      d.procedureCount += Number(p.quantity) || 1;
+      if (p.protocol) d.protocolCount.add(String(p.protocol));
     }
 
-    res.json({
-      closing,
+    for (const g of glosas) {
+      if (g.doctorId && summaryMap.has(g.doctorId)) {
+        summaryMap.get(g.doctorId).glosaTotal += Number(g.glosaValue) || 0;
+      }
+    }
+
+    for (const d of summaryMap.values()) {
+      d.protocolCount = d.protocolCount.size;
+      d.netProduction = d.honorValue + d.operationalValue + d.filmValue - d.glosaTotal;
+      doctorsSummary.push(d);
+    }
+
+    const allocated = production.filter((p: any) => p.doctorId);
+    const unimedDistributionAudit = {
+      totalProductionRecords: production.length,
+      allocatedRecords: allocated.length,
+      pendingRecords: production.length - allocated.length,
+      allocatedHonorValue: allocated.reduce((s: number, p: any) => s + (Number(p.honorValue) || 0), 0),
+      allocatedOperationalValue: allocated.reduce((s: number, p: any) => s + (Number(p.operationalValue) || 0), 0),
+      allocatedFilmValue: allocated.reduce((s: number, p: any) => s + (Number(p.filmValue) || 0), 0)
+    };
+
+    return res.json({
+      closing: closingData,
       production,
       productionRecords: production,
       glosas,
       taxes,
       adjustments,
       transactions,
-      auditLogs,
+      auditLogs: [],
       doctorsSummary,
       batches,
       reconciliation,
       unimedDistributionAudit
     });
   } catch (error: any) {
-    handleApiError(res, error, "Get Closing Details");
+    console.error("[API] Financial details fatal error:", error?.stack || error);
+    return res.status(500).json({
+      error: error?.message || "Internal Server Error",
+      context: "Get Closing Details",
+      details: error?.stack || String(error)
+    });
   }
 });
 
