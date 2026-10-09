@@ -568,7 +568,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         lote.dsSaque = money(lote.bruto - lote.ttRetencao - lote.reservaImposto);
         return lote;
       }),
-    despesasEquipe: []
+    despesasEquipe: (Array.isArray(details?.transactions) ? details.transactions : []).filter((t: any) => t.nature === "DEBIT" && t.scope !== "TEAM_SPLIT").map((t: any) => ({ despesa: t.typeName || t.typeId || "Despesa", categoria: t.scope === "DOCTOR" ? "Individual" : "Equipe", valor: Number(t.amount) || 0, status: "Lançado" }))
   }), [doctorsAggregated, totalUnimedTT, totalUnimedDS, details, noteSettings, loteAliquotas]);
 
   // Filter occurrences
@@ -2165,7 +2165,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
             </div>
             <div className="text-right">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Total Despesas Equipe:</span>
-              <span className="font-black text-rose-600 text-base">R$ 21.618,34</span>
+              <span className="font-black text-rose-600 text-base">R$ {excelData.despesasEquipe.reduce((sum, item) => sum + (Number(item.valor) || 0), 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
 
