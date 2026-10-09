@@ -516,21 +516,44 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         vencimento: item.vencimento || "",
         bruto: Number(item.bruto) || 0,
         glosa: Number(item.glosa) || 0,
-        irrf: Number(item.irrf) || 0,
-        pis: Number(item.pis) || 0,
-        cofins: Number(item.cofins) || 0,
-        csll: Number(item.csll) || 0,
-        ttImpostosNota: Number(item.ttImpostosNota) || 0,
-        ttRetencao: Number(item.ttRetencao) || 0,
-        lucroPresumido: Number(item.lucroPresumido) || 0,
-        irpj: Number(item.irpj) || 0,
-        csll9: Number(item.csll9) || 0,
-        add10: Number(item.add10) || 0,
-        reservaImposto: Number(item.reservaImposto) || 0,
-        liquido: Number(item.liquido) || 0
+        aliquotas: {
+          pis: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.pis ?? noteSettings.pisPercent),
+          cofins: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.cofins ?? noteSettings.cofinsPercent),
+          csll: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.csll ?? noteSettings.csllPercent),
+          irrf: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.irrf ?? noteSettings.irrfPercent),
+          iss: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.iss ?? 5),
+          lucroPresumido: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.lucroPresumido ?? noteSettings.lucroPresumidoPercent),
+          irpj: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.irpj ?? noteSettings.irpjPercent),
+          csll9: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.csll9 ?? noteSettings.csll9Percent),
+          adicional: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.adicional ?? noteSettings.adicional10Percent)
+        },
+        pis: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.pis ?? noteSettings.pisPercent)) / 100,
+        cofins: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.cofins ?? noteSettings.cofinsPercent)) / 100,
+        csll: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.csll ?? noteSettings.csllPercent)) / 100,
+        irrf: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.irrf ?? noteSettings.irrfPercent)) / 100,
+        iss: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.iss ?? 5)) / 100,
+        ttImpostosNota: 0,
+        ttRetencao: 0,
+        lucroPresumido: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.lucroPresumido ?? noteSettings.lucroPresumidoPercent)) / 100,
+        irpj: 0,
+        csll9: 0,
+        add10: 0,
+        reservaImposto: 0,
+        liquido: Number(item.netReported ?? item.liquido) || 0,
+        dsSaque: 0
+      }).map((lote: any) => {
+        const money = (value: number) => Math.round(value * 100) / 100;
+        lote.ttImpostosNota = money(lote.pis + lote.cofins + lote.csll + lote.irrf);
+        lote.ttRetencao = money(lote.ttImpostosNota + lote.iss);
+        lote.irpj = Math.max(0, money(lote.lucroPresumido * lote.aliquotas.irpj / 100 - lote.irrf));
+        lote.csll9 = Math.max(0, money(lote.lucroPresumido * lote.aliquotas.csll9 / 100 - lote.csll));
+        lote.add10 = money(lote.lucroPresumido * lote.aliquotas.adicional / 100);
+        lote.reservaImposto = money(lote.irpj + lote.csll9 + lote.add10);
+        lote.dsSaque = money(lote.bruto - lote.glosa - lote.ttRetencao - lote.reservaImposto - (Number(loteAliquotas[String(lote.lote)]?.cotaParte) || 0));
+        return lote;
       })),
     despesasEquipe: []
-  }), [doctorsAggregated, totalUnimedTT, totalUnimedDS, details]);
+  }), [doctorsAggregated, totalUnimedTT, totalUnimedDS, details, noteSettings, loteAliquotas]);
 
   // Filter occurrences
   const filteredOcorrencias = excelData.ocorrencias.filter(o => {
