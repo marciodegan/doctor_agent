@@ -77,6 +77,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     adicional10Percent: 10, reservaRetencaoPercent: 59.6, cotaParte: 0, otherDeductions: 0
   });
   const [loteAliquotas, setLoteAliquotas] = useState<Record<string, any>>({});
+  const configuredDoctors = Array.isArray(teamSettings.doctors) ? teamSettings.doctors : [];
   const [savingNoteSettings, setSavingNoteSettings] = useState(false);
   const [noteSettingsMessage, setNoteSettingsMessage] = useState("");
 
@@ -153,12 +154,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   });
 
   const rowsData = React.useMemo(() => {
-    const configuredIndex = new Map((Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).map((d, index) => [d.key, index]));
+    const configuredIndex = new Map(configuredDoctors.map((d, index) => [d.key, index]));
     return (Array.isArray(doctors) ? doctors : []).map(doc => ({
       key: doc.id,
       name: doc.name,
-      percent: (Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).find(d => d.key === doc.id)?.teamSharePercent || 0,
-      isTeam: (Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).find(d => d.key === doc.id)?.isTeamMember || false
+      percent: configuredDoctors.find(d => d.key === doc.id)?.teamSharePercent || 0,
+      isTeam: configuredDoctors.find(d => d.key === doc.id)?.isTeamMember || false
     })).sort((a, b) => {
       const ai = configuredIndex.get(a.key);
       const bi = configuredIndex.get(b.key);
@@ -177,11 +178,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
     const reorderedKeys = [...currentRows];
     [reorderedKeys[from], reorderedKeys[to]] = [reorderedKeys[to], reorderedKeys[from]];
-    const settingsByKey = new Map((Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).map(d => [d.key, d]));
+    const settingsByKey = new Map(configuredDoctors.map(d => [d.key, d]));
     const reorderedSettings = reorderedKeys
       .map(key => settingsByKey.get(key))
       .filter(Boolean) as DoctorTeamMember[];
-    const extraSettings = (Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).filter(d => !reorderedKeys.includes(d.key));
+    const extraSettings = configuredDoctors.filter(d => !reorderedKeys.includes(d.key));
     const updatedSettings = { ...teamSettings, doctors: [...reorderedSettings, ...extraSettings] };
 
     setTeamSettings(updatedSettings);
@@ -404,7 +405,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   };
 
   // Calculate sum of team percentages
-  const teamSumPercent = teamSettings.doctors
+  const teamSumPercent = configuredDoctors
     .filter(d => d.isTeamMember)
     .reduce((acc, d) => acc + (Number(d.teamSharePercent) || 0), 0);
 
@@ -475,7 +476,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     let totalDS = 0;
     const processedDoctors = Array.from(aggr.values()).map(d => {
       const man = manualEntradas[d.doctorId] || {};
-      const docConfig = teamSettings.doctors.find(c => c.key === d.doctorId);
+      const docConfig = configuredDoctors.find(c => c.key === d.doctorId);
       const isTeam = Boolean(docConfig?.isTeamMember);
       const percent = Number(docConfig?.teamSharePercent) || 0;
       const honorTT = Number(d.honorTT) || 0;
@@ -499,7 +500,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       totalUnimedDS: totalDS,
       pendingRecords: pending
     };
-  }, [details?.productionRecords, details?.glosas, details?.taxes, details?.transactions, manualEntradas, teamSettings.doctors, noteSettings]);
+  }, [details?.productionRecords, details?.glosas, details?.taxes, details?.transactions, manualEntradas, configuredDoctors, noteSettings]);
 
   const excelData = React.useMemo(() => ({
     monthKey: details?.closing?.monthKey || "FECHAMENTO",
@@ -597,12 +598,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
   // Group doctors by team member status
   const teamDoctors = excelData.fechamentoMedicos.filter(d => {
-    const config = teamSettings.doctors.find(c => c.name === d.nome);
+    const config = configuredDoctors.find(c => c.name === d.nome);
     return config ? config.isTeamMember : d.isTeamMember;
   });
 
   const nonTeamDoctors = excelData.fechamentoMedicos.filter(d => {
-    const config = teamSettings.doctors.find(c => c.name === d.nome);
+    const config = configuredDoctors.find(c => c.name === d.nome);
     return config ? !config.isTeamMember : !d.isTeamMember;
   });
 
@@ -1403,7 +1404,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
                   {teamDoctors.map((med) => {
-                    const docConfig = teamSettings.doctors.find(d => d.name === med.nome);
+                    const docConfig = configuredDoctors.find(d => d.name === med.nome);
                     const nominalPct = docConfig?.teamSharePercent || med.percent;
                     const dynamicHeartPct = docConfig?.proporcaoHeartDinamica || (med.key === 'kathize' ? 17.45 : med.key === 'thais' ? 28.97 : 26.79);
                     const dispMes = docConfig?.disponivelPeriodo || (med.key === 'thais' ? 39019.05 : med.key === 'kathize' ? 23509.08 : 36086.02);
@@ -1502,7 +1503,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-100 text-slate-600">Cooperado Externo</span>
                         </div>
                         <div className="text-[10px] text-gray-400">
-                          {teamSettings.doctors.find(d => d.name === med.nome)?.specialty || "Médico Cooperado"}
+                          {configuredDoctors.find(d => d.name === med.nome)?.specialty || "Médico Cooperado"}
                         </div>
                       </td>
                       <td className="p-4 text-center font-bold text-gray-400">
@@ -1595,7 +1596,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                         <h4 className="font-black text-gray-900 text-sm mt-1">{med.nome}</h4>
                         <p className="text-[10px] text-gray-400">
-                          {teamSettings.doctors.find(d => d.name === med.nome)?.specialty}
+                          {configuredDoctors.find(d => d.name === med.nome)?.specialty}
                         </p>
                       </div>
                       <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 ${
@@ -1684,7 +1685,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="ALL">Todos os Médicos & Equipe</option>
-                  {(Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).map(d => (
+                  {configuredDoctors.map(d => (
                     <option key={d.key} value={d.name}>{d.name} {d.isTeamMember ? "(Equipe)" : "(Externo)"}</option>
                   ))}
                   <option value="HEART">EQUIPE HEART</option>
@@ -1726,7 +1727,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
                 {filteredOcorrencias.map((oc, idx) => {
-                  const isTeam = oc.medico.includes("HEART") || teamSettings.doctors.find(d => d.name === oc.medico)?.isTeamMember;
+                  const isTeam = oc.medico.includes("HEART") || configuredDoctors.find(d => d.name === oc.medico)?.isTeamMember;
                   return (
                     <tr key={idx} className="hover:bg-gray-50/80 transition-colors">
                       <td className="p-3.5 pl-6 text-gray-500 font-bold">{oc.data}</td>
@@ -2157,10 +2158,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <p className="text-xs text-gray-500 font-medium mt-1">
                 Custos fixos, infraestrutura e tributos rateados dinamicamente entre os sócios conforme a coluna <strong>PROPORÇÃO HEART</strong> do período:
                 <span className="font-bold text-gray-700 ml-1">
-                  Rochele ({teamSettings.doctors.find(d => d.key === 'rochele')?.proporcaoHeartDinamica || 26.79}%), 
-                  Thais ({teamSettings.doctors.find(d => d.key === 'thais')?.proporcaoHeartDinamica || 28.97}%), 
-                  Luis ({teamSettings.doctors.find(d => d.key === 'luis')?.proporcaoHeartDinamica || 26.79}%), 
-                  Kathize ({teamSettings.doctors.find(d => d.key === 'kathize')?.proporcaoHeartDinamica || 17.45}%)
+                  Rochele ({configuredDoctors.find(d => d.key === 'rochele')?.proporcaoHeartDinamica || 26.79}%), 
+                  Thais ({configuredDoctors.find(d => d.key === 'thais')?.proporcaoHeartDinamica || 28.97}%), 
+                  Luis ({configuredDoctors.find(d => d.key === 'luis')?.proporcaoHeartDinamica || 26.79}%), 
+                  Kathize ({configuredDoctors.find(d => d.key === 'kathize')?.proporcaoHeartDinamica || 17.45}%)
                 </span>
               </p>
             </div>
@@ -2187,10 +2188,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
                 {excelData.despesasEquipe.map((d, idx) => {
                   const val = d.valor;
-                  const pRochele = teamSettings.doctors.find(x => x.key === 'rochele')?.proporcaoHeartDinamica || 26.79;
-                  const pThais = teamSettings.doctors.find(x => x.key === 'thais')?.proporcaoHeartDinamica || 28.97;
-                  const pLuis = teamSettings.doctors.find(x => x.key === 'luis')?.proporcaoHeartDinamica || 26.79;
-                  const pKathize = teamSettings.doctors.find(x => x.key === 'kathize')?.proporcaoHeartDinamica || 17.45;
+                  const pRochele = configuredDoctors.find(x => x.key === 'rochele')?.proporcaoHeartDinamica || 26.79;
+                  const pThais = configuredDoctors.find(x => x.key === 'thais')?.proporcaoHeartDinamica || 28.97;
+                  const pLuis = configuredDoctors.find(x => x.key === 'luis')?.proporcaoHeartDinamica || 26.79;
+                  const pKathize = configuredDoctors.find(x => x.key === 'kathize')?.proporcaoHeartDinamica || 17.45;
 
                   const rRochele = (val * pRochele) / 100;
                   const rThais = (val * pThais) / 100;
