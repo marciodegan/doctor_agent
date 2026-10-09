@@ -484,7 +484,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       totalUnimedDS: totalDS,
       pendingRecords: pending
     };
-  }, [details?.productionRecords, details?.glosas, manualEntradas, teamSettings.doctors]);
+  }, [details?.productionRecords, details?.glosas, details?.taxes, details?.transactions, manualEntradas, teamSettings.doctors, noteSettings]);
 
   const excelData = React.useMemo(() => ({
     monthKey: details?.closing?.monthKey || "FECHAMENTO",
