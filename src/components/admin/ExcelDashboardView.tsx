@@ -30,6 +30,8 @@ import {
   Plus,
   Eye,
   ChevronDown,
+  ChevronUp,
+  ChevronDown as ChevronDownIcon,
   Layers,
   Percent,
   Settings2,
@@ -142,12 +144,50 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     teamOnlyExpenses: ["CONTADOR_HEART", "DARE", "ALUGUEL_SALA", "CELULAR", "CONSULTORIO_ITAJAI", "CRM", "INSTRUMENTADOR", "ALVARA", "GOOGLE", "INSS_PATRONAL", "CAPITALIZACAO_COTA_PARTE"]
   });
 
-  const rowsData = React.useMemo(() => doctors.map(doc => ({
-    key: doc.id,
-    name: doc.name,
-    percent: teamSettings.doctors.find(d => d.key === doc.id)?.teamSharePercent || 0,
-    isTeam: teamSettings.doctors.find(d => d.key === doc.id)?.isTeamMember || false
-  })), [doctors, teamSettings]);
+  const rowsData = React.useMemo(() => {
+    const configuredIndex = new Map(teamSettings.doctors.map((d, index) => [d.key, index]));
+    return doctors.map(doc => ({
+      key: doc.id,
+      name: doc.name,
+      percent: teamSettings.doctors.find(d => d.key === doc.id)?.teamSharePercent || 0,
+      isTeam: teamSettings.doctors.find(d => d.key === doc.id)?.isTeamMember || false
+    })).sort((a, b) => {
+      const ai = configuredIndex.get(a.key);
+      const bi = configuredIndex.get(b.key);
+      if (ai !== undefined && bi !== undefined) return ai - bi;
+      if (ai !== undefined) return -1;
+      if (bi !== undefined) return 1;
+      return a.name.localeCompare(b.name, "pt-BR");
+    });
+  }, [doctors, teamSettings]);
+
+  const moveDoctorInList = async (doctorKey: string, direction: -1 | 1) => {
+    const currentRows = rowsData.map(row => row.key);
+    const from = currentRows.indexOf(doctorKey);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= currentRows.length) return;
+
+    const reorderedKeys = [...currentRows];
+    [reorderedKeys[from], reorderedKeys[to]] = [reorderedKeys[to], reorderedKeys[from]];
+    const settingsByKey = new Map(teamSettings.doctors.map(d => [d.key, d]));
+    const reorderedSettings = reorderedKeys
+      .map(key => settingsByKey.get(key))
+      .filter(Boolean) as DoctorTeamMember[];
+    const extraSettings = teamSettings.doctors.filter(d => !reorderedKeys.includes(d.key));
+    const updatedSettings = { ...teamSettings, doctors: [...reorderedSettings, ...extraSettings] };
+
+    setTeamSettings(updatedSettings);
+    try {
+      const response = await apiFetch("/api/app/financial/team-settings", {
+        method: "POST",
+        body: JSON.stringify(updatedSettings)
+      });
+      if (!response.ok) throw new Error("Não foi possível salvar a ordem dos médicos.");
+    } catch (error: any) {
+      console.error("[Financial Matrix] Failed to save doctor order:", error);
+      alert("Não foi possível salvar a ordem dos médicos. Tente novamente.");
+    }
+  };
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
@@ -969,6 +1009,24 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           <div className="flex items-center gap-2">
                             <span className="underline decoration-dotted underline-offset-2">{r.name}</span>
                             <Eye size={13} className="text-blue-500 shrink-0" />
+                            <span className="inline-flex items-center gap-0.5 ml-1" onClick={(event) => event.stopPropagation()}>
+                              <button
+                                type="button"
+                                title="Mover médico para cima"
+                                aria-label={`Mover ${r.name} para cima`}
+                                disabled={rowsData.findIndex(item => item.key === r.key) === 0}
+                                onClick={(event) => { event.stopPropagation(); void moveDoctorInList(r.key, -1); }}
+                                className="p-1 rounded border border-gray-200 bg-white hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                              ><ChevronUp size={12} /></button>
+                              <button
+                                type="button"
+                                title="Mover médico para baixo"
+                                aria-label={`Mover ${r.name} para baixo`}
+                                disabled={rowsData.findIndex(item => item.key === r.key) === rowsData.length - 1}
+                                onClick={(event) => { event.stopPropagation(); void moveDoctorInList(r.key, 1); }}
+                                className="p-1 rounded border border-gray-200 bg-white hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                              ><ChevronDown size={12} /></button>
+                            </span>
                             {r.isTeam && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">Sócio</span>}
                           </div>
                           <div className="text-[9px] text-blue-500 font-bold mt-0.5">Ver lançamentos</div>
