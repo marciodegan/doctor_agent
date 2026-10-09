@@ -372,7 +372,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
           {/* Novo Lançamento Button */}
           <button
             onClick={() => setIsNewModalOpen(true)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer"
+            disabled={closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO")}
+            title={closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO") ? "Fechamento concluído. Crie ou selecione um fechamento em aberto." : "Novo lançamento"}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Plus size={16} />
             <span>Novo Lançamento</span>
@@ -526,16 +528,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                       </td>
 
                       <td className="p-4 font-bold text-gray-800">
-                        {editingId === t.id ? (
-                          <input
-                            type="text"
-                            value={editForm.typeName}
-                            onChange={e => setEditForm({ ...editForm, typeName: e.target.value })}
-                            className="border border-gray-300 rounded px-2 py-1 text-xs font-bold"
-                          />
-                        ) : (
-                          t.typeName || t.typeId
-                        )}
+                        {t.typeName || t.typeId}
                       </td>
 
                       <td className="p-4 text-gray-500 text-[11px] max-w-xs truncate">
