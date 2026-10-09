@@ -570,7 +570,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         const opFilmForLot = productionBaseTotal > 0 ? opFilmTotal * lote.bruto / productionBaseTotal : 0;
         lote.dsSaque = money(lote.bruto - lote.glosa - lote.ttRetencao - lote.reservaImposto - (Number(loteAliquotas[String(lote.lote)]?.cotaParte) || 0) - opFilmForLot);
         return lote;
-      })),
+      }),
     despesasEquipe: []
   }), [doctorsAggregated, totalUnimedTT, totalUnimedDS, details, noteSettings, loteAliquotas]);
 
