@@ -33,7 +33,8 @@
     "rehype-sanitize": "^6.0.0",
     "stripe": "^22.1.0",
     "vite": "^6.2.3",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
