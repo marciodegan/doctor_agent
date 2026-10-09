@@ -77,7 +77,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     adicional10Percent: 10, reservaRetencaoPercent: 59.6, cotaParte: 0, otherDeductions: 0
   });
   const [loteAliquotas, setLoteAliquotas] = useState<Record<string, any>>({});
-  const configuredDoctors = Array.isArray(teamSettings.doctors) ? teamSettings.doctors : [];
   const [savingNoteSettings, setSavingNoteSettings] = useState(false);
   const [noteSettingsMessage, setNoteSettingsMessage] = useState("");
 
@@ -152,6 +151,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     teamOnlySources: ["AZAMBUJA", "MARIETA", "CONSULTORIO", "RECEBIDO_DINHEIRO", "CARTAO", "UNIMED_LUIS"],
     teamOnlyExpenses: ["CONTADOR_HEART", "DARE", "ALUGUEL_SALA", "CELULAR", "CONSULTORIO_ITAJAI", "CRM", "INSTRUMENTADOR", "ALVARA", "GOOGLE", "INSS_PATRONAL", "CAPITALIZACAO_COTA_PARTE"]
   });
+
+  const configuredDoctors = Array.isArray(teamSettings.doctors) ? teamSettings.doctors : [];
 
   const rowsData = React.useMemo(() => {
     const configuredIndex = new Map(configuredDoctors.map((d, index) => [d.key, index]));
