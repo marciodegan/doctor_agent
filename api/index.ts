@@ -2741,7 +2741,9 @@ app.get("/api/app/financial/transaction-types", async (req, res) => {
       .get();
     
     // Always map stored items
-    const customTypes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Every persisted document is a user-managed type, including older records
+    // created before the isCustom flag was consistently stored.
+    const customTypes = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), isCustom: true }));
     
     // Merge with defaults if not already present
     const customIds = new Set(customTypes.map(t => t.id));
@@ -2854,10 +2856,37 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
 });
 
 app.delete("/api/app/financial/transaction-types/:id", async (req, res) => {
+  const groupId = getGroupId(req);
   const { id } = req.params;
   try {
-    await db.collection("financial_transaction_types").doc(id).delete();
-    res.json({ success: true });
+    const user = (req as any).user;
+    const docRef = db.collection("financial_transaction_types").doc(id);
+    const existing = await docRef.get();
+
+    if (!existing.exists) {
+      return res.status(404).json({ error: "Tipo de lançamento não encontrado." });
+    }
+    if (existing.data()?.teamId !== groupId) {
+      return res.status(403).json({ error: "Você não tem permissão para remover este tipo." });
+    }
+
+    // Only remove the catalog entry. Existing cash-flow transactions keep their
+    // typeName/typeId snapshots and are deliberately never changed or deleted.
+    await docRef.delete();
+
+    await db.collection("financial_audit_logs").add({
+      teamId: groupId,
+      userId: user?.uid || "unknown",
+      userName: user?.email || "Admin",
+      action: "DELETE_TRANSACTION_TYPE",
+      entityType: "financial_transaction_type",
+      entityId: id,
+      entityName: existing.data()?.name || id,
+      createdAt: new Date().toISOString(),
+      details: "Tipo removido do cadastro; lançamentos existentes no fluxo de caixa foram preservados."
+    });
+
+    res.json({ success: true, historicalTransactionsPreserved: true });
   } catch (error: any) {
     handleApiError(res, error, "Delete Financial Transaction Type");
   }
