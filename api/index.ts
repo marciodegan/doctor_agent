@@ -2481,13 +2481,19 @@ app.post("/api/app/financial/closings/:closingId/note-settings", async (req, res
       "lucroPresumidoPercent", "irpjPercent", "csll9Percent", "adicional10Percent",
       "reservaRetencaoPercent", "cotaParte", "otherDeductions"
     ];
-    const noteSettings: Record<string, number> = {};
+    const noteSettings: Record<string, any> = {};
     for (const key of allowed) {
       const value = Number(incoming[key]);
       if (!Number.isFinite(value) || value < 0 || value > 100000000) {
         return res.status(400).json({ error: `Invalid note setting: ${key}` });
       }
       noteSettings[key] = value;
+    }
+    if (incoming.perLote !== undefined) {
+      if (!incoming.perLote || typeof incoming.perLote !== "object" || Array.isArray(incoming.perLote)) {
+        return res.status(400).json({ error: "perLote must be an object" });
+      }
+      noteSettings.perLote = incoming.perLote;
     }
     await ref.set({ noteSettings, updatedAt: new Date().toISOString() }, { merge: true });
     return res.json({ success: true, closingId, noteSettings });
