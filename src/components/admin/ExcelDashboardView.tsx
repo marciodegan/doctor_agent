@@ -424,7 +424,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const reserveTotal = irpjTotal + csll9Total + additionalTotal;
     const retentionTotal = Math.round((taxesTotal + reserveTotal * noteSettings.reservaRetencaoPercent / 100) * 100) / 100;
     const cotaParte = Number(noteSettings.cotaParte);
-    const internalDSTotal = Math.max(0, Math.round((productionBase - operationalTotal - filmTotal - cotaParte - noteSettings.otherDeductions - retentionTotal - reserveTotal) * 100) / 100;
+    const internalDSTotal = Math.max(0, Math.round((productionBase - operationalTotal - filmTotal - cotaParte - noteSettings.otherDeductions - retentionTotal - reserveTotal) * 100) / 100);
 
     productionRecords.forEach((p: any) => {
       if (p.allocationStatus === "PENDING_REVIEW" || !p.doctorId) {
