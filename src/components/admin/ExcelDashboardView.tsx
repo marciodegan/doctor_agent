@@ -153,12 +153,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   });
 
   const rowsData = React.useMemo(() => {
-    const configuredIndex = new Map(teamSettings.doctors.map((d, index) => [d.key, index]));
-    return doctors.map(doc => ({
+    const configuredIndex = new Map((Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).map((d, index) => [d.key, index]));
+    return (Array.isArray(doctors) ? doctors : []).map(doc => ({
       key: doc.id,
       name: doc.name,
-      percent: teamSettings.doctors.find(d => d.key === doc.id)?.teamSharePercent || 0,
-      isTeam: teamSettings.doctors.find(d => d.key === doc.id)?.isTeamMember || false
+      percent: (Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).find(d => d.key === doc.id)?.teamSharePercent || 0,
+      isTeam: (Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).find(d => d.key === doc.id)?.isTeamMember || false
     })).sort((a, b) => {
       const ai = configuredIndex.get(a.key);
       const bi = configuredIndex.get(b.key);
@@ -177,11 +177,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
     const reorderedKeys = [...currentRows];
     [reorderedKeys[from], reorderedKeys[to]] = [reorderedKeys[to], reorderedKeys[from]];
-    const settingsByKey = new Map(teamSettings.doctors.map(d => [d.key, d]));
+    const settingsByKey = new Map((Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).map(d => [d.key, d]));
     const reorderedSettings = reorderedKeys
       .map(key => settingsByKey.get(key))
       .filter(Boolean) as DoctorTeamMember[];
-    const extraSettings = teamSettings.doctors.filter(d => !reorderedKeys.includes(d.key));
+    const extraSettings = (Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).filter(d => !reorderedKeys.includes(d.key));
     const updatedSettings = { ...teamSettings, doctors: [...reorderedSettings, ...extraSettings] };
 
     setTeamSettings(updatedSettings);
@@ -1684,7 +1684,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="ALL">Todos os Médicos & Equipe</option>
-                  {teamSettings.doctors.map(d => (
+                  {(Array.isArray(teamSettings.doctors) ? teamSettings.doctors : []).map(d => (
                     <option key={d.key} value={d.name}>{d.name} {d.isTeamMember ? "(Equipe)" : "(Externo)"}</option>
                   ))}
                   <option value="HEART">EQUIPE HEART</option>
