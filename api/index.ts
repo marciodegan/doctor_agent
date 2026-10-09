@@ -2894,30 +2894,48 @@ app.delete("/api/app/financial/transaction-types/:id", async (req, res) => {
 
 app.post("/api/app/financial/transactions", async (req, res) => {
   const groupId = getGroupId(req);
-  const { 
-    closingId, 
-    doctorId, 
-    doctorName, 
-    scope, 
-    typeName, 
-    typeId, 
-    amount, 
-    nature, 
-    observation, 
-    date, 
-    source,
-    autoSplitTeam 
+  const {
+    closingId,
+    doctorId: requestedDoctorId,
+    doctorName: requestedDoctorName,
+    typeName: requestedTypeName,
+    typeId,
+    amount,
+    observation,
+    date
   } = req.body;
 
-  if (!closingId || amount === undefined) {
-    return res.status(400).json({ error: "closingId and amount are required" });
+  if (!closingId || amount === undefined || !typeId) {
+    return res.status(400).json({ error: "closingId, typeId and amount are required" });
   }
 
   try {
     const user = (req as any).user;
     const numAmount = Number(amount);
+    if (!Number.isFinite(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ error: "Informe um valor maior que zero." });
+    }
+
+    // The saved catalog is the source of truth for nature, scope and rateio.
+    // Ignore any nature/scope/rateio values sent by the client.
+    const typeDoc = await db.collection("financial_transaction_types").doc(String(typeId)).get();
+    const storedType = typeDoc.exists && typeDoc.data()?.teamId === groupId
+      ? typeDoc.data()
+      : DEFAULT_TRANSACTION_TYPES.find((item: any) => item.id === String(typeId));
+    if (!storedType) {
+      return res.status(400).json({ error: "Tipo de lançamento inválido. Atualize a lista e selecione um tipo cadastrado." });
+    }
+
+    const typeName = storedType.name || requestedTypeName || String(typeId);
+    const nature = storedType.nature === "CREDIT" ? "CREDIT" : "DEBIT";
+    const scope = storedType.defaultScope === "DOCTOR" ? "DOCTOR" : "TEAM";
+    const rateioMethod = storedType.defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART");
+    const autoSplitTeam = scope === "TEAM";
+    const doctorId = scope === "TEAM" ? "heart_equipe" : (requestedDoctorId || storedType.doctorId || "rochele");
+    const doctorName = scope === "TEAM" ? "HEART CIRURGIA CARDIOVASCULAR" : (requestedDoctorName || storedType.doctorName || "ROCHELE LORENZI POL");
+    const source = scope === "TEAM" ? "RATEIO_EQUIPE" : "MANUAL";
     const txDate = date || new Date().toLocaleDateString("pt-BR");
-    const isTeamScope = scope === "TEAM" || doctorId === "heart_equipe" || doctorId === "equipe";
+    const isTeamScope = scope === "TEAM";
 
     // If autoSplitTeam is requested for a team-level transaction:
     if (isTeamScope && autoSplitTeam) {
