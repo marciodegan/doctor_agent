@@ -2911,6 +2911,13 @@ app.post("/api/app/financial/transactions", async (req, res) => {
 
   try {
     const user = (req as any).user;
+    const closingRef = db.collection("financial_closings").doc(String(closingId));
+    const closingSnap = await closingRef.get();
+    if (!closingSnap.exists) return res.status(400).json({ error: "O fechamento selecionado não existe. Crie ou selecione um fechamento em aberto." });
+    const closingData = closingSnap.data() || {};
+    if (closingData.teamId && closingData.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outro grupo." });
+    if (String(closingData.status || "").toUpperCase() === "FECHADO") return res.status(409).json({ error: "Este fechamento já foi concluído. Abra um novo fechamento para lançar valores." });
+
     const numAmount = Number(amount);
     if (!Number.isFinite(numAmount) || numAmount <= 0) {
       return res.status(400).json({ error: "Informe um valor maior que zero." });
@@ -2937,65 +2944,7 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     const txDate = date || new Date().toLocaleDateString("pt-BR");
     const isTeamScope = scope === "TEAM";
 
-    // If autoSplitTeam is requested for a team-level transaction:
-    if (isTeamScope && autoSplitTeam) {
-      // Get team configuration
-      const docRef = db.collection("financial_team_settings").doc(groupId);
-      const settingsDoc = await docRef.get();
-      const settings = settingsDoc.exists ? settingsDoc.data() : DEFAULT_TEAM_CONFIG;
-      const teamDoctors = (settings?.doctors || DEFAULT_TEAM_CONFIG.doctors).filter((d: any) => d.isTeamMember);
-
-      const batch = db.batch();
-      const parentId = `team_${Date.now()}`;
-      const createdItems: any[] = [];
-
-      const isCredit = (nature === "CREDIT" || nature === "ENTRADA");
-      
-      for (const td of teamDoctors) {
-        // Entradas da equipe (ex: Azambuja, Marieta, Consultório) rateiam por padrão na proporção nominal (29%, 29%, 29%, 13%)
-        // Despesas operacionais da equipe (ex: Aluguel de sala, celular, consultório itajaí) rateiam por padrão na PROPORÇÃO HEART dinâmica
-        const useNominal = rateioMethod === "NOMINAL";
-        const useDynamic = !useNominal;
-
-        const effectivePercent = (useDynamic && td.proporcaoHeartDinamica !== undefined && td.proporcaoHeartDinamica > 0)
-          ? td.proporcaoHeartDinamica
-          : (td.teamSharePercent || 0);
-
-        const shareRatio = effectivePercent / 100;
-        const splitVal = Math.round((numAmount * shareRatio) * 100) / 100;
-        const splitRef = db.collection("financial_transactions").doc();
-        
-        const methodLabel = useDynamic 
-          ? `Proporção HeaRT Dinâmica (${effectivePercent}%)` 
-          : `Rateio Societário Nominal 29/29/29/13 (${effectivePercent}%)`;
-
-        const splitItem = {
-          id: splitRef.id,
-          teamId: groupId,
-          closingId,
-          parentId,
-          doctorId: td.key,
-          doctorName: td.name,
-          scope: "TEAM_SPLIT",
-          teamSharePercent: effectivePercent,
-          rateioMethod: useDynamic ? "PROPORCAO_HEART_DINAMICA" : "SOCIETARIO_NOMINAL",
-          typeName: `${typeName} (${effectivePercent}%)`,
-          typeId: typeId || "rateio_equipe",
-          amount: splitVal,
-          nature: isCredit ? "CREDIT" : "DEBIT",
-          observation: `${isCredit ? "Entrada" : "Despesa"} da Equipe Rateada - ${methodLabel} de R$ ${numAmount.toFixed(2)}${observation ? ` - ${observation}` : ""}`,
-          date: txDate,
-          source: source || "RATEIO_EQUIPE",
-          createdAt: new Date().toISOString()
-        };
-
-        batch.set(splitRef, splitItem);
-        createdItems.push(splitItem);
-      }
-
-      await batch.commit();
-      return res.json({ success: true, count: createdItems.length, items: createdItems });
-    }
+    // Keep the original amount as one cash-flow transaction; allocation is calculated in the matrix.
 
     // Standard individual or team transaction
     const txRef = db.collection("financial_transactions").doc();
@@ -3006,6 +2955,7 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       doctorId: isTeamScope ? "heart_equipe" : (doctorId || "equipe"),
       doctorName: isTeamScope ? "HEART CIRURGIA CARDIOVASCULAR" : (doctorName || "Equipe Geral"),
       scope: isTeamScope ? "TEAM" : "DOCTOR",
+      rateioMethod: isTeamScope ? rateioMethod : null,
       typeName: typeName || "Lançamento Avulso",
       typeId: typeId || "avulso",
       amount: numAmount,
