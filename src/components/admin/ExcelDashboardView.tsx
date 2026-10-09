@@ -549,7 +549,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         lote.csll9 = Math.max(0, money(lote.lucroPresumido * lote.aliquotas.csll9 / 100 - lote.csll));
         lote.add10 = money(lote.lucroPresumido * lote.aliquotas.adicional / 100);
         lote.reservaImposto = money(lote.irpj + lote.csll9 + lote.add10);
-        lote.dsSaque = money(lote.bruto - lote.glosa - lote.ttRetencao - lote.reservaImposto - (Number(loteAliquotas[String(lote.lote)]?.cotaParte) || 0));
+        const allProduction = Array.isArray(details?.productionRecords) ? details.productionRecords : [];
+        const productionBaseTotal = (Array.isArray(details?.taxes) ? details.taxes : []).filter((item: any) => item.bruto !== undefined).reduce((sum: number, item: any) => sum + (Number(item.bruto) || 0), 0) || lote.bruto;
+        const opFilmTotal = allProduction.reduce((sum: number, item: any) => sum + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
+        const opFilmForLot = productionBaseTotal > 0 ? opFilmTotal * lote.bruto / productionBaseTotal : 0;
+        lote.dsSaque = money(lote.bruto - lote.glosa - lote.ttRetencao - lote.reservaImposto - (Number(loteAliquotas[String(lote.lote)]?.cotaParte) || 0) - opFilmForLot);
         return lote;
       })),
     despesasEquipe: []
@@ -2080,6 +2084,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   const totBruto = excelData.lotesUnimed.reduce((acc, l) => acc + l.bruto, 0);
                   const totGlosa = excelData.lotesUnimed.reduce((acc, l) => acc + l.glosa, 0);
                   const totIrrf = excelData.lotesUnimed.reduce((acc, l) => acc + l.irrf, 0);
+                  const totIss = excelData.lotesUnimed.reduce((acc, l) => acc + l.iss, 0);
+                  const totDS = excelData.lotesUnimed.reduce((acc, l) => acc + l.dsSaque, 0);
                   const totPis = excelData.lotesUnimed.reduce((acc, l) => acc + l.pis, 0);
                   const totCofins = excelData.lotesUnimed.reduce((acc, l) => acc + l.cofins, 0);
                   const totCsll = excelData.lotesUnimed.reduce((acc, l) => acc + l.csll, 0);
@@ -2100,6 +2106,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <td className="p-3 text-right">R$ {totCofins.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right">R$ {totCsll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right">R$ {totIrrf.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right">R$ {totIss.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right">R$ {totImp.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right text-purple-800">R$ {totRet.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right">R$ {totLucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -2109,6 +2116,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <td className="p-3 text-right text-amber-800">R$ {totReserva.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right text-blue-800 bg-blue-100 font-black text-sm">
                         R$ {totLiq.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3 text-right text-emerald-800 bg-emerald-100 font-black text-sm">
+                        R$ {totDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="p-3"></td>
                     </tr>
