@@ -180,15 +180,18 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Deseja realmente remover o tipo de lançamento "${name}"?`)) return;
+    if (!confirm(`Deseja remover "${name}" do cadastro de tipos? Os lançamentos que já estão no Fluxo de Caixa serão mantidos sem nenhuma alteração.`)) return;
     try {
       const res = await apiFetch(`/api/app/financial/transaction-types/${id}`, {
         method: "DELETE"
       });
       if (res.ok) {
         setTypes(prev => prev.filter(t => t.id !== id));
-        setFeedbackMsg(`Tipo "${name}" excluído.`);
-        setTimeout(() => setFeedbackMsg(null), 3000);
+        setFeedbackMsg(`Tipo "${name}" removido do cadastro. Lançamentos existentes foram preservados.`);
+        setTimeout(() => setFeedbackMsg(null), 4000);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Não foi possível remover o tipo de lançamento.");
       }
     } catch (e: any) {
       alert("Erro ao excluir: " + e.message);
