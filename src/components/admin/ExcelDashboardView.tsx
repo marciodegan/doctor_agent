@@ -31,7 +31,6 @@ import {
   Eye,
   ChevronDown,
   ChevronUp,
-  ChevronDown as ChevronDownIcon,
   Layers,
   Percent,
   Settings2,
