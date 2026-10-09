@@ -76,6 +76,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     lucroPresumidoPercent: 32, irpjPercent: 15, csll9Percent: 9,
     adicional10Percent: 10, reservaRetencaoPercent: 59.6, cotaParte: 0, otherDeductions: 0
   });
+  const [loteAliquotas, setLoteAliquotas] = useState<Record<string, any>>({});
   const [savingNoteSettings, setSavingNoteSettings] = useState(false);
   const [noteSettingsMessage, setNoteSettingsMessage] = useState("");
 
@@ -246,6 +247,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       cotaParte: Number(saved.cotaParte ?? (cotaParteFromTransactions || details.closing.totalOtherDebits || details.closing.otherDebits || 0)),
       otherDeductions: Number(saved.otherDeductions ?? 0)
     });
+    setLoteAliquotas(saved.perLote && typeof saved.perLote === "object" ? saved.perLote : {});
     setNoteSettingsMessage("");
   }, [details?.closing?.id, details?.closing?.noteSettings]);
 
@@ -255,7 +257,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       setSavingNoteSettings(true);
       setNoteSettingsMessage("");
       const response = await apiFetch(`/api/app/financial/closings/${selectedClosingId}/note-settings`, {
-        method: "POST", body: JSON.stringify({ noteSettings })
+        method: "POST", body: JSON.stringify({ noteSettings: { ...noteSettings, perLote: loteAliquotas } })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Não foi possível salvar os parâmetros.");
