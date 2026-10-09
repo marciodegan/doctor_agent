@@ -406,6 +406,29 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const aggr = new Map<string, any>();
     const pending: any[] = [];
 
+    const loteRows = (Array.isArray(details?.taxes) ? details.taxes : [])
+      .filter((item: any) => item.bruto !== undefined && item.liquido !== undefined);
+    const productionBase = loteRows.reduce((sum: number, item: any) => sum + (Number(item.bruto) || 0), 0)
+      || productionRecords.reduce((sum: number, item: any) => sum + (Number(item.honorValue) || 0) + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
+    const operationalTotal = productionRecords.reduce((sum: number, item: any) => sum + (Number(item.operationalValue) || 0), 0);
+    const filmTotal = productionRecords.reduce((sum: number, item: any) => sum + (Number(item.filmValue) || 0), 0);
+    const irrfTotal = Math.round(productionBase * noteSettings.irrfPercent) / 100;
+    const pisTotal = Math.round(productionBase * noteSettings.pisPercent) / 100;
+    const cofinsTotal = Math.round(productionBase * noteSettings.cofinsPercent) / 100;
+    const csllTotal = Math.round(productionBase * noteSettings.csllPercent) / 100;
+    const taxesTotal = irrfTotal + pisTotal + cofinsTotal + csllTotal;
+    const presumedProfitTotal = Math.round(productionBase * noteSettings.lucroPresumidoPercent) / 100;
+    const irpjTotal = Math.max(0, Math.round((presumedProfitTotal * noteSettings.irpjPercent / 100 - irrfTotal) * 100) / 100);
+    const csll9Total = Math.max(0, Math.round((presumedProfitTotal * noteSettings.csll9Percent / 100 - csllTotal) * 100) / 100);
+    const additionalTotal = Math.round(presumedProfitTotal * noteSettings.adicional10Percent) / 100;
+    const reserveTotal = irpjTotal + csll9Total + additionalTotal;
+    const retentionTotal = Math.round((taxesTotal + reserveTotal * noteSettings.reservaRetencaoPercent / 100) * 100) / 100;
+    const cotaFromTransactions = (Array.isArray(details?.transactions) ? details.transactions : [])
+      .filter((item: any) => /capitaliza.*cota|cota.*parte/i.test(String(item.typeName || item.observation || item.description || "")))
+      .reduce((sum: number, item: any) => sum + Math.abs(Number(item.amount) || 0), 0);
+    const cotaParte = Number(noteSettings.cotaParte) || cotaFromTransactions;
+    const internalDSTotal = Math.max(0, Math.round((productionBase - operationalTotal - filmTotal - cotaParte - noteSettings.otherDeductions - retentionTotal - reserveTotal) * 100) / 100;
+
     productionRecords.forEach((p: any) => {
       if (p.allocationStatus === "PENDING_REVIEW" || !p.doctorId) {
         pending.push(p);
@@ -448,7 +471,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const plantaoTT = Number(man.plantaoTT) || 0;
       const plantaoDS = Number(man.plantaoDS) || 0;
       const vlNotaTT = honorTT + d.filmTT + plantaoTT;
-      const dispDS = (isTeam ? honorDS : honorTT) + d.filmTT + plantaoDS;
+      const doctorProduction = honorTT + (Number(d.operationalTT) || 0) + (Number(d.filmTT) || 0);
+      const allocatedNoteDS = productionBase > 0 ? (doctorProduction / productionBase) * internalDSTotal : (isTeam ? honorDS : honorTT) + d.filmTT;
+      const dispDS = Math.round((allocatedNoteDS + plantaoDS) * 100) / 100;
 
       totalTT += vlNotaTT;
       totalDS += dispDS;
