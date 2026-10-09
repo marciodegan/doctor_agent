@@ -351,7 +351,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
               onChange={e => setSelectedClosingId(e.target.value)}
               className="bg-transparent font-black text-gray-900 outline-none cursor-pointer"
             >
-              {closings.map(c => (
+              {closings.filter(c => String(c.status || "").toUpperCase() !== "FECHADO").map(c => (
                 <option key={c.id} value={c.id}>
                   {c.monthKey} ({c.status})
                 </option>
