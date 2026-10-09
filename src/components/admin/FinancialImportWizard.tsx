@@ -338,7 +338,7 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.xls,.xlsx,.csv"
+                accept=".pdf,.xls,.xlsx"
                 onChange={(e) => handleFilesSelected(e.target.files)}
                 className="hidden"
               />
@@ -405,7 +405,7 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
               {processingStage}
             </h4>
             <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">
-              Lendo seções do PDF: Cabeçalho, Tributos e Ocorrências Financeiras
+              A planilha é processada diretamente, sem IA
             </p>
           </div>
         </div>
