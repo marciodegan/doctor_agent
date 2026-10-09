@@ -556,7 +556,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         reservaImposto: 0,
         liquido: Number(item.netReported ?? item.liquido) || 0,
         dsSaque: 0
-      }).map((lote: any) => {
+      })).map((lote: any) => {
         const money = (value: number) => Math.round(value * 100) / 100;
         lote.ttImpostosNota = money(lote.pis + lote.cofins + lote.csll + lote.irrf);
         lote.ttRetencao = money(lote.ttImpostosNota + lote.iss);
