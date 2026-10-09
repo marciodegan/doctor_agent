@@ -651,18 +651,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
             <form onSubmit={handleCreateTransaction} className="space-y-4 text-xs font-bold">
               {/* Tipo de Despesa / Ocorrência - AUTO-PREFILLS NATURE AND SCOPE */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">
-                    Tipo de Lançamento *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsTypesModalOpen(true)}
-                    className="text-[10px] font-black text-blue-600 hover:text-blue-800 underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Tag size={12} /> Gerenciar / Editar Tipos
-                  </button>
-                </div>
+                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
+                  Tipo de Lançamento *
+                </label>
                 <select
                   value={newForm.typeName}
                   onChange={e => handleSelectTransactionType(e.target.value)}
