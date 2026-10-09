@@ -691,220 +691,48 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                 </span>
               </div>
 
-              {/* Allocation Mode: Team vs Individual */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
-                  Destino do Lançamento
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setAllocationMode("TEAM")}
-                    className={`p-3 rounded-2xl border text-xs font-black uppercase transition cursor-pointer flex items-center justify-center gap-2 ${
-                      allocationMode === "TEAM"
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20"
-                        : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
-                    }`}
-                  >
-                    <UserCheck size={16} />
-                    <span>Rateio da Equipe HeaRT</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setAllocationMode("DOCTOR")}
-                    className={`p-3 rounded-2xl border text-xs font-black uppercase transition cursor-pointer flex items-center justify-center gap-2 ${
-                      allocationMode === "DOCTOR"
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20"
-                        : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
-                    }`}
-                  >
-                    <Users size={16} />
-                    <span>Médico Individual</span>
-                  </button>
-                </div>
+              {/* Somente os campos essenciais do lançamento */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Valor Total (R$) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0,00"
+                  required
+                  value={newForm.amount}
+                  onChange={e => setNewForm({ ...newForm, amount: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-black text-xs focus:border-emerald-500"
+                />
               </div>
 
-              {/* If Team: Rateio Method Selector (CRITICAL USER REQUIREMENT) */}
-              {allocationMode === "TEAM" && (
-                <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2 animate-in fade-in">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase text-blue-900 tracking-wider flex items-center gap-1.5">
-                      <Sliders size={13} />
-                      Método de Rateio da Equipe
-                    </span>
-                    <span className="text-[9px] font-bold px-2 py-0.5 bg-blue-200/60 text-blue-800 rounded-md">
-                      {rateioMethod === "PROPORCAO_HEART" ? "Dinâmico (Período)" : "Nominal Societário"}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => setRateioMethod("NOMINAL")}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                        rateioMethod === "NOMINAL"
-                          ? "bg-white border-emerald-500 text-emerald-950 font-black shadow-xs ring-2 ring-emerald-500/20"
-                          : "bg-blue-100/50 border-blue-200 text-blue-700 hover:bg-white"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="font-black text-xs text-emerald-900">29% / 29% / 29% / 13%</span>
-                        {newForm.nature === "CREDIT" && (
-                          <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">Recomendado p/ Entradas</span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-gray-500 leading-tight">
-                        Rateio societário nominal fixo da equipe (Rochele 29%, Thais 29%, Luis 29%, Kathize 13%). Indicado para <strong>Entradas Azambuja, Marieta, Consultório</strong>.
-                      </p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setRateioMethod("PROPORCAO_HEART")}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                        rateioMethod === "PROPORCAO_HEART"
-                          ? "bg-white border-blue-500 text-blue-950 font-black shadow-xs ring-2 ring-blue-500/20"
-                          : "bg-blue-100/50 border-blue-200 text-blue-700 hover:bg-white"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="font-black text-xs text-blue-900">PROPORÇÃO HEART</span>
-                        {newForm.nature === "DEBIT" && (
-                          <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.2 rounded">Recomendado p/ Despesas</span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-gray-500 leading-tight">
-                        Rateio dinâmico proporcional ao disponível recebido no período. Indicado para <strong>Despesas Operacionais (Aluguel, Celular, etc.)</strong>.
-                      </p>
-                    </button>
-                  </div>
-
-                  {/* Live Breakdown Table */}
-                  {inputAmount > 0 && (
-                    <div className="pt-2 border-t border-blue-200/60 space-y-1.5">
-                      <span className="text-[10px] font-black uppercase text-blue-900 block">
-                        Divisão calculada de R$ {inputAmount.toFixed(2)}:
-                      </span>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {teamDoctors.map(td => {
-                          const percent = rateioMethod === "PROPORCAO_HEART" ? td.proporcaoHeart : td.percent;
-                          const splitVal = (inputAmount * percent) / 100;
-                          return (
-                            <div key={td.key} className="bg-white p-2 rounded-xl border border-blue-100 flex items-center justify-between text-[11px]">
-                              <div>
-                                <span className="font-black text-gray-900 block">{td.name.split(" ")[0]}</span>
-                                <span className="text-[9px] text-blue-600 font-bold">
-                                  {percent.toFixed(2)}% {rateioMethod === "PROPORCAO_HEART" && `(disp: R$ ${td.disponivel ? td.disponivel.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : "-"})`}
-                                </span>
-                              </div>
-                              <span className="font-black text-emerald-700 text-xs">
-                                R$ {splitVal.toFixed(2)}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="pt-1.5 flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="autoSplit"
-                          checked={autoSplitTeam}
-                          onChange={e => setAutoSplitTeam(e.target.checked)}
-                          className="w-3.5 h-3.5 text-blue-600 rounded cursor-pointer"
-                        />
-                        <label htmlFor="autoSplit" className="text-[10px] text-blue-900 cursor-pointer">
-                          Gerar lançamentos individuais rateados automaticamente para cada médico da equipe
-                        </label>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* If Individual: Doctor selector */}
-              {allocationMode === "DOCTOR" && (
-                <div className="space-y-1.5 animate-in fade-in">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Médico Responsável</label>
-                  <select
-                    value={newForm.doctorName}
-                    onChange={e => {
-                      const sel = allDoctors.find(d => d.name === e.target.value);
-                      setNewForm({
-                        ...newForm,
-                        doctorName: e.target.value,
-                        doctorId: sel?.key || "rochele"
-                      });
-                    }}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none"
-                  >
-                    {allDoctors.map(d => (
-                      <option key={d.key} value={d.name}>
-                        {d.name} {d.isTeam ? "(Membro da Equipe HeaRT)" : "(Cooperado Externo)"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Nature and Amount */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">
-                    Natureza (Pré-Preenchida)
-                  </label>
-                  <select
-                    value={newForm.nature}
-                    onChange={e => setNewForm({ ...newForm, nature: e.target.value as "DEBIT" | "CREDIT" })}
-                    className={`w-full border rounded-xl p-3 outline-none font-black text-xs ${
-                      newForm.nature === "DEBIT" 
-                        ? "bg-rose-50 text-rose-800 border-rose-200" 
-                        : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                    }`}
-                  >
-                    <option value="DEBIT">Saída / Despesa (Débito)</option>
-                    <option value="CREDIT">Entrada / Receita (Crédito)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Valor Total (R$) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    required
-                    value={newForm.amount}
-                    onChange={e => setNewForm({ ...newForm, amount: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-black text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Data and Observação */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5 col-span-1">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Data</label>
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Data *</label>
                   <input
                     type="text"
+                    required
                     value={newForm.date}
                     onChange={e => setNewForm({ ...newForm, date: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs"
+                    placeholder="DD/MM/AAAA"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs focus:border-emerald-500"
                   />
                 </div>
-
-                <div className="space-y-1.5 col-span-2">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Observação / Justificativa</label>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Observação</label>
                   <input
                     type="text"
-                    placeholder="Ex: Aluguel sala mês 09, Conta celular corporativo..."
                     value={newForm.observation}
                     onChange={e => setNewForm({ ...newForm, observation: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs"
+                    placeholder="Descrição opcional"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs focus:border-emerald-500"
                   />
                 </div>
               </div>
+
+              <p className="text-[10px] text-gray-500 font-medium">
+                A natureza, o destino e as regras de rateio são definidos no cadastro do tipo de lançamento e não podem ser alterados aqui.
+              </p>
 
               {/* Submit Buttons */}
               <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
