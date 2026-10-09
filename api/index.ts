@@ -2345,15 +2345,24 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       monthKey.toLowerCase()
     ].filter(Boolean)));
 
+    const safeQuery = async (collectionName: string) => {
+      try {
+        return await db.collection(collectionName).where("closingId", "in", validClosingIds).get();
+      } catch (error: any) {
+        console.error(`[API] Details query failed for ${collectionName}:`, error?.message || error);
+        return { docs: [] } as any;
+      }
+    };
+
     const [prodSnap, glosaSnap, taxSnap, adjSnap, txSnap, auditSnap, batchSnap, reconSnap] = await Promise.all([
-      db.collection("financial_production").where("closingId", "in", validClosingIds).get(),
-      db.collection("financial_glosas").where("closingId", "in", validClosingIds).get(),
-      db.collection("financial_taxes").where("closingId", "in", validClosingIds).get(),
-      db.collection("financial_adjustments").where("closingId", "in", validClosingIds).get(),
-      db.collection("financial_transactions").where("closingId", "in", validClosingIds).get(),
-      db.collection("financial_audit_logs").where("closingId", "in", validClosingIds).get(),
-      db.collection("financial_batches").where("closingId", "in", validClosingIds).get(),
-      db.collection("financial_reconciliation").where("closingId", "in", validClosingIds).get()
+      safeQuery("financial_production"),
+      safeQuery("financial_glosas"),
+      safeQuery("financial_taxes"),
+      safeQuery("financial_adjustments"),
+      safeQuery("financial_transactions"),
+      safeQuery("financial_audit_logs"),
+      safeQuery("financial_batches"),
+      safeQuery("financial_reconciliation")
     ]);
 
     const closing = closingData;
@@ -2380,11 +2389,16 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       filmValue: number;
     }>();
 
-    const mappingSnap = await db.collection("doctor_provider_mappings")
-      .where("teamId", "==", groupId)
-      .where("active", "==", true)
-      .get();
-    const mappings = mappingSnap.docs.map(d => ({ id: d.id, ...d.data() })) as DoctorProviderMapping[];
+    let mappings: DoctorProviderMapping[] = [];
+    try {
+      const mappingSnap = await db.collection("doctor_provider_mappings")
+        .where("teamId", "==", groupId)
+        .where("active", "==", true)
+        .get();
+      mappings = mappingSnap.docs.map(d => ({ id: d.id, ...d.data() })) as DoctorProviderMapping[];
+    } catch (mappingError: any) {
+      console.error("[API] Could not load doctor_provider_mappings:", mappingError?.message || mappingError);
+    }
 
     KNOWN_DOCTORS.forEach(docName => {
       const docId = docName.toLowerCase().replace(/[^a-z0-9]/g, "_");
@@ -2407,16 +2421,13 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       const prestador = p.protocolProvider || p.paymentProvider || ""; // Assuming protocolProvider is Prestador
       const mapping = getDoctorFromMapping(mappings, executante, prestador);
 
-      let docId, docName;
+      let docId = p.doctorId || undefined;
+      let docName = p.doctorName || undefined;
       if (mapping) {
         docId = mapping.doctorId;
         docName = mapping.doctorName;
-        p.allocationStatus = "ALLOCATED";
-      } else {
-        docId = undefined;
-        docName = undefined;
-        p.allocationStatus = "PENDING_REVIEW";
       }
+      p.allocationStatus = docId ? "ALLOCATED" : "PENDING_REVIEW";
       
       if (!doctorMap.has(docId) && docName && !docName.includes("HEART")) {
         doctorMap.set(docId, {
