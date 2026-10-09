@@ -127,7 +127,7 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
   // Step 1 -> Step 2: Call AI Parse
   const handleProcessWithAI = async (forceReprocess = false) => {
     if (!selectedFile) {
-      setErrorMessage("Por favor, selecione ou arraste um arquivo PDF.");
+      setErrorMessage("Por favor, selecione um arquivo PDF, XLS ou XLSX.");
       return;
     }
 
@@ -153,7 +153,7 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
         setTargetClosingId(closingId);
       }
 
-      setProcessingStage("LLM Gemini 3.8 interpretando cabeçalho, tributos e ocorrências...");
+      setProcessingStage(/\.(xls|xlsx)$/i.test(selectedFile.name) ? "Lendo planilha estruturada..." : "Interpretando PDF com IA...");
 
       // 2. Call /api/app/financial/ai-parse
       const parseRes = await apiFetch("/api/app/financial/ai-parse", {
@@ -338,7 +338,7 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf"
+                accept=".pdf,.xls,.xlsx,.csv"
                 onChange={(e) => handleFilesSelected(e.target.files)}
                 className="hidden"
               />
@@ -346,8 +346,8 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
                 <FileUp size={28} />
               </div>
               <div>
-                <p className="font-black text-sm text-gray-900">Arraste o PDF aqui ou clique para selecionar</p>
-                <p className="text-xs text-gray-400 font-medium mt-0.5">Suporta PDF do Demonstrativo de Produção Unimed</p>
+                <p className="font-black text-sm text-gray-900">Arraste o PDF, XLS ou XLSX aqui</p>
+                <p className="text-xs text-gray-400 font-medium mt-0.5">PDF usa IA. XLS/XLSX são processados diretamente, sem IA</p>
               </div>
             </div>
 
@@ -386,7 +386,7 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
                   : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20"
               }`}
             >
-              <span>Processar PDF com IA</span>
+              <span>Processar Arquivo</span>
               <ArrowRight size={16} />
             </button>
           </div>
