@@ -952,11 +952,26 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
                     return rows.map((r) => (
                       <tr key={r.key} className="even:bg-slate-50/70 hover:bg-emerald-50/40 transition-colors">
-                        <td className="p-3 border border-slate-200 text-left pl-4 font-black text-gray-900 bg-white">
+                        <td
+                          className="p-3 border border-slate-200 text-left pl-4 font-black text-gray-900 bg-white cursor-pointer hover:bg-blue-50 transition-colors"
+                          title="Clique para ver todos os lançamentos deste médico"
+                          onClick={() => {
+                            const recs = production.filter(p => p.doctorId === r.key);
+                            setMatrixModalData({
+                              isOpen: true,
+                              title: `Todos os lançamentos Unimed — ${r.name}`,
+                              doctorName: r.name,
+                              source: "UNIMED",
+                              records: recs
+                            });
+                          }}
+                        >
                           <div className="flex items-center gap-2">
-                            <span>{r.name}</span>
+                            <span className="underline decoration-dotted underline-offset-2">{r.name}</span>
+                            <Eye size={13} className="text-blue-500 shrink-0" />
                             {r.isTeam && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">Sócio</span>}
                           </div>
+                          <div className="text-[9px] text-blue-500 font-bold mt-0.5">Ver lançamentos</div>
                         </td>
                         <td className="p-3 border border-slate-200 font-bold text-gray-700 bg-slate-50">
                           {r.percent > 0 ? `${r.percent}%` : "-"}
@@ -1995,39 +2010,71 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
             </div>
             <div className="p-6 overflow-y-auto flex-1">
               {matrixModalData.records.length === 0 ? (
-                <p className="text-center text-gray-500 py-12 text-xs font-bold">Nenhum lançamento encontrado para este item.</p>
+                <p className="text-center text-gray-500 py-12 text-xs font-bold">Nenhum lançamento encontrado para este médico.</p>
               ) : (
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-gray-100 text-gray-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-200">
-                      <th className="p-3 pl-4">Data</th>
-                      <th className="p-3">Protocolo</th>
-                      <th className="p-3">Paciente / Descrição</th>
-                      <th className="p-3">Código AMB</th>
-                      <th className="p-3 text-right">Honorários</th>
-                      <th className="p-3 text-right">Operacional</th>
-                      <th className="p-3 text-right">Filme</th>
-                      <th className="p-3 text-right font-black">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-                    {matrixModalData.records.map((rec, idx) => (
-                      <tr key={idx} className="hover:bg-blue-50/20 transition-colors">
-                        <td className="p-3 pl-4 text-gray-600">{rec.date || "-"}</td>
-                        <td className="p-3 font-bold text-gray-900">{rec.protocol || "-"}</td>
-                        <td className="p-3">
-                          <div className="font-bold text-gray-900">{rec.patientName || rec.procedureDescription || "Procedimento"}</div>
-                          <div className="text-[10px] text-gray-400">{rec.procedureDescription}</div>
-                        </td>
-                        <td className="p-3 font-mono text-gray-600">{rec.ambCode || "-"}</td>
-                        <td className="p-3 text-right font-mono text-gray-700">R$ {(rec.honorValue || rec.productionTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 text-right font-mono text-teal-700">R$ {(rec.operationalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 text-right font-mono text-teal-700">R$ {(rec.filmValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 text-right font-mono font-black text-blue-700">R$ {((rec.honorValue || rec.productionTotal || 0) + (rec.operationalValue || 0) + (rec.filmValue || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      </tr>
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-5">
+                    {[
+                      ["Lançamentos", matrixModalData.records.length, "bg-gray-50"],
+                      ["Vlr. Hon.", matrixModalData.records.reduce((s: number, x: any) => s + (Number(x.honorValue) || 0), 0), "bg-blue-50"],
+                      ["Vlr. Oper.", matrixModalData.records.reduce((s: number, x: any) => s + (Number(x.operationalValue) || 0), 0), "bg-teal-50"],
+                      ["Vlr. Filme", matrixModalData.records.reduce((s: number, x: any) => s + (Number(x.filmValue) || 0), 0), "bg-teal-50"],
+                      ["Vlr. Nota", matrixModalData.records.reduce((s: number, x: any) => s + (Number(x.honorValue) || 0) + (Number(x.operationalValue) || 0) + (Number(x.filmValue) || 0), 0), "bg-emerald-50"]
+                    ].map(([label, value, bg]) => (
+                      <div key={String(label)} className={`rounded-xl border border-gray-200 px-3 py-2 ${bg}`}>
+                        <div className="text-[9px] font-black uppercase text-gray-500">{label}</div>
+                        <div className="text-sm font-black text-gray-900">
+                          {typeof value === "number" ? `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : value}
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+
+                  <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                    <table className="min-w-[1900px] w-full text-left border-collapse text-[11px]">
+                      <thead className="sticky top-0 z-10">
+                        <tr className="bg-slate-800 text-white font-black uppercase text-[9px] tracking-wider">
+                          <th className="p-2">Relação Nr</th>
+                          <th className="p-2">Data</th>
+                          <th className="p-2">Nome do Usuário</th>
+                          <th className="p-2">Código do Usuário</th>
+                          <th className="p-2">Documento</th>
+                          <th className="p-2">Qt.</th>
+                          <th className="p-2">Código AMB</th>
+                          <th className="p-2 min-w-[260px]">Descrição</th>
+                          <th className="p-2 text-right">Vlr. Hon.</th>
+                          <th className="p-2 text-right">Vlr. Oper.</th>
+                          <th className="p-2 text-right">Vlr. Filme</th>
+                          <th className="p-2 text-right">Vlr. Tx Adm</th>
+                          <th className="p-2 min-w-[230px]">Prestador Executante</th>
+                          <th className="p-2 min-w-[230px]">Prestador Pagamento</th>
+                          <th className="p-2 min-w-[230px]">Prestador Protocolo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                        {matrixModalData.records.map((rec, idx) => (
+                          <tr key={idx} className="hover:bg-blue-50/30">
+                            <td className="p-2 font-bold">{rec.protocol || "-"}</td>
+                            <td className="p-2 whitespace-nowrap">{rec.date || "-"}</td>
+                            <td className="p-2 font-semibold">{rec.patientName || "-"}</td>
+                            <td className="p-2 font-mono">{rec.patientCode || "-"}</td>
+                            <td className="p-2 font-mono">{rec.document || "-"}</td>
+                            <td className="p-2 text-right">{rec.quantity ?? "-"}</td>
+                            <td className="p-2 font-mono">{rec.ambCode || "-"}</td>
+                            <td className="p-2">{rec.procedureDescription || "-"}</td>
+                            <td className="p-2 text-right font-mono">{(Number(rec.honorValue) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                            <td className="p-2 text-right font-mono text-teal-700">{(Number(rec.operationalValue) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                            <td className="p-2 text-right font-mono text-teal-700">{(Number(rec.filmValue) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                            <td className="p-2 text-right font-mono">{(Number(rec.administrativeFee) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                            <td className="p-2">{rec.executingProvider || "-"}</td>
+                            <td className="p-2">{rec.paymentProvider || "-"}</td>
+                            <td className="p-2">{rec.protocolProvider || "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
