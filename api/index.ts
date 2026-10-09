@@ -2452,6 +2452,41 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
   }
 });
 
+// Persist editable note-tax and internal DS settings per closing.
+app.post("/api/app/financial/closings/:closingId/note-settings", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { closingId } = req.params;
+  const incoming = req.body?.noteSettings;
+  if (!incoming || typeof incoming !== "object") {
+    return res.status(400).json({ error: "noteSettings is required" });
+  }
+  try {
+    const ref = db.collection("financial_closings").doc(closingId);
+    const snap = await ref.get();
+    if (snap.exists && snap.data()?.teamId && snap.data()?.teamId !== groupId) {
+      return res.status(403).json({ error: "Closing does not belong to this group" });
+    }
+    const allowed = [
+      "irrfPercent", "pisPercent", "cofinsPercent", "csllPercent",
+      "lucroPresumidoPercent", "irpjPercent", "csll9Percent", "adicional10Percent",
+      "reservaRetencaoPercent", "cotaParte", "otherDeductions"
+    ];
+    const noteSettings: Record<string, number> = {};
+    for (const key of allowed) {
+      const value = Number(incoming[key]);
+      if (!Number.isFinite(value) || value < 0 || value > 100000000) {
+        return res.status(400).json({ error: `Invalid note setting: ${key}` });
+      }
+      noteSettings[key] = value;
+    }
+    await ref.set({ noteSettings, updatedAt: new Date().toISOString() }, { merge: true });
+    return res.json({ success: true, closingId, noteSettings });
+  } catch (error: any) {
+    console.error("[API] Save note settings failed:", error?.stack || error);
+    return res.status(500).json({ error: error?.message || "Could not save note settings" });
+  }
+});
+
 // Delete a tax/lote from a closing
 app.delete("/api/app/financial/closings/:closingId/taxes/:loteId", async (req, res) => {
   const { closingId, loteId } = req.params;
