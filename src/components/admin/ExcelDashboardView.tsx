@@ -63,7 +63,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const [closings, setClosings] = useState<any[]>([]);
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(closingId || "SETEMBRO-26");
   const [details, setDetails] = useState<any>(null);
-  const production = details?.productionRecords || [];
+  const production = Array.isArray(details?.productionRecords) ? details.productionRecords : [];
   const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
     "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores"
@@ -222,7 +222,20 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         if (res.ok) {
           const data = await res.json();
           if (data && data.doctors) {
-            setTeamSettings(data);
+            // Older saved settings may contain doctors as a keyed object instead of an array.
+            const normalizedDoctors = Array.isArray(data.doctors)
+              ? data.doctors
+              : data.doctors && typeof data.doctors === "object"
+                ? Object.entries(data.doctors).map(([key, value]: [string, any]) => ({
+                    ...(value && typeof value === "object" ? value : {}),
+                    key: value?.key || key
+                  }))
+                : [];
+            setTeamSettings(current => ({
+              ...current,
+              ...data,
+              doctors: normalizedDoctors
+            }));
           }
         }
       } catch (e) {
