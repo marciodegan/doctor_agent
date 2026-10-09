@@ -423,9 +423,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const additionalTotal = Math.round(presumedProfitTotal * noteSettings.adicional10Percent) / 100;
     const reserveTotal = irpjTotal + csll9Total + additionalTotal;
     const retentionTotal = Math.round((taxesTotal + reserveTotal * noteSettings.reservaRetencaoPercent / 100) * 100) / 100;
-    const cotaFromTransactions = (Array.isArray(details?.transactions) ? details.transactions : [])
-      .filter((item: any) => /capitaliza.*cota|cota.*parte/i.test(String(item.typeName || item.observation || item.description || "")))
-      .reduce((sum: number, item: any) => sum + Math.abs(Number(item.amount) || 0), 0);
     const cotaParte = Number(noteSettings.cotaParte);
     const internalDSTotal = Math.max(0, Math.round((productionBase - operationalTotal - filmTotal - cotaParte - noteSettings.otherDeductions - retentionTotal - reserveTotal) * 100) / 100;
 
