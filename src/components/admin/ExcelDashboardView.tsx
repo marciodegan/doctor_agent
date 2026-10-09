@@ -71,6 +71,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
   const [removedLotes, setRemovedLotes] = useState<string[]>([]);
+  const [noteSettings, setNoteSettings] = useState({
+    irrfPercent: 1.5, pisPercent: 0.65, cofinsPercent: 3, csllPercent: 1,
+    lucroPresumidoPercent: 32, irpjPercent: 15, csll9Percent: 9,
+    adicional10Percent: 10, reservaRetencaoPercent: 59.6, cotaParte: 0, otherDeductions: 0
+  });
+  const [savingNoteSettings, setSavingNoteSettings] = useState(false);
+  const [noteSettingsMessage, setNoteSettingsMessage] = useState("");
+
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [matrixModalData, setMatrixModalData] = useState<{
     isOpen: boolean;
@@ -222,6 +230,38 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     };
     fetchTeamSettings();
   }, [activeGroup]);
+
+  useEffect(() => {
+    if (!details?.closing) return;
+    const saved = details.closing.noteSettings || {};
+    setNoteSettings({
+      irrfPercent: Number(saved.irrfPercent ?? 1.5), pisPercent: Number(saved.pisPercent ?? 0.65),
+      cofinsPercent: Number(saved.cofinsPercent ?? 3), csllPercent: Number(saved.csllPercent ?? 1),
+      lucroPresumidoPercent: Number(saved.lucroPresumidoPercent ?? 32), irpjPercent: Number(saved.irpjPercent ?? 15),
+      csll9Percent: Number(saved.csll9Percent ?? 9), adicional10Percent: Number(saved.adicional10Percent ?? 10),
+      reservaRetencaoPercent: Number(saved.reservaRetencaoPercent ?? 59.6),
+      cotaParte: Number(saved.cotaParte ?? details.closing.totalOtherDebits ?? details.closing.otherDebits ?? 0),
+      otherDeductions: Number(saved.otherDeductions ?? 0)
+    });
+    setNoteSettingsMessage("");
+  }, [details?.closing?.id, details?.closing?.noteSettings]);
+
+  const saveNoteSettings = async () => {
+    if (!selectedClosingId) return;
+    try {
+      setSavingNoteSettings(true);
+      setNoteSettingsMessage("");
+      const response = await apiFetch(`/api/app/financial/closings/${selectedClosingId}/note-settings`, {
+        method: "POST", body: JSON.stringify({ noteSettings })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Não foi possível salvar os parâmetros.");
+      setDetails((current: any) => current ? { ...current, closing: { ...current.closing, noteSettings: data.noteSettings } } : current);
+      setNoteSettingsMessage("Configurações salvas neste fechamento.");
+    } catch (error: any) {
+      setNoteSettingsMessage(error?.message || "Erro ao salvar as configurações.");
+    } finally { setSavingNoteSettings(false); }
+  };
 
   // Load available closings
   useEffect(() => {
@@ -1784,6 +1824,58 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
             )}
           </div>
 
+          {(() => {
+            const lots = excelData.lotesUnimed || [];
+            const productionBase = lots.reduce((sum: number, lot: any) => sum + (Number(lot.bruto) || 0), 0);
+            const officialNet = lots.reduce((sum: number, lot: any) => sum + (Number(lot.liquido) || 0), 0);
+            const operational = production.reduce((sum: number, item: any) => sum + (Number(item.operationalValue) || 0), 0);
+            const film = production.reduce((sum: number, item: any) => sum + (Number(item.filmValue) || 0), 0);
+            const money = (value: number) => (Number(value) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const setPercent = (key: keyof typeof noteSettings, value: number) => setNoteSettings(current => ({ ...current, [key]: value }));
+            const irrf = Math.round(productionBase * noteSettings.irrfPercent) / 100;
+            const pis = Math.round(productionBase * noteSettings.pisPercent) / 100;
+            const cofins = Math.round(productionBase * noteSettings.cofinsPercent) / 100;
+            const csll = Math.round(productionBase * noteSettings.csllPercent) / 100;
+            const taxes = irrf + pis + cofins + csll;
+            const presumedProfit = Math.round(productionBase * noteSettings.lucroPresumidoPercent) / 100;
+            const irpj = Math.max(0, Math.round((presumedProfit * noteSettings.irpjPercent / 100 - irrf) * 100) / 100);
+            const csll9 = Math.max(0, Math.round((presumedProfit * noteSettings.csll9Percent / 100 - csll) * 100) / 100);
+            const adicional = Math.round(presumedProfit * noteSettings.adicional10Percent) / 100;
+            const reserve = irpj + csll9 + adicional;
+            const totalRetention = Math.round((taxes + reserve * noteSettings.reservaRetencaoPercent / 100) * 100) / 100;
+            const internalDS = Math.round((productionBase - operational - film - noteSettings.cotaParte - noteSettings.otherDeductions - totalRetention - reserve) * 100) / 100;
+            const fields: { key: keyof typeof noteSettings; label: string }[] = [
+              { key: "irrfPercent", label: "IRRF %" }, { key: "pisPercent", label: "PIS %" },
+              { key: "cofinsPercent", label: "COFINS %" }, { key: "csllPercent", label: "CSLL retida %" },
+              { key: "lucroPresumidoPercent", label: "Base lucro presumido %" }, { key: "irpjPercent", label: "IRPJ %" },
+              { key: "csll9Percent", label: "CSLL adicional %" }, { key: "adicional10Percent", label: "Adicional %" },
+              { key: "reservaRetencaoPercent", label: "Reserva na retenção %" }
+            ];
+            return (
+              <div className="mx-4 mb-4 p-5 rounded-2xl border border-emerald-200 bg-emerald-50/50 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div><h4 className="font-black text-gray-900 uppercase text-sm">Dados da Nota e Cálculo do DS</h4><p className="text-xs text-gray-500 mt-1">Parâmetros salvos por fechamento. O líquido oficial permanece separado do DS interno.</p></div>
+                  <button type="button" onClick={saveNoteSettings} disabled={savingNoteSettings} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black">{savingNoteSettings ? "Salvando..." : "Salvar parâmetros"}</button>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 bg-white border rounded-xl"><span className="text-[10px] uppercase font-bold text-gray-500">Valor-base da nota</span><div className="font-black text-gray-900">R$ {money(productionBase)}</div></div>
+                  <div className="p-3 bg-white border rounded-xl"><span className="text-[10px] uppercase font-bold text-gray-500">Líquido oficial Unimed</span><div className="font-black text-blue-800">R$ {money(officialNet)}</div></div>
+                  <div className="p-3 bg-white border rounded-xl"><span className="text-[10px] uppercase font-bold text-gray-500">Operacional + filme</span><div className="font-black text-rose-700">-R$ {money(operational + film)}</div></div>
+                  <div className="p-3 bg-emerald-100 border border-emerald-200 rounded-xl"><span className="text-[10px] uppercase font-bold text-emerald-800">DS interno calculado</span><div className="font-black text-emerald-900 text-lg">R$ {money(internalDS)}</div></div>
+                </div>
+                <div><h5 className="text-xs font-black uppercase text-gray-700 mb-2">Percentuais editáveis</h5><div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {fields.map(field => <label key={field.key} className="text-[11px] font-bold text-gray-600">{field.label}<div className="flex items-center mt-1"><input type="number" min="0" step="0.01" value={noteSettings[field.key]} onChange={event => setPercent(field.key, Number(event.target.value))} className="w-full min-w-0 p-2 rounded-lg border border-gray-300 bg-white text-gray-900" /><span className="ml-1">%</span></div></label>)}
+                </div></div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label className="text-xs font-bold text-gray-600">Capitalização cota-parte (R$)<input type="number" min="0" step="0.01" value={noteSettings.cotaParte} onChange={event => setPercent("cotaParte", Number(event.target.value))} className="block w-full mt-1 p-2 rounded-lg border border-gray-300 bg-white text-gray-900" /></label>
+                  <label className="text-xs font-bold text-gray-600">Outras deduções (R$)<input type="number" min="0" step="0.01" value={noteSettings.otherDeductions} onChange={event => setPercent("otherDeductions", Number(event.target.value))} className="block w-full mt-1 p-2 rounded-lg border border-gray-300 bg-white text-gray-900" /></label>
+                  <div className="p-3 bg-white border rounded-xl text-xs space-y-1"><div className="flex justify-between"><span>Impostos retidos</span><b>R$ {money(taxes)}</b></div><div className="flex justify-between"><span>Reserva (IRPJ + CSLL + adicional)</span><b>R$ {money(reserve)}</b></div><div className="flex justify-between"><span>TT retenção calculada</span><b>R$ {money(totalRetention)}</b></div></div>
+                </div>
+                <p className="text-[11px] text-gray-500">DS interno = valor-base − operacional − filme − cota-parte − outras deduções − TT retenção − reserva de impostos. Os percentuais e deduções são editáveis.</p>
+                {noteSettingsMessage && <p className={noteSettingsMessage.includes("salvas") ? "text-xs font-bold text-emerald-700" : "text-xs font-bold text-rose-700"}>{noteSettingsMessage}</p>}
+              </div>
+            );
+          })()}
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[11px]">
               <thead>
