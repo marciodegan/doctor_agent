@@ -503,7 +503,30 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         finalGeral: d.dispDS
     })),
     ocorrencias: details?.transactions || [],
-    lotesUnimed: [],
+    lotesUnimed: (Array.isArray(details?.taxes) ? details.taxes : [])
+      .filter((item: any) => item.lote !== undefined && item.bruto !== undefined)
+      .map((item: any) => ({
+        ...item,
+        lote: String(item.lote || item.batchNumber || item.id || ""),
+        competencia: item.competencia || "",
+        tipo: item.tipo || item.demonstrativo || "",
+        titulo: item.titulo || "",
+        vencimento: item.vencimento || "",
+        bruto: Number(item.bruto) || 0,
+        glosa: Number(item.glosa) || 0,
+        irrf: Number(item.irrf) || 0,
+        pis: Number(item.pis) || 0,
+        cofins: Number(item.cofins) || 0,
+        csll: Number(item.csll) || 0,
+        ttImpostosNota: Number(item.ttImpostosNota) || 0,
+        ttRetencao: Number(item.ttRetencao) || 0,
+        lucroPresumido: Number(item.lucroPresumido) || 0,
+        irpj: Number(item.irpj) || 0,
+        csll9: Number(item.csll9) || 0,
+        add10: Number(item.add10) || 0,
+        reservaImposto: Number(item.reservaImposto) || 0,
+        liquido: Number(item.liquido) || 0
+      })),
     despesasEquipe: []
   }), [doctorsAggregated, totalUnimedTT, totalUnimedDS, details]);
 
