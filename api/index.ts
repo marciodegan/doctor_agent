@@ -3248,7 +3248,7 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
     const netReported = Number(aiParsed.totals?.net) || 0;
     const netCalculated = Math.round((prodVal - taxVal - debitOccurrences) * 100) / 100;
     const diff = Math.round(Math.abs(netReported - netCalculated) * 100) / 100;
-    const isReconciled = diff < 0.05;
+    const isReconciled = aiParsed.sourceType !== "STRUCTURED_SPREADSHEET" && diff < 0.05;
 
     // Build the Lote row for "Lotes & Retenções Unimed" table matching the spreadsheet structure
     const irrfVal = Number(aiParsed.taxesList?.find((t: any) => t.type === "IRRF")?.taxValue) || 0;
@@ -3269,10 +3269,10 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
     const loteRow = {
       lote: bNum,
       batchNumber: bNum,
-      competencia: aiParsed.creditDate ? `01/${aiParsed.creditDate.split('/')[1]}/${aiParsed.creditDate.split('/')[2]}` : "01/09/2026",
-      tipo: aiParsed.demonstrativo || "Clínica Cooperada IN",
-      titulo: aiParsed.holerit || "1490176",
-      vencimento: aiParsed.creditDate || "14/09/2026",
+      competencia: aiParsed.creditDate ? `01/${aiParsed.creditDate.split('/')[1]}/${aiParsed.creditDate.split('/')[2]}` : "",
+      tipo: aiParsed.demonstrativo || "",
+      titulo: aiParsed.holerit || "",
+      vencimento: aiParsed.creditDate || "",
       bruto: prodVal,
       glosa: Number(aiParsed.totals?.glosas) || 0,
       pis: pisVal,
@@ -3325,7 +3325,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
 
   try {
     const user = (req as any).user;
-    const bNum = String(parsedData.batchNumber || "10944");
+    const bNum = String(parsedData.batchNumber || closingId);
     const srcFile = fileName || `${bNum}_PROD.PDF`;
 
     // If reprocess === true, clean up old records for this closing and batch
@@ -3365,7 +3365,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       closingId,
       fileName: srcFile,
       batch: bNum,
-      source: "PDF_AI",
+      source: parsedData.sourceType === "STRUCTURED_SPREADSHEET" ? "XLS_IMPORT" : "PDF_AI",
       status: parsedData.mathValidation?.isReconciled ? "CONCILIADO" : "PENDENTE_CONFERENCIA",
       importedAt: new Date().toISOString(),
       importedBy: user.email || user.uid,
@@ -3388,8 +3388,8 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       importId,
       batchNumber: bNum,
       providerName: parsedData.providerName || "HEART CIRURGIA CARDIOVASCULAR",
-      creditDate: parsedData.creditDate || "14/09/2026",
-      reference: parsedData.reference || "Setembro / 2026",
+      creditDate: parsedData.creditDate || "",
+      reference: parsedData.reference || closingId,
       productionValue: Number(parsedData.totals?.production) || 0,
       netValue: Number(parsedData.totals?.net) || 0,
       totalTaxes: Number(parsedData.totals?.taxes) || 0,
