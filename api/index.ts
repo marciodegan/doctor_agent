@@ -2954,7 +2954,7 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       for (const td of teamDoctors) {
         // Entradas da equipe (ex: Azambuja, Marieta, Consultório) rateiam por padrão na proporção nominal (29%, 29%, 29%, 13%)
         // Despesas operacionais da equipe (ex: Aluguel de sala, celular, consultório itajaí) rateiam por padrão na PROPORÇÃO HEART dinâmica
-        const useNominal = req.body.rateioMethod === "NOMINAL" || (isCredit && !req.body.rateioMethod);
+        const useNominal = rateioMethod === "NOMINAL";
         const useDynamic = !useNominal;
 
         const effectivePercent = (useDynamic && td.proporcaoHeartDinamica !== undefined && td.proporcaoHeartDinamica > 0)
