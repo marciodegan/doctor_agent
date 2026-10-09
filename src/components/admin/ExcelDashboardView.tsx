@@ -234,13 +234,16 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   useEffect(() => {
     if (!details?.closing) return;
     const saved = details.closing.noteSettings || {};
+    const cotaParteFromTransactions = (Array.isArray(details.transactions) ? details.transactions : [])
+      .filter((item: any) => /capitaliza.*cota|cota.*parte/i.test(String(item.typeName || item.observation || item.description || "")))
+      .reduce((sum: number, item: any) => sum + Math.abs(Number(item.amount) || 0), 0);
     setNoteSettings({
       irrfPercent: Number(saved.irrfPercent ?? 1.5), pisPercent: Number(saved.pisPercent ?? 0.65),
       cofinsPercent: Number(saved.cofinsPercent ?? 3), csllPercent: Number(saved.csllPercent ?? 1),
       lucroPresumidoPercent: Number(saved.lucroPresumidoPercent ?? 32), irpjPercent: Number(saved.irpjPercent ?? 15),
       csll9Percent: Number(saved.csll9Percent ?? 9), adicional10Percent: Number(saved.adicional10Percent ?? 10),
       reservaRetencaoPercent: Number(saved.reservaRetencaoPercent ?? 59.6),
-      cotaParte: Number(saved.cotaParte ?? details.closing.totalOtherDebits ?? details.closing.otherDebits ?? 0),
+      cotaParte: Number(saved.cotaParte ?? (cotaParteFromTransactions || details.closing.totalOtherDebits || details.closing.otherDebits || 0)),
       otherDeductions: Number(saved.otherDeductions ?? 0)
     });
     setNoteSettingsMessage("");
