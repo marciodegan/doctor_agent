@@ -11,6 +11,7 @@ import { GoogleGenAI } from "@google/genai";
 import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import * as XLSX from "xlsx";
 
 dotenv.config();
 
@@ -2969,6 +2970,105 @@ app.post("/api/app/financial/transactions", async (req, res) => {
 });
 
 
+
+const normalizeImportHeader = (value: any) => String(value ?? "")
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
+
+const parseImportNumber = (value: any) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+  const n = Number(raw.replace(/R\$/g, "").replace(/\s/g, "").replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+
+const formatImportDate = (value: any) => {
+  if (!value) return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toLocaleDateString("pt-BR");
+  if (typeof value === "number") {
+    const d = XLSX.SSF.parse_date_code(value);
+    if (d) return `${String(d.d).padStart(2, "0")}/${String(d.m).padStart(2, "0")}/${d.y}`;
+  }
+  return String(value).trim();
+};
+
+const parseStructuredFinancialSpreadsheet = (file: any, closingData: any) => {
+  const base64 = String(file.content || "").split("base64,").pop() || "";
+  const workbook = XLSX.read(base64, { type: "base64", cellDates: true, raw: true });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) throw new Error("A planilha não possui nenhuma aba.");
+  const rows: any[][] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: true });
+  const headerIndex = rows.findIndex(row => {
+    const h = row.map(normalizeImportHeader);
+    return h.includes("PRESTADOR EXECUTANTE") && h.includes("VLR.HON.") &&
+      (h.includes("PRESTADOR PROTOCOLO") || h.includes("PRESTADOR PAGAMENTO"));
+  });
+  if (headerIndex < 0) throw new Error("Não encontrei as colunas Prestador Executante, Prestador Protocolo/Pagamento e Vlr.Hon.");
+
+  const headers = rows[headerIndex].map(normalizeImportHeader);
+  const idx = (...names: string[]) => names.map(normalizeImportHeader).map(n => headers.indexOf(n)).find(i => i >= 0) ?? -1;
+  const get = (row: any[], ...names: string[]) => { const i = idx(...names); return i >= 0 ? row[i] : ""; };
+
+  const productionRecords = rows.slice(headerIndex + 1).map(row => {
+    const executingProvider = String(get(row, "PRESTADOR EXECUTANTE")).trim();
+    const protocolProvider = String(get(row, "PRESTADOR PROTOCOLO")).trim();
+    const paymentProvider = String(get(row, "PRESTADOR PAGAMENTO")).trim();
+    const patientName = String(get(row, "NOME DO USUARIO", "NOME DO USUÁRIO")).trim();
+    const procedureDescription = String(get(row, "DESCRICAO", "DESCRIÇÃO")).trim();
+    const honorValue = parseImportNumber(get(row, "VLR.HON."));
+    const operationalValue = parseImportNumber(get(row, "VLR.OPER."));
+    const filmValue = parseImportNumber(get(row, "VLR.FILME"));
+    const administrativeFee = parseImportNumber(get(row, "VLR TX ADM"));
+    if (!(executingProvider || protocolProvider || patientName || procedureDescription)) return null;
+    if (honorValue === 0 && operationalValue === 0 && filmValue === 0 && administrativeFee === 0) return null;
+    return {
+      protocol: String(get(row, "RELAÇÃO NR", "RELACAO NR")).trim(),
+      date: formatImportDate(get(row, "DATA")),
+      patientName,
+      patientCode: String(get(row, "CODIGO DO USUARIO", "CÓDIGO DO USUÁRIO")).trim(),
+      document: String(get(row, "DOCUMENTO")).trim(),
+      quantity: parseImportNumber(get(row, "QT.", "QT")) || 1,
+      ambCode: String(get(row, "CODIGO AMB", "CÓDIGO AMB")).trim(),
+      procedureDescription,
+      honorValue,
+      operationalValue,
+      filmValue,
+      administrativeFee,
+      executingProvider,
+      protocolProvider,
+      paymentProvider
+    };
+  }).filter(Boolean);
+
+  if (!productionRecords.length) throw new Error("Nenhum lançamento financeiro foi encontrado na planilha.");
+  const production = productionRecords.reduce((s: number, p: any) => s + p.honorValue + p.operationalValue + p.filmValue, 0);
+  const batchNumber = String(closingData?.batchNumber || closingData?.lote || file.name.replace(/\.[^.]+$/, ""));
+  const doctors = new Map<string, any>();
+  for (const p of productionRecords as any[]) {
+    const key = normalizeImportHeader(p.protocolProvider || p.executingProvider);
+    const d = doctors.get(key) || { name: p.protocolProvider || p.executingProvider, quantity: 0, productionTotal: 0, honorario: 0, operacional: 0, filme: 0, glosa: 0 };
+    d.quantity += p.quantity; d.productionTotal += p.honorValue + p.operationalValue + p.filmValue;
+    d.honorario += p.honorValue; d.operacional += p.operationalValue; d.filme += p.filmValue;
+    doctors.set(key, d);
+  }
+  const rounded = Math.round(production * 100) / 100;
+  return {
+    providerName: "UNIMED",
+    batchNumber,
+    holerit: "",
+    demonstrativo: "Produção Estruturada",
+    reference: closingData?.monthKey || "",
+    creditDate: "",
+    issueDate: "",
+    totals: { production: rounded, taxes: 0, glosas: 0, net: rounded },
+    taxesList: [],
+    occurrences: [],
+    productionRecords,
+    doctors: Array.from(doctors.values()),
+    sourceType: "STRUCTURED_SPREADSHEET"
+  };
+};
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) => {
@@ -3043,9 +3143,26 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
 
     let aiParsed: any = null;
     let aiParseError = "";
+    const firstFile = files[0];
+    const firstFileName = String(firstFile?.name || "").toLowerCase();
+    const isStructuredSpreadsheet = /\.(xls|xlsx)$/.test(firstFileName);
+
+    if (isStructuredSpreadsheet) {
+      try {
+        aiParsed = parseStructuredFinancialSpreadsheet(firstFile, closingData);
+        console.log("[Financial Import] Structured spreadsheet parsed:", firstFile.name, aiParsed.productionRecords.length, "records");
+      } catch (structuredError: any) {
+        return res.status(422).json({
+          error: "Não foi possível interpretar a planilha.",
+          details: String(structuredError?.message || structuredError),
+          closingId
+        });
+      }
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (apiKey) {
+    if (!aiParsed && apiKey) {
       try {
         const ai = new GoogleGenAI({ apiKey });
         const contents: any[] = [];
@@ -3110,7 +3227,7 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
     }
     aiParsed.doctors = Array.from(doctorSummary.values());
 
-    const bNum = String(aiParsed.batchNumber || "10944");
+    const bNum = String(aiParsed.batchNumber || closingData?.batchNumber || closingData?.lote || closingId);
 
     // Check for duplicate in this closing
     const existingSnap = await db.collection("financial_imports")
@@ -3396,13 +3513,13 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
     }
 
     // 5.5 UNIMED: auditoria da alocação real. Não distribuir produção por proporção.
-    const allocatedRecords = aiParsed.productionRecords.filter((p: any) => p.allocationStatus !== 'PENDING_REVIEW');
-    const pendingProductionRecords = aiParsed.productionRecords.filter((p: any) => p.allocationStatus === 'PENDING_REVIEW');
+    const allocatedRecords = parsedData.productionRecords.filter((p: any) => p.allocationStatus !== "PENDING_REVIEW");
+    const pendingProductionRecords = parsedData.productionRecords.filter((p: any) => p.allocationStatus === "PENDING_REVIEW");
     const allocatedHonor = allocatedRecords.reduce((sum: number, p: any) => sum + (Number(p.honorValue) || 0), 0);
     const allocatedOperational = allocatedRecords.reduce((sum: number, p: any) => sum + (Number(p.operationalValue) || 0), 0);
     const allocatedFilm = allocatedRecords.reduce((sum: number, p: any) => sum + (Number(p.filmValue) || 0), 0);
     const unimedDistributionAudit = {
-      totalProductionRecords: aiParsed.productionRecords.length,
+      totalProductionRecords: parsedData.productionRecords.length,
       allocatedRecords: allocatedRecords.length,
       pendingRecords: pendingProductionRecords.length,
       allocatedHonorValue: Math.round(allocatedHonor * 100) / 100,
