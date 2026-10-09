@@ -1961,10 +1961,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   <th className="p-3">Vencimento</th>
                   <th className="p-3 text-right">Bruto (R$)</th>
                   <th className="p-3 text-right">Glosas</th>
-                  <th className="p-3 text-right">PIS</th>
-                  <th className="p-3 text-right">COFINS</th>
-                  <th className="p-3 text-right">CSLL</th>
-                  <th className="p-3 text-right">IRRF</th>
+                  <th className="p-2 text-right">PIS % / R$</th>
+                  <th className="p-2 text-right">COFINS % / R$</th>
+                  <th className="p-2 text-right">CSLL % / R$</th>
+                  <th className="p-2 text-right">IRRF % / R$</th>
+                  <th className="p-2 text-right">ISS % / R$</th>
                   <th className="p-3 text-right font-black">TT Impostos</th>
                   <th className="p-3 text-right font-black">TT Retenção</th>
                   <th className="p-3 text-right">Lucro Presum.</th>
@@ -1972,14 +1973,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   <th className="p-3 text-right">CSLL 9%</th>
                   <th className="p-3 text-right">ADD 10%</th>
                   <th className="p-3 text-right">Reserva Imp.</th>
-                  <th className="p-3 text-right bg-blue-50 font-black text-blue-900">Líquido (R$)</th>
+                  <th className="p-3 text-right bg-blue-50 font-black text-blue-900">Líquido oficial (R$)</th>
+                  <th className="p-3 text-right bg-emerald-50 font-black text-emerald-900">DS saque (R$)</th>
                   <th className="p-3 text-center pr-4">Remover</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
                 {excelData.lotesUnimed.length === 0 ? (
                   <tr>
-                    <td colSpan={20} className="p-12 text-center">
+                    <td colSpan={22} className="p-12 text-center">
                       <div className="max-w-md mx-auto space-y-3">
                         <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
                           <BrainCircuit size={24} />
@@ -2012,10 +2014,26 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <td className="p-3 text-gray-500">{lote.vencimento}</td>
                       <td className="p-3 text-right font-bold text-gray-900">R$ {lote.bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right text-rose-600 font-bold">{lote.glosa > 0 ? `-R$ ${lote.glosa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}</td>
-                      <td className="p-3 text-right text-gray-500">R$ {lote.pis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3 text-right text-gray-500">R$ {lote.cofins.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3 text-right text-gray-500">R$ {lote.csll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3 text-right text-gray-500">R$ {lote.irrf.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-2 text-right text-gray-700 whitespace-nowrap">
+                        <input aria-label={`pis aliquota lote ${lote.lote}`} type="number" min="0" step="0.01" value={lote.aliquotas.pis} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), pis: Number(event.target.value) } }))} className="w-14 p-1 text-right border border-gray-200 rounded text-[10px]" />%
+                        <div className="font-bold">R$ {lote.pis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                      </td>
+                      <td className="p-2 text-right text-gray-700 whitespace-nowrap">
+                        <input aria-label={`cofins aliquota lote ${lote.lote}`} type="number" min="0" step="0.01" value={lote.aliquotas.cofins} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), cofins: Number(event.target.value) } }))} className="w-14 p-1 text-right border border-gray-200 rounded text-[10px]" />%
+                        <div className="font-bold">R$ {lote.cofins.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                      </td>
+                      <td className="p-2 text-right text-gray-700 whitespace-nowrap">
+                        <input aria-label={`csll aliquota lote ${lote.lote}`} type="number" min="0" step="0.01" value={lote.aliquotas.csll} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), csll: Number(event.target.value) } }))} className="w-14 p-1 text-right border border-gray-200 rounded text-[10px]" />%
+                        <div className="font-bold">R$ {lote.csll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                      </td>
+                      <td className="p-2 text-right text-gray-700 whitespace-nowrap">
+                        <input aria-label={`irrf aliquota lote ${lote.lote}`} type="number" min="0" step="0.01" value={lote.aliquotas.irrf} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), irrf: Number(event.target.value) } }))} className="w-14 p-1 text-right border border-gray-200 rounded text-[10px]" />%
+                        <div className="font-bold">R$ {lote.irrf.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                      </td>
+                      <td className="p-2 text-right text-gray-700 whitespace-nowrap">
+                        <input aria-label={`iss aliquota lote ${lote.lote}`} type="number" min="0" step="0.01" value={lote.aliquotas.iss} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), iss: Number(event.target.value) } }))} className="w-14 p-1 text-right border border-gray-200 rounded text-[10px]" />%
+                        <div className="font-bold">R$ {lote.iss.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                      </td>
                       <td className="p-3 text-right font-black text-gray-700">R$ {lote.ttImpostosNota.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right font-black text-purple-700">R$ {lote.ttRetencao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right text-gray-500">R$ {lote.lucroPresumido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -2025,6 +2043,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <td className="p-3 text-right text-amber-700 font-bold">R$ {lote.reservaImposto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50">
                         R$ {lote.liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-2 text-right font-black text-emerald-800 bg-emerald-50/50 whitespace-nowrap">
+                        <div>R$ {lote.dsSaque.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                        <label className="text-[9px] font-normal text-gray-500">Cota-parte R$
+                          <input type="number" min="0" step="0.01" value={Number(loteAliquotas[String(lote.lote)]?.cotaParte) || 0} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), cotaParte: Number(event.target.value) } }))} className="w-20 ml-1 p-1 border border-gray-200 rounded bg-white text-right" />
+                        </label>
                       </td>
                       <td className="p-3 text-center pr-4">
                         <button
