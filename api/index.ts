@@ -2461,8 +2461,18 @@ app.post("/api/app/financial/closings/:closingId/note-settings", async (req, res
     return res.status(400).json({ error: "noteSettings is required" });
   }
   try {
-    const ref = db.collection("financial_closings").doc(closingId);
-    const snap = await ref.get();
+    let ref = db.collection("financial_closings").doc(closingId);
+    let snap = await ref.get();
+    if (!snap.exists) {
+      const byMonth = await db.collection("financial_closings")
+        .where("monthKey", "==", closingId.toUpperCase())
+        .limit(1)
+        .get();
+      if (!byMonth.empty) {
+        ref = byMonth.docs[0].ref;
+        snap = byMonth.docs[0];
+      }
+    }
     if (snap.exists && snap.data()?.teamId && snap.data()?.teamId !== groupId) {
       return res.status(403).json({ error: "Closing does not belong to this group" });
     }
