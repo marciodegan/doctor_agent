@@ -1252,8 +1252,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         consultTT, consultDS, dinheiroTT, dinheiroDS, unimLuisTT, unimLuisDS,
                         totalGeralTT, totalGeralDS,
                         cashFlowIn: cashFlowAllocation.incomingByDoctor[doc.key] || 0,
-                        cashFlowExpenses: cashFlowAllocation.expenseByDoctorType[String(doc.name || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ")] || {},
-                        afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[String(doc.name || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ")] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[String(doc.name || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ")] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
+                        cashFlowExpenses: cashFlowAllocation.expenseByDoctorType[String(doc.name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ")] || {},
+                        afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[String(doc.name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ")] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[String(doc.name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ")] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
                       };
                     });
 
