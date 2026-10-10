@@ -442,14 +442,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const rawId = String(id || "").trim();
       const rawName = String(name || "").trim();
 
-      // An explicit selected doctor key is authoritative; stale names must not
-      // redirect the transaction to another doctor's matrix row.
+      // The saved doctorName is the human-readable selection from the form.
+      // The selector's key can belong to a different collection than the matrix
+      // settings key, so resolving that ID first can map Thais/Luis to Rochele.
+      const byExactName = configuredDoctors.find((d: any) => normalize(d.name) === normalize(rawName));
+      if (byExactName) return byExactName;
+
+      // Fallback for records without a usable doctorName.
       const byStableKey = configuredDoctors.find((d: any) => String(d.key).trim() === rawId);
       if (byStableKey) return byStableKey;
-
-      // Legacy transactions may store a Firestore ID or a doctor name in doctorId.
-      const byName = configuredDoctors.find((d: any) => normalize(d.name) === normalize(rawName));
-      if (byName) return byName;
       return configuredDoctors.find((d: any) => normalize(d.name) === normalize(rawId));
     };
 
