@@ -372,8 +372,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
           {/* Novo Lançamento Button */}
           <button
             onClick={() => setIsNewModalOpen(true)}
-            disabled={closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO")}
-            title={closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO") ? "Fechamento concluído. Crie ou selecione um fechamento em aberto." : "Novo lançamento"}
+            disabled={transactionTypes.length === 0 || closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO")}
+            title={transactionTypes.length === 0 ? "Cadastre um tipo de lançamento antes de lançar valores." : closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO") ? "Fechamento concluído. Crie ou selecione um fechamento em aberto." : "Novo lançamento"}
             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Plus size={16} />
@@ -657,25 +657,17 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Tipo de Lançamento *</label>
                 <select
-                  value={newForm.typeId}
+                  required
+                  value={transactionTypes.some(t => String(t.id) === String(newForm.typeId)) ? newForm.typeId : ""}
                   onChange={e => handleSelectTransactionType(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500"
                 >
-                  {transactionTypes.length > 0 ? transactionTypes.map(t => (
+                  <option value="">Selecione um tipo cadastrado</option>
+                  {transactionTypes.map(t => (
                     <option key={t.id} value={t.id}>
                       {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
                     </option>
-                  )) : (
-                    <>
-                      <option value="Aluguel Sala / Consultório">Aluguel Sala / Consultório — [SAÍDA] (Equipe)</option>
-                      <option value="Celular Corporativo">Celular Corporativo — [SAÍDA] (Equipe)</option>
-                      <option value="Consultório Itajaí">Consultório Itajaí — [SAÍDA] (Equipe)</option>
-                      <option value="Contador Heart">Contador Heart — [SAÍDA] (Equipe)</option>
-                      <option value="DARE">DARE — [SAÍDA] (Equipe)</option>
-                      <option value="Disponibilidade Médica - UTI">Disponibilidade Médica - UTI — [ENTRADA] (Médico)</option>
-                      <option value="Sobreavisos">Sobreavisos — [ENTRADA] (Médico)</option>
-                    </>
-                  )}
+                  ))}
                 </select>
               </div>
 
