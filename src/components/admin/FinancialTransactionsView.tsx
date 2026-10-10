@@ -207,7 +207,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     } else {
       setNewForm(prev => ({
         ...prev,
-        typeName
+        typeId: "",
+        typeName: "",
+        nature: "DEBIT"
       }));
     }
   };
