@@ -2743,7 +2743,7 @@ app.get("/api/app/financial/transaction-types", async (req, res) => {
     // Always map stored items
     // Every persisted document is a user-managed type, including older records
     // created before the isCustom flag was consistently stored.
-    const storedTypes = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), isCustom: true }));
+    const storedTypes = snap.docs.map(doc => ({ ...doc.data(), id: doc.id, isCustom: true }));
     // Tombstones prevent removed default types from reappearing.
     const customIds = new Set(storedTypes.map(t => t.id));
     const customTypes = storedTypes.filter((t: any) => t.isDeleted !== true);
