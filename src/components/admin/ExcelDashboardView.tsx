@@ -442,15 +442,32 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const rawId = String(id || "").trim();
       const rawName = String(name || "").trim();
 
-      // The saved doctorName is the human-readable selection from the form.
-      // The selector's key can belong to a different collection than the matrix
-      // settings key, so resolving that ID first can map Thais/Luis to Rochele.
+      // The transaction form saves canonical keys (rochele, thais, luis, kathize).
+      // These keys must win over doctorName because older records can carry a stale
+      // doctorName (for example ROCHELE) even when doctorId is THAIS/KATHIZE.
+      const canonicalNames: Record<string, string> = {
+        rochele: "ROCHELE LORENZI POL",
+        thais: "THAIS ISABEL LUMIKOSKI",
+        luis: "LUIS BONGIOLO MATTOS",
+        kathize: "KATHIZE LIRA",
+        tamara: "TAMARA QUINTINO REGIS",
+        luan: "LUAN JUNIOR VIGNATTI",
+        thaynara: "THAYNARA MAESTRI VIGNATTI",
+        camila: "CAMILA RIBEIRO DUTRA",
+        maria_eduarda: "MARIA EDUARDA CASA SOUZA MACHADO"
+      };
+      const canonicalName = canonicalNames[rawId.toLowerCase()];
+      if (canonicalName) {
+        const byCanonicalName = configuredDoctors.find((d: any) => normalize(d.name) === normalize(canonicalName));
+        if (byCanonicalName) return byCanonicalName;
+      }
+
+      // Prefer an exact configured key next, then the saved name, and only then
+      // treat the raw ID as a possible legacy doctor name.
+      const byStableKey = configuredDoctors.find((d: any) => String(d.key).trim().toLowerCase() === rawId.toLowerCase());
+      if (byStableKey) return byStableKey;
       const byExactName = configuredDoctors.find((d: any) => normalize(d.name) === normalize(rawName));
       if (byExactName) return byExactName;
-
-      // Fallback for records without a usable doctorName.
-      const byStableKey = configuredDoctors.find((d: any) => String(d.key).trim() === rawId);
-      if (byStableKey) return byStableKey;
       return configuredDoctors.find((d: any) => normalize(d.name) === normalize(rawId));
     };
 
