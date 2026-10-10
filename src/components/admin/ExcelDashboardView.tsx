@@ -1129,7 +1129,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           <span className="text-teal-200 font-bold uppercase">VL NOTA:</span>
                           <span className="text-white font-black">{totalUnimedTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                           <span className="text-teal-200 font-bold uppercase ml-2">DS:</span>
-                          <span className="text-emerald-300 font-black">{totalUnimedDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-emerald-300 font-black">{excelData.lotesUnimed.reduce((sum: number, lote: any) => sum + (Number(lote.dsSaque) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </div>
                       </div>
                     </th>
