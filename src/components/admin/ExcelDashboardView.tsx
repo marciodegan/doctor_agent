@@ -442,21 +442,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const rawId = String(id || "").trim();
       const rawName = String(name || "").trim();
 
-      // The transaction's displayed doctor name is the authoritative selection.
-      // Older records can contain a Firestore document ID or stale key in doctorId;
-      // resolving that ID first can silently allocate Thais's transaction to Rochele.
-      if (rawName) {
-        const byExactName = configuredDoctors.find((d: any) => normalize(d.name) === normalize(rawName));
-        if (byExactName) return byExactName;
-      }
-
-      const byStableKey = configuredDoctors.find((d: any) => String(d.key) === rawId);
+      // An explicit selected doctor key is authoritative; stale names must not
+      // redirect the transaction to another doctor's matrix row.
+      const byStableKey = configuredDoctors.find((d: any) => String(d.key).trim() === rawId);
       if (byStableKey) return byStableKey;
 
-      const byNameOrId = configuredDoctors.find((d: any) =>
-        normalize(d.name) === normalize(rawName || rawId)
-      );
-      return byNameOrId;
+      // Legacy transactions may store a Firestore ID or a doctor name in doctorId.
+      const byName = configuredDoctors.find((d: any) => normalize(d.name) === normalize(rawName));
+      if (byName) return byName;
+      return configuredDoctors.find((d: any) => normalize(d.name) === normalize(rawId));
     };
 
     cashFlowTransactions.forEach((tx: any) => {
