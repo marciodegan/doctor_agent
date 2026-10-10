@@ -578,7 +578,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       });
     });
     return { incomingByDoctor, expenseByDoctorType };
-  }, [details?.transactions, configuredDoctors]);
+  }, [details?.transactions, configuredDoctors, doctors]);
 
   // Calculate sum of team percentages
   const teamSumPercent = configuredDoctors
