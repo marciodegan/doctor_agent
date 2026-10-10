@@ -156,23 +156,38 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
   const rowsData = React.useMemo(() => {
     const normalizeDoctorName = (value: any) => String(value || "")
-      .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ");
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, " ");
+
     const configuredIndex = new Map(configuredDoctors.map((d, index) => [d.key, index]));
-    return (Array.isArray(doctors) ? doctors : []).map(doc => {
-      // Firestore document IDs are not necessarily the stable keys used by team settings.
-      // Resolve settings by ID first, then by normalized doctor name, and use the stable
-      // configured key throughout the matrix so cash-flow allocations land on the right row.
+    const seenNames = new Set<string>();
+
+    // Firestore may contain more than one document for the same doctor. The matrix
+    // must display one row per normalized doctor name, preferring the first matched
+    // configuration and keeping its stable key for allocations.
+    const uniqueRows = (Array.isArray(doctors) ? doctors : []).reduce((rows: any[], doc) => {
       const setting = configuredDoctors.find(d => d.key === doc.id)
         || configuredDoctors.find(d => normalizeDoctorName(d.name) === normalizeDoctorName(doc.name));
-      return {
+      const name = doc.name || setting?.name || "Médico";
+      const normalizedName = normalizeDoctorName(name);
+      if (!normalizedName || seenNames.has(normalizedName)) return rows;
+      seenNames.add(normalizedName);
+
+      rows.push({
         key: setting?.key || doc.id,
         firestoreId: doc.id,
-        name: doc.name || setting?.name || "Médico",
+        name,
         percent: Number(setting?.teamSharePercent) || 0,
         heartPercent: Number(setting?.proporcaoHeartDinamica) || 0,
         isTeam: Boolean(setting?.isTeamMember)
-      };
-    }).sort((a, b) => {
+      });
+      return rows;
+    }, []);
+
+    return uniqueRows.sort((a, b) => {
       const ai = configuredIndex.get(a.key);
       const bi = configuredIndex.get(b.key);
       if (ai !== undefined && bi !== undefined) return ai - bi;
