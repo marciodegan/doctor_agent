@@ -423,28 +423,44 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const team = configuredDoctors.filter((d: any) => d.isTeamMember);
     const allDoctors = configuredDoctors;
     cashFlowTransactions.forEach((tx: any) => {
-      const amount = Number(tx.amount) || 0;
+      // Valores de saídas podem estar armazenados com sinal negativo no Fluxo de Caixa.
+      // Na matriz, cada coluna de despesa mostra o valor rateado positivo.
+      const rawAmount = Number(tx.amount) || 0;
       const isCredit = String(tx.nature || "").toUpperCase() === "CREDIT";
+      const amount = Math.abs(rawAmount);
       const doctorId = String(tx.doctorId || "");
+      const typeId = String(tx.typeId || tx.typeName || "outros");
+
       if (tx.scope === "DOCTOR" && doctorId && doctorId !== "heart_equipe" && doctorId !== "equipe") {
         if (isCredit) incomingByDoctor[doctorId] = (incomingByDoctor[doctorId] || 0) + amount;
         else {
-          const typeId = String(tx.typeId || tx.typeName || "outros");
           expenseByDoctorType[doctorId] ||= {};
           expenseByDoctorType[doctorId][typeId] = (expenseByDoctorType[doctorId][typeId] || 0) + amount;
         }
         return;
       }
-      const eligible = String(tx.scope || "TEAM") === "TEAM" ? team : allDoctors;
+
+      // Rateio de equipe usa exclusivamente os médicos marcados como membros da equipe.
+      // Para despesas com rateio dinâmico, usar a mesma Prop Heart % exibida na matriz.
+      const scope = String(tx.scope || "TEAM").toUpperCase();
+      const eligible = ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM"].includes(scope) ? team : allDoctors;
       const method = String(tx.rateioMethod || "").toUpperCase();
       const useNominal = method === "NOMINAL";
-      const weight = (d: any) => Number(useNominal ? d.teamSharePercent : (d.proporcaoHeartDinamica ?? d.teamSharePercent)) || 0;
+      const weight = (d: any) => Math.max(0, Number(useNominal ? d.teamSharePercent : (d.proporcaoHeartDinamica ?? d.teamSharePercent)) || 0);
       const totalWeight = eligible.reduce((sum: number, d: any) => sum + weight(d), 0);
-      eligible.forEach((d: any) => {
-        const allocated = totalWeight > 0 ? Math.round(amount * weight(d) / totalWeight * 100) / 100 : 0;
+      if (totalWeight <= 0 || eligible.length === 0) return;
+
+      // Arredonda os primeiros rateios e atribui o resíduo ao último médico elegível,
+      // garantindo que a soma da coluna seja exatamente igual ao valor lançado.
+      let allocatedSoFar = 0;
+      const weightedDoctors = eligible.filter((d: any) => weight(d) > 0);
+      weightedDoctors.forEach((d: any, index: number) => {
+        const allocated = index === weightedDoctors.length - 1
+          ? Math.round((amount - allocatedSoFar) * 100) / 100
+          : Math.round((amount * weight(d) / totalWeight) * 100) / 100;
+        allocatedSoFar += allocated;
         if (isCredit) incomingByDoctor[d.key] = (incomingByDoctor[d.key] || 0) + allocated;
         else {
-          const typeId = String(tx.typeId || tx.typeName || "outros");
           expenseByDoctorType[d.key] ||= {};
           expenseByDoctorType[d.key][typeId] = (expenseByDoctorType[d.key][typeId] || 0) + allocated;
         }
@@ -1345,7 +1361,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
                         {/* Outras Entradas e Saídas por tipo */}
                         <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-700">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{(r.cashFlowExpenses[type.id] || 0) > 0 ? (r.cashFlowExpenses[type.id] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{Math.abs(Number(r.cashFlowExpenses[type.id]) || 0) > 0 ? Math.abs(Number(r.cashFlowExpenses[type.id]) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
                         <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{(r.isTeam && r.totalGeralDS > 0 ? (r.totalGeralDS / 36086.02 * 26.79).toFixed(2) : "0.00")}%</td>
