@@ -431,51 +431,73 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const cashFlowAllocation = React.useMemo(() => {
     const incomingByDoctor: Record<string, number> = {};
     const expenseByDoctorType: Record<string, Record<string, number>> = {};
-    const team = configuredDoctors.filter((d: any) => d.isTeamMember === true || (Number(d.teamSharePercent) || 0) > 0 || (Number(d.proporcaoHeartDinamica) || 0) > 0);
+    const normalize = (value: any) => String(value || "")
+      .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ");
+    const team = configuredDoctors.filter((d: any) => d.isTeamMember === true);
     const allDoctors = configuredDoctors;
+
+    // Resolve legacy transaction doctor IDs (Firestore IDs or names) to the stable
+    // financial-settings key used by the matrix rows.
+    const resolveDoctor = (id: any, name: any) => {
+      const rawId = String(id || "");
+      const byKey = configuredDoctors.find((d: any) => String(d.key) === rawId);
+      if (byKey) return byKey;
+      const byName = configuredDoctors.find((d: any) => normalize(d.name) === normalize(name || id));
+      return byName;
+    };
+
     cashFlowTransactions.forEach((tx: any) => {
-      // Valores de saídas podem estar armazenados com sinal negativo no Fluxo de Caixa.
-      // Na matriz, cada coluna de despesa mostra o valor rateado positivo.
       const rawAmount = Number(tx.amount) || 0;
+      if (!Number.isFinite(rawAmount) || rawAmount === 0) return;
       const isCredit = String(tx.nature || "").toUpperCase() === "CREDIT";
       const amount = Math.abs(rawAmount);
       const doctorId = String(tx.doctorId || "");
       const typeId = String(tx.typeId || tx.typeName || "outros");
+      const scope = String(tx.scope || "").toUpperCase();
+      const isExplicitDoctor = scope === "DOCTOR" && doctorId && !["HEART_EQUIPE", "EQUIPE"].includes(doctorId.toUpperCase());
 
-      if (tx.scope === "DOCTOR" && doctorId && doctorId !== "heart_equipe" && doctorId !== "equipe") {
-        if (isCredit) incomingByDoctor[doctorId] = (incomingByDoctor[doctorId] || 0) + amount;
+      const addAllocation = (key: string, allocated: number) => {
+        if (allocated <= 0) return;
+        if (isCredit) incomingByDoctor[key] = (incomingByDoctor[key] || 0) + allocated;
         else {
-          expenseByDoctorType[doctorId] ||= {};
-          expenseByDoctorType[doctorId][typeId] = (expenseByDoctorType[doctorId][typeId] || 0) + amount;
+          expenseByDoctorType[key] ||= {};
+          expenseByDoctorType[key][typeId] = (expenseByDoctorType[key][typeId] || 0) + allocated;
         }
+      };
+
+      // Individual transaction: 100% to the selected doctor, never rate it across others.
+      if (isExplicitDoctor) {
+        const doctor = resolveDoctor(doctorId, tx.doctorName);
+        if (doctor?.key) addAllocation(String(doctor.key), amount);
         return;
       }
 
-      // Rateio de equipe usa exclusivamente os médicos marcados como membros da equipe.
-      // Para despesas com rateio dinâmico, usar a mesma Prop Heart % exibida na matriz.
-      const scope = String(tx.scope || "TEAM").toUpperCase();
-      const isTeamRate = ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM", "RATEIO_EQUIPE"].includes(scope) || doctorId === "heart_equipe" || doctorId === "equipe";
+      const isTeamRate = ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM", "RATEIO_EQUIPE"].includes(scope)
+        || ["HEART_EQUIPE", "EQUIPE"].includes(doctorId.toUpperCase());
       const eligible = isTeamRate ? team : allDoctors;
-      const method = String(tx.rateioMethod || "").toUpperCase();
-      const useNominal = method === "NOMINAL";
-      const weight = (d: any) => Math.max(0, Number(useNominal ? d.teamSharePercent : (d.proporcaoHeartDinamica ?? d.teamSharePercent)) || 0);
-      const totalWeight = eligible.reduce((sum: number, d: any) => sum + weight(d), 0);
-      if (totalWeight <= 0 || eligible.length === 0) return;
+      if (!eligible.length) return;
 
-      // Arredonda os primeiros rateios e atribui o resíduo ao último médico elegível,
-      // garantindo que a soma da coluna seja exatamente igual ao valor lançado.
-      let allocatedSoFar = 0;
+      const method = String(tx.rateioMethod || "").toUpperCase();
+      const nominalWeight = (d: any) => Math.max(0, Number(d.teamSharePercent) || 0);
+      const heartWeight = (d: any) => Math.max(0, Number(d.proporcaoHeartDinamica) || 0);
+      // Prop Heart can be zero on older/uninitialized settings. Use it when configured;
+      // otherwise fall back to nominal percentages so a valid team transaction is not lost.
+      const heartTotal = eligible.reduce((sum: number, d: any) => sum + heartWeight(d), 0);
+      const nominalTotal = eligible.reduce((sum: number, d: any) => sum + nominalWeight(d), 0);
+      const useHeart = method !== "NOMINAL" && heartTotal > 0;
+      const weight = (d: any) => useHeart ? heartWeight(d) : nominalWeight(d);
+      const totalWeight = useHeart ? heartTotal : nominalTotal;
+      if (totalWeight <= 0) return;
+
+      // Cent-safe allocation: the last eligible doctor receives any rounding remainder.
       const weightedDoctors = eligible.filter((d: any) => weight(d) > 0);
+      let allocatedSoFar = 0;
       weightedDoctors.forEach((d: any, index: number) => {
         const allocated = index === weightedDoctors.length - 1
           ? Math.round((amount - allocatedSoFar) * 100) / 100
           : Math.round((amount * weight(d) / totalWeight) * 100) / 100;
         allocatedSoFar += allocated;
-        if (isCredit) incomingByDoctor[d.key] = (incomingByDoctor[d.key] || 0) + allocated;
-        else {
-          expenseByDoctorType[d.key] ||= {};
-          expenseByDoctorType[d.key][typeId] = (expenseByDoctorType[d.key][typeId] || 0) + allocated;
-        }
+        addAllocation(String(d.key), allocated);
       });
     });
     return { incomingByDoctor, expenseByDoctorType };
