@@ -642,23 +642,30 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
             </div>
 
             <form onSubmit={handleCreateTransaction} className="space-y-4 text-xs font-bold">
-              {/* Tipo de Despesa / Ocorrência - AUTO-PREFILLS NATURE AND SCOPE */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">
-                  Tipo de Lançamento *
-                </label>
+                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Data *</label>
+                <input
+                  type="text"
+                  required
+                  value={newForm.date}
+                  onChange={e => setNewForm({ ...newForm, date: e.target.value })}
+                  placeholder="DD/MM/AAAA"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Tipo de Lançamento *</label>
                 <select
                   value={newForm.typeName}
                   onChange={e => handleSelectTransactionType(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500"
                 >
-                  {transactionTypes.length > 0 ? (
-                    transactionTypes.map(t => (
-                      <option key={t.id} value={t.name}>
-                        {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
-                      </option>
-                    ))
-                  ) : (
+                  {transactionTypes.length > 0 ? transactionTypes.map(t => (
+                    <option key={t.id} value={t.name}>
+                      {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
+                    </option>
+                  )) : (
                     <>
                       <option value="Aluguel Sala / Consultório">Aluguel Sala / Consultório — [SAÍDA] (Equipe)</option>
                       <option value="Celular Corporativo">Celular Corporativo — [SAÍDA] (Equipe)</option>
@@ -670,9 +677,6 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                     </>
                   )}
                 </select>
-                <span className="text-[10px] text-gray-400 block font-normal">
-                  * Ao selecionar o tipo, o campo de <strong>Entrada / Saída</strong> é pré-preenchido automaticamente!
-                </span>
               </div>
 
               <div className="space-y-1.5">
@@ -688,10 +692,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   <option value="">Equipe / despesa compartilhada (ratear conforme o tipo)</option>
                   {allDoctors.map(doctor => <option key={doctor.key} value={doctor.key}>{doctor.name}</option>)}
                 </select>
-                <span className="text-[10px] text-gray-400 font-normal">Sem médico selecionado, o lançamento será distribuído conforme a regra de rateio do tipo cadastrado.</span>
+                <span className="text-[10px] text-gray-400 font-normal">Sem médico selecionado, será usada a regra de rateio configurada no tipo de lançamento.</span>
               </div>
 
-              {/* Somente os campos essenciais do lançamento */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Valor Total (R$) *</label>
                 <input
@@ -706,28 +709,15 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Data *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newForm.date}
-                    onChange={e => setNewForm({ ...newForm, date: e.target.value })}
-                    placeholder="DD/MM/AAAA"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs focus:border-emerald-500"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Observação</label>
-                  <input
-                    type="text"
-                    value={newForm.observation}
-                    onChange={e => setNewForm({ ...newForm, observation: e.target.value })}
-                    placeholder="Descrição opcional"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs focus:border-emerald-500"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Observação</label>
+                <input
+                  type="text"
+                  value={newForm.observation}
+                  onChange={e => setNewForm({ ...newForm, observation: e.target.value })}
+                  placeholder="Descrição opcional"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs focus:border-emerald-500"
+                />
               </div>
 
               <p className="text-[10px] text-gray-500 font-medium">
