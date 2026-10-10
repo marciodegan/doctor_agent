@@ -1343,11 +1343,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimLuisTT > 0 ? r.unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-rose-900 border-r-2 border-slate-500">{r.unimLuisDS > 0 ? r.unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Total Geral */}
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{(r.isTeam && r.totalGeralDS > 0 ? (r.totalGeralDS / 36086.02 * 26.79).toFixed(2) : "0.00")}%</td>
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-blue-50 text-blue-950">{r.isTeam ? r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {/* Outras Entradas e Saídas por tipo */}
                         <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-700">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{(r.cashFlowExpenses[type.id] || 0) > 0 ? (r.cashFlowExpenses[type.id] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
                         <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
