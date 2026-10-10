@@ -258,9 +258,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         method: "POST",
         body: JSON.stringify({
           closingId: selectedClosingId,
-          doctorId: isTeam ? "heart_equipe" : newForm.doctorId,
-          doctorName: isTeam ? "HEART CIRURGIA CARDIOVASCULAR" : newForm.doctorName,
-          scope: isTeam ? "TEAM" : "DOCTOR",
+          doctorId: newForm.doctorId || null,
+          doctorName: newForm.doctorId ? (allDoctors.find(d => d.key === newForm.doctorId)?.name || newForm.doctorName) : null,
+          scope: newForm.doctorId ? "DOCTOR" : "TEAM",
           typeName: newForm.typeName,
           typeId: newForm.typeId || "avulso",
           amount: parseFloat(newForm.amount),
@@ -276,8 +276,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       if (res.ok) {
         setIsNewModalOpen(false);
         setNewForm({
-          doctorId: "rochele",
-          doctorName: "ROCHELE LORENZI POL",
+          doctorId: "",
+          doctorName: "",
           typeName: "Aluguel Sala / Consultório",
           typeId: "aluguel_sala",
           amount: "",
@@ -673,6 +673,22 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                 <span className="text-[10px] text-gray-400 block font-normal">
                   * Ao selecionar o tipo, o campo de <strong>Entrada / Saída</strong> é pré-preenchido automaticamente!
                 </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Médico (opcional)</label>
+                <select
+                  value={newForm.doctorId || ""}
+                  onChange={e => {
+                    const doctor = allDoctors.find(d => d.key === e.target.value);
+                    setNewForm({ ...newForm, doctorId: doctor?.key || "", doctorName: doctor?.name || "" });
+                  }}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="">Equipe / despesa compartilhada (ratear conforme o tipo)</option>
+                  {allDoctors.map(doctor => <option key={doctor.key} value={doctor.key}>{doctor.name}</option>)}
+                </select>
+                <span className="text-[10px] text-gray-400 font-normal">Sem médico selecionado, o lançamento será distribuído conforme a regra de rateio do tipo cadastrado.</span>
               </div>
 
               {/* Somente os campos essenciais do lançamento */}
