@@ -439,11 +439,24 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     // Resolve legacy transaction doctor IDs (Firestore IDs or names) to the stable
     // financial-settings key used by the matrix rows.
     const resolveDoctor = (id: any, name: any) => {
-      const rawId = String(id || "");
-      const byKey = configuredDoctors.find((d: any) => String(d.key) === rawId);
-      if (byKey) return byKey;
-      const byName = configuredDoctors.find((d: any) => normalize(d.name) === normalize(name || id));
-      return byName;
+      const rawId = String(id || "").trim();
+      const rawName = String(name || "").trim();
+
+      // The transaction's displayed doctor name is the authoritative selection.
+      // Older records can contain a Firestore document ID or stale key in doctorId;
+      // resolving that ID first can silently allocate Thais's transaction to Rochele.
+      if (rawName) {
+        const byExactName = configuredDoctors.find((d: any) => normalize(d.name) === normalize(rawName));
+        if (byExactName) return byExactName;
+      }
+
+      const byStableKey = configuredDoctors.find((d: any) => String(d.key) === rawId);
+      if (byStableKey) return byStableKey;
+
+      const byNameOrId = configuredDoctors.find((d: any) =>
+        normalize(d.name) === normalize(rawName || rawId)
+      );
+      return byNameOrId;
     };
 
     cashFlowTransactions.forEach((tx: any) => {
