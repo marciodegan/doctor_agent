@@ -978,7 +978,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-700 bg-emerald-900" colSpan={6}>TOTAL GERAL</th>
+                    <th className="p-3 border border-slate-700 bg-emerald-900" colSpan={8}>TOTAL GERAL</th>
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
                     {/* Azambuja */}
@@ -1020,6 +1020,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <th className="p-2 border border-slate-700">DS Geral</th>
                     <th className="p-2 border border-slate-700">Prop Heart %</th>
                     <th className="p-2 border border-slate-700">Disp Período</th>
+                    <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Saídas Fluxo</th>
+                    <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Saldo após Saídas</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
@@ -1055,6 +1057,28 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
                     const netAzEquipeTT = Math.max(0, (globalEntradas.azambujaTT * mul) - totalAzambujaPlantaoTT);
                     const netAzEquipeDS = Math.max(0, (globalEntradas.azambujaDS * mul) - totalAzambujaPlantaoDS);
+
+                    const cashFlowOutByDoctor: Record<string, number> = {};
+                    const cashFlowTransactions = (Array.isArray(details?.transactions) ? details.transactions : [])
+                      .filter((t: any) => String(t.nature || "").toUpperCase() === "DEBIT");
+                    const teamConfigs = configuredDoctors.filter((d: any) => d.isTeamMember);
+                    cashFlowTransactions.forEach((tx: any) => {
+                      const amount = Number(tx.amount) || 0;
+                      if (tx.scope === "DOCTOR" && tx.doctorId && tx.doctorId !== "heart_equipe" && tx.doctorId !== "equipe") {
+                        cashFlowOutByDoctor[tx.doctorId] = (cashFlowOutByDoctor[tx.doctorId] || 0) + amount;
+                        return;
+                      }
+                      if (tx.scope === "TEAM" || tx.doctorId === "heart_equipe" || tx.doctorId === "equipe") {
+                        const method = String(tx.rateioMethod || "").toUpperCase();
+                        const useNominal = method === "NOMINAL";
+                        const totalPercent = teamConfigs.reduce((sum: number, doctor: any) => sum + (Number(useNominal ? doctor.teamSharePercent : doctor.proporcaoHeartDinamica ?? doctor.teamSharePercent) || 0), 0);
+                        teamConfigs.forEach((doctor: any) => {
+                          const pct = Number(useNominal ? doctor.teamSharePercent : doctor.proporcaoHeartDinamica ?? doctor.teamSharePercent) || 0;
+                          const allocated = totalPercent > 0 ? Math.round(amount * pct / totalPercent * 100) / 100 : 0;
+                          cashFlowOutByDoctor[doctor.key] = (cashFlowOutByDoctor[doctor.key] || 0) + allocated;
+                        });
+                      }
+                    });
 
                     const rows = rowsData.map((doc) => {
                       const isTeam = doc.isTeam;
@@ -1112,7 +1136,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         marEqTT, marEqDS, marTotTT, marTotDS,
                         unimedEqTT, unimedEqDS, unimedPartTT, unimedPartDS, unimedOp, unimedFilm, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
                         consultTT, consultDS, dinheiroTT, dinheiroDS, unimLuisTT, unimLuisDS,
-                        totalGeralTT, totalGeralDS
+                        totalGeralTT, totalGeralDS,
+                        cashFlowOut: cashFlowOutByDoctor[doc.key] || 0,
+                        afterCashFlowOut: Math.round((totalGeralDS - (cashFlowOutByDoctor[doc.key] || 0)) * 100) / 100
                       };
                     });
 
@@ -1291,6 +1317,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{(r.isTeam && r.totalGeralDS > 0 ? (r.totalGeralDS / 36086.02 * 26.79).toFixed(2) : "0.00")}%</td>
                         <td className="p-3 border border-slate-200 font-mono font-black bg-blue-50 text-blue-950">{r.isTeam ? r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-black bg-rose-50 text-rose-700">{r.cashFlowOut > 0 ? r.cashFlowOut.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-black bg-amber-50 text-amber-900">{r.afterCashFlowOut.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       </tr>
                     ));
                   })()}
@@ -1336,6 +1364,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('totalGeralDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">100.00%</td>
                         <td className="p-3 border border-slate-700 font-mono text-blue-300">{fmt(sum('totalGeralDS'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono text-rose-300">{fmt(sum('cashFlowOut'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono text-amber-300">{fmt(sum('afterCashFlowOut'))}</td>
                       </tr>
                     );
                   })()}
