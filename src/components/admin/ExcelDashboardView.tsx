@@ -70,7 +70,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const [closings, setClosings] = useState<any[]>([]);
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(closingId || "SETEMBRO-26");
   const [details, setDetails] = useState<any>(null);
-  const production = Array.isArray(details?.productionRecords) ? details.productionRecords : [];
+  const rawProduction = Array.isArray(details?.productionRecords) ? details.productionRecords : [];
   const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
     "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores"
@@ -97,6 +97,47 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   }>({ isOpen: false, title: "", doctorName: "", source: "", records: [] });
 
   const [doctors, setDoctors] = useState<any[]>([]);
+  const [providerMappings, setProviderMappings] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchProviderMappings = async () => {
+      if (!activeGroup?.id) {
+        setProviderMappings([]);
+        return;
+      }
+      try {
+        const mappingsQuery = query(
+          collection(db, "doctor_provider_mappings"),
+          where("teamId", "==", activeGroup.id),
+          where("active", "==", true)
+        );
+        const snapshot = await getDocs(mappingsQuery);
+        if (!cancelled) setProviderMappings(snapshot.docs.map(item => ({ id: item.id, ...item.data() })));
+      } catch (error) {
+        console.error("Erro ao carregar Prestadores Vinculados:", error);
+        if (!cancelled) setProviderMappings([]);
+      }
+    };
+    void fetchProviderMappings();
+    return () => { cancelled = true; };
+  }, [activeGroup?.id]);
+
+  // Reapply current Prestadores Vinculados to existing imported records so
+  // operational and film-only lines are assigned to the mapped doctor.
+  const production = React.useMemo(() => rawProduction.map((record: any) => {
+    const executante = normalize(record.executingProvider || "");
+    const prestador = normalize(record.protocolProvider || record.paymentProvider || "");
+    const mapping = providerMappings.find((item: any) =>
+      normalize(item.executante) === executante && normalize(item.prestador) === prestador
+    );
+    return mapping ? {
+      ...record,
+      doctorId: mapping.doctorId,
+      doctorName: mapping.doctorName || record.doctorName,
+      allocationStatus: "ALLOCATED"
+    } : record;
+  }), [rawProduction, providerMappings]);
 
   // Manual entries for green plantao / entrada cells
   const [manualEntradas, setManualEntradas] = useState<Record<string, any>>({
@@ -601,7 +642,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
   // UNIMED: aggregate only imported financial_production records already mapped by doctorId.
   const { doctorsAggregated, totalUnimedTT, totalUnimedDS, pendingRecords } = React.useMemo(() => {
-    const productionRecords = Array.isArray(details?.productionRecords) ? details.productionRecords : [];
+    const productionRecords = production;
     const aggr = new Map<string, any>();
     const pending: any[] = [];
 
@@ -684,7 +725,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       totalUnimedDS: totalDS,
       pendingRecords: pending
     };
-  }, [details?.productionRecords, details?.glosas, details?.taxes, details?.transactions, manualEntradas, configuredDoctors, noteSettings]);
+  }, [production, details?.glosas, details?.taxes, details?.transactions, manualEntradas, configuredDoctors, noteSettings]);
 
   const excelData = React.useMemo(() => ({
     monthKey: details?.closing?.monthKey || "FECHAMENTO",
@@ -1275,13 +1316,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       const unimedEqTT = isTeam ? (unimedData.prod * mul) : 0;
                       const unimedEqDS = isTeam ? (unimedData.disp * mul) : 0;
                       const unimedPartTT = !isTeam ? Math.round((unimedData.prod + unimedData.operational + unimedData.film) * mul * 100) / 100 : 0;
-                      const unimedPartDS = !isTeam ? Math.round((unimedData.disp - unimedData.operational) * mul * 100) / 100 : 0;
+                      const unimedPartDS = !isTeam ? Math.round((unimedData.disp + unimedData.operational + unimedData.film) * mul * 100) / 100 : 0;
                       const unimedOp = unimedData.operational * mul;
                       const unimedFilm = unimedData.film * mul;
                       const unimPlTT = (man.unimedPlantaoTT || 0) * mul;
                       const unimPlDS = (man.unimedPlantaoDS || 0) * mul;
                       const unimTotTT = unimedEqTT + unimedPartTT + (isTeam ? unimedOp + unimedFilm : 0) + unimPlTT;
-                      const unimTotDS = unimedEqDS + unimedPartDS + unimedOp + unimedFilm + unimPlDS;
+                      const unimTotDS = unimedEqDS + unimedPartDS + (isTeam ? unimedOp + unimedFilm : 0) + unimPlDS;
 
                       const consultTT = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioTT * 100) / 100 * mul : 0;
                       const consultDS = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioDS * 100) / 100 * mul : 0;
