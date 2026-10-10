@@ -446,8 +446,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const cashFlowAllocation = React.useMemo(() => {
     const incomingByDoctor: Record<string, number> = {};
     const expenseByDoctorType: Record<string, Record<string, number>> = {};
+    // Use the same canonical key for transaction allocation and matrix rows.
+    // The previous regex escaped the backslashes, so it did not remove Unicode
+    // diacritics or collapse whitespace as intended.
     const normalize = (value: any) => String(value || "")
-      .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ");
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, " ");
     const team = configuredDoctors.filter((d: any) => d.isTeamMember === true);
     const allDoctors = configuredDoctors;
 
@@ -1266,9 +1273,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         unimedEqTT, unimedEqDS, unimedPartTT, unimedPartDS, unimedOp, unimedFilm, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
                         consultTT, consultDS, dinheiroTT, dinheiroDS, unimLuisTT, unimLuisDS,
                         totalGeralTT, totalGeralDS,
-                        cashFlowIn: cashFlowAllocation.incomingByDoctor[doc.key] || 0,
-                        cashFlowExpenses: cashFlowAllocation.expenseByDoctorType[String(doc.name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ")] || {},
-                        afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[String(doc.name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ")] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[String(doc.name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ")] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
+                        cashFlowIn: cashFlowAllocation.incomingByDoctor[normalize(doc.name)] || 0,
+                        cashFlowExpenses: cashFlowAllocation.expenseByDoctorType[normalize(doc.name)] || {},
+                        afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[normalize(doc.name)] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[normalize(doc.name)] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
                       };
                     });
 
