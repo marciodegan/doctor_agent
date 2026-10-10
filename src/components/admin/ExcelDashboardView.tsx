@@ -464,9 +464,22 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const rawId = String(id || "").trim();
       const rawName = String(name || "").trim();
 
-      // The transaction form saves canonical keys (rochele, thais, luis, kathize).
-      // These keys must win over doctorName because older records can carry a stale
-      // doctorName (for example ROCHELE) even when doctorId is THAIS/KATHIZE.
+      // Canonical IDs are the document IDs from the shared Firestore doctors collection.
+      // Resolve them before trying legacy slugs or display names.
+      const byFirestoreId = (Array.isArray(doctors) ? doctors : []).find((d: any) => String(d.id) === rawId);
+      if (byFirestoreId?.name) {
+        const byFirestoreName = configuredDoctors.find((d: any) => normalize(d.name) === normalize(byFirestoreId.name));
+        if (byFirestoreName) return byFirestoreName;
+        return {
+          key: byFirestoreId.id,
+          name: byFirestoreId.name,
+          isTeamMember: false,
+          teamSharePercent: 0,
+          proporcaoHeartDinamica: 0
+        };
+      }
+
+      // Legacy records can still contain canonical slugs and display names.
       const canonicalNames: Record<string, string> = {
         rochele: "ROCHELE LORENZI POL",
         thais: "THAIS ISABEL LUMIKOSKI",
@@ -505,7 +518,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       // Never let a populated doctorId override TEAM scope.
       const isTeamPlaceholderId = ["HEART_EQUIPE", "EQUIPE", "HEART", "TEAM"].includes(doctorId.toUpperCase());
       const resolvedSelectedDoctor = doctorId && !isTeamPlaceholderId ? resolveDoctor(doctorId, tx.doctorName) : undefined;
-      const isExplicitDoctor = scope === "DOCTOR" && Boolean(resolvedSelectedDoctor) && !isTeamPlaceholderId;
 
       // Key allocations by normalized doctor name, not by a mixture of slugs and
       // Firestore-generated settings keys. This guarantees the value follows the
@@ -520,11 +532,20 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         }
       };
 
-      // Individual transaction: 100% to the selected doctor, never rate it across others.
-      if (isExplicitDoctor) {
-        const doctor = resolvedSelectedDoctor || resolveDoctor(doctorId, tx.doctorName);
-        if (doctor?.name) addAllocation(matrixKey(doctor), amount);
-        // Never fall through to team allocation for an individual transaction.
+      // Individual transactions must never silently fall through to team allocation.
+      if (scope === "DOCTOR") {
+        if (isTeamPlaceholderId || !resolvedSelectedDoctor?.name) {
+          console.error("[CashFlowAllocation] Individual transaction has an unresolved doctor ID", {
+            transactionId: tx.id,
+            closingId: tx.closingId,
+            doctorId,
+            doctorName: tx.doctorName || null,
+            typeId,
+            typeName: tx.typeName || null
+          });
+          return;
+        }
+        addAllocation(matrixKey(resolvedSelectedDoctor), amount);
         return;
       }
 
