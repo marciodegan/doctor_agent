@@ -549,15 +549,14 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                           >
                             <Edit3 size={15} />
                           </button>
-                          {t.isCustom && (
-                            <button
-                              onClick={() => handleDelete(t.id, t.name)}
-                              title="Excluir tipo"
-                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleDelete(t.id, t.name)}
+                            title="Remover tipo do cadastro"
+                            aria-label={`Remover tipo ${t.name}`}
+                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                          >
+                            <Trash2 size={15} />
+                          </button>
                         </div>
                       </td>
                     </tr>
