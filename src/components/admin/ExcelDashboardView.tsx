@@ -58,6 +58,13 @@ interface ExcelDashboardViewProps {
   onOpenImport?: () => void;
 }
 
+const normalize = (value: any) => String(value || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .trim()
+  .toUpperCase()
+  .replace(/\s+/g, " ");
+
 export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", onOpenImport }: ExcelDashboardViewProps) {
   const { activeGroup, apiFetch } = useGroup();
   const [closings, setClosings] = useState<any[]>([]);
