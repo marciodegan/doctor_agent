@@ -1080,7 +1080,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-700 bg-teal-900" colSpan={9}>
+                    <th className="p-3 border border-slate-700 bg-teal-900" colSpan={10}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-2">
                         <span className="font-black">UNIMED</span>
                         <div className="flex items-center gap-2 bg-teal-950/80 px-2.5 py-1 rounded-lg border border-teal-700/60 font-mono text-[10px]">
@@ -1182,8 +1182,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <th className="p-2 border border-slate-700">Equipe DS</th>
                     <th className="p-2 border border-slate-700">Part. TT</th>
                     <th className="p-2 border border-slate-700">Part. DS</th>
-                    <th className="p-2 border border-slate-700 bg-teal-950/80 text-teal-300">Operacional</th>
-                    <th className="p-2 border border-slate-700 bg-teal-950/80 text-teal-300">Filme</th>
                     <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão TT</th>
                     <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão DS</th>
                     <th className="p-2 border border-slate-700">VL Nota TT</th>
@@ -1422,24 +1420,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         >
                           {r.unimedPartDS > 0 ? r.unimedPartDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td 
-                          onClick={() => {
-                            const recs = production.filter(p => p.doctorId === r.key);
-                            setMatrixModalData({ isOpen: true, title: `Operacional Unimed — ${r.name}`, doctorName: r.name, source: "OPERACIONAL", records: recs });
-                          }}
-                          className="p-3 border border-slate-200 font-mono text-teal-800 font-bold cursor-pointer hover:bg-teal-50 transition-colors"
-                        >
-                          {r.unimedOp > 0 ? r.unimedOp.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
-                        </td>
-                        <td 
-                          onClick={() => {
-                            const recs = production.filter(p => p.doctorId === r.key);
-                            setMatrixModalData({ isOpen: true, title: `Filme Unimed — ${r.name}`, doctorName: r.name, source: "FILME", records: recs });
-                          }}
-                          className="p-3 border border-slate-200 font-mono text-teal-800 font-bold cursor-pointer hover:bg-teal-50 transition-colors"
-                        >
-                          {r.unimedFilm > 0 ? r.unimedFilm.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
-                        </td>
+                        
+                        
                         <td className="p-3 border border-slate-200 bg-emerald-50/60 p-1">
                           <input
                             type="number"
@@ -1505,14 +1487,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('azTotDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marEqTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marEqDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marEqTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marEqDS'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marTotTT'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marTotDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedEqTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedEqDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedPartTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedPartDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-teal-300">{fmt(sum('unimedOp'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-teal-300">{fmt(sum('unimedFilm'))}</td>
                         <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('unimPlTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('unimPlDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimTotTT'))}</td>
