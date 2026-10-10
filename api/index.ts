@@ -2743,10 +2743,10 @@ app.get("/api/app/financial/transaction-types", async (req, res) => {
     // Always map stored items
     // Every persisted document is a user-managed type, including older records
     // created before the isCustom flag was consistently stored.
-    const customTypes = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), isCustom: true }));
-    
-    // Merge with defaults if not already present
-    const customIds = new Set(customTypes.map(t => t.id));
+    const storedTypes = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), isCustom: true }));
+    // Tombstones prevent removed default types from reappearing.
+    const customIds = new Set(storedTypes.map(t => t.id));
+    const customTypes = storedTypes.filter((t: any) => t.isDeleted !== true);
     const merged = [
       ...customTypes,
       ...DEFAULT_TRANSACTION_TYPES.filter(d => !customIds.has(d.id)).map(d => ({
@@ -2863,16 +2863,29 @@ app.delete("/api/app/financial/transaction-types/:id", async (req, res) => {
     const docRef = db.collection("financial_transaction_types").doc(id);
     const existing = await docRef.get();
 
-    if (!existing.exists) {
+    const storedData = existing.exists ? existing.data() : undefined;
+    const defaultType = DEFAULT_TRANSACTION_TYPES.find((item: any) => item.id === id);
+    if (!existing.exists && !defaultType) {
       return res.status(404).json({ error: "Tipo de lançamento não encontrado." });
     }
-    if (existing.data()?.teamId !== groupId) {
+    if (storedData && storedData.teamId !== groupId) {
       return res.status(403).json({ error: "Você não tem permissão para remover este tipo." });
     }
 
-    // Only remove the catalog entry. Existing cash-flow transactions keep their
-    // typeName/typeId snapshots and are deliberately never changed or deleted.
-    await docRef.delete();
+    // Defaults use a tombstone so they stay hidden; historical transactions remain untouched.
+    if (defaultType) {
+      await docRef.set({
+        ...(storedData || defaultType),
+        id,
+        teamId: groupId,
+        isCustom: false,
+        isDeleted: true,
+        deletedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    } else {
+      await docRef.delete();
+    }
 
     await db.collection("financial_audit_logs").add({
       teamId: groupId,
@@ -2881,7 +2894,7 @@ app.delete("/api/app/financial/transaction-types/:id", async (req, res) => {
       action: "DELETE_TRANSACTION_TYPE",
       entityType: "financial_transaction_type",
       entityId: id,
-      entityName: existing.data()?.name || id,
+      entityName: storedData?.name || defaultType?.name || id,
       createdAt: new Date().toISOString(),
       details: "Tipo removido do cadastro; lançamentos existentes no fluxo de caixa foram preservados."
     });
