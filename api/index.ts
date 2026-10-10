@@ -2948,15 +2948,18 @@ app.post("/api/app/financial/transactions", async (req, res) => {
 
     const typeName = storedType.name || requestedTypeName || String(typeId);
     const nature = storedType.nature === "CREDIT" ? "CREDIT" : "DEBIT";
-    // Selecting a doctor assigns 100% of this transaction to that doctor.
-    // Without a doctor, use the scope and rateio rule configured on the type.
-    const scope = requestedDoctorId ? "DOCTOR" : (storedType.defaultScope === "DOCTOR" ? "DOCTOR" : "TEAM");
+    // The transaction type is the source of truth. Selecting a doctor must never
+    // turn a TEAM type into an individual transaction.
+    const scope = String(storedType.defaultScope || "TEAM").toUpperCase() === "DOCTOR" ? "DOCTOR" : "TEAM";
     const rateioMethod = storedType.defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART");
     const autoSplitTeam = scope === "TEAM";
-    const doctorId = requestedDoctorId || (scope === "TEAM" ? "heart_equipe" : (storedType.doctorId || "rochele"));
-    const doctorName = requestedDoctorId
-      ? (requestedDoctorName || String(requestedDoctorId))
-      : (scope === "TEAM" ? "HEART CIRURGIA CARDIOVASCULAR" : (storedType.doctorName || "ROCHELE LORENZI POL"));
+    if (scope === "DOCTOR" && !requestedDoctorId && !storedType.doctorId) {
+      return res.status(400).json({ error: "Este tipo está configurado como individual. Selecione o médico antes de lançar." });
+    }
+    const doctorId = scope === "TEAM" ? "heart_equipe" : (requestedDoctorId || storedType.doctorId);
+    const doctorName = scope === "TEAM"
+      ? "HEART CIRURGIA CARDIOVASCULAR"
+      : (requestedDoctorId ? (requestedDoctorName || String(requestedDoctorId)) : (storedType.doctorName || String(storedType.doctorId)));
     const source = scope === "TEAM" ? "RATEIO_EQUIPE" : "MANUAL";
     const txDate = date || new Date().toLocaleDateString("pt-BR");
     const isTeamScope = scope === "TEAM";
