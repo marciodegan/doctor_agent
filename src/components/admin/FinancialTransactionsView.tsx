@@ -177,8 +177,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   }, [selectedClosingId, activeGroup]);
 
   // When user selects a transaction type from the dropdown, PRE-FILL the nature (ENTRADA / SAÍDA) and suggested scope!
-  const handleSelectTransactionType = (typeName: string) => {
-    const matched = transactionTypes.find(t => t.name === typeName);
+  const handleSelectTransactionType = (typeId: string) => {
+    const matched = transactionTypes.find(t => String(t.id) === String(typeId));
     if (matched) {
       setNewForm(prev => ({
         ...prev,
@@ -657,12 +657,12 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Tipo de Lançamento *</label>
                 <select
-                  value={newForm.typeName}
+                  value={newForm.typeId}
                   onChange={e => handleSelectTransactionType(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500"
                 >
                   {transactionTypes.length > 0 ? transactionTypes.map(t => (
-                    <option key={t.id} value={t.name}>
+                    <option key={t.id} value={t.id}>
                       {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
                     </option>
                   )) : (
