@@ -405,6 +405,54 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     }
   };
 
+  const cashFlowTransactions = Array.isArray(details?.transactions) ? details.transactions : [];
+  const cashFlowExpenseTypes = Array.from(new Map(
+    cashFlowTransactions
+      .filter((tx: any) => String(tx.nature || "").toUpperCase() === "DEBIT")
+      .map((tx: any) => [String(tx.typeId || tx.typeName || "outros"), {
+        id: String(tx.typeId || tx.typeName || "outros"),
+        name: String(tx.typeName || "Despesa"),
+        scope: String(tx.scope || "TEAM"),
+        rateioMethod: String(tx.rateioMethod || "")
+      }])
+  ).values()) as Array<{id:string; name:string; scope:string; rateioMethod:string}>;
+
+  const cashFlowAllocation = React.useMemo(() => {
+    const incomingByDoctor: Record<string, number> = {};
+    const expenseByDoctorType: Record<string, Record<string, number>> = {};
+    const team = configuredDoctors.filter((d: any) => d.isTeamMember);
+    const allDoctors = configuredDoctors;
+    cashFlowTransactions.forEach((tx: any) => {
+      const amount = Number(tx.amount) || 0;
+      const isCredit = String(tx.nature || "").toUpperCase() === "CREDIT";
+      const doctorId = String(tx.doctorId || "");
+      if (tx.scope === "DOCTOR" && doctorId && doctorId !== "heart_equipe" && doctorId !== "equipe") {
+        if (isCredit) incomingByDoctor[doctorId] = (incomingByDoctor[doctorId] || 0) + amount;
+        else {
+          const typeId = String(tx.typeId || tx.typeName || "outros");
+          expenseByDoctorType[doctorId] ||= {};
+          expenseByDoctorType[doctorId][typeId] = (expenseByDoctorType[doctorId][typeId] || 0) + amount;
+        }
+        return;
+      }
+      const eligible = String(tx.scope || "TEAM") === "TEAM" ? team : allDoctors;
+      const method = String(tx.rateioMethod || "").toUpperCase();
+      const useNominal = method === "NOMINAL";
+      const weight = (d: any) => Number(useNominal ? d.teamSharePercent : (d.proporcaoHeartDinamica ?? d.teamSharePercent)) || 0;
+      const totalWeight = eligible.reduce((sum: number, d: any) => sum + weight(d), 0);
+      eligible.forEach((d: any) => {
+        const allocated = totalWeight > 0 ? Math.round(amount * weight(d) / totalWeight * 100) / 100 : 0;
+        if (isCredit) incomingByDoctor[d.key] = (incomingByDoctor[d.key] || 0) + allocated;
+        else {
+          const typeId = String(tx.typeId || tx.typeName || "outros");
+          expenseByDoctorType[d.key] ||= {};
+          expenseByDoctorType[d.key][typeId] = (expenseByDoctorType[d.key][typeId] || 0) + allocated;
+        }
+      });
+    });
+    return { incomingByDoctor, expenseByDoctorType };
+  }, [details?.transactions, configuredDoctors]);
+
   // Calculate sum of team percentages
   const teamSumPercent = configuredDoctors
     .filter(d => d.isTeamMember)
@@ -978,7 +1026,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-700 bg-emerald-900" colSpan={9}>TOTAL GERAL</th>
+                    <th className="p-3 border border-slate-700 bg-emerald-950" colSpan={1}>OUTRAS ENTRADAS</th>
+                    <th className="p-3 border border-slate-700 bg-rose-950" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
+                    <th className="p-3 border border-slate-700 bg-emerald-900" colSpan={4}>TOTAL GERAL</th>
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
                     {/* Azambuja */}
@@ -1016,13 +1066,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <th className="p-2 border border-slate-700">TT</th>
                     <th className="p-2 border border-slate-700">DS</th>
                     {/* Total Geral */}
+                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Outras Entradas</th>
+                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-slate-700 bg-rose-950 text-rose-200">{type.name}</th>) : <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Despesas</th>}
                     <th className="p-2 border border-slate-700">TT Geral</th>
                     <th className="p-2 border border-slate-700">DS Geral</th>
                     <th className="p-2 border border-slate-700">Prop Heart %</th>
                     <th className="p-2 border border-slate-700">Disp Período</th>
-                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Entradas Fluxo</th>
-                    <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Saídas Fluxo</th>
-                    <th className="p-2 border border-slate-700 bg-amber-950 text-amber-200">Saldo após Fluxo</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
@@ -1059,29 +1108,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     const netAzEquipeTT = Math.max(0, (globalEntradas.azambujaTT * mul) - totalAzambujaPlantaoTT);
                     const netAzEquipeDS = Math.max(0, (globalEntradas.azambujaDS * mul) - totalAzambujaPlantaoDS);
 
-                    const cashFlowInByDoctor: Record<string, number> = {};
-                    const cashFlowOutByDoctor: Record<string, number> = {};
-                    const cashFlowTransactions = Array.isArray(details?.transactions) ? details.transactions : [];
-                    const teamConfigs = configuredDoctors.filter((d: any) => d.isTeamMember);
-                    cashFlowTransactions.forEach((tx: any) => {
-                      const amount = Number(tx.amount) || 0;
-                      const isCredit = String(tx.nature || "").toUpperCase() === "CREDIT";
-                      const target = isCredit ? cashFlowInByDoctor : cashFlowOutByDoctor;
-                      if (tx.scope === "DOCTOR" && tx.doctorId && tx.doctorId !== "heart_equipe" && tx.doctorId !== "equipe") {
-                        target[tx.doctorId] = (target[tx.doctorId] || 0) + amount;
-                        return;
-                      }
-                      if (tx.scope === "TEAM" || tx.doctorId === "heart_equipe" || tx.doctorId === "equipe") {
-                        const method = String(tx.rateioMethod || "").toUpperCase();
-                        const useNominal = method === "NOMINAL";
-                        const totalPercent = teamConfigs.reduce((sum: number, doctor: any) => sum + (Number(useNominal ? doctor.teamSharePercent : doctor.proporcaoHeartDinamica ?? doctor.teamSharePercent) || 0), 0);
-                        teamConfigs.forEach((doctor: any) => {
-                          const pct = Number(useNominal ? doctor.teamSharePercent : doctor.proporcaoHeartDinamica ?? doctor.teamSharePercent) || 0;
-                          const allocated = totalPercent > 0 ? Math.round(amount * pct / totalPercent * 100) / 100 : 0;
-                          target[doctor.key] = (target[doctor.key] || 0) + allocated;
-                        });
-                      }
-                    });
+
 
                     const rows = rowsData.map((doc) => {
                       const isTeam = doc.isTeam;
@@ -1140,9 +1167,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         unimedEqTT, unimedEqDS, unimedPartTT, unimedPartDS, unimedOp, unimedFilm, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
                         consultTT, consultDS, dinheiroTT, dinheiroDS, unimLuisTT, unimLuisDS,
                         totalGeralTT, totalGeralDS,
-                        cashFlowIn: cashFlowInByDoctor[doc.key] || 0,
-                        cashFlowOut: cashFlowOutByDoctor[doc.key] || 0,
-                        afterCashFlowOut: Math.round((totalGeralDS + (cashFlowInByDoctor[doc.key] || 0) - (cashFlowOutByDoctor[doc.key] || 0)) * 100) / 100
+                        cashFlowIn: cashFlowAllocation.incomingByDoctor[doc.key] || 0,
+                        cashFlowExpenses: cashFlowAllocation.expenseByDoctorType[doc.key] || {},
+                        afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[doc.key] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[doc.key] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
                       };
                     });
 
@@ -1322,8 +1349,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{(r.isTeam && r.totalGeralDS > 0 ? (r.totalGeralDS / 36086.02 * 26.79).toFixed(2) : "0.00")}%</td>
                         <td className="p-3 border border-slate-200 font-mono font-black bg-blue-50 text-blue-950">{r.isTeam ? r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-700">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-rose-50 text-rose-700">{r.cashFlowOut > 0 ? r.cashFlowOut.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-amber-50 text-amber-900">{r.afterCashFlowOut.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{(r.cashFlowExpenses[type.id] || 0) > 0 ? (r.cashFlowExpenses[type.id] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
+                        <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{(r.isTeam && r.totalGeralDS > 0 ? (r.totalGeralDS / 36086.02 * 26.79).toFixed(2) : "0.00")}%</td>
+                        <td className="p-3 border border-slate-200 font-mono font-black bg-blue-50 text-blue-950">{r.isTeam ? r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                       </tr>
                     ));
                   })()}
@@ -1365,13 +1395,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('dinheiroTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimLuisTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimLuisDS'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-700 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-slate-700">-</td>}
                         <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('totalGeralTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('totalGeralDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">100.00%</td>
                         <td className="p-3 border border-slate-700 font-mono text-blue-300">{fmt(sum('totalGeralDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('cashFlowIn'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-rose-300">{fmt(sum('cashFlowOut'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-amber-300">{fmt(sum('afterCashFlowOut'))}</td>
                       </tr>
                     );
                   })()}
