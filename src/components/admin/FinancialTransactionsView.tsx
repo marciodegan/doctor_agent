@@ -55,8 +55,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const [rateioMethod, setRateioMethod] = useState<"PROPORCAO_HEART" | "NOMINAL">("PROPORCAO_HEART");
 
   const [newForm, setNewForm] = useState({
-    doctorId: "rochele",
-    doctorName: "ROCHELE LORENZI POL",
+    doctorId: "",
+    doctorName: "",
     typeName: "Aluguel Sala / Consultório",
     typeId: "aluguel_sala",
     amount: "",
@@ -259,7 +259,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         body: JSON.stringify({
           closingId: selectedClosingId,
           doctorId: newForm.doctorId || null,
-          doctorName: newForm.doctorId ? (allDoctors.find(d => d.key === newForm.doctorId)?.name || newForm.doctorName) : null,
+          doctorName: newForm.doctorId ? (allDoctors.find(d => d.key === newForm.doctorId)?.name || "") : null,
           scope: newForm.doctorId ? "DOCTOR" : "TEAM",
           typeName: newForm.typeName,
           typeId: newForm.typeId || "avulso",
