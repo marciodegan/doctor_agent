@@ -1274,13 +1274,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       const unimedData = getDoctorUnimed(doc.key);
                       const unimedEqTT = isTeam ? (unimedData.prod * mul) : 0;
                       const unimedEqDS = isTeam ? (unimedData.disp * mul) : 0;
-                      const unimedPartTT = !isTeam ? Math.round((unimedData.prod - unimedData.operational) * mul * 100) / 100 : 0;
+                      const unimedPartTT = !isTeam ? Math.round((unimedData.prod + unimedData.operational + unimedData.film) * mul * 100) / 100 : 0;
                       const unimedPartDS = !isTeam ? Math.round((unimedData.disp - unimedData.operational) * mul * 100) / 100 : 0;
                       const unimedOp = unimedData.operational * mul;
                       const unimedFilm = unimedData.film * mul;
                       const unimPlTT = (man.unimedPlantaoTT || 0) * mul;
                       const unimPlDS = (man.unimedPlantaoDS || 0) * mul;
-                      const unimTotTT = unimedEqTT + unimedPartTT + unimedOp + unimedFilm + unimPlTT;
+                      const unimTotTT = unimedEqTT + unimedPartTT + (isTeam ? unimedOp + unimedFilm : 0) + unimPlTT;
                       const unimTotDS = unimedEqDS + unimedPartDS + unimedOp + unimedFilm + unimPlDS;
 
                       const consultTT = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioTT * 100) / 100 * mul : 0;
