@@ -2935,11 +2935,15 @@ app.post("/api/app/financial/transactions", async (req, res) => {
 
     const typeName = storedType.name || requestedTypeName || String(typeId);
     const nature = storedType.nature === "CREDIT" ? "CREDIT" : "DEBIT";
-    const scope = storedType.defaultScope === "DOCTOR" ? "DOCTOR" : "TEAM";
+    // Selecting a doctor assigns 100% of this transaction to that doctor.
+    // Without a doctor, use the scope and rateio rule configured on the type.
+    const scope = requestedDoctorId ? "DOCTOR" : (storedType.defaultScope === "DOCTOR" ? "DOCTOR" : "TEAM");
     const rateioMethod = storedType.defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART");
     const autoSplitTeam = scope === "TEAM";
-    const doctorId = scope === "TEAM" ? "heart_equipe" : (requestedDoctorId || storedType.doctorId || "rochele");
-    const doctorName = scope === "TEAM" ? "HEART CIRURGIA CARDIOVASCULAR" : (requestedDoctorName || storedType.doctorName || "ROCHELE LORENZI POL");
+    const doctorId = requestedDoctorId || (scope === "TEAM" ? "heart_equipe" : (storedType.doctorId || "rochele"));
+    const doctorName = requestedDoctorId
+      ? (requestedDoctorName || String(requestedDoctorId))
+      : (scope === "TEAM" ? "HEART CIRURGIA CARDIOVASCULAR" : (storedType.doctorName || "ROCHELE LORENZI POL"));
     const source = scope === "TEAM" ? "RATEIO_EQUIPE" : "MANUAL";
     const txDate = date || new Date().toLocaleDateString("pt-BR");
     const isTeamScope = scope === "TEAM";
@@ -2952,8 +2956,8 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       id: txRef.id,
       teamId: groupId,
       closingId,
-      doctorId: isTeamScope ? "heart_equipe" : (doctorId || "equipe"),
-      doctorName: isTeamScope ? "HEART CIRURGIA CARDIOVASCULAR" : (doctorName || "Equipe Geral"),
+      doctorId: doctorId || "heart_equipe",
+      doctorName: doctorName || "HEART CIRURGIA CARDIOVASCULAR",
       scope: isTeamScope ? "TEAM" : "DOCTOR",
       rateioMethod: isTeamScope ? rateioMethod : null,
       typeName: typeName || "Lançamento Avulso",
