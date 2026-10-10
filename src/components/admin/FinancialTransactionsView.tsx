@@ -178,7 +178,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
 
   // When user selects a transaction type from the dropdown, PRE-FILL the nature (ENTRADA / SAÍDA) and suggested scope!
   const handleSelectTransactionType = (typeId: string) => {
-    const matched = transactionTypes.find(t => String(t.id) === String(typeId));
+    const matched = transactionTypes.find(t => String(t.id) === String(typeId) || t.name === typeId);
     if (matched) {
       setNewForm(prev => ({
         ...prev,
