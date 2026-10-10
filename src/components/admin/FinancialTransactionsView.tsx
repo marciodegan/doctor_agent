@@ -252,6 +252,17 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       return;
     }
 
+    const selectedType = transactionTypes.find(t => String(t.id) === String(newForm.typeId));
+    if (!selectedType) {
+      alert("O tipo de lançamento selecionado não está mais disponível. Atualize a lista e selecione um tipo cadastrado.");
+      await fetchTransactionTypes();
+      return;
+    }
+    if (selectedType.defaultScope === "DOCTOR" && !newForm.doctorId && !(selectedType as any).doctorId) {
+      alert("Este tipo de lançamento é individual. Selecione o médico antes de confirmar.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const isTeam = allocationMode === "TEAM";
@@ -275,20 +286,24 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         })
       });
 
-      if (res.ok) {
-        setIsNewModalOpen(false);
-        setNewForm({
-          doctorId: "",
-          doctorName: "",
-          typeName: "Aluguel Sala / Consultório",
-          typeId: "aluguel_sala",
-          amount: "",
-          nature: "DEBIT",
-          observation: "",
-          date: new Date().toLocaleDateString("pt-BR")
-        });
-        fetchTransactions();
+      const responseData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert("Não foi possível criar o lançamento: " + (responseData.error || responseData.message || `Erro HTTP ${res.status}`));
+        return;
       }
+
+      setIsNewModalOpen(false);
+      setNewForm({
+        doctorId: "",
+        doctorName: "",
+        typeName: "Aluguel Sala / Consultório",
+        typeId: "",
+        amount: "",
+        nature: "DEBIT",
+        observation: "",
+        date: new Date().toLocaleDateString("pt-BR")
+      });
+      await fetchTransactions();
     } catch (err: any) {
       alert("Erro ao criar lançamento: " + err.message);
     } finally {
@@ -373,7 +388,10 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
 
           {/* Novo Lançamento Button */}
           <button
-            onClick={() => setIsNewModalOpen(true)}
+            onClick={async () => {
+              await fetchTransactionTypes();
+              setIsNewModalOpen(true);
+            }}
             disabled={transactionTypes.length === 0 || closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO")}
             title={transactionTypes.length === 0 ? "Cadastre um tipo de lançamento antes de lançar valores." : closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO") ? "Fechamento concluído. Crie ou selecione um fechamento em aberto." : "Novo lançamento"}
             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -674,7 +692,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Médico (opcional)</label>
+                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Médico {transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "(obrigatório para este tipo)" : "(opcional)"}</label>
                 <select
                   value={newForm.doctorId || ""}
                   onChange={e => {
@@ -686,7 +704,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   <option value="">Equipe / despesa compartilhada (ratear conforme o tipo)</option>
                   {allDoctors.map(doctor => <option key={doctor.key} value={doctor.key}>{doctor.name}</option>)}
                 </select>
-                <span className="text-[10px] text-gray-400 font-normal">Sem médico selecionado, será usada a regra de rateio configurada no tipo de lançamento.</span>
+                <span className="text-[10px] text-gray-400 font-normal">{transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "Este tipo é individual e exige a seleção de um médico." : "Sem médico selecionado, será usada a regra de rateio configurada no tipo de lançamento."}</span>
               </div>
 
               <div className="space-y-1.5">
