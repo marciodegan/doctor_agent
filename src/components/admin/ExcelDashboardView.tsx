@@ -420,7 +420,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const cashFlowAllocation = React.useMemo(() => {
     const incomingByDoctor: Record<string, number> = {};
     const expenseByDoctorType: Record<string, Record<string, number>> = {};
-    const team = configuredDoctors.filter((d: any) => d.isTeamMember);
+    const team = configuredDoctors.filter((d: any) => d.isTeamMember === true || (Number(d.teamSharePercent) || 0) > 0 || (Number(d.proporcaoHeartDinamica) || 0) > 0);
     const allDoctors = configuredDoctors;
     cashFlowTransactions.forEach((tx: any) => {
       // Valores de saídas podem estar armazenados com sinal negativo no Fluxo de Caixa.
@@ -443,7 +443,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       // Rateio de equipe usa exclusivamente os médicos marcados como membros da equipe.
       // Para despesas com rateio dinâmico, usar a mesma Prop Heart % exibida na matriz.
       const scope = String(tx.scope || "TEAM").toUpperCase();
-      const eligible = ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM"].includes(scope) ? team : allDoctors;
+      const isTeamRate = ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM", "RATEIO_EQUIPE"].includes(scope) || doctorId === "heart_equipe" || doctorId === "equipe";
+      const eligible = isTeamRate ? team : allDoctors;
       const method = String(tx.rateioMethod || "").toUpperCase();
       const useNominal = method === "NOMINAL";
       const weight = (d: any) => Math.max(0, Number(useNominal ? d.teamSharePercent : (d.proporcaoHeartDinamica ?? d.teamSharePercent)) || 0);
