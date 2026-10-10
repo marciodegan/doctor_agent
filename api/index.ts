@@ -2935,10 +2935,26 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     if (scope === "DOCTOR" && !requestedDoctorId && !storedType.doctorId) {
       return res.status(400).json({ error: "Este tipo está configurado como individual. Selecione o médico antes de lançar." });
     }
-    const doctorId = scope === "TEAM" ? "heart_equipe" : (requestedDoctorId || storedType.doctorId);
+    const selectedDoctorId = requestedDoctorId || storedType.doctorId || "";
+    let selectedDoctorData: any = null;
+    if (scope === "DOCTOR") {
+      if (!selectedDoctorId) {
+        return res.status(400).json({ error: "Este lançamento exige um médico válido." });
+      }
+
+      const selectedDoctorSnap = await db.collection("doctors").doc(String(selectedDoctorId)).get();
+      if (selectedDoctorSnap.exists) {
+        selectedDoctorData = selectedDoctorSnap.data() || {};
+      } else if (requestedDoctorId) {
+        // New selections must reference a real doctors/{documentId} record.
+        return res.status(400).json({ error: "O médico selecionado não existe na coleção doctors. Atualize a lista de médicos e tente novamente." });
+      }
+    }
+
+    const doctorId = scope === "TEAM" ? "heart_equipe" : String(selectedDoctorId);
     const doctorName = scope === "TEAM"
       ? "HEART CIRURGIA CARDIOVASCULAR"
-      : (requestedDoctorId ? (requestedDoctorName || String(requestedDoctorId)) : (storedType.doctorName || String(storedType.doctorId)));
+      : (selectedDoctorData?.name || requestedDoctorName || storedType.doctorName || String(selectedDoctorId));
     const source = scope === "TEAM" ? "RATEIO_EQUIPE" : "MANUAL";
     const txDate = date || new Date().toLocaleDateString("pt-BR");
     const isTeamScope = scope === "TEAM";
