@@ -607,10 +607,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
     const loteRows = (Array.isArray(details?.taxes) ? details.taxes : [])
       .filter((item: any) => item.bruto !== undefined && item.liquido !== undefined);
-    const productionBase = loteRows.reduce((sum: number, item: any) => sum + (Number(item.bruto) || 0), 0)
-      || productionRecords.reduce((sum: number, item: any) => sum + (Number(item.honorValue) || 0) + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
     const operationalTotal = productionRecords.reduce((sum: number, item: any) => sum + (Number(item.operationalValue) || 0), 0);
     const filmTotal = productionRecords.reduce((sum: number, item: any) => sum + (Number(item.filmValue) || 0), 0);
+    // Operational and film values are additional production, not deductions.
+    const lotProductionBase = loteRows.reduce((sum: number, item: any) => sum + (Number(item.bruto) || 0), 0);
+    const productionBase = lotProductionBase > 0 ? lotProductionBase + operationalTotal + filmTotal : productionRecords.reduce((sum: number, item: any) => sum + (Number(item.honorValue) || 0) + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
     const irrfTotal = Math.round(productionBase * noteSettings.irrfPercent) / 100;
     const pisTotal = Math.round(productionBase * noteSettings.pisPercent) / 100;
     const cofinsTotal = Math.round(productionBase * noteSettings.cofinsPercent) / 100;
@@ -623,7 +624,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const reserveTotal = irpjTotal + csll9Total + additionalTotal;
     const retentionTotal = Math.round((taxesTotal + reserveTotal * noteSettings.reservaRetencaoPercent / 100) * 100) / 100;
     const cotaParte = Number(noteSettings.cotaParte);
-    const internalDSTotal = Math.max(0, Math.round((productionBase - operationalTotal - filmTotal - cotaParte - noteSettings.otherDeductions - retentionTotal - reserveTotal) * 100) / 100);
+    const internalDSTotal = Math.max(0, Math.round((productionBase - cotaParte - noteSettings.otherDeductions - retentionTotal - reserveTotal) * 100) / 100);
 
     productionRecords.forEach((p: any) => {
       if (p.allocationStatus === "PENDING_REVIEW" || !p.doctorId) {
@@ -666,7 +667,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const honorDS = Math.max(0, honorTT - (Number(d.glosa) || 0));
       const plantaoTT = Number(man.plantaoTT) || 0;
       const plantaoDS = Number(man.plantaoDS) || 0;
-      const vlNotaTT = honorTT + d.filmTT + plantaoTT;
+      const vlNotaTT = honorTT + (Number(d.operationalTT) || 0) + d.filmTT + plantaoTT;
       const doctorProduction = honorTT + (Number(d.operationalTT) || 0) + (Number(d.filmTT) || 0);
       const allocatedNoteDS = productionBase > 0 ? (doctorProduction / productionBase) * internalDSTotal : (isTeam ? honorDS : honorTT) + d.filmTT;
       const dispDS = Math.round((allocatedNoteDS + plantaoDS) * 100) / 100;
@@ -2088,11 +2089,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
           {(() => {
             const lots = (Array.isArray(details?.taxes) ? details.taxes : []).filter((item: any) => item.bruto !== undefined && item.liquido !== undefined);
-            const productionBase = lots.reduce((sum: number, lot: any) => sum + (Number(lot.bruto) || 0), 0)
-              || production.reduce((sum: number, item: any) => sum + (Number(item.honorValue) || 0) + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
-            const officialNet = lots.reduce((sum: number, lot: any) => sum + (Number(lot.netReported ?? lot.liquido) || 0), 0);
             const operational = production.reduce((sum: number, item: any) => sum + (Number(item.operationalValue) || 0), 0);
             const film = production.reduce((sum: number, item: any) => sum + (Number(item.filmValue) || 0), 0);
+            const lotProductionBase = lots.reduce((sum: number, lot: any) => sum + (Number(lot.bruto) || 0), 0);
+            const productionBase = lotProductionBase > 0 ? lotProductionBase + operational + film : production.reduce((sum: number, item: any) => sum + (Number(item.honorValue) || 0) + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
+            const officialNet = lots.reduce((sum: number, lot: any) => sum + (Number(lot.netReported ?? lot.liquido) || 0), 0);
             const money = (value: number) => (Number(value) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const setPercent = (key: keyof typeof noteSettings, value: number) => setNoteSettings(current => ({ ...current, [key]: value }));
             const irrf = Math.round(productionBase * noteSettings.irrfPercent) / 100;
@@ -2106,7 +2107,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
             const adicional = Math.round(presumedProfit * noteSettings.adicional10Percent) / 100;
             const reserve = irpj + csll9 + adicional;
             const totalRetention = Math.round((taxes + reserve * noteSettings.reservaRetencaoPercent / 100) * 100) / 100;
-            const internalDS = Math.round((productionBase - operational - film - noteSettings.cotaParte - noteSettings.otherDeductions - totalRetention - reserve) * 100) / 100;
+            const internalDS = Math.round((productionBase - noteSettings.cotaParte - noteSettings.otherDeductions - totalRetention - reserve) * 100) / 100;
             const fields: { key: keyof typeof noteSettings; label: string }[] = [
               { key: "irrfPercent", label: "IRRF %" }, { key: "pisPercent", label: "PIS %" },
               { key: "cofinsPercent", label: "COFINS %" }, { key: "csllPercent", label: "CSLL retida %" },
@@ -2123,7 +2124,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="p-3 bg-white border rounded-xl"><span className="text-[10px] uppercase font-bold text-gray-500">Valor-base da nota</span><div className="font-black text-gray-900">R$ {money(productionBase)}</div></div>
                   <div className="p-3 bg-white border rounded-xl"><span className="text-[10px] uppercase font-bold text-gray-500">Líquido oficial Unimed</span><div className="font-black text-blue-800">R$ {money(officialNet)}</div></div>
-                  <div className="p-3 bg-white border rounded-xl"><span className="text-[10px] uppercase font-bold text-gray-500">Operacional + filme</span><div className="font-black text-rose-700">-R$ {money(operational + film)}</div></div>
+                  <div className="p-3 bg-white border rounded-xl"><span className="text-[10px] uppercase font-bold text-gray-500">Operacional + filme adicionados</span><div className="font-black text-emerald-700">R$ {money(operational + film)}</div></div>
                   <div className="p-3 bg-emerald-100 border border-emerald-200 rounded-xl"><span className="text-[10px] uppercase font-bold text-emerald-800">DS interno calculado</span><div className="font-black text-emerald-900 text-lg">R$ {money(internalDS)}</div></div>
                 </div>
                 <div><h5 className="text-xs font-black uppercase text-gray-700 mb-2">Percentuais editáveis</h5><div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -2134,7 +2135,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   <label className="text-xs font-bold text-gray-600">Outras deduções (R$)<input type="number" min="0" step="0.01" value={noteSettings.otherDeductions} onChange={event => setPercent("otherDeductions", Number(event.target.value))} className="block w-full mt-1 p-2 rounded-lg border border-gray-300 bg-white text-gray-900" /></label>
                   <div className="p-3 bg-white border rounded-xl text-xs space-y-1"><div className="flex justify-between"><span>Impostos retidos</span><b>R$ {money(taxes)}</b></div><div className="flex justify-between"><span>Reserva (IRPJ + CSLL + adicional)</span><b>R$ {money(reserve)}</b></div><div className="flex justify-between"><span>TT retenção calculada</span><b>R$ {money(totalRetention)}</b></div></div>
                 </div>
-                <p className="text-[11px] text-gray-500">DS interno = valor-base − operacional − filme − cota-parte − outras deduções − TT retenção − reserva de impostos. Os percentuais e deduções são editáveis.</p>
+                <p className="text-[11px] text-gray-500">DS interno = produção total (incluindo operacional e filme) − cota-parte − outras deduções − TT retenção − reserva de impostos. Os percentuais e deduções são editáveis.</p>
                 {noteSettingsMessage && <p className={noteSettingsMessage.includes("salvas") ? "text-xs font-bold text-emerald-700" : "text-xs font-bold text-rose-700"}>{noteSettingsMessage}</p>}
               </div>
             );
