@@ -155,13 +155,24 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const configuredDoctors = Array.isArray(teamSettings.doctors) ? teamSettings.doctors : [];
 
   const rowsData = React.useMemo(() => {
+    const normalizeDoctorName = (value: any) => String(value || "")
+      .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ");
     const configuredIndex = new Map(configuredDoctors.map((d, index) => [d.key, index]));
-    return (Array.isArray(doctors) ? doctors : []).map(doc => ({
-      key: doc.id,
-      name: doc.name,
-      percent: configuredDoctors.find(d => d.key === doc.id)?.teamSharePercent || 0,
-      isTeam: configuredDoctors.find(d => d.key === doc.id)?.isTeamMember || false
-    })).sort((a, b) => {
+    return (Array.isArray(doctors) ? doctors : []).map(doc => {
+      // Firestore document IDs are not necessarily the stable keys used by team settings.
+      // Resolve settings by ID first, then by normalized doctor name, and use the stable
+      // configured key throughout the matrix so cash-flow allocations land on the right row.
+      const setting = configuredDoctors.find(d => d.key === doc.id)
+        || configuredDoctors.find(d => normalizeDoctorName(d.name) === normalizeDoctorName(doc.name));
+      return {
+        key: setting?.key || doc.id,
+        firestoreId: doc.id,
+        name: doc.name || setting?.name || "Médico",
+        percent: Number(setting?.teamSharePercent) || 0,
+        heartPercent: Number(setting?.proporcaoHeartDinamica) || 0,
+        isTeam: Boolean(setting?.isTeamMember)
+      };
+    }).sort((a, b) => {
       const ai = configuredIndex.get(a.key);
       const bi = configuredIndex.get(b.key);
       if (ai !== undefined && bi !== undefined) return ai - bi;
