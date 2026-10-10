@@ -461,7 +461,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const doctorId = String(tx.doctorId || "");
       const typeId = String(tx.typeId || tx.typeName || "outros");
       const scope = String(tx.scope || "").toUpperCase();
-      const isExplicitDoctor = scope === "DOCTOR" && doctorId && !["HEART_EQUIPE", "EQUIPE"].includes(doctorId.toUpperCase());
+      // Explicit doctor IDs take priority over stale legacy scope values.
+      // Older records may have doctorId="luis" while scope is incorrectly "TEAM".
+      const isTeamPlaceholderId = ["HEART_EQUIPE", "EQUIPE", "HEART", "TEAM"].includes(doctorId.toUpperCase());
+      const resolvedSelectedDoctor = doctorId && !isTeamPlaceholderId ? resolveDoctor(doctorId, tx.doctorName) : undefined;
+      const isExplicitDoctor = Boolean(resolvedSelectedDoctor) || (scope === "DOCTOR" && Boolean(doctorId) && !isTeamPlaceholderId);
 
       const addAllocation = (key: string, allocated: number) => {
         if (allocated <= 0) return;
@@ -474,8 +478,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
       // Individual transaction: 100% to the selected doctor, never rate it across others.
       if (isExplicitDoctor) {
-        const doctor = resolveDoctor(doctorId, tx.doctorName);
+        const doctor = resolvedSelectedDoctor || resolveDoctor(doctorId, tx.doctorName);
         if (doctor?.key) addAllocation(String(doctor.key), amount);
+        // Never fall through to team allocation for an individual transaction.
         return;
       }
 
