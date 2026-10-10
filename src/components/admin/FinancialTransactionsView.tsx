@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { TransactionTypesManager } from "./TransactionTypesManager";
 import { FinancialTransactionType } from "../../types/financial";
+import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
+import { db } from "../../lib/firebase";
 
 interface FinancialTransactionsViewProps {
   closingId: string | null;
@@ -87,6 +89,36 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     { key: "maria_eduarda", name: "MARIA EDUARDA CASA SOUZA MACHADO", isTeam: false, percent: 0 }
   ];
 
+  // New transactions use the actual Firestore document ID from the shared doctors collection.
+  // Slug keys remain only as a fallback for environments where the doctor query is unavailable.
+  const [doctorOptions, setDoctorOptions] = useState<any[]>([]);
+  const selectableDoctors = doctorOptions.length > 0
+    ? doctorOptions
+    : allDoctors.map(doctor => ({ ...doctor, id: doctor.key }));
+
+  const fetchDoctorOptions = async () => {
+    try {
+      const snapshot = await getDocs(query(collection(db, "doctors"), where("active", "==", true), orderBy("name")));
+      const docs = snapshot.docs
+        .map(document => {
+          const data = document.data();
+          const fallback = allDoctors.find(doctor => String(doctor.name).trim().toUpperCase() === String(data.name || "").trim().toUpperCase());
+          return {
+            id: document.id,
+            key: fallback?.key || document.id,
+            name: String(data.name || "").trim(),
+            isTeam: Boolean(fallback?.isTeam),
+            percent: fallback?.percent || 0
+          };
+        })
+        .filter(doctor => doctor.name);
+      setDoctorOptions(docs);
+    } catch (error) {
+      console.error("Failed to load canonical doctor IDs:", error);
+      setDoctorOptions([]);
+    }
+  };
+
   // Fetch transaction types
   const fetchTransactionTypes = async () => {
     if (!activeGroup) return;
@@ -147,6 +179,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     fetchClosings();
     fetchTransactionTypes();
     fetchTeamSettings();
+    fetchDoctorOptions();
   }, [activeGroup]);
 
   // Sync selectedClosingId
@@ -272,7 +305,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         body: JSON.stringify({
           closingId: selectedClosingId,
           doctorId: newForm.doctorId || null,
-          doctorName: newForm.doctorId ? (allDoctors.find(d => d.key === newForm.doctorId)?.name || "") : null,
+          doctorName: newForm.doctorId ? (selectableDoctors.find(d => String(d.id) === String(newForm.doctorId))?.name || "") : null,
           scope: newForm.doctorId ? "DOCTOR" : "TEAM",
           typeName: newForm.typeName,
           typeId: newForm.typeId || "avulso",
@@ -696,13 +729,13 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                 <select
                   value={newForm.doctorId || ""}
                   onChange={e => {
-                    const doctor = allDoctors.find(d => d.key === e.target.value);
-                    setNewForm({ ...newForm, doctorId: doctor?.key || "", doctorName: doctor?.name || "" });
+                    const doctor = selectableDoctors.find(d => String(d.id) === String(e.target.value));
+                    setNewForm({ ...newForm, doctorId: doctor?.id || "", doctorName: doctor?.name || "" });
                   }}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="">Equipe / despesa compartilhada (ratear conforme o tipo)</option>
-                  {allDoctors.map(doctor => <option key={doctor.key} value={doctor.key}>{doctor.name}</option>)}
+                  {selectableDoctors.map(doctor => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
                 </select>
                 <span className="text-[10px] text-gray-400 font-normal">{transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "Este tipo é individual e exige a seleção de um médico." : "Sem médico selecionado, será usada a regra de rateio configurada no tipo de lançamento."}</span>
               </div>
