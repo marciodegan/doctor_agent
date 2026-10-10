@@ -1420,8 +1420,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         >
                           {r.unimedPartDS > 0 ? r.unimedPartDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        
-                        
                         <td className="p-3 border border-slate-200 bg-emerald-50/60 p-1">
                           <input
                             type="number"
