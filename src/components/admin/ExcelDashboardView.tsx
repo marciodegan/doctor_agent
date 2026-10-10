@@ -485,6 +485,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const resolvedSelectedDoctor = doctorId && !isTeamPlaceholderId ? resolveDoctor(doctorId, tx.doctorName) : undefined;
       const isExplicitDoctor = Boolean(resolvedSelectedDoctor) || (scope === "DOCTOR" && Boolean(doctorId) && !isTeamPlaceholderId);
 
+      // Key allocations by normalized doctor name, not by a mixture of slugs and
+      // Firestore-generated settings keys. This guarantees the value follows the
+      // selected doctor's visible matrix row.
+      const matrixKey = (doctor: any) => normalize(doctor?.name);
       const addAllocation = (key: string, allocated: number) => {
         if (allocated <= 0) return;
         if (isCredit) incomingByDoctor[key] = (incomingByDoctor[key] || 0) + allocated;
@@ -497,7 +501,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       // Individual transaction: 100% to the selected doctor, never rate it across others.
       if (isExplicitDoctor) {
         const doctor = resolvedSelectedDoctor || resolveDoctor(doctorId, tx.doctorName);
-        if (doctor?.key) addAllocation(String(doctor.key), amount);
+        if (doctor?.name) addAllocation(matrixKey(doctor), amount);
         // Never fall through to team allocation for an individual transaction.
         return;
       }
@@ -527,7 +531,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           ? Math.round((amount - allocatedSoFar) * 100) / 100
           : Math.round((amount * weight(d) / totalWeight) * 100) / 100;
         allocatedSoFar += allocated;
-        addAllocation(String(d.key), allocated);
+        addAllocation(matrixKey(d), allocated);
       });
     });
     return { incomingByDoctor, expenseByDoctorType };
@@ -1248,8 +1252,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         consultTT, consultDS, dinheiroTT, dinheiroDS, unimLuisTT, unimLuisDS,
                         totalGeralTT, totalGeralDS,
                         cashFlowIn: cashFlowAllocation.incomingByDoctor[doc.key] || 0,
-                        cashFlowExpenses: cashFlowAllocation.expenseByDoctorType[doc.key] || {},
-                        afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[doc.key] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[doc.key] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
+                        cashFlowExpenses: cashFlowAllocation.expenseByDoctorType[String(doc.name || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ")] || {},
+                        afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[String(doc.name || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ")] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[String(doc.name || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ")] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
                       };
                     });
 
