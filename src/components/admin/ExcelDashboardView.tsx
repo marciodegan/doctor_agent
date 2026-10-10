@@ -494,11 +494,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const doctorId = String(tx.doctorId || "");
       const typeId = String(tx.typeId || tx.typeName || "outros");
       const scope = String(tx.scope || "").toUpperCase();
-      // Explicit doctor IDs take priority over stale legacy scope values.
-      // Older records may have doctorId="luis" while scope is incorrectly "TEAM".
+      // Allocation scope is a snapshot of the transaction type configuration.
+      // Never let a populated doctorId override TEAM scope.
       const isTeamPlaceholderId = ["HEART_EQUIPE", "EQUIPE", "HEART", "TEAM"].includes(doctorId.toUpperCase());
       const resolvedSelectedDoctor = doctorId && !isTeamPlaceholderId ? resolveDoctor(doctorId, tx.doctorName) : undefined;
-      const isExplicitDoctor = Boolean(resolvedSelectedDoctor) || (scope === "DOCTOR" && Boolean(doctorId) && !isTeamPlaceholderId);
+      const isExplicitDoctor = scope === "DOCTOR" && Boolean(resolvedSelectedDoctor) && !isTeamPlaceholderId;
 
       // Key allocations by normalized doctor name, not by a mixture of slugs and
       // Firestore-generated settings keys. This guarantees the value follows the
