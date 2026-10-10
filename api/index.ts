@@ -2740,23 +2740,14 @@ app.get("/api/app/financial/transaction-types", async (req, res) => {
       .where("teamId", "==", groupId)
       .get();
     
-    // Always map stored items
-    // Every persisted document is a user-managed type, including older records
-    // created before the isCustom flag was consistently stored.
-    const storedTypes = snap.docs.map(doc => ({ ...doc.data(), id: doc.id, isCustom: true }));
-    // Tombstones prevent removed default types from reappearing.
-    const customIds = new Set(storedTypes.map(t => t.id));
-    const customTypes = storedTypes.filter((t: any) => t.isDeleted !== true);
-    const merged = [
-      ...customTypes,
-      ...DEFAULT_TRANSACTION_TYPES.filter(d => !customIds.has(d.id)).map(d => ({
-        ...d,
-        teamId: groupId,
-        isCustom: false
-      }))
-    ];
+    // The persisted catalog is the only source of truth. Deleted types are
+    // physically removed and must not be silently recreated from defaults.
+    const activeTypes = snap.docs
+      .map(doc => ({ ...doc.data(), id: doc.id, isCustom: doc.data().isCustom !== false }))
+      .filter((type: any) => type.isDeleted !== true)
+      .sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
 
-    res.json(merged);
+    res.json(activeTypes);
   } catch (error: any) {
     handleApiError(res, error, "Get Financial Transaction Types");
   }
@@ -2864,28 +2855,16 @@ app.delete("/api/app/financial/transaction-types/:id", async (req, res) => {
     const existing = await docRef.get();
 
     const storedData = existing.exists ? existing.data() : undefined;
-    const defaultType = DEFAULT_TRANSACTION_TYPES.find((item: any) => item.id === id);
-    if (!existing.exists && !defaultType) {
-      return res.status(404).json({ error: "Tipo de lançamento não encontrado." });
+    if (!existing.exists) {
+      return res.status(404).json({ error: "Tipo de lançamento não encontrado ou já removido." });
     }
-    if (storedData && storedData.teamId !== groupId) {
+    if (storedData?.teamId !== groupId) {
       return res.status(403).json({ error: "Você não tem permissão para remover este tipo." });
     }
 
-    // Defaults use a tombstone so they stay hidden; historical transactions remain untouched.
-    if (defaultType) {
-      await docRef.set({
-        ...(storedData || defaultType),
-        id,
-        teamId: groupId,
-        isCustom: false,
-        isDeleted: true,
-        deletedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-    } else {
-      await docRef.delete();
-    }
+    // Remove the catalog entry physically. Historical transactions retain their
+    // own typeName/typeId snapshots and are not modified.
+    await docRef.delete();
 
     await db.collection("financial_audit_logs").add({
       teamId: groupId,
@@ -2894,9 +2873,9 @@ app.delete("/api/app/financial/transaction-types/:id", async (req, res) => {
       action: "DELETE_TRANSACTION_TYPE",
       entityType: "financial_transaction_type",
       entityId: id,
-      entityName: storedData?.name || defaultType?.name || id,
+      entityName: storedData?.name || id,
       createdAt: new Date().toISOString(),
-      details: "Tipo removido do cadastro; lançamentos existentes no fluxo de caixa foram preservados."
+      details: "Tipo removido fisicamente do cadastro; lançamentos existentes no fluxo de caixa foram preservados."
     });
 
     res.json({ success: true, historicalTransactionsPreserved: true });
@@ -2939,9 +2918,9 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     // The saved catalog is the source of truth for nature, scope and rateio.
     // Ignore any nature/scope/rateio values sent by the client.
     const typeDoc = await db.collection("financial_transaction_types").doc(String(typeId)).get();
-    const storedType = typeDoc.exists && typeDoc.data()?.teamId === groupId
+    const storedType = typeDoc.exists && typeDoc.data()?.teamId === groupId && typeDoc.data()?.isDeleted !== true
       ? typeDoc.data()
-      : DEFAULT_TRANSACTION_TYPES.find((item: any) => item.id === String(typeId));
+      : undefined;
     if (!storedType) {
       return res.status(400).json({ error: "Tipo de lançamento inválido. Atualize a lista e selecione um tipo cadastrado." });
     }
