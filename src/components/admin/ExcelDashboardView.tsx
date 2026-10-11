@@ -565,6 +565,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   };
 
   const cashFlowTransactions = Array.isArray(details?.transactions) ? details.transactions : [];
+  const transactionTypesById = new Map<string, any>(
+    (Array.isArray(details?.transactionTypes) ? details.transactionTypes : [])
+      .map((type: any) => [String(type.id), type])
+  );
+  const getEffectiveRateioMethod = (tx: any) => {
+    const currentType = transactionTypesById.get(String(tx.typeId || ""));
+    return String(currentType?.defaultRateioMethod || tx.rateioMethod || "").toUpperCase();
+  };
   const cashFlowExpenseTypes = Array.from(new Map(
     cashFlowTransactions
       .filter((tx: any) => String(tx.nature || "").toUpperCase() === "DEBIT")
@@ -590,15 +598,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       .replace(/\s+/g, " ");
     const team = configuredDoctors.filter((d: any) => d.isTeamMember === true);
     const allDoctors = configuredDoctors;
-    const transactionTypesById = new Map<string, any>(
-      (Array.isArray(details?.transactionTypes) ? details.transactionTypes : [])
-        .map((type: any) => [String(type.id), type])
-    );
-    const getEffectiveRateioMethod = (tx: any) => {
-      const currentType = transactionTypesById.get(String(tx.typeId || ""));
-      return String(currentType?.defaultRateioMethod || tx.rateioMethod || "").toUpperCase();
-    };
-
     // Resolve legacy transaction doctor IDs (Firestore IDs or names) to the stable
     // financial-settings key used by the matrix rows.
     const resolveDoctor = (id: any, name: any) => {
