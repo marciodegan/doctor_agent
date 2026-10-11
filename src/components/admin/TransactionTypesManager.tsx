@@ -319,7 +319,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
             </button>
 
             <button
-              onClick={() => handleOpenAdd("SALARIO")
+              onClick={() => handleOpenAdd("SALARIO")}
               className="flex items-center gap-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-100 border border-emerald-300/30 px-4 py-3 rounded-2xl font-black text-xs tracking-wide active:scale-95 transition cursor-pointer"
             >
               <Plus size={16} />
