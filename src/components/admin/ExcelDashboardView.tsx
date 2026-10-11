@@ -1111,8 +1111,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-100">
               <div>
                 <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Matriz de Entradas — Totais (TT) e Disponíveis para Saque (DS)</h3>
-                <p className="text-xs text-gray-500">Visualização detalhada por médico e fonte. Os campos com fundo <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">verde</span> são editáveis manualmente para lançamentos de plantão.</p>
+                <p className="text-xs text-gray-500">Visualização detalhada por médico e fonte. Os campos com fundo <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">verde</span> são editáveis manualmente para lançamentos de plantão. Os valores são salvos ao sair do campo.</p>
               </div>
+              {manualEntrySaveMessage && <p className={`text-xs font-semibold ${manualEntrySaveMessage.startsWith("Falha") || manualEntrySaveMessage.startsWith("Não foi") ? "text-red-600" : "text-emerald-700"}`}>{manualEntrySaveMessage}</p>}
             </div>
 
             <div className="overflow-x-auto custom-scrollbar">
