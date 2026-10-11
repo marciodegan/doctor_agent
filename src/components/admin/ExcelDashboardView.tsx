@@ -166,6 +166,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         } else {
           setManualEntradas(defaultManualEntradas);
         }
+        if (snapshot.exists() && snapshot.data()?.globalEntradas) {
+          setGlobalEntradas({ ...defaultGlobalEntradas, ...snapshot.data().globalEntradas });
+        } else {
+          setGlobalEntradas(defaultGlobalEntradas);
+        }
       } catch (error) {
         console.error("Erro ao carregar valores manuais da matriz:", error);
       } finally {
@@ -210,18 +215,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   };
 
   // Global manual entries for totals at the top of sections
-  const [globalEntradas, setGlobalEntradas] = useState<{
-    azambujaTT: number;
-    azambujaDS: number;
-    marietaTT: number;
-    marietaDS: number;
-    consultorioTT: number;
-    consultorioDS: number;
-    dinheiroTT: number;
-    dinheiroDS: number;
-    unimedLuisTT: number;
-    unimedLuisDS: number;
-  }>({
+  const defaultGlobalEntradas = {
     azambujaTT: 70020.94,
     azambujaDS: 57048.34,
     marietaTT: 81042.09,
@@ -232,7 +226,35 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     dinheiroDS: 1200,
     unimedLuisTT: 8406,
     unimedLuisDS: 7016.49
-  });
+  };
+  const [globalEntradas, setGlobalEntradas] = useState<typeof defaultGlobalEntradas>(defaultGlobalEntradas);
+
+  const saveGlobalEntryOnBlur = async (key: keyof typeof defaultGlobalEntradas, value: number) => {
+    const next = { ...globalEntradas, [key]: value };
+    setGlobalEntradas(next);
+    if (!activeGroup?.id || !selectedClosingId) {
+      setManualEntrySaveMessage("Não foi possível salvar: grupo ou fechamento ainda não foi carregado.");
+      return;
+    }
+    try {
+      setManualEntrySaveMessage("Salvando valores da matriz...");
+      await setDoc(
+        doc(db, "groups", activeGroup.id, "financial_matrix_manual_entries", String(selectedClosingId).split("/").join("_")),
+        {
+          groupId: activeGroup.id,
+          closingId: selectedClosingId,
+          globalEntradas: next,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
+      setManualEntrySaveMessage("Valores de Azambuja e Marieta salvos.");
+    } catch (error: any) {
+      console.error("Erro ao salvar totais de Azambuja/Marieta:", error);
+      setManualEntrySaveMessage("Falha ao salvar os valores. Verifique as permissões do Firestore.");
+      alert("Não foi possível salvar os valores de Azambuja/Marieta no Firestore. Verifique as permissões de gravação. Detalhe: " + (error?.message || "erro desconhecido"));
+    }
+  };
 
   useEffect(() => {
     const fetchDoctors = async () => {
@@ -1149,6 +1171,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.azambujaTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, azambujaTT: parseFloat(e.target.value) || 0 })}
+                            onBlur={(e) => void saveGlobalEntryOnBlur("azambujaTT", parseFloat(e.currentTarget.value) || 0)}
                             className="w-20 text-center bg-emerald-100 text-emerald-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-emerald-400"
                             placeholder="0,00"
                           />
@@ -1157,6 +1180,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.azambujaDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, azambujaDS: parseFloat(e.target.value) || 0 })}
+                            onBlur={(e) => void saveGlobalEntryOnBlur("azambujaDS", parseFloat(e.currentTarget.value) || 0)}
                             className="w-20 text-center bg-emerald-100 text-emerald-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-emerald-400"
                             placeholder="0,00"
                           />
@@ -1172,6 +1196,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.marietaTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, marietaTT: parseFloat(e.target.value) || 0 })}
+                            onBlur={(e) => void saveGlobalEntryOnBlur("marietaTT", parseFloat(e.currentTarget.value) || 0)}
                             className="w-20 text-center bg-emerald-100 text-emerald-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-emerald-400"
                             placeholder="0,00"
                           />
@@ -1180,6 +1205,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.marietaDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, marietaDS: parseFloat(e.target.value) || 0 })}
+                            onBlur={(e) => void saveGlobalEntryOnBlur("marietaDS", parseFloat(e.currentTarget.value) || 0)}
                             className="w-20 text-center bg-emerald-100 text-emerald-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-emerald-400"
                             placeholder="0,00"
                           />
