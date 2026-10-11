@@ -139,6 +139,9 @@ export interface FinancialTransaction {
   date: string;
   amount: number;
   nature: "CREDIT" | "DEBIT";
+  allowNegativeAmount?: boolean;
+  isSalary?: boolean;
+  matrixAdjustmentType?: "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "" | null;
   observation: string;
   protocol?: string;
   guide?: string;
