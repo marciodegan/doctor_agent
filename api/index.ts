@@ -3899,6 +3899,26 @@ app.put("/api/app/financial/transactions/:id", async (req, res) => {
     const doc = await txRef.get();
     if (!doc.exists) return res.status(404).json({ error: "Transaction not found" });
 
+    const existingTransaction = doc.data() || {};
+    if (amount !== undefined) {
+      const parsedAmount = Number(amount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount === 0) {
+        return res.status(400).json({ error: "Informe um valor numérico diferente de zero." });
+      }
+      if (parsedAmount < 0) {
+        let negativeAllowed = existingTransaction.allowNegativeAmount === true;
+        if (!negativeAllowed && existingTransaction.typeId) {
+          const typeSnap = await db.collection("financial_transaction_types").doc(String(existingTransaction.typeId)).get();
+          const typeData = typeSnap.exists ? typeSnap.data() : undefined;
+          negativeAllowed = typeData?.teamId === getGroupId(req) &&
+            typeData?.nature !== "CREDIT" && typeData?.allowNegativeAmount === true;
+        }
+        if (!negativeAllowed) {
+          return res.status(400).json({ error: "Este tipo de lançamento não permite valores negativos." });
+        }
+      }
+    }
+
     await txRef.update({
       ...(amount !== undefined && { amount: Number(amount) }),
       ...(observation !== undefined && { observation }),
