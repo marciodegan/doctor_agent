@@ -46,7 +46,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
     defaultRateioMethod: "NOMINAL" as "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL",
     allowNegativeAmount: false,
     isSalary: false,
-    matrixAdjustmentType: "" as "" | "ACERTO_1" | "SOBRE_MES_ANTERIOR",
+    matrixAdjustmentType: "" as "" | "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "ACERTO_FINAL",
     category: "Receitas Equipe",
     description: ""
   });
@@ -73,7 +73,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
     fetchTypes();
   }, [activeGroup]);
 
-  const handleOpenAdd = (preset?: "ENTRADA_EQUIPE" | "DESPESA_EQUIPE" | "SALARIO" | "ACERTO_1" | "SOBRE_MES_ANTERIOR") => {
+  const handleOpenAdd = (preset?: "ENTRADA_EQUIPE" | "DESPESA_EQUIPE" | "SALARIO" | "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "ACERTO_FINAL") => {
     setEditingType(null);
     if (preset === "ENTRADA_EQUIPE") {
       setForm({
@@ -110,10 +110,11 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         category: "Salários",
         description: "Pagamento de salário individual. O valor aparece na coluna SALÁRIO e é deduzido do RESULT para calcular o FINAL."
       });
-    } else if (preset === "ACERTO_1" || preset === "SOBRE_MES_ANTERIOR") {
+    } else if (preset === "ACERTO_1" || preset === "SOBRE_MES_ANTERIOR" || preset === "ACERTO_FINAL") {
       const isAcerto1 = preset === "ACERTO_1";
+      const isAcertoFinal = preset === "ACERTO_FINAL";
       setForm({
-        name: isAcerto1 ? "Acerto 1" : "Sobre Mês Anterior",
+        name: isAcertoFinal ? "Acerto Final" : isAcerto1 ? "Acerto 1" : "Sobre Mês Anterior",
         nature: "DEBIT",
         defaultScope: "DOCTOR",
         defaultRateioMethod: "NOMINAL",
@@ -121,9 +122,11 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         isSalary: false,
         matrixAdjustmentType: preset,
         category: "Acertos",
-        description: isAcerto1
-          ? "Acerto individual do médico. Aceita valores positivos ou negativos e aparece após FINAL na matriz."
-          : "Ajuste referente ao mês anterior, vinculado individualmente ao médico. Aceita valores positivos ou negativos e aparece após FINAL na matriz."
+        description: isAcertoFinal
+          ? "Acerto final individual do médico. Aceita valores positivos ou negativos e é somado ao TOTAL para calcular FINALIZAÇÃO."
+          : isAcerto1
+            ? "Acerto individual do médico. Aceita valores positivos ou negativos e aparece após FINAL na matriz."
+            : "Ajuste referente ao mês anterior, vinculado individualmente ao médico. Aceita valores positivos ou negativos e aparece após FINAL na matriz."
       });
     } else {
       setForm({
@@ -311,7 +314,14 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
               <span>Novo Tipo: Acerto 1</span>
             </button>
             <button
-              onClick={() => handleOpenAdd("SOBRE_MES_ANTERIOR")}
+              onClick={() => handleOpenAdd("ACERTO_FINAL")}
+              className="flex items-center gap-2 bg-violet-500/15 hover:bg-violet-500/25 text-violet-100 border border-violet-300/30 px-4 py-3 rounded-2xl font-black text-xs tracking-wide active:scale-95 transition cursor-pointer"
+            >
+              <Plus size={16} />
+              <span>Novo Tipo: Acerto Final</span>
+            </button>
+            <button
+              onClick={() => handleOpenAdd("SOBRE_MES_ANTERIOR")
               className="flex items-center gap-2 bg-sky-500/15 hover:bg-sky-500/25 text-sky-100 border border-sky-300/30 px-4 py-3 rounded-2xl font-black text-xs tracking-wide active:scale-95 transition cursor-pointer"
             >
               <Plus size={16} />
@@ -679,8 +689,8 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
 
               {(form.isSalary || form.matrixAdjustmentType) && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
-                  <span className="font-black block">{form.isSalary ? "Tipo especial: Salário individual" : form.matrixAdjustmentType === "ACERTO_1" ? "Tipo especial: Acerto 1" : "Tipo especial: Sobre Mês Anterior"}</span>
-                  <span className="block mt-1">{form.isSalary ? "Será sempre uma saída vinculada a um único médico. Na matriz, ficará fora das despesas gerais e será descontado apenas no cálculo do FINAL." : "Será um lançamento individual do médico, aceita valores positivos e negativos e aparece em coluna própria após FINAL. Não altera RESULT nem FINAL."}</span>
+                  <span className="font-black block">{form.isSalary ? "Tipo especial: Salário individual" : form.matrixAdjustmentType === "ACERTO_FINAL" ? "Tipo especial: Acerto Final" : form.matrixAdjustmentType === "ACERTO_1" ? "Tipo especial: Acerto 1" : "Tipo especial: Sobre Mês Anterior"}</span>
+                  <span className="block mt-1">{form.isSalary ? "Será sempre uma saída vinculada a um único médico. Na matriz, ficará fora das despesas gerais e será descontado apenas no cálculo do FINAL." : form.matrixAdjustmentType === "ACERTO_FINAL" ? "Lançamento individual vinculado a um médico. Aceita valores positivos e negativos, aparece após TOTAL e é somado para calcular FINALIZAÇÃO." : "Será um lançamento individual do médico, aceita valores positivos e negativos e aparece em coluna própria após FINAL. Não altera RESULT nem FINAL."}</span>
                 </div>
               )}
 
