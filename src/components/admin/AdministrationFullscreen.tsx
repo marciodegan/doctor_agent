@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Plus,
   ChevronRight,
+  ChevronLeft,
   TrendingUp,
   FileText,
   TableProperties,
@@ -41,6 +42,7 @@ interface AdministrationFullscreenProps {
 
 export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboard" }: AdministrationFullscreenProps) {
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const { activeGroup } = useGroup();
@@ -48,7 +50,7 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
   return (
     <div className="fixed inset-0 z-[200] bg-[#f8fafc] flex flex-col h-full w-full overflow-hidden text-gray-900 font-sans">
       {/* Top Administration Navigation Header */}
-      <header className="h-16 bg-white border-b border-gray-200/80 px-6 flex items-center justify-between shrink-0 shadow-xs z-20">
+      <header className="min-h-16 bg-white border-b border-gray-200/80 px-2 sm:px-6 py-2 flex items-center justify-between gap-2 shrink-0 shadow-xs z-20">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
@@ -75,7 +77,7 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-black text-xs tracking-wider transition shadow-lg shadow-blue-500/20 active:scale-95 cursor-pointer"
           >
             <UploadCloud size={16} />
-            <span>Importar Documentos (PDF/CSV)</span>
+            <span className="hidden sm:inline">Importar Documentos (PDF/CSV)</span>
           </button>
         </div>
       </header>
@@ -83,77 +85,93 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
       {/* Main Hub Body with Sidebar & Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar Tabs */}
-        <aside className="w-64 bg-white border-r border-gray-200/80 flex flex-col p-4 gap-1.5 shrink-0 overflow-y-auto">
-          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 py-2">Módulos Financeiros</div>
+        <aside className={`${isSidebarCollapsed ? "w-16 sm:w-[4.5rem]" : "w-64"} bg-white border-r border-gray-200/80 flex flex-col p-2 sm:p-3 gap-1.5 shrink-0 overflow-y-auto transition-[width] duration-200`}>
+          <div className={`flex items-center ${isSidebarCollapsed ? "justify-center" : "justify-between"} px-1 py-1 mb-1`}>
+            {!isSidebarCollapsed && <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Módulos Financeiros</div>}
+            <button type="button" onClick={() => setIsSidebarCollapsed(current => !current)} aria-label={isSidebarCollapsed ? "Expandir menu financeiro" : "Recolher menu financeiro"} title={isSidebarCollapsed ? "Expandir menu" : "Recolher menu"} className="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer">
+              {isSidebarCollapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
+            </button>
+          </div>
           
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<TableProperties size={18} />}
             label="Dashboard Excel"
             active={activeTab === "excel_dashboard"}
             onClick={() => { setActiveTab("excel_dashboard"); setIsImporting(false); }}
           />
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<FileCheck2 size={18} />}
             label="Fechamentos"
             active={activeTab === "fechamentos"}
             onClick={() => { setActiveTab("fechamentos"); setIsImporting(false); }}
           />
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<Wallet size={18} />}
             label="Fluxo de Caixa (Ocorrências)"
             active={activeTab === "fluxo"}
             onClick={() => { setActiveTab("fluxo"); setIsImporting(false); }}
           />
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<Stethoscope size={18} />}
             label="Produção por Médico"
             active={activeTab === "medicos"}
             onClick={() => { setActiveTab("medicos"); setIsImporting(false); }}
           />
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<UserPlus size={18} />}
             label="Gerenciar Médicos"
             active={activeTab === "gerenciar_medicos"}
             onClick={() => { setActiveTab("gerenciar_medicos"); setIsImporting(false); }}
           />
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<AlertOctagon size={18} />}
             label="Glosas & Rateios"
             active={activeTab === "glosas"}
             onClick={() => { setActiveTab("glosas"); setIsImporting(false); }}
           />
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<ReceiptText size={18} />}
             label="Impostos & Tributos"
             active={activeTab === "impostos"}
             onClick={() => { setActiveTab("impostos"); setIsImporting(false); }}
           />
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<UploadCloud size={18} />}
             label="Importações & Upload"
             active={activeTab === "importacoes"}
             onClick={() => { setActiveTab("importacoes"); setIsImporting(false); }}
           />
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<Tag size={18} />}
             label="Tipos de Lançamento"
             active={activeTab === "tipos_lancamento"}
             onClick={() => { setActiveTab("tipos_lancamento"); setIsImporting(false); }}
           />
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<Settings2 size={18} />}
             label="Configurações Financeiras"
             active={activeTab === "config"}
             onClick={() => { setActiveTab("config"); setIsImporting(false); }}
           />
           <TabButton
+            collapsed={isSidebarCollapsed}
             icon={<UserCheck size={18} />}
             label="Prestadores"
             active={activeTab === "config_prestadores"}
             onClick={() => { setActiveTab("config_prestadores"); setIsImporting(false); }}
           />
 
-          <div className="mt-auto pt-4 border-t border-gray-100 px-3">
+          <div className={`mt-auto pt-4 border-t border-gray-100 px-1 ${isSidebarCollapsed ? "hidden" : ""}`}>
             <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-100/60 space-y-1">
               <span className="text-[10px] font-black text-emerald-800 uppercase block tracking-wider">Planilha Inteligente Ativa</span>
               <p className="text-[10px] text-emerald-700 font-medium leading-relaxed">Taxas, glosas e ocorrências vinculadas diretamente ao fluxo de caixa.</p>
@@ -162,7 +180,7 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
         </aside>
 
         {/* Content Area */}
-        <main className="flex-1 bg-gray-50 overflow-y-auto p-6 lg:p-8">
+        <main className="min-w-0 flex-1 bg-gray-50 overflow-y-auto p-2 sm:p-6 lg:p-8">
           {isImporting ? (
             <FinancialImportWizard
               onClose={() => setIsImporting(false)}
@@ -225,19 +243,21 @@ export function AdministrationFullscreen({ onClose, initialTab = "excel_dashboar
   );
 }
 
-function TabButton({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
+function TabButton({ icon, label, active, onClick, collapsed = false }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void; collapsed?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-3 w-full px-4 py-3 rounded-2xl font-bold text-xs transition-all cursor-pointer ${
+      title={collapsed ? label : undefined}
+      aria-label={label}
+      className={`flex items-center ${collapsed ? "justify-center px-0" : "gap-3 px-3 sm:px-4"} w-full py-3 rounded-2xl font-bold text-xs transition-all cursor-pointer ${
         active 
           ? "bg-blue-600 text-white shadow-xl shadow-blue-500/20" 
           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
       }`}
     >
       {icon}
-      <span>{label}</span>
-      {active && <ChevronRight size={14} className="ml-auto opacity-80" />}
+      {!collapsed && <span className="min-w-0 text-left">{label}</span>}
+      {!collapsed && active && <ChevronRight size={14} className="ml-auto opacity-80" />}
     </button>
   );
 }
