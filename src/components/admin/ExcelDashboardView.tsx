@@ -676,7 +676,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const rawAmount = Number(tx.amount) || 0;
       if (!Number.isFinite(rawAmount) || rawAmount === 0) return;
       const isCredit = String(tx.nature || "").toUpperCase() === "CREDIT";
-      const amount = Math.abs(rawAmount);
+      const allowNegativeAmount = tx.allowNegativeAmount === true;
+      const amount = allowNegativeAmount ? rawAmount : Math.abs(rawAmount);
       const doctorId = String(tx.doctorId || "");
       const typeId = String(tx.typeId || tx.typeName || "outros");
       const scope = String(tx.scope || "").toUpperCase();
@@ -690,7 +691,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       // selected doctor's visible matrix row.
       const matrixKey = (doctor: any) => normalize(doctor?.name);
       const addAllocation = (key: string, allocated: number) => {
-        if (allocated <= 0) return;
+        if (!Number.isFinite(allocated) || allocated === 0 || (allocated < 0 && !allowNegativeAmount)) return;
         if (isCredit) incomingByDoctor[key] = (incomingByDoctor[key] || 0) + allocated;
         else {
           expenseByDoctorType[key] ||= {};
@@ -1565,13 +1566,16 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         propGeneralErrors.push(`${tx.typeName || "Saída"}: a soma dos percentuais PROP dos médicos habilitados é ${propSum.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%, acima de 100%. Rateio bloqueado.`);
                         return;
                       }
-                      const amount = Math.max(0, Number(tx.amount) || 0);
+                      const allowNegativeAmount = tx.allowNegativeAmount === true;
+                      const amount = allowNegativeAmount
+                        ? Number(tx.amount) || 0
+                        : Math.max(0, Number(tx.amount) || 0);
                       const typeId = String(tx.typeId || tx.typeName || "outros");
                       participatingRows.forEach((row: any) => {
                         const percent = Math.max(0, Number(row.proporcaoHeart) || 0);
                         // Use the original transaction amount times this doctor's displayed PROP %.
                         const allocated = Math.round((amount * percent / 100 + Number.EPSILON) * 100) / 100;
-                        if (allocated <= 0) return;
+                        if (allocated === 0 || (allocated < 0 && !allowNegativeAmount)) return;
                         row.cashFlowExpenses = { ...(row.cashFlowExpenses || {}) };
                         row.cashFlowExpenses[typeId] = Math.round(((Number(row.cashFlowExpenses[typeId]) || 0) + allocated) * 100) / 100;
                       });
@@ -1757,7 +1761,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
                         {/* Outras Entradas e Saídas por tipo */}
                         <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-700">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{Math.abs(Number(r.cashFlowExpenses[type.id]) || 0) > 0 ? Math.abs(Number(r.cashFlowExpenses[type.id]) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{(type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)) !== 0
+                          ? (type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                          : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
                       </tr>
                     ))}
                       </>
