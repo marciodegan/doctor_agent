@@ -1,6 +1,6 @@
 {
-  "name": "Dr. Agent",
-  "short_name": "Dr. Agent",
+  "name": "iCare",
+  "short_name": "iCare",
   "description": "Organização de pacientes, agenda, arquivos e equipe médica.",
   "start_url": "/?source=pwa",
   "scope": "/",
