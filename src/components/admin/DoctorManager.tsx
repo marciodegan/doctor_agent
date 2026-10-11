@@ -30,11 +30,12 @@ export function DoctorManager() {
     if (!teamSettings) return [];
     return doctors.map(d => {
       const existing = teamSettings.doctors.find((td: any) => td.key === d.id);
-      return existing ? { ...existing, name: d.name, specialty: d.specialty, crm: d.crm } : {
+      return existing ? { ...existing, name: d.name, specialty: d.specialty, crm: d.crm, valorLimite: Number(existing.valorLimite ?? d.valorLimite) || 0 } : {
         key: d.id,
         name: d.name,
         specialty: d.specialty,
         crm: d.crm,
+        valorLimite: Number(d.valorLimite) || 0,
         isTeamMember: false,
         teamSharePercent: 0,
         proporcaoHeartDinamica: 0,
@@ -81,6 +82,15 @@ export function DoctorManager() {
         body: JSON.stringify(updatedSettings)
       });
       if (res.ok) {
+        await Promise.all(mergedDoctors.map(async (doctor: any) => {
+          const firestoreDoctor = doctors.find(d => d.id === doctor.key);
+          if (firestoreDoctor) {
+            await updateDoc(doc(db, "doctors", firestoreDoctor.id), {
+              valorLimite: Math.max(0, Number(doctor.valorLimite) || 0),
+              updatedAt: serverTimestamp()
+            });
+          }
+        }));
         setTeamSettings(updatedSettings);
         setSettingsSuccess(true);
         setTimeout(() => setSettingsSuccess(false), 3000);
