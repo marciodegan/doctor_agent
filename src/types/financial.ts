@@ -160,6 +160,7 @@ export interface FinancialTransactionType {
   defaultRateioMethod?: "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL";
   allowNegativeAmount?: boolean;
   isSalary?: boolean;
+  matrixAdjustmentType?: "ACERTO_1" | "SOBRE_MES_ANTERIOR" | null;
   category?: string;
   description?: string;
   isCustom?: boolean;
