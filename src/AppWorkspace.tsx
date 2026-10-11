@@ -73,7 +73,7 @@ export default function AppWorkspace() {
   const isAdmin = isOwner || currentUserMember?.role === "owner";
   const headerName = (activeGroup?.groupType === "personal")
     ? "Personal Agent"
-    : "Dr. Agent";
+    : "iCare";
   const [isDebug, setIsDebug] = useState(window.location.hash === "#debug");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showAdministration, setShowAdministration] = useState(false);
@@ -519,7 +519,7 @@ export default function AppWorkspace() {
                       <Zap size={20} />
                     </div>
                   </div>
-                  <h4 className="font-bold text-sm mb-1">Dr. Agent Business</h4>
+                  <h4 className="font-bold text-sm mb-1">iCare Business</h4>
                   <p className="text-[10px] text-blue-50 mb-4 line-clamp-2">Acesso total a automações, IA avançada e relatórios personalizados.</p>
                   <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest">
                     <span>Assinar agora</span>
