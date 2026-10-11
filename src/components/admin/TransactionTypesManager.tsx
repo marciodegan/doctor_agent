@@ -321,7 +321,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
               <span>Novo Tipo: Acerto Final</span>
             </button>
             <button
-              onClick={() => handleOpenAdd("SOBRE_MES_ANTERIOR")
+              onClick={() => handleOpenAdd("SOBRE_MES_ANTERIOR")}
               className="flex items-center gap-2 bg-sky-500/15 hover:bg-sky-500/25 text-sky-100 border border-sky-300/30 px-4 py-3 rounded-2xl font-black text-xs tracking-wide active:scale-95 transition cursor-pointer"
             >
               <Plus size={16} />
