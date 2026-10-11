@@ -44,6 +44,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
     nature: "CREDIT" as "CREDIT" | "DEBIT",
     defaultScope: "TEAM" as "TEAM" | "DOCTOR" | "CLOSING",
     defaultRateioMethod: "NOMINAL" as "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL",
+    allowNegativeAmount: false,
     category: "Receitas Equipe",
     description: ""
   });
@@ -78,6 +79,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         nature: "CREDIT",
         defaultScope: "TEAM",
         defaultRateioMethod: "NOMINAL",
+        allowNegativeAmount: false,
         category: "Receitas Equipe",
         description: "Entrada de produção ou plantão com rateio societário da equipe (29%, 29%, 29%, 13%)"
       });
@@ -87,6 +89,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         nature: "DEBIT",
         defaultScope: "TEAM",
         defaultRateioMethod: "PROPORCAO_HEART",
+        allowNegativeAmount: false,
         category: "Infraestrutura",
         description: "Despesa com rateio dinâmico pela Proporção HeaRT do período"
       });
@@ -110,6 +113,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
       nature: typeItem.nature,
       defaultScope: typeItem.defaultScope || "TEAM",
       defaultRateioMethod: typeItem.defaultRateioMethod || (typeItem.nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
+      allowNegativeAmount: typeItem.allowNegativeAmount === true,
       category: typeItem.category || "Geral",
       description: typeItem.description || ""
     });
@@ -625,6 +629,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                         ...prev, 
                         nature: "CREDIT",
                         defaultRateioMethod: "NOMINAL",
+                        allowNegativeAmount: false,
                         category: prev.category === "Infraestrutura" ? "Receitas Equipe" : prev.category
                       }));
                     }}
@@ -665,6 +670,23 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                   </button>
                 </div>
               </div>
+
+              {form.nature === "DEBIT" && (
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-amber-200 bg-amber-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.allowNegativeAmount}
+                    onChange={e => setForm(prev => ({ ...prev, allowNegativeAmount: e.target.checked }))}
+                    className="mt-0.5 h-4 w-4 accent-amber-600"
+                  />
+                  <span>
+                    <span className="block text-xs font-black text-amber-950">Permitir valor negativo</span>
+                    <span className="block mt-0.5 text-[10px] font-medium text-amber-800">
+                      Permite acertos entre médicos, registrando valores positivos ou negativos para o mesmo tipo de saída.
+                    </span>
+                  </span>
+                </label>
+              )}
 
               {/* Escopo Padrão */}
               <div>
