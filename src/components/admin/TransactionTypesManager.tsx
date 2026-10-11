@@ -497,8 +497,9 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                       <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
+                          disabled={t.isSalary === true}
                           onClick={() => handleQuickToggleNature(t)}
-                          title="Clique para alternar rapidamente entre Entrada e Saída"
+                          title={t.isSalary === true ? "Salário é sempre uma saída individual" : "Clique para alternar rapidamente entre Entrada e Saída"}
                           className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black border transition cursor-pointer active:scale-95 ${
                             isDebit 
                               ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100" 
