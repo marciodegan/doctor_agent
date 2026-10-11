@@ -2362,9 +2362,19 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       transactionTypesForAllocation.map((type: any) => [String(type.id), type])
     );
     const transactions = rawTransactions.map((tx: any) => {
-      const type = typeById.get(String(tx.typeId || ""));
+      const type = typeById.get(String(tx.typeId || ""))
+        || transactionTypesForAllocation.find((candidate: any) =>
+          String(candidate.name || "").trim().toUpperCase() === String(tx.typeName || "").trim().toUpperCase()
+        );
       if (!type || String(tx.scope || "TEAM").toUpperCase() === "DOCTOR") return tx;
-      return { ...tx, rateioMethod: type.defaultRateioMethod || tx.rateioMethod };
+      const configuredMethod = String(type.defaultRateioMethod || "").toUpperCase();
+      const savedMethod = String(tx.rateioMethod || "").toUpperCase();
+      // PROP_GERAL is an explicit transaction snapshot too. Do not let a stale
+      // catalog value silently route this expense back through nominal team split.
+      const effectiveMethod = configuredMethod === "PROP_GERAL" || savedMethod === "PROP_GERAL"
+        ? "PROP_GERAL"
+        : configuredMethod || savedMethod;
+      return { ...tx, rateioMethod: effectiveMethod };
     });
     const batches = batchSnap.docs.map((d: any) => d.data());
     const reconciliation = reconSnap.docs.map((d: any) => d.data());
