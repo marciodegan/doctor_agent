@@ -1482,8 +1482,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     rows.forEach((row: any) => {
                       const dispPeriodo = getAvailableForProp(row);
                       row.dispPeriodo = Math.round(dispPeriodo * 100) / 100;
+                      // Keep full precision for validation and allocation. Rounding
+                      // each doctor's PROP to 2 decimals here can make a true 100% total
+                      // appear as 100.01% and incorrectly block every allocation.
                       row.proporcaoHeart = totalDispPeriodo > 0
-                        ? Math.round((dispPeriodo / totalDispPeriodo) * 10000) / 100
+                        ? (dispPeriodo / totalDispPeriodo) * 100
                         : 0;
                     });
 
