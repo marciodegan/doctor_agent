@@ -606,9 +606,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         id: String(tx.typeId || tx.typeName || "outros"),
         name: String(tx.typeName || "Despesa"),
         scope: String(tx.scope || "TEAM"),
-        rateioMethod: String(tx.rateioMethod || "")
+        rateioMethod: String(tx.rateioMethod || ""),
+        allowNegativeAmount: tx.allowNegativeAmount === true
       }])
-  ).values()) as Array<{id:string; name:string; scope:string; rateioMethod:string}>;
+  ).values()) as Array<{id:string; name:string; scope:string; rateioMethod:string; allowNegativeAmount:boolean}>;
 
   const cashFlowAllocation = React.useMemo(() => {
     const incomingByDoctor: Record<string, number> = {};
