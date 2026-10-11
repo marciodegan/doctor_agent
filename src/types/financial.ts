@@ -157,7 +157,7 @@ export interface FinancialTransactionType {
   name: string;
   nature: "CREDIT" | "DEBIT";
   defaultScope: "DOCTOR" | "TEAM" | "CLOSING";
-  defaultRateioMethod?: "NOMINAL" | "PROPORCAO_HEART";
+  defaultRateioMethod?: "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL";
   category?: string;
   description?: string;
   isCustom?: boolean;
@@ -196,6 +196,7 @@ export interface DoctorTeamMember {
   specialty?: string;
   crm?: string;
   participaUnimed?: boolean; // Participação permanente na divisão da UNIMED (Rochele, Thais, Luis = true)
+  participaRateioGeral?: boolean; // Participa do rateio de saídas usando a coluna PROP % da matriz
   unimedDistributionRule?: "EQUAL" | string; // Regra de divisão UNIMED (padrão: "EQUAL")
 }
 
