@@ -315,7 +315,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         name,
         percent: Number(setting?.teamSharePercent) || 0,
         heartPercent: Number(setting?.proporcaoHeartDinamica) || 0,
-        valorLimite: Math.max(0, Number(doc.valorLimite ?? setting?.valorLimite) || 0),
+        valorLimite: Math.max(0, Number(setting?.valorLimite ?? doc.valorLimite) || 0),
         isTeam: Boolean(setting?.isTeamMember)
       });
       return rows;
