@@ -53,8 +53,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [allocationMode, setAllocationMode] = useState<"TEAM" | "DOCTOR">("TEAM");
   const [autoSplitTeam, setAutoSplitTeam] = useState(true);
-  // Rateio Method: PROPORCAO_HEART (Dynamic based on period revenue) vs NOMINAL (29/29/29/13)
-  const [rateioMethod, setRateioMethod] = useState<"PROPORCAO_HEART" | "NOMINAL">("PROPORCAO_HEART");
+  // Team allocation methods: nominal, dynamic HeaRT, or all-doctor PROP percentage.
+  const [rateioMethod, setRateioMethod] = useState<"PROPORCAO_HEART" | "NOMINAL" | "PROP_GERAL">("PROPORCAO_HEART");
 
   const [newForm, setNewForm] = useState({
     doctorId: "",
