@@ -1377,6 +1377,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     {/* Outras entradas e despesas */}
                     <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Outras Entradas</th>
                     {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-slate-700 bg-rose-950 text-rose-200">{type.name}</th>) : <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Despesas</th>}
+                    <th className="p-2 border border-slate-700 bg-slate-700 text-white">RESULT</th>
+                    <th className="p-2 border border-slate-700 bg-slate-700 text-white">%</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
@@ -1586,6 +1588,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       row.afterCashFlowOut = Math.round(((Number(row.totalGeralDS) || 0) + (Number(row.cashFlowIn) || 0) - expenses) * 100) / 100;
                     });
 
+                    const totalResult = rows.reduce((sum: number, row: any) => sum + (Number(row.afterCashFlowOut) || 0), 0);
+                    rows.forEach((row: any) => {
+                      row.afterCashFlowOutPercent = totalResult !== 0
+                        ? Math.round(((Number(row.afterCashFlowOut) || 0) / totalResult) * 100000) / 1000
+                        : 0;
+                    });
+
                     (window as any).__matrixRowsCache = rows;
 
                     return (
@@ -1765,6 +1774,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{(type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)) !== 0
                           ? (type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
                           : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
+                        <td className={`p-3 border border-slate-200 font-mono font-black ${r.afterCashFlowOut < 0 ? "text-rose-700 bg-rose-50" : "text-slate-900 bg-slate-100"}`}>
+                          {r.afterCashFlowOut.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-slate-700">
+                          {(Number(r.afterCashFlowOutPercent) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
+                        </td>
                       </tr>
                     ))}
                       </>
@@ -1812,6 +1827,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-700 font-mono">100.00%</td>
                         <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
                         {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-700 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-slate-700">-</td>}
+                        <td className="p-3 border border-slate-700 font-mono font-black text-white">{sum('afterCashFlowOut').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-700 font-mono font-black">100,00%</td>
                       </tr>
                     );
                   })()}
