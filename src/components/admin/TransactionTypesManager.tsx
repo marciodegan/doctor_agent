@@ -81,6 +81,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         defaultScope: "TEAM",
         defaultRateioMethod: "NOMINAL",
         allowNegativeAmount: false,
+        isSalary: false,
         category: "Receitas Equipe",
         description: "Entrada de produção ou plantão com rateio societário da equipe (29%, 29%, 29%, 13%)"
       });
@@ -91,6 +92,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         defaultScope: "TEAM",
         defaultRateioMethod: "PROPORCAO_HEART",
         allowNegativeAmount: false,
+        isSalary: false,
         category: "Infraestrutura",
         description: "Despesa com rateio dinâmico pela Proporção HeaRT do período"
       });
