@@ -688,6 +688,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       if (!eligible.length) return;
 
       const method = String(tx.rateioMethod || "").toUpperCase();
+      // PROP_GERAL is allocated later, after the matrix computes the same PROP %
+      // displayed to the user for every doctor in this closing.
+      if (method === "PROP_GERAL") return;
       const nominalWeight = (d: any) => Math.max(0, Number(d.teamSharePercent) || 0);
       const heartWeight = (d: any) => Math.max(0, Number(d.proporcaoHeartDinamica) || 0);
       // Prop Heart can be zero on older/uninitialized settings. Use it when configured;
@@ -1468,9 +1471,60 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       row.proporcaoHeart = totalDispPeriodo > 0 ? (dispPeriodo / totalDispPeriodo) * 100 : 0;
                     });
 
+                    // PROP_GERAL uses the exact PROP % calculated above, not nominal or
+                    // team-only HeaRT percentages. A subtotal below 100% leaves the
+                    // unallocated remainder undistributed; a subtotal above 100% blocks it.
+                    const propGeneralErrors: string[] = [];
+                    const propGeneralTransactions = cashFlowTransactions.filter((tx: any) =>
+                      String(tx.nature || "").toUpperCase() === "DEBIT" &&
+                      String(tx.scope || "TEAM").toUpperCase() !== "DOCTOR" &&
+                      String(tx.rateioMethod || "").toUpperCase() === "PROP_GERAL"
+                    );
+                    propGeneralTransactions.forEach((tx: any) => {
+                      const participatingRows = rows.filter((row: any) => {
+                        const config = configuredDoctors.find((d: any) => d.key === row.key)
+                          || configuredDoctors.find((d: any) => normalize(d.name) === normalize(row.name));
+                        return config?.participaRateioGeral === true;
+                      });
+                      if (participatingRows.length === 0) {
+                        propGeneralErrors.push(`${tx.typeName || "Saída"}: nenhum médico está habilitado para o rateio geral. Rateio bloqueado.`);
+                        return;
+                      }
+                      const propSum = participatingRows.reduce((sum: number, row: any) => sum + Math.max(0, Number(row.proporcaoHeart) || 0), 0);
+                      if (propSum > 100.000001) {
+                        propGeneralErrors.push(`${tx.typeName || "Saída"}: a soma dos percentuais PROP dos médicos habilitados é ${propSum.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%, acima de 100%. Rateio bloqueado.`);
+                        return;
+                      }
+                      const amount = Math.max(0, Number(tx.amount) || 0);
+                      const typeId = String(tx.typeId || tx.typeName || "outros");
+                      participatingRows.forEach((row: any) => {
+                        const percent = Math.max(0, Number(row.proporcaoHeart) || 0);
+                        const allocated = Math.round(amount * percent) / 100;
+                        if (allocated <= 0) return;
+                        row.cashFlowExpenses = { ...(row.cashFlowExpenses || {}) };
+                        row.cashFlowExpenses[typeId] = Math.round(((Number(row.cashFlowExpenses[typeId]) || 0) + allocated) * 100) / 100;
+                      });
+                    });
+                    rows.forEach((row: any) => {
+                      const expenses = Object.values(row.cashFlowExpenses || {}).reduce((sum: number, value: any) => sum + (Number(value) || 0), 0);
+                      row.afterCashFlowOut = Math.round(((Number(row.totalGeralDS) || 0) + (Number(row.cashFlowIn) || 0) - expenses) * 100) / 100;
+                    });
+
                     (window as any).__matrixRowsCache = rows;
 
-                    return rows.map((r) => (
+                    return (
+                      <>
+                        {propGeneralErrors.length > 0 && (
+                          <tr>
+                            <td colSpan={50} className="p-3 border border-rose-300 bg-rose-50 text-rose-800 text-left font-bold whitespace-normal">
+                              <div className="flex items-start gap-2">
+                                <span className="font-black">Rateio PROP % bloqueado:</span>
+                                <span>{propGeneralErrors.join(" ")}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        {rows.map((r) => (
                       <tr key={r.key} className="even:bg-slate-50/70 hover:bg-emerald-50/40 transition-colors">
                         <td
                           className="p-3 border border-slate-200 text-left pl-4 font-black text-gray-900 bg-white cursor-pointer hover:bg-blue-50 transition-colors"
@@ -1634,7 +1688,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-700">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{Math.abs(Number(r.cashFlowExpenses[type.id]) || 0) > 0 ? Math.abs(Number(r.cashFlowExpenses[type.id]) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
                       </tr>
-                    ));
+                    ))}
+                      </>
+                    );
                   })()}
                 </tbody>
                 <tfoot>
