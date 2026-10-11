@@ -1242,7 +1242,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     {/* Totalizador consolidado logo após Unimed Luis */}
                     <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">TT</th>
                     <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">DS</th>
-                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Dispon. Heart</th>
+                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Disp Período</th>
                     <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Proporção Heart</th>
                     {/* Outras entradas e despesas */}
                     <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Outras Entradas</th>
@@ -1370,9 +1370,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       };
                     });
 
-                    const totalDispUnim = rows.reduce((sum: number, row: any) => sum + (Number(row.unimTotDS) || 0), 0);
+                    const totalDispPeriodo = rows.reduce((sum: number, row: any) =>
+                      sum + ((Number(row.totalGeralDS) || 0) - (Number(row.unimTotDS) || 0)), 0);
                     rows.forEach((row: any) => {
-                      row.proporcaoHeart = totalDispUnim > 0 ? (Number(row.unimTotDS) || 0) / totalDispUnim * 100 : 0;
+                      const dispPeriodo = (Number(row.totalGeralDS) || 0) - (Number(row.unimTotDS) || 0);
+                      row.dispPeriodo = Math.round(dispPeriodo * 100) / 100;
+                      row.proporcaoHeart = totalDispPeriodo > 0 ? (dispPeriodo / totalDispPeriodo) * 100 : 0;
                     });
 
                     (window as any).__matrixRowsCache = rows;
@@ -1530,7 +1533,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         {/* Totalizador consolidado */}
                         <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{(r.totalGeralDS - r.unimTotDS).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{r.dispPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-200 font-mono font-black bg-blue-50 text-blue-950">{r.proporcaoHeart.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
 
                         {/* Outras Entradas e Saídas por tipo */}
