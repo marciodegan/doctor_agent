@@ -43,7 +43,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
     name: "",
     nature: "CREDIT" as "CREDIT" | "DEBIT",
     defaultScope: "TEAM" as "TEAM" | "DOCTOR" | "CLOSING",
-    defaultRateioMethod: "NOMINAL" as "NOMINAL" | "PROPORCAO_HEART",
+    defaultRateioMethod: "NOMINAL" as "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL",
     category: "Receitas Equipe",
     description: ""
   });
@@ -712,7 +712,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                   <label className="block text-[10px] font-black uppercase text-gray-700 tracking-wider">
                     Método de Rateio da Equipe *
                   </label>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                     <button
                       type="button"
                       onClick={() => setForm({ ...form, defaultRateioMethod: "NOMINAL" })}
@@ -740,6 +740,21 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                       <span className="block font-black text-xs text-blue-800">PROPORÇÃO HEART</span>
                       <span className="text-[10px] text-gray-500 font-normal leading-tight block mt-0.5">
                         Dinâmica pelo faturamento do período (Recomendado para Despesas Operacionais)
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, defaultRateioMethod: "PROP_GERAL" })}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        form.defaultRateioMethod === "PROP_GERAL"
+                          ? "bg-violet-50 border-violet-500 text-violet-950 font-black ring-2 ring-violet-500/20"
+                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      <span className="block font-black text-xs text-violet-800">PROP % GERAL</span>
+                      <span className="text-[10px] text-gray-500 font-normal leading-tight block mt-0.5">
+                        Usa o percentual PROP da matriz para os médicos habilitados. Não normaliza; bloqueia se a soma passar de 100%.
                       </span>
                     </button>
                   </div>
