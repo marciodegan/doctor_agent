@@ -1246,7 +1246,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Proporção Heart</th>
                     {/* Outras entradas e despesas */}
                     <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Outras Entradas</th>
-                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-slate-700 bg-rose-950 text-rose-200">{type.name}</th>) : <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Despesas</th>
+                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-slate-700 bg-rose-950 text-rose-200">{type.name}</th>) : <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Despesas</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
