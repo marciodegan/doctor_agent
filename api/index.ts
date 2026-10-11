@@ -2339,6 +2339,20 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     const glosas = glosaSnap.docs.map((d: any) => d.data());
     const taxes = taxSnap.docs.map((d: any) => d.data());
     const adjustments = adjSnap.docs.map((d: any) => d.data());
+    // Load current transaction type rules. The saved type is authoritative for
+    // allocation, including older transactions created before switching to PROP_GERAL.
+    let transactionTypesForAllocation: any[] = [];
+    try {
+      const typeSnap = await db.collection("financial_transaction_types")
+        .where("teamId", "==", groupId)
+        .get();
+      transactionTypesForAllocation = typeSnap.docs
+        .map((doc: any) => ({ ...doc.data(), id: doc.id }))
+        .filter((type: any) => type.isDeleted !== true);
+    } catch (typeLookupError: any) {
+      console.error("[API] Could not load transaction types for allocation:", typeLookupError?.message || typeLookupError);
+    }
+
     const rawTransactions = txSnap.docs.map((d: any) => d.data());
     // A transaction type defines the allocation rule. Resolve the current saved rule
     // from the catalog so the matrix uses PROP_GERAL when the type is configured for
@@ -2354,20 +2368,6 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     });
     const batches = batchSnap.docs.map((d: any) => d.data());
     const reconciliation = reconSnap.docs.map((d: any) => d.data());
-
-    // Load current transaction type rules. The saved type is authoritative for
-    // allocation, including older transactions created before switching to PROP_GERAL.
-    let transactionTypesForAllocation: any[] = [];
-    try {
-      const typeSnap = await db.collection("financial_transaction_types")
-        .where("teamId", "==", groupId)
-        .get();
-      transactionTypesForAllocation = typeSnap.docs
-        .map((doc: any) => ({ ...doc.data(), id: doc.id }))
-        .filter((type: any) => type.isDeleted !== true);
-    } catch (typeLookupError: any) {
-      console.error("[API] Could not load transaction types for allocation:", typeLookupError?.message || typeLookupError);
-    }
 
     // Preserve the allocation saved during import. Only use mappings as a
     // fallback for legacy records that do not already have doctorId.
