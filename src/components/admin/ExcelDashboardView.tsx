@@ -571,19 +571,22 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   );
   const normalizeTransactionTypeName = (value: any) => String(value || "")
     .normalize("NFD")
-    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toUpperCase()
-    .replace(/\\s+/g, " ");
+    .replace(/\s+/g, " ");
   const transactionTypesByName = new Map<string, any>(
     availableTransactionTypes.map((type: any) => [normalizeTransactionTypeName(type.name), type])
   );
   const getEffectiveRateioMethod = (tx: any) => {
-    // Prefer the stable type ID, but support legacy transactions that store an
-    // old/missing typeId and can only be linked to the saved catalog by name.
+    // Match both current catalog and the method saved on the transaction. A saved
+    // PROP_GERAL method must never fall through to the legacy 29/29/29/13 split.
     const currentType = transactionTypesById.get(String(tx.typeId || ""))
       || transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName));
-    return String(currentType?.defaultRateioMethod || tx.rateioMethod || "").toUpperCase();
+    const configuredMethod = String(currentType?.defaultRateioMethod || "").toUpperCase();
+    const savedMethod = String(tx.rateioMethod || "").toUpperCase();
+    if (configuredMethod === "PROP_GERAL" || savedMethod === "PROP_GERAL") return "PROP_GERAL";
+    return configuredMethod || savedMethod;
   };
   const cashFlowExpenseTypes = Array.from(new Map(
     cashFlowTransactions
