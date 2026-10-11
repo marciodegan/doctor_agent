@@ -159,6 +159,7 @@ export interface FinancialTransactionType {
   defaultScope: "DOCTOR" | "TEAM" | "CLOSING";
   defaultRateioMethod?: "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL";
   allowNegativeAmount?: boolean;
+  isSalary?: boolean;
   category?: string;
   description?: string;
   isCustom?: boolean;

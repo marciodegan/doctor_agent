@@ -223,7 +223,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       // Suggest allocation mode
       if (matched.defaultScope === "TEAM") {
         setAllocationMode("TEAM");
-      } else if (matched.defaultScope === "DOCTOR") {
+      } else if (matched.defaultScope === "DOCTOR" || matched.isSalary === true) {
         setAllocationMode("DOCTOR");
       }
 
@@ -723,7 +723,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   <option value="">Selecione um tipo cadastrado</option>
                   {transactionTypes.map(t => (
                     <option key={t.id} value={t.id}>
-                      {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
+                      {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.isSalary === true ? "(SALÁRIO INDIVIDUAL)" : t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
                     </option>
                   ))}
                 </select>
@@ -739,7 +739,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   }}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500"
                 >
-                  <option value="">Equipe / despesa compartilhada (ratear conforme o tipo)</option>
+                  <option value="">{transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "Selecione o médico para este lançamento individual" : "Equipe / despesa compartilhada (ratear conforme o tipo)"}</option>
                   {selectableDoctors.map(doctor => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
                 </select>
                 <span className="text-[10px] text-gray-400 font-normal">{transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "Este tipo é individual e exige a seleção de um médico." : "Sem médico selecionado, será usada a regra de rateio configurada no tipo de lançamento."}</span>
