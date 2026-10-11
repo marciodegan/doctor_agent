@@ -717,7 +717,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
 
                   <button
                     type="button"
-                    disabled={form.isSalary}
+                    disabled={form.isSalary || Boolean(form.matrixAdjustmentType)}
                     onClick={() => {
                       setForm(prev => ({ 
                         ...prev, 
@@ -746,6 +746,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                   <input
                     type="checkbox"
                     checked={form.allowNegativeAmount}
+                    disabled={Boolean(form.matrixAdjustmentType)}
                     onChange={e => setForm(prev => ({ ...prev, allowNegativeAmount: e.target.checked }))}
                     className="mt-0.5 h-4 w-4 accent-amber-600"
                   />
@@ -766,7 +767,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    disabled={form.isSalary}
+                    disabled={form.isSalary || Boolean(form.matrixAdjustmentType)}
                     onClick={() => setForm({ ...form, defaultScope: "TEAM" })}
                     className={`flex items-center gap-2 p-3 rounded-2xl border font-bold text-xs transition cursor-pointer ${
                       form.defaultScope === "TEAM"
@@ -783,7 +784,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
 
                   <button
                     type="button"
-                    disabled={form.isSalary}
+                    disabled={form.isSalary || Boolean(form.matrixAdjustmentType)}
                     onClick={() => setForm({ ...form, defaultScope: "DOCTOR" })}
                     className={`flex items-center gap-2 p-3 rounded-2xl border font-bold text-xs transition cursor-pointer ${
                       form.defaultScope === "DOCTOR"
