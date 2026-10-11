@@ -177,18 +177,37 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   }, [activeGroup?.id, selectedClosingId]);
 
   const updateManualEntry = (doctorKey: string, patch: Record<string, any>) => {
-    const next = { ...manualEntradas, [doctorKey]: { ...(manualEntradas[doctorKey] || {}), ...patch } };
+    setManualEntradas(current => ({
+      ...current,
+      [doctorKey]: { ...(current[doctorKey] || {}), ...patch }
+    }));
+  };
+
+  const saveManualEntryOnBlur = async (doctorKey: string, patch: Record<string, any>) => {
+    const next = {
+      ...manualEntradas,
+      [doctorKey]: { ...(manualEntradas[doctorKey] || {}), ...patch }
+    };
     setManualEntradas(next);
-    if (!manualEntriesLoaded || !activeGroup?.id || !selectedClosingId) return;
-    const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).split("/").join("_");
-    void setDoc(doc(db, "financial_matrix_manual_entries", settingsId), {
-      groupId: activeGroup.id,
-      closingId: selectedClosingId,
-      manualEntradas: next,
-      updatedAt: new Date().toISOString()
-    }, { merge: true }).catch(error => {
+    if (!manualEntriesLoaded || !activeGroup?.id || !selectedClosingId) {
+      setManualEntrySaveMessage("Não foi possível salvar: grupo ou fechamento ainda não foi carregado.");
+      return;
+    }
+    try {
+      setManualEntrySaveMessage("Salvando valores da matriz...");
+      const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).split("/").join("_");
+      await setDoc(doc(db, "financial_matrix_manual_entries", settingsId), {
+        groupId: activeGroup.id,
+        closingId: selectedClosingId,
+        manualEntradas: next,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      setManualEntrySaveMessage("Valores de plantão salvos.");
+    } catch (error: any) {
       console.error("Erro ao salvar valores manuais da matriz:", error);
-    });
+      setManualEntrySaveMessage("Falha ao salvar os valores. Verifique as permissões do Firestore.");
+      alert("Não foi possível salvar os valores de Plantão TT no Firestore. Verifique as permissões de gravação. Detalhe: " + (error?.message || "erro desconhecido"));
+    }
   };
 
   // Global manual entries for totals at the top of sections
@@ -1483,6 +1502,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                               const man = manualEntradas[r.key] || {};
                               updateManualEntry(r.key, { azambujaPlantaoTT: val, azambujaPlantaoDS: Math.round(val * ratio * 100) / 100 });
                             }}
+                            onBlur={(e) => {
+                              const val = parseFloat(e.currentTarget.value) || 0;
+                              const ratio = 0.8147;
+                              void saveManualEntryOnBlur(r.key, { azambujaPlantaoTT: val, azambujaPlantaoDS: Math.round(val * ratio * 100) / 100 });
+                            }}
                             className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
                             placeholder="0,00"
                           />
@@ -1545,6 +1569,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                               const ratio = 0.8189;
                               const man = manualEntradas[r.key] || {};
                               updateManualEntry(r.key, { unimedPlantaoTT: val, unimedPlantaoDS: Math.round(val * ratio * 100) / 100 });
+                            }}
+                            onBlur={(e) => {
+                              const val = parseFloat(e.currentTarget.value) || 0;
+                              const ratio = 0.8189;
+                              void saveManualEntryOnBlur(r.key, { unimedPlantaoTT: val, unimedPlantaoDS: Math.round(val * ratio * 100) / 100 });
                             }}
                             className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
                             placeholder="0,00"
