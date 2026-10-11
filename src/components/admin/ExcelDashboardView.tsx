@@ -1241,201 +1241,201 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                 <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Matriz de Entradas — Totais (TT) e Disponíveis para Saque (DS)</h3>
                 <p className="text-xs text-gray-500">Visualização detalhada por médico e fonte. Os campos com fundo <span className="bg-blue-100 text-blue-900 px-1.5 py-0.5 rounded font-bold">azul</span> são editáveis manualmente para lançamentos de plantão. Os valores são salvos ao sair do campo.</p>
               </div>
-              {manualEntrySaveMessage && <p className={`text-xs font-semibold ${manualEntrySaveMessage.startsWith("Falha") || manualEntrySaveMessage.startsWith("Não foi") ? "text-red-600" : "text-emerald-700"}`}>{manualEntrySaveMessage}</p>}
+              {manualEntrySaveMessage && <p className={`text-xs font-semibold ${manualEntrySaveMessage.startsWith("Falha") || manualEntrySaveMessage.startsWith("Não foi") ? "text-red-600" : "text-black"}`}>{manualEntrySaveMessage}</p>}
             </div>
 
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-[11px] border-collapse text-center">
                 <thead>
                   <tr className="bg-[#1E3A5F] text-white font-black uppercase tracking-wider">
-                    <th className="p-3 border border-slate-500 text-left pl-4" rowSpan={2}>MÉDICO</th>
-                    <th className="p-3 border border-slate-500" rowSpan={2}>% EQUIPE</th>
-                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-[#254D73]" colSpan={6}>
+                    <th className="p-3 border border-gray-300 text-left pl-4" rowSpan={2}>MÉDICO</th>
+                    <th className="p-3 border border-gray-300" rowSpan={2}>% EQUIPE</th>
+                    <th className="p-3 border border-gray-300 border-r border-r-gray-300 bg-[#254D73]" colSpan={6}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>AZAMBUJA</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-blue-200 font-bold">TT:</span>
+                          <span className="text-black font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.azambujaTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, azambujaTT: parseFloat(e.target.value) || 0 })}
                             onBlur={(e) => void saveGlobalEntryOnBlur("azambujaTT", parseFloat(e.currentTarget.value) || 0)}
-                            className="w-20 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-20 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
-                          <span className="text-blue-200 font-bold ml-1">DS:</span>
+                          <span className="text-black font-bold ml-1">DS:</span>
                           <input
                             type="number"
                             value={globalEntradas.azambujaDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, azambujaDS: parseFloat(e.target.value) || 0 })}
                             onBlur={(e) => void saveGlobalEntryOnBlur("azambujaDS", parseFloat(e.currentTarget.value) || 0)}
-                            className="w-20 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-20 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-[#315F86]" colSpan={4}>
+                    <th className="p-3 border border-gray-300 border-r border-r-gray-300 bg-[#315F86]" colSpan={4}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>MARIETA</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-blue-200 font-bold">TT:</span>
+                          <span className="text-black font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.marietaTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, marietaTT: parseFloat(e.target.value) || 0 })}
                             onBlur={(e) => void saveGlobalEntryOnBlur("marietaTT", parseFloat(e.currentTarget.value) || 0)}
-                            className="w-20 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-20 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
-                          <span className="text-blue-200 font-bold ml-1">DS:</span>
+                          <span className="text-black font-bold ml-1">DS:</span>
                           <input
                             type="number"
                             value={globalEntradas.marietaDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, marietaDS: parseFloat(e.target.value) || 0 })}
                             onBlur={(e) => void saveGlobalEntryOnBlur("marietaDS", parseFloat(e.currentTarget.value) || 0)}
-                            className="w-20 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-20 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-[#254D73]" colSpan={10}>
+                    <th className="p-3 border border-gray-300 border-r border-r-gray-300 bg-[#254D73]" colSpan={10}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-2">
                         <span className="font-black">UNIMED</span>
                         <div className="flex items-center gap-2 bg-[#1E3A5F] px-2.5 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-blue-200 font-bold uppercase">VL NOTA:</span>
+                          <span className="text-black font-bold uppercase">VL NOTA:</span>
                           <span className="text-white font-black">{totalUnimedTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                          <span className="text-blue-200 font-bold uppercase ml-2">DS:</span>
-                          <span className="text-blue-200 font-black">{excelData.lotesUnimed.reduce((sum: number, lote: any) => sum + (Number(lote.dsSaque) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-black font-bold uppercase ml-2">DS:</span>
+                          <span className="text-black font-black">{excelData.lotesUnimed.reduce((sum: number, lote: any) => sum + (Number(lote.dsSaque) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-[#315F86]" colSpan={2}>
+                    <th className="p-3 border border-gray-300 border-r border-r-gray-300 bg-[#315F86]" colSpan={2}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>CONSULTÓRIO</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-blue-200 font-bold">TT:</span>
+                          <span className="text-black font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.consultorioTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, consultorioTT: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-16 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
-                          <span className="text-blue-200 font-bold ml-1">DS:</span>
+                          <span className="text-black font-bold ml-1">DS:</span>
                           <input
                             type="number"
                             value={globalEntradas.consultorioDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, consultorioDS: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-16 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-[#254D73]" colSpan={2}>
+                    <th className="p-3 border border-gray-300 border-r border-r-gray-300 bg-[#254D73]" colSpan={2}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>DINHEIRO</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-blue-200 font-bold">TT:</span>
+                          <span className="text-black font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.dinheiroTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, dinheiroTT: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-16 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
-                          <span className="text-blue-200 font-bold ml-1">DS:</span>
+                          <span className="text-black font-bold ml-1">DS:</span>
                           <input
                             type="number"
                             value={globalEntradas.dinheiroDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, dinheiroDS: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-16 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-[#315F86]" colSpan={2}>
+                    <th className="p-3 border border-gray-300 border-r border-r-gray-300 bg-[#315F86]" colSpan={2}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>UNIMED LUIS</span>
                         <div className="flex items-center gap-1.5 bg-slate-700/80 px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-blue-200 font-bold">TT:</span>
+                          <span className="text-black font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.unimedLuisTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, unimedLuisTT: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-16 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
-                          <span className="text-blue-200 font-bold ml-1">DS:</span>
+                          <span className="text-black font-bold ml-1">DS:</span>
                           <input
                             type="number"
                             value={globalEntradas.unimedLuisDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, unimedLuisDS: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-16 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-[#1E3A5F]" colSpan={4}>TOTAL GERAL</th>
-                    <th className="p-3 border border-slate-500 bg-slate-700" colSpan={1}>OUTRAS ENTRADAS</th>
-                    <th className="p-3 border border-slate-500 bg-slate-700" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
-                    <th className="p-3 border border-slate-500 bg-slate-700 text-white" rowSpan={2}>RESULT</th>
-                    <th className="p-3 border border-slate-500 bg-slate-700 text-white" rowSpan={2}>%</th>
-                    <th className="p-3 border border-slate-500 bg-[#254D73] text-white" rowSpan={2}>SALÁRIO</th>
-                    <th className="p-3 border border-slate-500 bg-slate-700 text-white" rowSpan={2}>FINAL</th>
-                    <th className="p-3 border border-slate-500 bg-stone-600 text-white" rowSpan={2}>ACERTO 1</th>
-                    <th className="p-3 border border-slate-500 bg-stone-600 text-white" rowSpan={2}>SOBRE MÊS ANTERIOR</th>
-                    <th className="p-3 border border-slate-500 bg-[#1E3A5F] text-white" rowSpan={2}>DIV LUCROS</th>
-                    <th className="p-3 border border-slate-500 bg-orange-700 text-white" rowSpan={2}>EXCEDENTE</th>
-                    <th className="p-3 border border-slate-500 bg-orange-100 text-orange-950" rowSpan={2}>TOTAL</th>
-                    <th className="p-3 border border-slate-500 bg-orange-100 text-orange-950" rowSpan={2}>ACERTO FINAL</th>
-                    <th className="p-3 border border-slate-500 bg-orange-500 text-orange-950" rowSpan={2}>FINALIZAÇÃO</th>
+                    <th className="p-3 border border-gray-300 border-r border-r-gray-300 bg-[#1E3A5F]" colSpan={4}>TOTAL GERAL</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700" colSpan={1}>OUTRAS ENTRADAS</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>RESULT</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>%</th>
+                    <th className="p-3 border border-gray-300 bg-[#254D73] text-white" rowSpan={2}>SALÁRIO</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>FINAL</th>
+                    <th className="p-3 border border-gray-300 bg-stone-600 text-white" rowSpan={2}>ACERTO 1</th>
+                    <th className="p-3 border border-gray-300 bg-stone-600 text-white" rowSpan={2}>SOBRE MÊS ANTERIOR</th>
+                    <th className="p-3 border border-gray-300 bg-[#1E3A5F] text-white" rowSpan={2}>DIV LUCROS</th>
+                    <th className="p-3 border border-gray-300 bg-orange-700 text-white" rowSpan={2}>EXCEDENTE</th>
+                    <th className="p-3 border border-gray-300 bg-orange-100 text-orange-950" rowSpan={2}>TOTAL</th>
+                    <th className="p-3 border border-gray-300 bg-orange-100 text-orange-950" rowSpan={2}>ACERTO FINAL</th>
+                    <th className="p-3 border border-gray-300 bg-orange-500 text-orange-950" rowSpan={2}>FINALIZAÇÃO</th>
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
                     {/* Azambuja */}
-                    <th className="p-2 border border-slate-500">Equipe TT</th>
-                    <th className="p-2 border border-slate-500">Equipe DS</th>
-                    <th className="p-2 border border-slate-500 bg-slate-700 text-blue-100">Plantão TT</th>
-                    <th className="p-2 border border-slate-500 bg-slate-700 text-blue-100">Plantão DS</th>
-                    <th className="p-2 border border-slate-500">Total TT</th>
-                    <th className="p-2 border border-slate-500">Total DS</th>
+                    <th className="p-2 border border-gray-300">Equipe TT</th>
+                    <th className="p-2 border border-gray-300">Equipe DS</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-black">Plantão TT</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-black">Plantão DS</th>
+                    <th className="p-2 border border-gray-300">Total TT</th>
+                    <th className="p-2 border border-gray-300">Total DS</th>
                     {/* Marieta */}
-                    <th className="p-2 border border-slate-500">Equipe TT</th>
-                    <th className="p-2 border border-slate-500">Equipe DS</th>
-                    <th className="p-2 border border-slate-500">Total TT</th>
-                    <th className="p-2 border border-slate-500">Total DS</th>
+                    <th className="p-2 border border-gray-300">Equipe TT</th>
+                    <th className="p-2 border border-gray-300">Equipe DS</th>
+                    <th className="p-2 border border-gray-300">Total TT</th>
+                    <th className="p-2 border border-gray-300">Total DS</th>
                     {/* Unimed */}
-                    <th className="p-2 border border-slate-500">Equipe TT</th>
-                    <th className="p-2 border border-slate-500">Equipe DS</th>
-                    <th className="p-2 border border-slate-500">Part. TT</th>
-                    <th className="p-2 border border-slate-500">Part. DS</th>
-                    <th className="p-2 border border-slate-500 bg-slate-700 text-blue-100">Plantão TT</th>
-                    <th className="p-2 border border-slate-500 bg-slate-700 text-blue-100">Plantão DS</th>
-                    <th className="p-2 border border-slate-500">VL Nota TT</th>
-                    <th className="p-2 border border-slate-500">Disp DS</th>
-                    <th className="p-2 border border-slate-500">Prop %</th>
-                    <th className="p-2 border border-slate-500">Disp Unim</th>
+                    <th className="p-2 border border-gray-300">Equipe TT</th>
+                    <th className="p-2 border border-gray-300">Equipe DS</th>
+                    <th className="p-2 border border-gray-300">Part. TT</th>
+                    <th className="p-2 border border-gray-300">Part. DS</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-black">Plantão TT</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-black">Plantão DS</th>
+                    <th className="p-2 border border-gray-300">VL Nota TT</th>
+                    <th className="p-2 border border-gray-300">Disp DS</th>
+                    <th className="p-2 border border-gray-300">Prop %</th>
+                    <th className="p-2 border border-gray-300">Disp Unim</th>
                     {/* Consultorio */}
-                    <th className="p-2 border border-slate-500">TT</th>
-                    <th className="p-2 border border-slate-500">DS</th>
+                    <th className="p-2 border border-gray-300">TT</th>
+                    <th className="p-2 border border-gray-300">DS</th>
                     {/* Dinheiro */}
-                    <th className="p-2 border border-slate-500">TT</th>
-                    <th className="p-2 border border-slate-500">DS</th>
+                    <th className="p-2 border border-gray-300">TT</th>
+                    <th className="p-2 border border-gray-300">DS</th>
                     {/* Unimed Luis */}
-                    <th className="p-2 border border-slate-500">TT</th>
-                    <th className="p-2 border border-slate-500">DS</th>
+                    <th className="p-2 border border-gray-300">TT</th>
+                    <th className="p-2 border border-gray-300">DS</th>
                     {/* Totalizador consolidado logo após Unimed Luis */}
-                    <th className="p-2 border border-slate-500 bg-slate-700 text-blue-100">TT</th>
-                    <th className="p-2 border border-slate-500 bg-slate-700 text-blue-100">DS</th>
-                    <th className="p-2 border border-slate-500 bg-slate-700 text-blue-100">Disp Período</th>
-                    <th className="p-2 border border-slate-500 bg-slate-700 text-blue-100">Proporção Heart</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-black">TT</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-black">DS</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-black">Disp Período</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-black">Proporção Heart</th>
                     {/* Outras entradas e despesas */}
-                    <th className="p-2 border border-slate-500 bg-slate-700 text-blue-100">Outras Entradas</th>
-                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-slate-500 bg-slate-700 text-blue-100">{type.name}</th>) : <th className="p-2 border border-slate-500 bg-slate-700 text-blue-100">Despesas</th>}
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-black">Outras Entradas</th>
+                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-gray-300 bg-slate-700 text-black">{type.name}</th>) : <th className="p-2 border border-gray-300 bg-slate-700 text-black">Despesas</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
@@ -1721,7 +1721,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                                 className="p-1 rounded border border-gray-200 bg-white hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
                               ><ChevronDown size={12} /></button>
                             </span>
-                            {r.isTeam && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">Sócio</span>}
+                            {r.isTeam && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-black">Sócio</span>}
                           </div>
                           <div className="text-[9px] text-blue-500 font-bold mt-0.5">Ver lançamentos</div>
                         </td>
@@ -1750,17 +1750,17 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             placeholder="0,00"
                           />
                         </td>
-                        <td className="p-3 border border-gray-200 bg-blue-50/30 font-mono text-emerald-800 font-bold">
+                        <td className="p-3 border border-gray-200 bg-blue-50/30 font-mono text-black font-bold">
                           {r.azPlDS > 0 ? r.azPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
                         <td className="p-3 border border-gray-200 font-mono font-bold text-gray-900">{r.azTotTT > 0 ? r.azTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-gray-200 font-mono font-bold text-blue-700 border-r-4 border-slate-600">{r.azTotDS > 0 ? r.azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-black border-r-4 border-slate-600">{r.azTotDS > 0 ? r.azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Marieta */}
                         <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.marEqTT > 0 ? r.marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.marEqDS > 0 ? r.marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-gray-200 font-mono font-bold text-gray-900">{r.marTotTT > 0 ? r.marTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-gray-200 font-mono font-bold text-blue-700 border-r-4 border-slate-600">{r.marTotDS > 0 ? r.marTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-black border-r-4 border-slate-600">{r.marTotDS > 0 ? r.marTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Unimed (Equipe from imports, Plantao manual) */}
                         <td 
@@ -1818,13 +1818,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             placeholder="0,00"
                           />
                         </td>
-                        <td className="p-3 border border-gray-200 bg-blue-50/30 font-mono text-emerald-800 font-bold">
+                        <td className="p-3 border border-gray-200 bg-blue-50/30 font-mono text-black font-bold">
                           {r.unimPlDS > 0 ? r.unimPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
                         <td className="p-3 border border-gray-200 font-mono font-bold text-gray-900">{r.unimTotTT > 0 ? r.unimTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-gray-200 font-mono font-bold text-blue-700">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-black">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-gray-200 font-mono text-gray-500">{r.unimTotTT > 0 ? (totalUnimedTT > 0 ? (r.unimTotTT / totalUnimedTT * 100) : 0).toFixed(2) : "0.00"}%</td>
-                        <td className="p-3 border border-gray-200 font-mono font-bold text-blue-800 border-r-4 border-slate-600">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-black border-r-4 border-slate-600">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Consultorio */}
                         <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.consultTT > 0 ? r.consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
@@ -1840,9 +1840,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
                         {/* Totalizador consolidado */}
                         <td className="p-3 border border-gray-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-gray-200 font-mono font-black bg-blue-50 text-blue-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-black bg-blue-50 text-black">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-gray-200 font-mono font-bold text-indigo-700 bg-slate-50">{r.dispPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-gray-200 font-mono font-black bg-blue-50 text-blue-950">{r.proporcaoHeart.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
+                        <td className="p-3 border border-gray-200 font-mono font-black bg-blue-50 text-black">{r.proporcaoHeart.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
 
                         {/* Outras Entradas e Saídas por tipo */}
                         <td className="p-3 border border-gray-200 font-mono font-black bg-blue-50 text-blue-900">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
@@ -1855,7 +1855,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-gray-200 font-mono font-black bg-slate-100 text-slate-700">
                           {(Number(r.afterCashFlowOutPercent) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
                         </td>
-                        <td className="p-3 border border-gray-200 font-mono font-bold text-amber-800 bg-amber-50/70">
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-black bg-amber-50/70">
                           {Number(r.salaryAmount) > 0 ? Number(r.salaryAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
                         <td className={`p-3 border border-gray-200 font-mono font-black ${r.finalAfterSalary < 0 ? "text-rose-700 bg-rose-50" : "text-orange-900 bg-orange-100"}`}>
@@ -1896,50 +1896,50 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
                     return (
                       <tr className="bg-[#1E3A5F] text-white font-black text-xs">
-                        <td className="p-3 border border-slate-500 text-left pl-4 uppercase" colSpan={2}>TOTAL GERAL CONSOLIDADO</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('azEqTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('azEqDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono text-blue-200">{fmt(sum('azPlTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono text-blue-200">{fmt(sum('azPlDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('azTotTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('azTotDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('marEqTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('marEqDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('marTotTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('marTotDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimedEqTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimedEqDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimedPartTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimedPartDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono text-blue-200">{fmt(sum('unimPlTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono text-blue-200">{fmt(sum('unimPlDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimTotTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimTotDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">100.00%</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimTotDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('consultTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('consultTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('dinheiroTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('dinheiroTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimLuisTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimLuisDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('totalGeralTT'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('totalGeralDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('totalGeralDS') - sum('unimTotDS'))}</td>
-                        <td className="p-3 border border-slate-500 font-mono">100.00%</td>
-                        <td className="p-3 border border-slate-500 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-500 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-slate-500">-</td>}
-                        <td className="p-3 border border-slate-500 font-mono font-black text-white">{sum('afterCashFlowOut').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black">{rows.some((row: any) => row.isTeam === true) ? "100,00%" : "0,00%"}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black text-amber-200">{sum('salaryAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black text-white">{sum('finalAfterSalary').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black text-stone-200">{sum('acerto1Amount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black text-stone-200">{sum('sobreMesAnteriorAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black text-emerald-200">{sum('divLucrosAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black text-orange-200">{sum('excedenteAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black bg-orange-100 text-orange-950">{(Math.round((sum('divLucrosAmount') + sum('excedenteAmount')) * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black text-violet-200">{sum('acertoFinalAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black bg-orange-500 text-orange-950">{sum('finalizacaoAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 text-left pl-4 uppercase" colSpan={2}>TOTAL GERAL CONSOLIDADO</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('azEqTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('azEqDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-black">{fmt(sum('azPlTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-black">{fmt(sum('azPlDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('azTotTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('azTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marEqTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marEqDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marTotTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimedEqTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimedEqDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimedPartTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimedPartDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-black">{fmt(sum('unimPlTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-black">{fmt(sum('unimPlDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimTotTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">100.00%</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('consultTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('consultTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('dinheiroTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('dinheiroTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimLuisTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimLuisDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('totalGeralTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('totalGeralDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('totalGeralDS') - sum('unimTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">100.00%</td>
+                        <td className="p-3 border border-gray-300 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-gray-300">-</td>}
+                        <td className="p-3 border border-gray-300 font-mono font-black text-white">{sum('afterCashFlowOut').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black">{rows.some((row: any) => row.isTeam === true) ? "100,00%" : "0,00%"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-amber-200">{sum('salaryAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-white">{sum('finalAfterSalary').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-stone-200">{sum('acerto1Amount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-stone-200">{sum('sobreMesAnteriorAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-emerald-200">{sum('divLucrosAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-orange-200">{sum('excedenteAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black bg-orange-100 text-orange-950">{(Math.round((sum('divLucrosAmount') + sum('excedenteAmount')) * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-violet-200">{sum('acertoFinalAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black bg-orange-500 text-orange-950">{sum('finalizacaoAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       </tr>
                     );
                   })()}
