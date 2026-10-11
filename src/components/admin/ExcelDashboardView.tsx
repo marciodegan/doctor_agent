@@ -721,9 +721,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       if (!eligible.length) return;
 
       const method = getEffectiveRateioMethod(tx);
-      // PROP_GERAL is allocated later, after the matrix computes the same PROP %
-      // displayed to the user for every doctor in this closing.
-      if (method === "PROP_GERAL") return;
+      // Never run general-PROP transactions through the legacy team/Heart weights.
+      // Check the persisted snapshot directly as well as the resolved catalog rule.
+      const savedMethod = normalizeRateioMethod(tx.rateioMethod);
+      const apiMethod = normalizeRateioMethod(tx.allocationMethod);
+      if (savedMethod === "PROP_GERAL" || apiMethod === "PROP_GERAL" || method === "PROP_GERAL") return;
       const nominalWeight = (d: any) => Math.max(0, Number(d.teamSharePercent) || 0);
       const heartWeight = (d: any) => Math.max(0, Number(d.proporcaoHeartDinamica) || 0);
       // Prop Heart can be zero on older/uninitialized settings. Use it when configured;
@@ -1527,11 +1529,27 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     // team-only HeaRT percentages. A subtotal below 100% leaves the
                     // unallocated remainder undistributed; a subtotal above 100% blocks it.
                     const propGeneralErrors: string[] = [];
-                    const propGeneralTransactions = cashFlowTransactions.filter((tx: any) =>
-                      String(tx.nature || "").toUpperCase() === "DEBIT" &&
-                      String(tx.scope || "TEAM").toUpperCase() !== "DOCTOR" &&
-                      getEffectiveRateioMethod(tx) === "PROP_GERAL"
+                    const propGeneralTransactions = cashFlowTransactions.filter((tx: any) => {
+                      const savedMethod = normalizeRateioMethod(tx.rateioMethod);
+                      const apiMethod = normalizeRateioMethod(tx.allocationMethod);
+                      return String(tx.nature || "").toUpperCase() === "DEBIT" &&
+                        String(tx.scope || "TEAM").toUpperCase() !== "DOCTOR" &&
+                        (savedMethod === "PROP_GERAL" || apiMethod === "PROP_GERAL" ||
+                          getEffectiveRateioMethod(tx) === "PROP_GERAL");
+                    });
+
+                    // Clear any legacy allocation already placed under these type IDs
+                    // before applying the PROP % formula. This prevents old Heart/nominal
+                    // values from surviving alongside the new general-PROP allocation.
+                    const propGeneralTypeIds = new Set(
+                      propGeneralTransactions.map((tx: any) => String(tx.typeId || tx.typeName || "outros"))
                     );
+                    rows.forEach((row: any) => {
+                      const expenses = { ...(row.cashFlowExpenses || {}) };
+                      propGeneralTypeIds.forEach((typeId: string) => { delete expenses[typeId]; });
+                      row.cashFlowExpenses = expenses;
+                    });
+
                     propGeneralTransactions.forEach((tx: any) => {
                       const participatingRows = rows.filter((row: any) => {
                         const config = configuredDoctors.find((d: any) => d.key === row.key)
