@@ -588,8 +588,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     // Normalize legacy display strings like "PROP % GERAL" to PROP_GERAL.
     // Prefer matching the visible transaction type name. Older records may
     // contain a generic/stale typeId that resolves to another catalog entry.
-    const currentType = transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName))
-      || transactionTypesById.get(String(tx.typeId || ""));
+    // The saved typeId is the exact catalog relationship; name is legacy fallback.
+    const currentType = transactionTypesById.get(String(tx.typeId || ""))
+      || transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName));
     const candidates = [
       tx.allocationMethod,
       currentType?.defaultRateioMethod,
