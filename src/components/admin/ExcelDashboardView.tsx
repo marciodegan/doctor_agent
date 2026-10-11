@@ -599,9 +599,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     if (candidates.includes("PROP_GERAL")) return "PROP_GERAL";
     return candidates[0] || "";
   };
+  const isSalaryTransaction = (tx: any) => tx.isSalary === true
+    || transactionTypesById.get(String(tx.typeId || ""))?.isSalary === true
+    || transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName))?.isSalary === true;
   const cashFlowExpenseTypes = Array.from(new Map(
     cashFlowTransactions
-      .filter((tx: any) => String(tx.nature || "").toUpperCase() === "DEBIT")
+      .filter((tx: any) => String(tx.nature || "").toUpperCase() === "DEBIT" && !isSalaryTransaction(tx))
       .map((tx: any) => [String(tx.typeId || tx.typeName || "outros"), {
         id: String(tx.typeId || tx.typeName || "outros"),
         name: String(tx.typeName || "Despesa"),
@@ -614,6 +617,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const cashFlowAllocation = React.useMemo(() => {
     const incomingByDoctor: Record<string, number> = {};
     const expenseByDoctorType: Record<string, Record<string, number>> = {};
+    const salaryByDoctor: Record<string, number> = {};
     // Use the same canonical key for transaction allocation and matrix rows.
     // The previous regex escaped the backslashes, so it did not remove Unicode
     // diacritics or collapse whitespace as intended.
@@ -700,6 +704,20 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         }
       };
 
+      // Salary is shown in its own column and only deducted when calculating FINAL.
+      // It must not be included among general expenses or in RESULT a second time.
+      if (isSalaryTransaction(tx)) {
+        if (scope !== "DOCTOR" || isTeamPlaceholderId || !resolvedSelectedDoctor?.name) {
+          console.error("[CashFlowAllocation] Salary transaction must target one doctor", {
+            transactionId: tx.id, doctorId, doctorName: tx.doctorName || null
+          });
+          return;
+        }
+        const key = matrixKey(resolvedSelectedDoctor);
+        salaryByDoctor[key] = (salaryByDoctor[key] || 0) + Math.abs(rawAmount);
+        return;
+      }
+
       // Individual transactions must never silently fall through to team allocation.
       if (scope === "DOCTOR") {
         if (isTeamPlaceholderId || !resolvedSelectedDoctor?.name) {
@@ -750,7 +768,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         addAllocation(matrixKey(d), allocated);
       });
     });
-    return { incomingByDoctor, expenseByDoctorType };
+    return { incomingByDoctor, expenseByDoctorType, salaryByDoctor };
   }, [details?.transactions, details?.transactionTypes, configuredDoctors, doctors]);
 
   // Calculate sum of team percentages
@@ -1335,6 +1353,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <th className="p-3 border border-slate-700 bg-emerald-900" colSpan={4}>TOTAL GERAL</th>
                     <th className="p-3 border border-slate-700 bg-emerald-950" colSpan={1}>OUTRAS ENTRADAS</th>
                     <th className="p-3 border border-slate-700 bg-rose-950" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
+                    <th className="p-3 border border-slate-700 bg-slate-700 text-white" rowSpan={2}>RESULT</th>
+                    <th className="p-3 border border-slate-700 bg-slate-700 text-white" rowSpan={2}>%</th>
+                    <th className="p-3 border border-slate-700 bg-amber-900 text-white" rowSpan={2}>SALÁRIO</th>
+                    <th className="p-3 border border-slate-700 bg-slate-700 text-white" rowSpan={2}>FINAL</th>
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
                     {/* Azambuja */}
@@ -1377,8 +1399,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     {/* Outras entradas e despesas */}
                     <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Outras Entradas</th>
                     {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-slate-700 bg-rose-950 text-rose-200">{type.name}</th>) : <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Despesas</th>}
-                    <th className="p-2 border border-slate-700 bg-slate-700 text-white">RESULT</th>
-                    <th className="p-2 border border-slate-700 bg-slate-700 text-white">%</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
@@ -1498,6 +1518,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         totalGeralTT, totalGeralDS,
                         cashFlowIn: cashFlowAllocation.incomingByDoctor[normalize(doc.name)] || 0,
                         cashFlowExpenses: cashFlowAllocation.expenseByDoctorType[normalize(doc.name)] || {},
+                        salaryAmount: cashFlowAllocation.salaryByDoctor[normalize(doc.name)] || 0,
                         afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[normalize(doc.name)] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[normalize(doc.name)] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
                       };
                     });
@@ -1534,6 +1555,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     // unallocated remainder undistributed; a subtotal above 100% blocks it.
                     const propGeneralErrors: string[] = [];
                     const propGeneralTransactions = cashFlowTransactions.filter((tx: any) => {
+                      if (isSalaryTransaction(tx)) return false;
                       const savedMethod = normalizeRateioMethod(tx.rateioMethod);
                       const apiMethod = normalizeRateioMethod(tx.allocationMethod);
                       return String(tx.nature || "").toUpperCase() === "DEBIT" &&
@@ -1586,6 +1608,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     rows.forEach((row: any) => {
                       const expenses = Object.values(row.cashFlowExpenses || {}).reduce((sum: number, value: any) => sum + (Number(value) || 0), 0);
                       row.afterCashFlowOut = Math.round(((Number(row.totalGeralDS) || 0) + (Number(row.cashFlowIn) || 0) - expenses) * 100) / 100;
+                      row.finalAfterSalary = Math.round((row.afterCashFlowOut - (Number(row.salaryAmount) || 0)) * 100) / 100;
                     });
 
                     // O percentual RESULT deve considerar somente os membros da equipe.
@@ -1786,6 +1809,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-slate-700">
                           {(Number(r.afterCashFlowOutPercent) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
                         </td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-amber-800 bg-amber-50/70">
+                          {Number(r.salaryAmount) > 0 ? Number(r.salaryAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                        </td>
+                        <td className={`p-3 border border-slate-200 font-mono font-black ${r.finalAfterSalary < 0 ? "text-rose-700 bg-rose-50" : "text-slate-900 bg-slate-100"}`}>
+                          {Number(r.finalAfterSalary || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
                       </tr>
                     ))}
                       </>
@@ -1835,6 +1864,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-700 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-slate-700">-</td>}
                         <td className="p-3 border border-slate-700 font-mono font-black text-white">{sum('afterCashFlowOut').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-700 font-mono font-black">{rows.some((row: any) => row.isTeam === true) ? "100,00%" : "0,00%"}</td>
+                        <td className="p-3 border border-slate-700 font-mono font-black text-amber-200">{sum('salaryAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-700 font-mono font-black text-white">{sum('finalAfterSalary').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       </tr>
                     );
                   })()}
