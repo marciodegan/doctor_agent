@@ -1463,12 +1463,28 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       };
                     });
 
-                    const totalDispPeriodo = rows.reduce((sum: number, row: any) =>
-                      sum + ((Number(row.totalGeralDS) || 0) - (Number(row.unimTotDS) || 0)), 0);
+                    // PROP % is calculated across all doctors. For team members, remove
+                    // the shared Unimed amount so it does not distort the team's own
+                    // available balance. For individual doctors, their Unimed production
+                    // is their own income and must remain in the PROP base.
+                    const getAvailableForProp = (row: any) => {
+                      const totalDS = Number(row.totalGeralDS) || 0;
+                      const unimedDS = Number(row.unimTotDS) || 0;
+                      const available = row.isTeam
+                        ? totalDS - unimedDS
+                        : totalDS;
+                      return Math.max(0, available);
+                    };
+                    const totalDispPeriodo = rows.reduce(
+                      (sum: number, row: any) => sum + getAvailableForProp(row),
+                      0
+                    );
                     rows.forEach((row: any) => {
-                      const dispPeriodo = (Number(row.totalGeralDS) || 0) - (Number(row.unimTotDS) || 0);
+                      const dispPeriodo = getAvailableForProp(row);
                       row.dispPeriodo = Math.round(dispPeriodo * 100) / 100;
-                      row.proporcaoHeart = totalDispPeriodo > 0 ? (dispPeriodo / totalDispPeriodo) * 100 : 0;
+                      row.proporcaoHeart = totalDispPeriodo > 0
+                        ? Math.round((dispPeriodo / totalDispPeriodo) * 10000) / 100
+                        : 0;
                     });
 
                     // PROP_GERAL uses the exact PROP % calculated above, not nominal or
