@@ -79,6 +79,7 @@ export function TeamRateioConfig({ teamSettings, setTeamSettings, onSave, saving
               <th className="p-3.5 text-center">Membro da Equipe?</th>
               <th className="p-3.5 text-center bg-emerald-50 text-emerald-900">Participa UNIMED?</th>
               <th className="p-3.5 text-center">% Nominal (Entradas)</th>
+              <th className="p-3.5 text-center bg-amber-50 text-amber-900">Valor Limite (R$)</th>
               <th className="p-3.5 text-center bg-violet-50 text-violet-900">Participa rateio geral?</th>
             </tr>
           </thead>
@@ -139,6 +140,21 @@ export function TeamRateioConfig({ teamSettings, setTeamSettings, onSave, saving
                   ) : (
                     <span className="text-gray-400 font-bold">0%</span>
                   )}
+                </td>
+                <td className="p-3.5 text-center bg-amber-50/30">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={Number(doc.valorLimite) || 0}
+                    onChange={(e) => {
+                      const updated = [...teamSettings.doctors];
+                      updated[idx].valorLimite = Math.max(0, parseFloat(e.target.value) || 0);
+                      setTeamSettings({ ...teamSettings, doctors: updated });
+                    }}
+                    className="w-28 bg-white border border-gray-300 rounded-lg px-2 py-1 text-center font-black text-amber-800"
+                    aria-label={`Valor limite de ${doc.name}`}
+                  />
                 </td>
                 <td className="p-3.5 text-center bg-violet-50/40">
                   <input
