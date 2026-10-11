@@ -158,7 +158,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       if (!activeGroup?.id || !selectedClosingId) return;
       setManualEntriesLoaded(false);
       try {
-        const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).split("/").join("_");
         const settingsRef = doc(db, "groups", activeGroup.id, "financial_matrix_manual_entries", String(selectedClosingId).split("/").join("_"));
         const snapshot = await getDoc(settingsRef);
         if (cancelled) return;
@@ -196,7 +195,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     }
     try {
       setManualEntrySaveMessage("Salvando valores da matriz...");
-      const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).split("/").join("_");
       await setDoc(doc(db, "groups", activeGroup.id, "financial_matrix_manual_entries", String(selectedClosingId).split("/").join("_")), {
         groupId: activeGroup.id,
         closingId: selectedClosingId,
