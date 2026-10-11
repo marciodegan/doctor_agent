@@ -565,12 +565,24 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   };
 
   const cashFlowTransactions = Array.isArray(details?.transactions) ? details.transactions : [];
+  const availableTransactionTypes = Array.isArray(details?.transactionTypes) ? details.transactionTypes : [];
   const transactionTypesById = new Map<string, any>(
-    (Array.isArray(details?.transactionTypes) ? details.transactionTypes : [])
-      .map((type: any) => [String(type.id), type])
+    availableTransactionTypes.map((type: any) => [String(type.id), type])
+  );
+  const normalizeTransactionTypeName = (value: any) => String(value || "")
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .trim()
+    .toUpperCase()
+    .replace(/\\s+/g, " ");
+  const transactionTypesByName = new Map<string, any>(
+    availableTransactionTypes.map((type: any) => [normalizeTransactionTypeName(type.name), type])
   );
   const getEffectiveRateioMethod = (tx: any) => {
-    const currentType = transactionTypesById.get(String(tx.typeId || ""));
+    // Prefer the stable type ID, but support legacy transactions that store an
+    // old/missing typeId and can only be linked to the saved catalog by name.
+    const currentType = transactionTypesById.get(String(tx.typeId || ""))
+      || transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName));
     return String(currentType?.defaultRateioMethod || tx.rateioMethod || "").toUpperCase();
   };
   const cashFlowExpenseTypes = Array.from(new Map(
