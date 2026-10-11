@@ -12,6 +12,7 @@ interface Doctor {
   specialty: string;
   crm: string;
   active: boolean;
+  valorLimite?: number;
 }
 
 export function DoctorManager() {
@@ -23,17 +24,18 @@ export function DoctorManager() {
   const [settingsSuccess, setSettingsSuccess] = useState(false);
   
   const [isEditing, setIsEditing] = useState<Doctor | null>(null);
-  const [formData, setFormData] = useState({ name: "", specialty: "", crm: "" });
+  const [formData, setFormData] = useState({ name: "", specialty: "", crm: "", valorLimite: "0" });
 
   const mergedDoctors = React.useMemo(() => {
     if (!teamSettings) return [];
     return doctors.map(d => {
       const existing = teamSettings.doctors.find((td: any) => td.key === d.id);
-      return existing ? { ...existing, name: d.name, specialty: d.specialty, crm: d.crm } : {
+      return existing ? { ...existing, name: d.name, specialty: d.specialty, crm: d.crm, valorLimite: Number(existing.valorLimite ?? d.valorLimite) || 0 } : {
         key: d.id,
         name: d.name,
         specialty: d.specialty,
         crm: d.crm,
+        valorLimite: Number(d.valorLimite) || 0,
         isTeamMember: false,
         teamSharePercent: 0,
         proporcaoHeartDinamica: 0,
@@ -80,6 +82,15 @@ export function DoctorManager() {
         body: JSON.stringify(updatedSettings)
       });
       if (res.ok) {
+        await Promise.all(mergedDoctors.map(async (doctor: any) => {
+          const firestoreDoctor = doctors.find(d => d.id === doctor.key);
+          if (firestoreDoctor) {
+            await updateDoc(doc(db, "doctors", firestoreDoctor.id), {
+              valorLimite: Math.max(0, Number(doctor.valorLimite) || 0),
+              updatedAt: serverTimestamp()
+            });
+          }
+        }));
         setTeamSettings(updatedSettings);
         setSettingsSuccess(true);
         setTimeout(() => setSettingsSuccess(false), 3000);
@@ -97,17 +108,19 @@ export function DoctorManager() {
     if (isEditing) {
       await updateDoc(doc(db, "doctors", isEditing.id), {
         ...formData,
+        valorLimite: Math.max(0, Number(formData.valorLimite) || 0),
         updatedAt: serverTimestamp()
       });
     } else {
       await addDoc(collection(db, "doctors"), {
         ...formData,
+        valorLimite: Math.max(0, Number(formData.valorLimite) || 0),
         active: true,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
     }
-    setFormData({ name: "", specialty: "", crm: "" });
+    setFormData({ name: "", specialty: "", crm: "", valorLimite: "0" });
     setIsEditing(null);
   };
 
@@ -125,17 +138,18 @@ export function DoctorManager() {
         
         <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
           <h4 className="font-bold">{isEditing ? "Editar Médico" : "Novo Médico"}</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <input placeholder="Nome" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="p-3 border rounded-xl" />
             <input placeholder="Especialidade" value={formData.specialty} onChange={e => setFormData({...formData, specialty: e.target.value})} className="p-3 border rounded-xl" />
             <input placeholder="CRM" value={formData.crm} onChange={e => setFormData({...formData, crm: e.target.value})} className="p-3 border rounded-xl" />
+            <input type="number" min="0" step="0.01" placeholder="Valor Limite (R$)" value={formData.valorLimite} onChange={e => setFormData({...formData, valorLimite: e.target.value})} className="p-3 border rounded-xl" />
           </div>
           <div className="flex gap-2">
             <button onClick={handleSave} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2">
               <Save size={16} /> {isEditing ? "Atualizar" : "Salvar"}
             </button>
             {isEditing && (
-              <button onClick={() => {setIsEditing(null); setFormData({name: "", specialty: "", crm: ""})}} className="bg-gray-200 px-6 py-2 rounded-xl font-bold">
+              <button onClick={() => {setIsEditing(null); setFormData({name: "", specialty: "", crm: "", valorLimite: "0"})}} className="bg-gray-200 px-6 py-2 rounded-xl font-bold">
                 <X size={16} /> Cancelar
               </button>
             )}
@@ -149,6 +163,7 @@ export function DoctorManager() {
                 <th className="p-4">Nome</th>
                 <th className="p-4">Especialidade</th>
                 <th className="p-4">CRM</th>
+                <th className="p-4">Valor Limite</th>
                 <th className="p-4 text-center">Ações</th>
               </tr>
             </thead>
@@ -158,8 +173,9 @@ export function DoctorManager() {
                   <td className="p-4">{d.name}</td>
                   <td className="p-4">{d.specialty}</td>
                   <td className="p-4">{d.crm}</td>
+                  <td className="p-4 font-mono">{(Number(d.valorLimite) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
                   <td className="p-4 text-center flex justify-center gap-2">
-                    <button onClick={() => {setIsEditing(d); setFormData({name: d.name, specialty: d.specialty, crm: d.crm})}} className="text-blue-600">Editar</button>
+                    <button onClick={() => {setIsEditing(d); setFormData({name: d.name, specialty: d.specialty, crm: d.crm, valorLimite: String(d.valorLimite ?? 0)})}} className="text-blue-600">Editar</button>
                     <button onClick={() => handleDelete(d.id)} className="text-rose-600"><Trash2 size={16} /></button>
                   </td>
                 </tr>
