@@ -1248,9 +1248,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <table className="w-full text-[11px] border-collapse text-center">
                 <thead>
                   <tr className="bg-slate-900 text-white font-black uppercase tracking-wider">
-                    <th className="p-3 border border-slate-700 text-left pl-4" rowSpan={2}>MÉDICO</th>
-                    <th className="p-3 border border-slate-700" rowSpan={2}>% EQUIPE</th>
-                    <th className="p-3 border border-slate-700 bg-blue-900" colSpan={6}>
+                    <th className="p-3 border border-slate-500 text-left pl-4" rowSpan={2}>MÉDICO</th>
+                    <th className="p-3 border border-slate-500" rowSpan={2}>% EQUIPE</th>
+                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-blue-900" colSpan={6}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>AZAMBUJA</span>
                         <div className="flex items-center gap-1.5 bg-blue-950/80 px-2 py-1 rounded-lg border border-blue-700/60 font-mono text-[10px]">
@@ -1275,7 +1275,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-700 bg-indigo-900" colSpan={4}>
+                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-indigo-900" colSpan={4}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>MARIETA</span>
                         <div className="flex items-center gap-1.5 bg-indigo-950/80 px-2 py-1 rounded-lg border border-indigo-700/60 font-mono text-[10px]">
@@ -1300,7 +1300,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-700 bg-teal-900" colSpan={10}>
+                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-teal-900" colSpan={10}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-2">
                         <span className="font-black">UNIMED</span>
                         <div className="flex items-center gap-2 bg-teal-950/80 px-2.5 py-1 rounded-lg border border-teal-700/60 font-mono text-[10px]">
@@ -1311,7 +1311,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-700 bg-purple-900" colSpan={2}>
+                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-purple-900" colSpan={2}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>CONSULTÓRIO</span>
                         <div className="flex items-center gap-1.5 bg-purple-950/80 px-2 py-1 rounded-lg border border-purple-700/60 font-mono text-[10px]">
@@ -1334,7 +1334,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-700 bg-amber-900" colSpan={2}>
+                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-amber-900" colSpan={2}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>DINHEIRO</span>
                         <div className="flex items-center gap-1.5 bg-amber-950/80 px-2 py-1 rounded-lg border border-amber-700/60 font-mono text-[10px]">
@@ -1357,7 +1357,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-700 bg-rose-900" colSpan={2}>
+                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-rose-900" colSpan={2}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>UNIMED LUIS</span>
                         <div className="flex items-center gap-1.5 bg-rose-950/80 px-2 py-1 rounded-lg border border-rose-700/60 font-mono text-[10px]">
@@ -1380,62 +1380,62 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-slate-700 bg-emerald-900" colSpan={4}>TOTAL GERAL</th>
-                    <th className="p-3 border border-slate-700 bg-emerald-950" colSpan={1}>OUTRAS ENTRADAS</th>
-                    <th className="p-3 border border-slate-700 bg-rose-950" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
-                    <th className="p-3 border border-slate-700 bg-slate-700 text-white" rowSpan={2}>RESULT</th>
-                    <th className="p-3 border border-slate-700 bg-slate-700 text-white" rowSpan={2}>%</th>
-                    <th className="p-3 border border-slate-700 bg-amber-900 text-white" rowSpan={2}>SALÁRIO</th>
-                    <th className="p-3 border border-slate-700 bg-slate-700 text-white" rowSpan={2}>FINAL</th>
-                    <th className="p-3 border border-slate-700 bg-stone-600 text-white" rowSpan={2}>ACERTO 1</th>
-                    <th className="p-3 border border-slate-700 bg-stone-600 text-white" rowSpan={2}>SOBRE MÊS ANTERIOR</th>
-                    <th className="p-3 border border-slate-700 bg-emerald-900 text-white" rowSpan={2}>DIV LUCROS</th>
-                    <th className="p-3 border border-slate-700 bg-orange-900 text-white" rowSpan={2}>EXCEDENTE</th>
-                    <th className="p-3 border border-slate-700 bg-blue-900 text-white" rowSpan={2}>TOTAL</th>
-                    <th className="p-3 border border-slate-700 bg-violet-900 text-white" rowSpan={2}>ACERTO FINAL</th>
-                    <th className="p-3 border border-slate-700 bg-slate-600 text-white" rowSpan={2}>FINALIZAÇÃO</th>
+                    <th className="p-3 border border-slate-500 border-r-4 border-r-slate-400 bg-emerald-900" colSpan={4}>TOTAL GERAL</th>
+                    <th className="p-3 border border-slate-500 bg-emerald-950" colSpan={1}>OUTRAS ENTRADAS</th>
+                    <th className="p-3 border border-slate-500 bg-rose-950" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
+                    <th className="p-3 border border-slate-500 bg-slate-700 text-white" rowSpan={2}>RESULT</th>
+                    <th className="p-3 border border-slate-500 bg-slate-700 text-white" rowSpan={2}>%</th>
+                    <th className="p-3 border border-slate-500 bg-amber-900 text-white" rowSpan={2}>SALÁRIO</th>
+                    <th className="p-3 border border-slate-500 bg-slate-700 text-white" rowSpan={2}>FINAL</th>
+                    <th className="p-3 border border-slate-500 bg-stone-600 text-white" rowSpan={2}>ACERTO 1</th>
+                    <th className="p-3 border border-slate-500 bg-stone-600 text-white" rowSpan={2}>SOBRE MÊS ANTERIOR</th>
+                    <th className="p-3 border border-slate-500 bg-emerald-900 text-white" rowSpan={2}>DIV LUCROS</th>
+                    <th className="p-3 border border-slate-500 bg-orange-900 text-white" rowSpan={2}>EXCEDENTE</th>
+                    <th className="p-3 border border-slate-500 bg-blue-900 text-white" rowSpan={2}>TOTAL</th>
+                    <th className="p-3 border border-slate-500 bg-violet-900 text-white" rowSpan={2}>ACERTO FINAL</th>
+                    <th className="p-3 border border-slate-500 bg-slate-600 text-white" rowSpan={2}>FINALIZAÇÃO</th>
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
                     {/* Azambuja */}
-                    <th className="p-2 border border-slate-700">Equipe TT</th>
-                    <th className="p-2 border border-slate-700">Equipe DS</th>
-                    <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão TT</th>
-                    <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão DS</th>
-                    <th className="p-2 border border-slate-700">Total TT</th>
-                    <th className="p-2 border border-slate-700">Total DS</th>
+                    <th className="p-2 border border-slate-500">Equipe TT</th>
+                    <th className="p-2 border border-slate-500">Equipe DS</th>
+                    <th className="p-2 border border-slate-500 bg-emerald-950/80 text-emerald-300">Plantão TT</th>
+                    <th className="p-2 border border-slate-500 bg-emerald-950/80 text-emerald-300">Plantão DS</th>
+                    <th className="p-2 border border-slate-500">Total TT</th>
+                    <th className="p-2 border border-slate-500">Total DS</th>
                     {/* Marieta */}
-                    <th className="p-2 border border-slate-700">Equipe TT</th>
-                    <th className="p-2 border border-slate-700">Equipe DS</th>
-                    <th className="p-2 border border-slate-700">Total TT</th>
-                    <th className="p-2 border border-slate-700">Total DS</th>
+                    <th className="p-2 border border-slate-500">Equipe TT</th>
+                    <th className="p-2 border border-slate-500">Equipe DS</th>
+                    <th className="p-2 border border-slate-500">Total TT</th>
+                    <th className="p-2 border border-slate-500">Total DS</th>
                     {/* Unimed */}
-                    <th className="p-2 border border-slate-700">Equipe TT</th>
-                    <th className="p-2 border border-slate-700">Equipe DS</th>
-                    <th className="p-2 border border-slate-700">Part. TT</th>
-                    <th className="p-2 border border-slate-700">Part. DS</th>
-                    <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão TT</th>
-                    <th className="p-2 border border-slate-700 bg-emerald-950/80 text-emerald-300">Plantão DS</th>
-                    <th className="p-2 border border-slate-700">VL Nota TT</th>
-                    <th className="p-2 border border-slate-700">Disp DS</th>
-                    <th className="p-2 border border-slate-700">Prop %</th>
-                    <th className="p-2 border border-slate-700">Disp Unim</th>
+                    <th className="p-2 border border-slate-500">Equipe TT</th>
+                    <th className="p-2 border border-slate-500">Equipe DS</th>
+                    <th className="p-2 border border-slate-500">Part. TT</th>
+                    <th className="p-2 border border-slate-500">Part. DS</th>
+                    <th className="p-2 border border-slate-500 bg-emerald-950/80 text-emerald-300">Plantão TT</th>
+                    <th className="p-2 border border-slate-500 bg-emerald-950/80 text-emerald-300">Plantão DS</th>
+                    <th className="p-2 border border-slate-500">VL Nota TT</th>
+                    <th className="p-2 border border-slate-500">Disp DS</th>
+                    <th className="p-2 border border-slate-500">Prop %</th>
+                    <th className="p-2 border border-slate-500">Disp Unim</th>
                     {/* Consultorio */}
-                    <th className="p-2 border border-slate-700">TT</th>
-                    <th className="p-2 border border-slate-700">DS</th>
+                    <th className="p-2 border border-slate-500">TT</th>
+                    <th className="p-2 border border-slate-500">DS</th>
                     {/* Dinheiro */}
-                    <th className="p-2 border border-slate-700">TT</th>
-                    <th className="p-2 border border-slate-700">DS</th>
+                    <th className="p-2 border border-slate-500">TT</th>
+                    <th className="p-2 border border-slate-500">DS</th>
                     {/* Unimed Luis */}
-                    <th className="p-2 border border-slate-700">TT</th>
-                    <th className="p-2 border border-slate-700">DS</th>
+                    <th className="p-2 border border-slate-500">TT</th>
+                    <th className="p-2 border border-slate-500">DS</th>
                     {/* Totalizador consolidado logo após Unimed Luis */}
-                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">TT</th>
-                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">DS</th>
-                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Disp Período</th>
-                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Proporção Heart</th>
+                    <th className="p-2 border border-slate-500 bg-emerald-950 text-emerald-200">TT</th>
+                    <th className="p-2 border border-slate-500 bg-emerald-950 text-emerald-200">DS</th>
+                    <th className="p-2 border border-slate-500 bg-emerald-950 text-emerald-200">Disp Período</th>
+                    <th className="p-2 border border-slate-500 bg-emerald-950 text-emerald-200">Proporção Heart</th>
                     {/* Outras entradas e despesas */}
-                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Outras Entradas</th>
-                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-slate-700 bg-rose-950 text-rose-200">{type.name}</th>) : <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Despesas</th>}
+                    <th className="p-2 border border-slate-500 bg-emerald-950 text-emerald-200">Outras Entradas</th>
+                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-slate-500 bg-rose-950 text-rose-200">{type.name}</th>) : <th className="p-2 border border-slate-500 bg-rose-950 text-rose-200">Despesas</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
@@ -1687,7 +1687,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         {rows.map((r) => (
                       <tr key={r.key} className="even:bg-slate-50/70 hover:bg-emerald-50/40 transition-colors">
                         <td
-                          className="p-3 border border-slate-200 text-left pl-4 font-black text-gray-900 bg-white cursor-pointer hover:bg-blue-50 transition-colors"
+                          className="p-3 border border-gray-200 text-left pl-4 font-black text-gray-900 bg-white cursor-pointer hover:bg-blue-50 transition-colors"
                           title="Clique para ver todos os lançamentos deste médico"
                           onClick={() => {
                             const recs = production.filter(p => p.doctorId === r.key);
@@ -1725,13 +1725,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           </div>
                           <div className="text-[9px] text-blue-500 font-bold mt-0.5">Ver lançamentos</div>
                         </td>
-                        <td className="p-3 border border-slate-200 font-bold text-gray-700 bg-slate-50">
+                        <td className="p-3 border border-gray-200 font-bold text-gray-700 bg-slate-50">
                           {r.percent > 0 ? `${r.percent}%` : "-"}
                         </td>
                         {/* Azambuja */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.azEqTT > 0 ? r.azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.azEqDS > 0 ? r.azEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 bg-emerald-50/60 p-1">
+                        <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.azEqTT > 0 ? r.azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.azEqDS > 0 ? r.azEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 bg-emerald-50/60 p-1">
                           <input
                             type="number"
                             value={manualEntradas[r.key]?.azambujaPlantaoTT || ""}
@@ -1750,17 +1750,17 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             placeholder="0,00"
                           />
                         </td>
-                        <td className="p-3 border border-slate-200 bg-emerald-50/30 font-mono text-emerald-800 font-bold">
+                        <td className="p-3 border border-gray-200 bg-emerald-50/30 font-mono text-emerald-800 font-bold">
                           {r.azPlDS > 0 ? r.azPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{r.azTotTT > 0 ? r.azTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-500">{r.azTotDS > 0 ? r.azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-gray-900">{r.azTotTT > 0 ? r.azTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-blue-700 border-r-4 border-slate-600">{r.azTotDS > 0 ? r.azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Marieta */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.marEqTT > 0 ? r.marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.marEqDS > 0 ? r.marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{r.marTotTT > 0 ? r.marTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700 border-r-2 border-slate-500">{r.marTotDS > 0 ? r.marTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.marEqTT > 0 ? r.marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.marEqDS > 0 ? r.marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-gray-900">{r.marTotTT > 0 ? r.marTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-blue-700 border-r-4 border-slate-600">{r.marTotDS > 0 ? r.marTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Unimed (Equipe from imports, Plantao manual) */}
                         <td 
@@ -1768,7 +1768,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Equipe) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
-                          className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                          className="p-3 border border-gray-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
                         >
                           {r.unimedEqTT > 0 ? r.unimedEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
@@ -1777,7 +1777,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Equipe DS) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
-                          className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                          className="p-3 border border-gray-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
                         >
                           {r.unimedEqDS > 0 ? r.unimedEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
@@ -1786,7 +1786,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Part. TT) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
-                          className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                          className="p-3 border border-gray-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
                         >
                           {r.unimedPartTT > 0 ? r.unimedPartTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
@@ -1795,11 +1795,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Part. DS) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
-                          className="p-3 border border-slate-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                          className="p-3 border border-gray-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
                         >
                           {r.unimedPartDS > 0 ? r.unimedPartDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className="p-3 border border-slate-200 bg-emerald-50/60 p-1">
+                        <td className="p-3 border border-gray-200 bg-emerald-50/60 p-1">
                           <input
                             type="number"
                             value={manualEntradas[r.key]?.unimedPlantaoTT || ""}
@@ -1818,68 +1818,68 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             placeholder="0,00"
                           />
                         </td>
-                        <td className="p-3 border border-slate-200 bg-emerald-50/30 font-mono text-emerald-800 font-bold">
+                        <td className="p-3 border border-gray-200 bg-emerald-50/30 font-mono text-emerald-800 font-bold">
                           {r.unimPlDS > 0 ? r.unimPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-gray-900">{r.unimTotTT > 0 ? r.unimTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-blue-700">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono text-gray-500">{r.unimTotTT > 0 ? (totalUnimedTT > 0 ? (r.unimTotTT / totalUnimedTT * 100) : 0).toFixed(2) : "0.00"}%</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-teal-800 border-r-2 border-slate-500">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-gray-900">{r.unimTotTT > 0 ? r.unimTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-blue-700">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono text-gray-500">{r.unimTotTT > 0 ? (totalUnimedTT > 0 ? (r.unimTotTT / totalUnimedTT * 100) : 0).toFixed(2) : "0.00"}%</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-teal-800 border-r-4 border-slate-600">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Consultorio */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.consultTT > 0 ? r.consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-purple-900 border-r-2 border-slate-500">{r.consultDS > 0 ? r.consultDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.consultTT > 0 ? r.consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-purple-900 border-r-4 border-slate-600">{r.consultDS > 0 ? r.consultDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Dinheiro */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.dinheiroTT > 0 ? r.dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-amber-900 border-r-2 border-slate-500">{r.dinheiroDS > 0 ? r.dinheiroDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.dinheiroTT > 0 ? r.dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-amber-900 border-r-4 border-slate-600">{r.dinheiroDS > 0 ? r.dinheiroDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Unimed Luis */}
-                        <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimLuisTT > 0 ? r.unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-rose-900 border-r-2 border-slate-500">{r.unimLuisDS > 0 ? r.unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.unimLuisTT > 0 ? r.unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-rose-900 border-r-4 border-slate-600">{r.unimLuisDS > 0 ? r.unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Totalizador consolidado */}
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{r.dispPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-blue-50 text-blue-950">{r.proporcaoHeart.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
+                        <td className="p-3 border border-gray-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-black bg-emerald-50 text-emerald-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-indigo-700 bg-slate-50">{r.dispPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-200 font-mono font-black bg-blue-50 text-blue-950">{r.proporcaoHeart.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
 
                         {/* Outras Entradas e Saídas por tipo */}
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-700">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{(type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)) !== 0
+                        <td className="p-3 border border-gray-200 font-mono font-black bg-emerald-50 text-emerald-700">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-200 font-mono font-bold text-rose-700 bg-rose-50/40">{(type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)) !== 0
                           ? (type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-                          : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
-                        <td className={`p-3 border border-slate-200 font-mono font-black ${r.afterCashFlowOut < 0 ? "text-rose-700 bg-rose-50" : "text-slate-900 bg-slate-100"}`}>
+                          : "-"}</td>) : <td className="p-3 border border-gray-200">-</td>}
+                        <td className={`p-3 border border-gray-200 font-mono font-black ${r.afterCashFlowOut < 0 ? "text-rose-700 bg-rose-50" : "text-slate-900 bg-slate-100"}`}>
                           {r.afterCashFlowOut.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-slate-700">
+                        <td className="p-3 border border-gray-200 font-mono font-black bg-slate-100 text-slate-700">
                           {(Number(r.afterCashFlowOutPercent) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
                         </td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-amber-800 bg-amber-50/70">
+                        <td className="p-3 border border-gray-200 font-mono font-bold text-amber-800 bg-amber-50/70">
                           {Number(r.salaryAmount) > 0 ? Number(r.salaryAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className={`p-3 border border-slate-200 font-mono font-black ${r.finalAfterSalary < 0 ? "text-rose-700 bg-rose-50" : "text-slate-900 bg-slate-100"}`}>
+                        <td className={`p-3 border border-gray-200 font-mono font-black ${r.finalAfterSalary < 0 ? "text-rose-700 bg-rose-50" : "text-slate-900 bg-slate-100"}`}>
                           {Number(r.finalAfterSalary || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className={`p-3 border border-slate-200 font-mono font-bold ${Number(r.acerto1Amount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-700 bg-stone-50"}`}>
+                        <td className={`p-3 border border-gray-200 font-mono font-bold ${Number(r.acerto1Amount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-700 bg-stone-50"}`}>
                           {Number(r.acerto1Amount) !== 0 ? Number(r.acerto1Amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className={`p-3 border border-slate-200 font-mono font-bold ${Number(r.sobreMesAnteriorAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-700 bg-stone-50"}`}>
+                        <td className={`p-3 border border-gray-200 font-mono font-bold ${Number(r.sobreMesAnteriorAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-700 bg-stone-50"}`}>
                           {Number(r.sobreMesAnteriorAmount) !== 0 ? Number(r.sobreMesAnteriorAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className="p-3 border border-slate-200 font-mono font-black text-emerald-800 bg-emerald-50/70">
+                        <td className="p-3 border border-gray-200 font-mono font-black text-emerald-800 bg-emerald-50/70">
                           {Number(r.divLucrosAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className={`p-3 border border-slate-200 font-mono font-bold ${Number(r.excedenteAmount) > 0 ? "text-orange-800 bg-orange-50" : "text-slate-700 bg-slate-50"}`}>
+                        <td className={`p-3 border border-gray-200 font-mono font-bold ${Number(r.excedenteAmount) > 0 ? "text-orange-800 bg-orange-50" : "text-slate-700 bg-slate-50"}`}>
                           {Number(r.excedenteAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="p-3 border border-slate-200 font-mono font-black text-blue-900 bg-blue-50/70">
+                        <td className="p-3 border border-gray-200 font-mono font-black text-blue-900 bg-blue-50/70">
                           {Number(r.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className={`p-3 border border-slate-200 font-mono font-bold ${Number(r.acertoFinalAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-violet-900 bg-violet-50/70"}`}>
+                        <td className={`p-3 border border-gray-200 font-mono font-bold ${Number(r.acertoFinalAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-violet-900 bg-violet-50/70"}`}>
                           {Number(r.acertoFinalAmount) !== 0 ? Number(r.acertoFinalAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className={`p-3 border border-slate-200 font-mono font-black ${Number(r.finalizacaoAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-900 bg-slate-100"}`}>
+                        <td className={`p-3 border border-gray-200 font-mono font-black ${Number(r.finalizacaoAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-900 bg-slate-100"}`}>
                           {Number(r.finalizacaoAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
@@ -1896,50 +1896,50 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
                     return (
                       <tr className="bg-slate-900 text-white font-black text-xs">
-                        <td className="p-3 border border-slate-700 text-left pl-4 uppercase" colSpan={2}>TOTAL GERAL CONSOLIDADO</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('azEqTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('azEqDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('azPlTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('azPlDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('azTotTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('azTotDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marEqTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marEqDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marTotTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('marTotDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedEqTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedEqDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedPartTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimedPartDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('unimPlTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-emerald-300">{fmt(sum('unimPlDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimTotTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimTotDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">100.00%</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimTotDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('consultTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('consultTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('dinheiroTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('dinheiroTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimLuisTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimLuisDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('totalGeralTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('totalGeralDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('totalGeralDS') - sum('unimTotDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono">100.00%</td>
-                        <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-700 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-slate-700">-</td>}
-                        <td className="p-3 border border-slate-700 font-mono font-black text-white">{sum('afterCashFlowOut').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black">{rows.some((row: any) => row.isTeam === true) ? "100,00%" : "0,00%"}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black text-amber-200">{sum('salaryAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black text-white">{sum('finalAfterSalary').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black text-stone-200">{sum('acerto1Amount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black text-stone-200">{sum('sobreMesAnteriorAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black text-emerald-200">{sum('divLucrosAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black text-orange-200">{sum('excedenteAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black text-blue-200">{(Math.round((sum('divLucrosAmount') + sum('excedenteAmount')) * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black text-violet-200">{sum('acertoFinalAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black text-white">{sum('finalizacaoAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 text-left pl-4 uppercase" colSpan={2}>TOTAL GERAL CONSOLIDADO</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('azEqTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('azEqDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono text-emerald-300">{fmt(sum('azPlTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono text-emerald-300">{fmt(sum('azPlDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('azTotTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('azTotDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('marEqTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('marEqDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('marTotTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('marTotDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimedEqTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimedEqDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimedPartTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimedPartDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono text-emerald-300">{fmt(sum('unimPlTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono text-emerald-300">{fmt(sum('unimPlDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimTotTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimTotDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">100.00%</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimTotDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('consultTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('consultTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('dinheiroTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('dinheiroTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimLuisTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('unimLuisDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('totalGeralTT'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('totalGeralDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">{fmt(sum('totalGeralDS') - sum('unimTotDS'))}</td>
+                        <td className="p-3 border border-slate-500 font-mono">100.00%</td>
+                        <td className="p-3 border border-slate-500 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-500 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-slate-500">-</td>}
+                        <td className="p-3 border border-slate-500 font-mono font-black text-white">{sum('afterCashFlowOut').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black">{rows.some((row: any) => row.isTeam === true) ? "100,00%" : "0,00%"}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black text-amber-200">{sum('salaryAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black text-white">{sum('finalAfterSalary').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black text-stone-200">{sum('acerto1Amount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black text-stone-200">{sum('sobreMesAnteriorAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black text-emerald-200">{sum('divLucrosAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black text-orange-200">{sum('excedenteAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black text-blue-200">{(Math.round((sum('divLucrosAmount') + sum('excedenteAmount')) * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black text-violet-200">{sum('acertoFinalAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black text-white">{sum('finalizacaoAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       </tr>
                     );
                   })()}
