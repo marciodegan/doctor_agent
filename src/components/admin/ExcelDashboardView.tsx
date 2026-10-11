@@ -1538,7 +1538,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
                         {/* Outras Entradas e Saídas por tipo */}
                         <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-700">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{Math.abs(Number(r.cashFlowExpenses[type.id]) || 0) > 0 ? Math.abs(Number(r.cashFlowExpenses[type.id]) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{Math.abs(Number(r.cashFlowExpenses[type.id]) || 0) > 0 ? Math.abs(Number(r.cashFlowExpenses[type.id]) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
                       </tr>
                     ));
                   })()}
