@@ -743,20 +743,22 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                       </span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setForm({ ...form, defaultRateioMethod: "PROP_GERAL" })}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                        form.defaultRateioMethod === "PROP_GERAL"
-                          ? "bg-violet-50 border-violet-500 text-violet-950 font-black ring-2 ring-violet-500/20"
-                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
-                      }`}
-                    >
-                      <span className="block font-black text-xs text-violet-800">PROP % GERAL</span>
-                      <span className="text-[10px] text-gray-500 font-normal leading-tight block mt-0.5">
-                        Usa o percentual PROP da matriz para os médicos habilitados. Não normaliza; bloqueia se a soma passar de 100%.
-                      </span>
-                    </button>
+                    {form.nature === "DEBIT" && (
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, defaultRateioMethod: "PROP_GERAL" })}
+                        className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                          form.defaultRateioMethod === "PROP_GERAL"
+                            ? "bg-violet-50 border-violet-500 text-violet-950 font-black ring-2 ring-violet-500/20"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
+                        }`}
+                      >
+                        <span className="block font-black text-xs text-violet-800">PROP % GERAL</span>
+                        <span className="text-[10px] text-gray-500 font-normal leading-tight block mt-0.5">
+                          Usa o percentual PROP da matriz para os médicos habilitados. Não normaliza; bloqueia se a soma passar de 100%.
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
