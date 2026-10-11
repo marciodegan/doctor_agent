@@ -2359,8 +2359,6 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     // general PROP allocation, including transactions created before that setting was
     // corrected. Individual doctor transactions retain their individual scope.
     const normalizeRateioMethod = (value: any) => String(value || "")
-      .normalize("NFD")
-      .replace(/[\\u0300-\\u036f]/g, "")
       .trim()
       .toUpperCase()
       .replace(/[^A-Z0-9]+/g, "_")
