@@ -124,6 +124,11 @@ service cloud.firestore {
         allow update: if isMember(groupId) && isValidShoppingItem(incoming());
         allow delete: if isMember(groupId);
       }
+
+      // Manual values for the financial matrix, scoped to group members.
+      match /financial_matrix_manual_entries/{closingId} {
+        allow read, create, update, delete: if isMember(groupId);
+      }
     }
 
     // Group Invitations
