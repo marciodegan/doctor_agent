@@ -2376,8 +2376,10 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       transactionTypesForAllocation.map((type: any) => [normalizeTypeName(type.name), type])
     );
     const transactions = rawTransactions.map((tx: any) => {
-      const type = typeById.get(String(tx.typeId || ""))
-        || typeByName.get(normalizeTypeName(tx.typeName));
+      // Prefer the exact saved type name when available. Legacy transactions can
+      // carry a generic/stale typeId that points at a different built-in type.
+      const type = typeByName.get(normalizeTypeName(tx.typeName))
+        || typeById.get(String(tx.typeId || ""));
       const configuredMethod = normalizeRateioMethod(type?.defaultRateioMethod);
       const savedMethod = normalizeRateioMethod(tx.rateioMethod);
       // Explicit PROP % GERAL always wins over stale legacy methods.
