@@ -2392,7 +2392,8 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
         ...tx,
         rateioMethod: effectiveMethod || tx.rateioMethod || null,
         allocationMethod: effectiveMethod || tx.rateioMethod || null,
-        allocationTypeMatched: Boolean(type)
+        allocationTypeMatched: Boolean(type),
+        isSalary: tx.isSalary === true || type?.isSalary === true
       };
     });
     const batches = batchSnap.docs.map((d: any) => d.data());
@@ -2811,22 +2812,24 @@ app.get("/api/app/financial/transaction-types", async (req, res) => {
 
 app.post("/api/app/financial/transaction-types", async (req, res) => {
   const groupId = getGroupId(req);
-  const { name, nature, defaultScope, defaultRateioMethod, allowNegativeAmount, category, description } = req.body;
+  const { name, nature, defaultScope, defaultRateioMethod, allowNegativeAmount, isSalary, category, description } = req.body;
   if (!name || !nature) {
     return res.status(400).json({ error: "name and nature are required" });
   }
   try {
     const user = (req as any).user;
     const docRef = db.collection("financial_transaction_types").doc();
+    const salaryType = isSalary === true;
     const typeData = {
       id: docRef.id,
       teamId: groupId,
       name: name.trim(),
-      nature: nature === "CREDIT" ? "CREDIT" : "DEBIT",
-      defaultScope: defaultScope || "TEAM",
-      defaultRateioMethod: defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
-      allowNegativeAmount: nature !== "CREDIT" && allowNegativeAmount === true,
-      category: category?.trim() || "Geral",
+      nature: salaryType ? "DEBIT" : nature === "CREDIT" ? "CREDIT" : "DEBIT",
+      defaultScope: salaryType ? "DOCTOR" : defaultScope || "TEAM",
+      defaultRateioMethod: salaryType ? "NOMINAL" : defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
+      allowNegativeAmount: !salaryType && nature !== "CREDIT" && allowNegativeAmount === true,
+      isSalary: salaryType,
+      category: salaryType ? "Salários" : category?.trim() || "Geral",
       description: description?.trim() || "",
       isCustom: true,
       createdAt: new Date().toISOString(),
@@ -2852,12 +2855,13 @@ app.post("/api/app/financial/transaction-types", async (req, res) => {
 app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
   const groupId = getGroupId(req);
   const { id } = req.params;
-  const { name, nature, defaultScope, defaultRateioMethod, category, description } = req.body;
+  const { name, nature, defaultScope, defaultRateioMethod, allowNegativeAmount, isSalary, category, description } = req.body;
   try {
     const user = (req as any).user;
     const docRef = db.collection("financial_transaction_types").doc(id);
     const existing = await docRef.get();
     
+    const salaryType = isSalary === true || (isSalary === undefined && existing.exists && existing.data()?.isSalary === true);
     const updateData: any = {
       teamId: groupId,
       ...(name !== undefined && { name: name.trim() }),
@@ -2867,8 +2871,10 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
       ...(allowNegativeAmount !== undefined || nature === "CREDIT"
         ? { allowNegativeAmount: nature === "CREDIT" ? false : allowNegativeAmount === true }
         : {}),
+      ...(isSalary !== undefined && { isSalary: salaryType }),
       ...(category !== undefined && { category: category.trim() }),
       ...(description !== undefined && { description: description.trim() }),
+      ...(salaryType ? { nature: "DEBIT", defaultScope: "DOCTOR", defaultRateioMethod: "NOMINAL", allowNegativeAmount: false, isSalary: true, category: "Salários" } : {}),
       updatedAt: new Date().toISOString()
     };
 
@@ -2883,8 +2889,9 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
         nature: nature || matchedDefault?.nature || "DEBIT",
         defaultScope: defaultScope || matchedDefault?.defaultScope || "TEAM",
         defaultRateioMethod: defaultRateioMethod || matchedDefault?.defaultRateioMethod || "NOMINAL",
-        allowNegativeAmount: nature === "CREDIT" ? false : allowNegativeAmount === true,
-        category: category?.trim() || matchedDefault?.category || "Geral",
+        allowNegativeAmount: salaryType ? false : nature === "CREDIT" ? false : allowNegativeAmount === true,
+        isSalary: salaryType,
+        category: salaryType ? "Salários" : category?.trim() || matchedDefault?.category || "Geral",
         description: description?.trim() || matchedDefault?.description || "",
         isCustom: false,
         createdAt: new Date().toISOString(),
@@ -2991,11 +2998,11 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     }
 
     const typeName = storedType.name || requestedTypeName || String(typeId);
-    const nature = storedType.nature === "CREDIT" ? "CREDIT" : "DEBIT";
-    // The transaction type is the source of truth. Selecting a doctor must never
-    // turn a TEAM type into an individual transaction.
-    const scope = String(storedType.defaultScope || "TEAM").toUpperCase() === "DOCTOR" ? "DOCTOR" : "TEAM";
-    const rateioMethod = storedType.defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART");
+    const isSalary = storedType.isSalary === true;
+    const nature = isSalary ? "DEBIT" : storedType.nature === "CREDIT" ? "CREDIT" : "DEBIT";
+    // The transaction type is the source of truth. Salary is always an individual debit.
+    const scope = isSalary || String(storedType.defaultScope || "TEAM").toUpperCase() === "DOCTOR" ? "DOCTOR" : "TEAM";
+    const rateioMethod = isSalary ? "NOMINAL" : storedType.defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART");
     const autoSplitTeam = scope === "TEAM";
     if (scope === "DOCTOR" && !requestedDoctorId && !storedType.doctorId) {
       return res.status(400).json({ error: "Este tipo está configurado como individual. Selecione o médico antes de lançar." });
@@ -3039,7 +3046,8 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       typeName: typeName || "Lançamento Avulso",
       typeId: typeId || "avulso",
       amount: numAmount,
-      allowNegativeAmount,
+      allowNegativeAmount: isSalary ? false : allowNegativeAmount,
+      isSalary,
       nature: nature || "DEBIT",
       observation: observation || "",
       date: txDate,
