@@ -158,6 +158,7 @@ export interface FinancialTransactionType {
   nature: "CREDIT" | "DEBIT";
   defaultScope: "DOCTOR" | "TEAM" | "CLOSING";
   defaultRateioMethod?: "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL";
+  allowNegativeAmount?: boolean;
   category?: string;
   description?: string;
   isCustom?: boolean;
