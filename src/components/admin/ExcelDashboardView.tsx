@@ -1252,8 +1252,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   {(() => {
                     const hasClosing = Boolean(details?.closing);
                     const doctorAggById = new Map(doctorsAggregated.map((d: any) => [d.doctorId, d]));
-                    const getDoctorUnimed = (doctorId: string) => {
-                      const found: any = doctorAggById.get(doctorId);
+                    const getDoctorUnimed = (doctorId: string, doctorName?: string) => {
+                      const found: any = doctorAggById.get(doctorId)
+                        || doctorsAggregated.find((item: any) => normalize(item.doctorName) === normalize(doctorName));
                       if (!found) return { prod: 0, disp: 0, operational: 0, film: 0 };
                       return {
                         prod: Number(found.honorTT) || 0,
@@ -1262,6 +1263,24 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         film: Number(found.filmTT) || 0
                       };
                     };
+
+                    // Os médicos marcados em "Participa Unimed?" dividem igualmente
+                    // a soma da produção atribuída a todos os participantes.
+                    const unimedParticipants = configuredDoctors.filter((doctor: any) => doctor.participaUnimed === true);
+                    const participantProduction = unimedParticipants.reduce((sum: number, doctor: any) => {
+                      const data = getDoctorUnimed(doctor.key, doctor.name);
+                      return sum + data.prod + data.operational + data.film;
+                    }, 0);
+                    const participantAvailable = unimedParticipants.reduce((sum: number, doctor: any) => {
+                      const data = getDoctorUnimed(doctor.key, doctor.name);
+                      return sum + data.disp + data.operational + data.film;
+                    }, 0);
+                    const sharedUnimedTT = unimedParticipants.length
+                      ? Math.round((participantProduction / unimedParticipants.length) * 100) / 100
+                      : 0;
+                    const sharedUnimedDS = unimedParticipants.length
+                      ? Math.round((participantAvailable / unimedParticipants.length) * 100) / 100
+                      : 0;
 
                     const mul = hasClosing ? 1 : 0;
 
@@ -1312,13 +1331,21 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       const marTotTT = marEqTT;
                       const marTotDS = marEqDS;
 
-                      const unimedData = getDoctorUnimed(doc.key);
-                      const unimedEqTT = isTeam ? (unimedData.prod * mul) : 0;
-                      const unimedEqDS = isTeam ? (unimedData.disp * mul) : 0;
+                      const doctorConfig = configuredDoctors.find((item: any) => item.key === doc.key)
+                        || configuredDoctors.find((item: any) => normalize(item.name) === normalize(doc.name));
+                      const participatesUnimed = doctorConfig?.participaUnimed === true;
+                      const unimedData = getDoctorUnimed(doc.key, doc.name);
+                      const unimedEqTT = isTeam
+                        ? (participatesUnimed ? sharedUnimedTT : unimedData.prod + unimedData.operational + unimedData.film) * mul
+                        : 0;
+                      const unimedEqDS = isTeam
+                        ? (participatesUnimed ? sharedUnimedDS : unimedData.disp + unimedData.operational + unimedData.film) * mul
+                        : 0;
                       const unimedPartTT = !isTeam ? Math.round((unimedData.prod + unimedData.operational + unimedData.film) * mul * 100) / 100 : 0;
                       const unimedPartDS = !isTeam ? Math.round((unimedData.disp + unimedData.operational + unimedData.film) * mul * 100) / 100 : 0;
-                      const unimedOp = unimedData.operational * mul;
-                      const unimedFilm = unimedData.film * mul;
+                      // Os valores operacionais/filme já estão incluídos na cota igual dos participantes.
+                      const unimedOp = isTeam && participatesUnimed ? 0 : unimedData.operational * mul;
+                      const unimedFilm = isTeam && participatesUnimed ? 0 : unimedData.film * mul;
                       const unimPlTT = (man.unimedPlantaoTT || 0) * mul;
                       const unimPlDS = (man.unimedPlantaoDS || 0) * mul;
                       const unimTotTT = unimedEqTT + unimedPartTT + (isTeam ? unimedOp + unimedFilm : 0) + unimPlTT;
