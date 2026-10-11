@@ -578,15 +578,25 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const transactionTypesByName = new Map<string, any>(
     availableTransactionTypes.map((type: any) => [normalizeTransactionTypeName(type.name), type])
   );
+  const normalizeRateioMethod = (value: any) => String(value || "")
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
   const getEffectiveRateioMethod = (tx: any) => {
-    // Match both current catalog and the method saved on the transaction. A saved
-    // PROP_GERAL method must never fall through to the legacy 29/29/29/13 split.
+    // The API sends allocationMethod after resolving the current catalog rule.
+    // Normalize legacy display strings like "PROP % GERAL" to PROP_GERAL.
     const currentType = transactionTypesById.get(String(tx.typeId || ""))
       || transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName));
-    const configuredMethod = String(currentType?.defaultRateioMethod || "").toUpperCase();
-    const savedMethod = String(tx.rateioMethod || "").toUpperCase();
-    if (configuredMethod === "PROP_GERAL" || savedMethod === "PROP_GERAL") return "PROP_GERAL";
-    return configuredMethod || savedMethod;
+    const candidates = [
+      tx.allocationMethod,
+      currentType?.defaultRateioMethod,
+      tx.rateioMethod
+    ].map(normalizeRateioMethod).filter(Boolean);
+    if (candidates.includes("PROP_GERAL")) return "PROP_GERAL";
+    return candidates[0] || "";
   };
   const cashFlowExpenseTypes = Array.from(new Map(
     cashFlowTransactions
