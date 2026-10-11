@@ -1243,8 +1243,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       {/* VIEW: MATRIZ DE ENTRADAS (TT & DS) */}
       {activeSubTab === "matriz_entradas" && (
         <div className="space-y-6">
-          <div className="bg-white rounded-[32px] border border-black shadow-xl overflow-hidden p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-black">
+          <div className="bg-white rounded-[32px] border border-gray-300 shadow-xl overflow-hidden p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-300">
               <div>
                 <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Matriz de Entradas — Totais (TT) e Disponíveis para Saque (DS)</h3>
                 <p className="text-xs text-gray-500">Visualização detalhada por médico e fonte. Os campos com fundo <span className="bg-blue-100 text-blue-900 px-1.5 py-0.5 rounded font-bold">azul</span> são editáveis manualmente para lançamentos de plantão. Os valores são salvos ao sair do campo.</p>
@@ -1256,9 +1256,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <table className="w-full text-[11px] border-collapse text-center">
                 <thead>
                   <tr className="bg-[#1E3A5F] text-white font-black uppercase tracking-wider">
-                    <th className="p-3 border border-black text-left pl-4" rowSpan={2}>MÉDICO</th>
-                    <th className="p-3 border border-black" rowSpan={2}>% EQUIPE</th>
-                    <th className="p-3 border border-black border-l-[1mm] border-l-black border-r-[1mm] border-r-black bg-[#254D73]" colSpan={6}>
+                    <th className="p-3 border border-gray-300 text-left pl-4" rowSpan={2}>MÉDICO</th>
+                    <th className="p-3 border border-gray-300" rowSpan={2}>% EQUIPE</th>
+                    <th className="p-3 border border-gray-300 border-l-[1mm] border-l-black border-r-[1mm] border-r-black bg-[#254D73]" colSpan={6}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>AZAMBUJA</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1283,7 +1283,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-black border-r-4 border-r-slate-400 bg-[#315F86]" colSpan={4}>
+                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#315F86]" colSpan={4}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>MARIETA</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1308,7 +1308,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-black border-r-4 border-r-slate-400 bg-[#254D73]" colSpan={10}>
+                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#254D73]" colSpan={10}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-2">
                         <span className="font-black">UNIMED</span>
                         <div className="flex items-center gap-2 bg-[#1E3A5F] px-2.5 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1319,7 +1319,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-black border-r-4 border-r-slate-400 bg-[#315F86]" colSpan={2}>
+                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#315F86]" colSpan={2}>
                       <div className="flex flex-col items-center justify-center gap-1 px-0">
                         <span>CONSULTÓRIO</span>
                         <div className="flex items-center justify-center gap-1 bg-[#1E3A5F] px-1 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1342,7 +1342,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-black border-r-4 border-r-slate-400 bg-[#254D73]" colSpan={2}>
+                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#254D73]" colSpan={2}>
                       <div className="flex flex-col items-center justify-center gap-1 px-0">
                         <span>DINHEIRO</span>
                         <div className="flex items-center justify-center gap-1 bg-[#1E3A5F] px-1 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1365,7 +1365,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-black border-r-4 border-r-slate-400 bg-[#315F86]" colSpan={2}>
+                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#315F86]" colSpan={2}>
                       <div className="flex flex-col items-center justify-center gap-1 px-0">
                         <span>UNIMED LUIS</span>
                         <div className="flex items-center justify-center gap-1 bg-slate-700/80 px-1 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1388,62 +1388,62 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-black border-r-4 border-r-slate-400 bg-[#1E3A5F]" colSpan={4}>TOTAL GERAL</th>
-                    <th className="p-3 border border-black bg-slate-700" colSpan={1}>OUTRAS ENTRADAS</th>
-                    <th className="p-3 border border-black bg-slate-700" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
-                    <th className="p-3 border border-black bg-slate-700 text-white" rowSpan={2}>RESULT</th>
-                    <th className="p-3 border border-black bg-slate-700 text-white" rowSpan={2}>%</th>
-                    <th className="p-3 border border-black bg-[#254D73] text-white" rowSpan={2}>SALÁRIO</th>
-                    <th className="p-3 border border-black bg-slate-700 text-white" rowSpan={2}>FINAL</th>
-                    <th className="p-3 border border-black bg-stone-600 text-white" rowSpan={2}>ACERTO 1</th>
-                    <th className="p-3 border border-black bg-stone-600 text-white" rowSpan={2}>SOBRE MÊS ANTERIOR</th>
-                    <th className="p-3 border border-black bg-[#1E3A5F] text-white" rowSpan={2}>DIV LUCROS</th>
-                    <th className="p-3 border border-black bg-orange-700 text-white" rowSpan={2}>EXCEDENTE</th>
-                    <th className="p-3 border border-black bg-orange-100 text-orange-950" rowSpan={2}>TOTAL</th>
-                    <th className="p-3 border border-black bg-orange-100 text-orange-950" rowSpan={2}>ACERTO FINAL</th>
-                    <th className="p-3 border border-black bg-orange-500 text-orange-950" rowSpan={2}>FINALIZAÇÃO</th>
+                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#1E3A5F]" colSpan={4}>TOTAL GERAL</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700" colSpan={1}>OUTRAS ENTRADAS</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>RESULT</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>%</th>
+                    <th className="p-3 border border-gray-300 bg-[#254D73] text-white" rowSpan={2}>SALÁRIO</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>FINAL</th>
+                    <th className="p-3 border border-gray-300 bg-stone-600 text-white" rowSpan={2}>ACERTO 1</th>
+                    <th className="p-3 border border-gray-300 bg-stone-600 text-white" rowSpan={2}>SOBRE MÊS ANTERIOR</th>
+                    <th className="p-3 border border-gray-300 bg-[#1E3A5F] text-white" rowSpan={2}>DIV LUCROS</th>
+                    <th className="p-3 border border-gray-300 bg-orange-700 text-white" rowSpan={2}>EXCEDENTE</th>
+                    <th className="p-3 border border-gray-300 bg-orange-100 text-orange-950" rowSpan={2}>TOTAL</th>
+                    <th className="p-3 border border-gray-300 bg-orange-100 text-orange-950" rowSpan={2}>ACERTO FINAL</th>
+                    <th className="p-3 border border-gray-300 bg-orange-500 text-orange-950" rowSpan={2}>FINALIZAÇÃO</th>
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
                     {/* Azambuja */}
-                    <th className="p-2 border border-black border-l-[2mm] border-l-black">Equipe TT</th>
-                    <th className="p-2 border border-black">Equipe DS</th>
-                    <th className="p-2 border border-black bg-slate-700 text-blue-100">Plantão TT</th>
-                    <th className="p-2 border border-black bg-slate-700 text-blue-100">Plantão DS</th>
-                    <th className="p-2 border border-black">Total TT</th>
-                    <th className="p-2 border border-black border-r-[2mm] border-r-black">Total DS</th>
+                    <th className="p-2 border border-gray-300 border-l-[2mm] border-l-black">Equipe TT</th>
+                    <th className="p-2 border border-gray-300">Equipe DS</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Plantão TT</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Plantão DS</th>
+                    <th className="p-2 border border-gray-300">Total TT</th>
+                    <th className="p-2 border border-gray-300 border-r-[2mm] border-r-black">Total DS</th>
                     {/* Marieta */}
-                    <th className="p-2 border border-black">Equipe TT</th>
-                    <th className="p-2 border border-black">Equipe DS</th>
-                    <th className="p-2 border border-black">Total TT</th>
-                    <th className="p-2 border border-black">Total DS</th>
+                    <th className="p-2 border border-gray-300">Equipe TT</th>
+                    <th className="p-2 border border-gray-300">Equipe DS</th>
+                    <th className="p-2 border border-gray-300">Total TT</th>
+                    <th className="p-2 border border-gray-300">Total DS</th>
                     {/* Unimed */}
-                    <th className="p-2 border border-black">Equipe TT</th>
-                    <th className="p-2 border border-black">Equipe DS</th>
-                    <th className="p-2 border border-black">Part. TT</th>
-                    <th className="p-2 border border-black">Part. DS</th>
-                    <th className="p-2 border border-black bg-slate-700 text-blue-100">Plantão TT</th>
-                    <th className="p-2 border border-black bg-slate-700 text-blue-100">Plantão DS</th>
-                    <th className="p-2 border border-black">VL Nota TT</th>
-                    <th className="p-2 border border-black">Disp DS</th>
-                    <th className="p-2 border border-black">Prop %</th>
-                    <th className="p-2 border border-black">Disp Unim</th>
+                    <th className="p-2 border border-gray-300">Equipe TT</th>
+                    <th className="p-2 border border-gray-300">Equipe DS</th>
+                    <th className="p-2 border border-gray-300">Part. TT</th>
+                    <th className="p-2 border border-gray-300">Part. DS</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Plantão TT</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Plantão DS</th>
+                    <th className="p-2 border border-gray-300">VL Nota TT</th>
+                    <th className="p-2 border border-gray-300">Disp DS</th>
+                    <th className="p-2 border border-gray-300">Prop %</th>
+                    <th className="p-2 border border-gray-300">Disp Unim</th>
                     {/* Consultorio */}
-                    <th className="p-2 border border-black">TT</th>
-                    <th className="p-2 border border-black">DS</th>
+                    <th className="p-2 border border-gray-300">TT</th>
+                    <th className="p-2 border border-gray-300">DS</th>
                     {/* Dinheiro */}
-                    <th className="p-2 border border-black">TT</th>
-                    <th className="p-2 border border-black">DS</th>
+                    <th className="p-2 border border-gray-300">TT</th>
+                    <th className="p-2 border border-gray-300">DS</th>
                     {/* Unimed Luis */}
-                    <th className="p-2 border border-black">TT</th>
-                    <th className="p-2 border border-black">DS</th>
+                    <th className="p-2 border border-gray-300">TT</th>
+                    <th className="p-2 border border-gray-300">DS</th>
                     {/* Totalizador consolidado logo após Unimed Luis */}
-                    <th className="p-2 border border-black bg-slate-700 text-blue-100">TT</th>
-                    <th className="p-2 border border-black bg-slate-700 text-blue-100">DS</th>
-                    <th className="p-2 border border-black bg-slate-700 text-blue-100">Disp Período</th>
-                    <th className="p-2 border border-black bg-slate-700 text-blue-100">Proporção Heart</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">TT</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">DS</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Disp Período</th>
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Proporção Heart</th>
                     {/* Outras entradas e despesas */}
-                    <th className="p-2 border border-black bg-slate-700 text-blue-100">Outras Entradas</th>
-                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-black bg-slate-700 text-blue-100">{type.name}</th>) : <th className="p-2 border border-black bg-slate-700 text-blue-100">Despesas</th>}
+                    <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Outras Entradas</th>
+                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-gray-300 bg-slate-700 text-blue-100">{type.name}</th>) : <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Despesas</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
@@ -1706,7 +1706,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         {rows.map((r) => (
                       <tr key={r.key} className="even:bg-slate-50/70 hover:bg-emerald-50/40 transition-colors">
                         <td
-                          className="p-3 border border-black text-left pl-4 font-black text-gray-900 bg-white cursor-pointer hover:bg-blue-50 transition-colors"
+                          className="p-3 border border-gray-300 text-left pl-4 font-black text-gray-900 bg-white cursor-pointer hover:bg-blue-50 transition-colors"
                           title="Clique para ver todos os lançamentos deste médico"
                           onClick={() => {
                             const recs = production.filter(p => p.doctorId === r.key);
@@ -1729,7 +1729,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                                 aria-label={`Mover ${r.name} para cima`}
                                 disabled={rowsData.findIndex(item => item.key === r.key) === 0}
                                 onClick={(event) => { event.stopPropagation(); void moveDoctorInList(r.key, -1); }}
-                                className="p-1 rounded border border-black bg-white hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="p-1 rounded border border-gray-300 bg-white hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
                               ><ChevronUp size={12} /></button>
                               <button
                                 type="button"
@@ -1737,20 +1737,20 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                                 aria-label={`Mover ${r.name} para baixo`}
                                 disabled={rowsData.findIndex(item => item.key === r.key) === rowsData.length - 1}
                                 onClick={(event) => { event.stopPropagation(); void moveDoctorInList(r.key, 1); }}
-                                className="p-1 rounded border border-black bg-white hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="p-1 rounded border border-gray-300 bg-white hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
                               ><ChevronDown size={12} /></button>
                             </span>
                             {r.isTeam && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">Sócio</span>}
                           </div>
                           <div className="text-[9px] text-blue-500 font-bold mt-0.5">Ver lançamentos</div>
                         </td>
-                        <td className="p-3 border border-black font-bold text-gray-700 bg-slate-50">
+                        <td className="p-3 border border-gray-300 font-bold text-gray-700 bg-slate-50">
                           {r.percent > 0 ? `${r.percent}%` : "-"}
                         </td>
                         {/* Azambuja */}
-                        <td className="p-3 border border-black border-l-[2mm] border-l-black font-mono text-gray-700">{r.azEqTT > 0 ? r.azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black font-mono text-gray-700">{r.azEqDS > 0 ? r.azEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black bg-blue-50/60 p-1">
+                        <td className="p-3 border border-gray-300 border-l-[2mm] border-l-black font-mono text-gray-700">{r.azEqTT > 0 ? r.azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-gray-700">{r.azEqDS > 0 ? r.azEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 bg-blue-50/60 p-1">
                           <input
                             type="number"
                             value={manualEntradas[r.key]?.azambujaPlantaoTT || ""}
@@ -1769,17 +1769,17 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             placeholder="0,00"
                           />
                         </td>
-                        <td className="p-3 border border-black bg-blue-50/30 font-mono text-emerald-800 font-bold">
+                        <td className="p-3 border border-gray-300 bg-blue-50/30 font-mono text-emerald-800 font-bold">
                           {r.azPlDS > 0 ? r.azPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className="p-3 border border-black font-mono font-bold text-gray-900">{r.azTotTT > 0 ? r.azTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black font-mono font-bold text-blue-700 border-r border-black">{r.azTotDS > 0 ? r.azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-gray-900">{r.azTotTT > 0 ? r.azTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-blue-700 border-r border-gray-300">{r.azTotDS > 0 ? r.azTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Marieta */}
-                        <td className="p-3 border border-black font-mono text-gray-700">{r.marEqTT > 0 ? r.marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black font-mono text-gray-700">{r.marEqDS > 0 ? r.marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black font-mono font-bold text-gray-900">{r.marTotTT > 0 ? r.marTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black font-mono font-bold text-blue-700 border-r border-black">{r.marTotDS > 0 ? r.marTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-gray-700">{r.marEqTT > 0 ? r.marEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-gray-700">{r.marEqDS > 0 ? r.marEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-gray-900">{r.marTotTT > 0 ? r.marTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-blue-700 border-r border-gray-300">{r.marTotDS > 0 ? r.marTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Unimed (Equipe from imports, Plantao manual) */}
                         <td 
@@ -1810,7 +1810,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                               : [];
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed + Sobreaviso (Equipe) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: [...recs, ...sharedCashRecords] });
                           }}
-                          className="p-3 border border-black font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                          className="p-3 border border-gray-300 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
                         >
                           {r.unimedEqTT > 0 ? r.unimedEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
@@ -1819,7 +1819,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Equipe DS) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
-                          className="p-3 border border-black font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                          className="p-3 border border-gray-300 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
                         >
                           {r.unimedEqDS > 0 ? r.unimedEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
@@ -1828,7 +1828,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Part. TT) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
-                          className="p-3 border border-black font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                          className="p-3 border border-gray-300 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
                         >
                           {r.unimedPartTT > 0 ? r.unimedPartTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
@@ -1837,11 +1837,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             const recs = production.filter(p => p.doctorId === r.key);
                             setMatrixModalData({ isOpen: true, title: `Produção Unimed (Part. DS) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
                           }}
-                          className="p-3 border border-black font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                          className="p-3 border border-gray-300 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
                         >
                           {r.unimedPartDS > 0 ? r.unimedPartDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className="p-3 border border-black bg-blue-50/60 p-1">
+                        <td className="p-3 border border-gray-300 bg-blue-50/60 p-1">
                           <input
                             type="number"
                             value={manualEntradas[r.key]?.unimedPlantaoTT || ""}
@@ -1860,68 +1860,68 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             placeholder="0,00"
                           />
                         </td>
-                        <td className="p-3 border border-black bg-blue-50/30 font-mono text-emerald-800 font-bold">
+                        <td className="p-3 border border-gray-300 bg-blue-50/30 font-mono text-emerald-800 font-bold">
                           {r.unimPlDS > 0 ? r.unimPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className="p-3 border border-black font-mono font-bold text-gray-900">{r.unimTotTT > 0 ? r.unimTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black font-mono font-bold text-blue-700">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black font-mono text-gray-500">{r.unimTotTT > 0 ? (totalUnimedTT > 0 ? (r.unimTotTT / totalUnimedTT * 100) : 0).toFixed(2) : "0.00"}%</td>
-                        <td className="p-3 border border-black font-mono font-bold text-blue-800 border-r border-black">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-gray-900">{r.unimTotTT > 0 ? r.unimTotTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-blue-700">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-gray-500">{r.unimTotTT > 0 ? (totalUnimedTT > 0 ? (r.unimTotTT / totalUnimedTT * 100) : 0).toFixed(2) : "0.00"}%</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-blue-800 border-r border-gray-300">{r.unimTotDS > 0 ? r.unimTotDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Consultorio */}
-                        <td className="p-3 border border-black font-mono text-gray-700">{r.consultTT > 0 ? r.consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black font-mono font-bold text-blue-900 border-r border-black">{r.consultDS > 0 ? r.consultDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-gray-700">{r.consultTT > 0 ? r.consultTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-blue-900 border-r border-gray-300">{r.consultDS > 0 ? r.consultDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Dinheiro */}
-                        <td className="p-3 border border-black font-mono text-gray-700">{r.dinheiroTT > 0 ? r.dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black font-mono font-bold text-blue-900 border-r border-black">{r.dinheiroDS > 0 ? r.dinheiroDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-gray-700">{r.dinheiroTT > 0 ? r.dinheiroTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-blue-900 border-r border-gray-300">{r.dinheiroDS > 0 ? r.dinheiroDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Unimed Luis */}
-                        <td className="p-3 border border-black font-mono text-gray-700">{r.unimLuisTT > 0 ? r.unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        <td className="p-3 border border-black font-mono font-bold text-blue-900 border-r border-black">{r.unimLuisDS > 0 ? r.unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-gray-700">{r.unimLuisTT > 0 ? r.unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-blue-900 border-r border-gray-300">{r.unimLuisDS > 0 ? r.unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
                         {/* Totalizador consolidado */}
-                        <td className="p-3 border border-black font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black bg-blue-50 text-blue-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-bold text-indigo-700 bg-slate-50">{r.dispPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black bg-blue-50 text-blue-950">{r.proporcaoHeart.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black bg-blue-50 text-blue-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-indigo-700 bg-slate-50">{r.dispPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black bg-blue-50 text-blue-950">{r.proporcaoHeart.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
 
                         {/* Outras Entradas e Saídas por tipo */}
-                        <td className="p-3 border border-black font-mono font-black bg-blue-50 text-blue-900">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-black font-mono font-bold text-rose-700 bg-rose-50/40">{(type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)) !== 0
+                        <td className="p-3 border border-gray-300 font-mono font-black bg-blue-50 text-blue-900">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono font-bold text-rose-700 bg-rose-50/40">{(type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)) !== 0
                           ? (type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-                          : "-"}</td>) : <td className="p-3 border border-black">-</td>}
-                        <td className={`p-3 border border-black font-mono font-black ${r.afterCashFlowOut < 0 ? "text-rose-700 bg-rose-50" : "text-orange-900 bg-orange-100"}`}>
+                          : "-"}</td>) : <td className="p-3 border border-gray-300">-</td>}
+                        <td className={`p-3 border border-gray-300 font-mono font-black ${r.afterCashFlowOut < 0 ? "text-rose-700 bg-rose-50" : "text-orange-900 bg-orange-100"}`}>
                           {r.afterCashFlowOut.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="p-3 border border-black font-mono font-black bg-slate-100 text-slate-700">
+                        <td className="p-3 border border-gray-300 font-mono font-black bg-slate-100 text-slate-700">
                           {(Number(r.afterCashFlowOutPercent) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
                         </td>
-                        <td className="p-3 border border-black font-mono font-bold text-amber-800 bg-amber-50/70">
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-amber-800 bg-amber-50/70">
                           {Number(r.salaryAmount) > 0 ? Number(r.salaryAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className={`p-3 border border-black font-mono font-black ${r.finalAfterSalary < 0 ? "text-rose-700 bg-rose-50" : "text-orange-900 bg-orange-100"}`}>
+                        <td className={`p-3 border border-gray-300 font-mono font-black ${r.finalAfterSalary < 0 ? "text-rose-700 bg-rose-50" : "text-orange-900 bg-orange-100"}`}>
                           {Number(r.finalAfterSalary || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className={`p-3 border border-black font-mono font-bold ${Number(r.acerto1Amount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-700 bg-stone-50"}`}>
+                        <td className={`p-3 border border-gray-300 font-mono font-bold ${Number(r.acerto1Amount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-700 bg-stone-50"}`}>
                           {Number(r.acerto1Amount) !== 0 ? Number(r.acerto1Amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className={`p-3 border border-black font-mono font-bold ${Number(r.sobreMesAnteriorAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-700 bg-stone-50"}`}>
+                        <td className={`p-3 border border-gray-300 font-mono font-bold ${Number(r.sobreMesAnteriorAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-700 bg-stone-50"}`}>
                           {Number(r.sobreMesAnteriorAmount) !== 0 ? Number(r.sobreMesAnteriorAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className="p-3 border border-black font-mono font-black text-orange-900 bg-orange-50/70">
+                        <td className="p-3 border border-gray-300 font-mono font-black text-orange-900 bg-orange-50/70">
                           {Number(r.divLucrosAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className={`p-3 border border-black font-mono font-bold ${Number(r.excedenteAmount) > 0 ? "text-orange-800 bg-orange-50" : "text-slate-700 bg-slate-50"}`}>
+                        <td className={`p-3 border border-gray-300 font-mono font-bold ${Number(r.excedenteAmount) > 0 ? "text-orange-800 bg-orange-50" : "text-slate-700 bg-slate-50"}`}>
                           {Number(r.excedenteAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="p-3 border border-black font-mono font-black text-orange-900 bg-orange-50/70">
+                        <td className="p-3 border border-gray-300 font-mono font-black text-orange-900 bg-orange-50/70">
                           {Number(r.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className={`p-3 border border-black font-mono font-bold ${Number(r.acertoFinalAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-orange-900 bg-orange-50/70"}`}>
+                        <td className={`p-3 border border-gray-300 font-mono font-bold ${Number(r.acertoFinalAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-orange-900 bg-orange-50/70"}`}>
                           {Number(r.acertoFinalAmount) !== 0 ? Number(r.acertoFinalAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className={`p-3 border border-black font-mono font-black ${Number(r.finalizacaoAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-orange-900 bg-orange-100"}`}>
+                        <td className={`p-3 border border-gray-300 font-mono font-black ${Number(r.finalizacaoAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-orange-900 bg-orange-100"}`}>
                           {Number(r.finalizacaoAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
@@ -1938,50 +1938,50 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
                     return (
                       <tr className="bg-[#1E3A5F] text-white font-black text-xs">
-                        <td className="p-3 border border-black text-left pl-4 uppercase" colSpan={2}>TOTAL GERAL CONSOLIDADO</td>
-                        <td className="p-3 border border-black border-l-[2mm] border-l-black font-mono">{fmt(sum('azEqTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('azEqDS'))}</td>
-                        <td className="p-3 border border-black font-mono text-blue-200">{fmt(sum('azPlTT'))}</td>
-                        <td className="p-3 border border-black font-mono text-blue-200">{fmt(sum('azPlDS'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('azTotTT'))}</td>
-                        <td className="p-3 border border-black border-r-[2mm] border-r-black font-mono">{fmt(sum('azTotDS'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('marEqTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('marEqDS'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('marTotTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('marTotDS'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('unimedEqTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('unimedEqDS'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('unimedPartTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('unimedPartDS'))}</td>
-                        <td className="p-3 border border-black font-mono text-blue-200">{fmt(sum('unimPlTT'))}</td>
-                        <td className="p-3 border border-black font-mono text-blue-200">{fmt(sum('unimPlDS'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('unimTotTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('unimTotDS'))}</td>
-                        <td className="p-3 border border-black font-mono">100.00%</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('unimTotDS'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('consultTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('consultTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('dinheiroTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('dinheiroTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('unimLuisTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('unimLuisDS'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('totalGeralTT'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('totalGeralDS'))}</td>
-                        <td className="p-3 border border-black font-mono">{fmt(sum('totalGeralDS') - sum('unimTotDS'))}</td>
-                        <td className="p-3 border border-black font-mono">100.00%</td>
-                        <td className="p-3 border border-black font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-black font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-black">-</td>}
-                        <td className="p-3 border border-black font-mono font-black text-white">{sum('afterCashFlowOut').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black">{rows.some((row: any) => row.isTeam === true) ? "100,00%" : "0,00%"}</td>
-                        <td className="p-3 border border-black font-mono font-black text-amber-200">{sum('salaryAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black text-white">{sum('finalAfterSalary').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black text-stone-200">{sum('acerto1Amount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black text-stone-200">{sum('sobreMesAnteriorAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black text-emerald-200">{sum('divLucrosAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black text-orange-200">{sum('excedenteAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black bg-orange-100 text-orange-950">{(Math.round((sum('divLucrosAmount') + sum('excedenteAmount')) * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black text-violet-200">{sum('acertoFinalAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-black font-mono font-black bg-orange-500 text-orange-950">{sum('finalizacaoAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 text-left pl-4 uppercase" colSpan={2}>TOTAL GERAL CONSOLIDADO</td>
+                        <td className="p-3 border border-gray-300 border-l-[2mm] border-l-black font-mono">{fmt(sum('azEqTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('azEqDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-blue-200">{fmt(sum('azPlTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-blue-200">{fmt(sum('azPlDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('azTotTT'))}</td>
+                        <td className="p-3 border border-gray-300 border-r-[2mm] border-r-black font-mono">{fmt(sum('azTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marEqTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marEqDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marTotTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimedEqTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimedEqDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimedPartTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimedPartDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-blue-200">{fmt(sum('unimPlTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono text-blue-200">{fmt(sum('unimPlDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimTotTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">100.00%</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('consultTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('consultTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('dinheiroTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('dinheiroTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimLuisTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('unimLuisDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('totalGeralTT'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('totalGeralDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">{fmt(sum('totalGeralDS') - sum('unimTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 font-mono">100.00%</td>
+                        <td className="p-3 border border-gray-300 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-gray-300">-</td>}
+                        <td className="p-3 border border-gray-300 font-mono font-black text-white">{sum('afterCashFlowOut').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black">{rows.some((row: any) => row.isTeam === true) ? "100,00%" : "0,00%"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-amber-200">{sum('salaryAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-white">{sum('finalAfterSalary').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-stone-200">{sum('acerto1Amount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-stone-200">{sum('sobreMesAnteriorAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-emerald-200">{sum('divLucrosAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-orange-200">{sum('excedenteAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black bg-orange-100 text-orange-950">{(Math.round((sum('divLucrosAmount') + sum('excedenteAmount')) * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-violet-200">{sum('acertoFinalAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black bg-orange-500 text-orange-950">{sum('finalizacaoAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       </tr>
                     );
                   })()}
@@ -1996,8 +1996,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       {activeSubTab === "visao_geral" && (
         <div className="space-y-8">
           {/* BLOCO 1: MEMBROS DA EQUIPE (SÓCIOS) */}
-          <div className="bg-white rounded-[32px] border border-black shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-black flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50/50">
+          <div className="bg-white rounded-[32px] border border-gray-300 shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-gray-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50/50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-700 text-white flex items-center justify-center font-black shadow-md shadow-emerald-600/20">
                   <UserCheck size={20} />
@@ -2104,8 +2104,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           </div>
 
           {/* BLOCO 2: MÉDICOS FORA DA EQUIPE (COOPERADOS & PARCEIROS) */}
-          <div className="bg-white rounded-[32px] border border-black shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-black flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50">
+          <div className="bg-white rounded-[32px] border border-gray-300 shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-gray-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-slate-700 text-white flex items-center justify-center font-black shadow-md shadow-slate-600/20">
                   <UserX size={20} />
@@ -2127,7 +2127,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-100 text-slate-700 font-black uppercase text-[10px] tracking-wider border-b border-black">
+                  <tr className="bg-slate-100 text-slate-700 font-black uppercase text-[10px] tracking-wider border-b border-gray-300">
                     <th className="p-4 pl-6">Médico Cooperado</th>
                     <th className="p-4 text-center">Escopo</th>
                     <th className="p-4 text-right">Produção Unimed Própria</th>
@@ -2225,11 +2225,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   className={`bg-white rounded-[28px] border shadow-md p-6 flex flex-col justify-between space-y-4 transition ${
                     isTeam 
                       ? "border-emerald-300 ring-2 ring-emerald-500/10 hover:border-emerald-500" 
-                      : "border-black hover:border-gray-400"
+                      : "border-gray-300 hover:border-gray-400"
                   }`}
                 >
                   <div>
-                    <div className="flex items-start justify-between gap-2 border-b border-black pb-3">
+                    <div className="flex items-start justify-between gap-2 border-b border-gray-300 pb-3">
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
@@ -2250,7 +2250,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       </div>
                     </div>
 
-                    <div className="py-3 space-y-2 border-b border-black">
+                    <div className="py-3 space-y-2 border-b border-gray-300">
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-500">Produção Unimed:</span>
                         <span className="font-bold text-gray-900">R$ {med.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -2284,7 +2284,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   <div className={`p-4 rounded-2xl border flex items-center justify-between ${
                     isTeam 
                       ? "bg-emerald-50/70 border-emerald-100" 
-                      : "bg-gray-50 border-black"
+                      : "bg-gray-50 border-gray-300"
                   }`}>
                     <span className="text-[10px] font-black text-gray-700 uppercase">Salário Final Líquido:</span>
                     <span className={`text-base font-black ${isTeam ? "text-emerald-800" : "text-gray-900"}`}>
@@ -2300,8 +2300,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
       {/* VIEW 4: OCORRÊNCIAS NO FLUXO DE CAIXA */}
       {activeSubTab === "ocorrencias_fluxo" && (
-        <div className="bg-white rounded-[32px] border border-black shadow-xl overflow-hidden space-y-4">
-          <div className="p-6 border-b border-black flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/70">
+        <div className="bg-white rounded-[32px] border border-gray-300 shadow-xl overflow-hidden space-y-4">
+          <div className="p-6 border-b border-gray-300 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/70">
             <div>
               <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Ocorrências Financeiras Lançadas no Fluxo de Caixa</h3>
               <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
@@ -2317,7 +2317,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   placeholder="Buscar tipo de despesa..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="bg-white border border-black rounded-xl pl-9 pr-3 py-2 text-xs font-bold outline-none w-56 focus:ring-2 focus:ring-emerald-500"
+                  className="bg-white border border-gray-300 rounded-xl pl-9 pr-3 py-2 text-xs font-bold outline-none w-56 focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
@@ -2326,7 +2326,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                 <select
                   value={selectedDoctorFilter}
                   onChange={e => setSelectedDoctorFilter(e.target.value)}
-                  className="bg-white border border-black rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="ALL">Todos os Médicos & Equipe</option>
                   {configuredDoctors.map(d => (
@@ -2348,7 +2348,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <span className="text-rose-800 font-bold">Total Saídas / Deduções:</span>
               <span className="font-black text-rose-700">-R$ {totalOcorrenciasSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             </div>
-            <div className="p-3 bg-gray-50 border border-black rounded-xl text-xs flex justify-between items-center">
+            <div className="p-3 bg-gray-50 border border-gray-300 rounded-xl text-xs flex justify-between items-center">
               <span className="text-gray-700 font-bold">Saldo das Ocorrências:</span>
               <span className={`font-black ${totalOcorrenciasEntradas - totalOcorrenciasSaidas >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
                 R$ {(totalOcorrenciasEntradas - totalOcorrenciasSaidas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -2359,7 +2359,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-black">
+                <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-300">
                   <th className="p-3.5 pl-6">Data</th>
                   <th className="p-3.5">Médico / Responsável</th>
                   <th className="p-3.5">Escopo</th>
