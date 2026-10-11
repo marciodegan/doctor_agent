@@ -579,8 +579,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     availableTransactionTypes.map((type: any) => [normalizeTransactionTypeName(type.name), type])
   );
   const normalizeRateioMethod = (value: any) => String(value || "")
-    .normalize("NFD")
-    .replace(/[\\u0300-\\u036f]/g, "")
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "_")
