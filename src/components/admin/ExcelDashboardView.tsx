@@ -1320,15 +1320,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       </div>
                     </th>
                     <th className="p-3 border border-black border-r-4 border-r-slate-400 bg-[#315F86]" colSpan={2}>
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
+                      <div className="flex flex-col items-center justify-center gap-1 px-0">
                         <span>CONSULTÓRIO</span>
-                        <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
+                        <div className="flex items-center justify-center gap-1 bg-[#1E3A5F] px-1 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
                           <span className="text-blue-200 font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.consultorioTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, consultorioTT: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                           <span className="text-blue-200 font-bold ml-1">DS:</span>
@@ -1336,22 +1336,22 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.consultorioDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, consultorioDS: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                         </div>
                       </div>
                     </th>
                     <th className="p-3 border border-black border-r-4 border-r-slate-400 bg-[#254D73]" colSpan={2}>
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
+                      <div className="flex flex-col items-center justify-center gap-1 px-0">
                         <span>DINHEIRO</span>
-                        <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
+                        <div className="flex items-center justify-center gap-1 bg-[#1E3A5F] px-1 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
                           <span className="text-blue-200 font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.dinheiroTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, dinheiroTT: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                           <span className="text-blue-200 font-bold ml-1">DS:</span>
@@ -1359,22 +1359,22 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.dinheiroDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, dinheiroDS: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                         </div>
                       </div>
                     </th>
                     <th className="p-3 border border-black border-r-4 border-r-slate-400 bg-[#315F86]" colSpan={2}>
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
+                      <div className="flex flex-col items-center justify-center gap-1 px-0">
                         <span>UNIMED LUIS</span>
-                        <div className="flex items-center gap-1.5 bg-slate-700/80 px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
+                        <div className="flex items-center justify-center gap-1 bg-slate-700/80 px-1 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
                           <span className="text-blue-200 font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.unimedLuisTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, unimedLuisTT: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                           <span className="text-blue-200 font-bold ml-1">DS:</span>
@@ -1382,7 +1382,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.unimedLuisDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, unimedLuisDS: parseFloat(e.target.value) || 0 })}
-                            className="w-16 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
                         </div>
