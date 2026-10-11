@@ -201,6 +201,7 @@ export interface DoctorTeamMember {
   disponivelPeriodo?: number; // Receitas recebidas pelo médico no período (base do rateio)
   specialty?: string;
   crm?: string;
+  valorLimite?: number;
   participaUnimed?: boolean; // Participação permanente na divisão da UNIMED (Rochele, Thais, Luis = true)
   participaRateioGeral?: boolean; // Participa do rateio de saídas usando a coluna PROP % da matriz
   unimedDistributionRule?: "EQUAL" | string; // Regra de divisão UNIMED (padrão: "EQUAL")
