@@ -2339,7 +2339,32 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     const glosas = glosaSnap.docs.map((d: any) => d.data());
     const taxes = taxSnap.docs.map((d: any) => d.data());
     const adjustments = adjSnap.docs.map((d: any) => d.data());
-    const transactions = txSnap.docs.map((d: any) => d.data());
+    const rawTransactions = txSnap.docs.map((d: any) => d.data());
+    // A transaction type defines the allocation rule. Resolve the current saved rule
+    // from the catalog so the matrix uses PROP_GERAL when the type is configured for
+    // general PROP allocation, including transactions created before that setting was
+    // corrected. Individual doctor transactions retain their individual scope.
+    let transactions = rawTransactions;
+    try {
+      const typeSnap = await db.collection("financial_transaction_types")
+        .where("teamId", "==", groupId)
+        .get();
+      const typeById = new Map<string, any>(
+        typeSnap.docs.map((doc: any) => [doc.id, doc.data()])
+      );
+      transactions = rawTransactions.map((tx: any) => {
+        const type = typeById.get(String(tx.typeId || ""));
+        if (!type || type.isDeleted === true || String(tx.scope || "TEAM").toUpperCase() === "DOCTOR") {
+          return tx;
+        }
+        return {
+          ...tx,
+          rateioMethod: type.defaultRateioMethod || tx.rateioMethod
+        };
+      });
+    } catch (typeLookupError: any) {
+      console.error("[API] Could not resolve transaction allocation methods from catalog:", typeLookupError?.message || typeLookupError);
+    }
     const batches = batchSnap.docs.map((d: any) => d.data());
     const reconciliation = reconSnap.docs.map((d: any) => d.data());
 
