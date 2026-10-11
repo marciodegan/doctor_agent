@@ -1258,7 +1258,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   <tr className="bg-[#1E3A5F] text-white font-black uppercase tracking-wider">
                     <th className="p-3 border border-black text-left pl-4" rowSpan={2}>MÉDICO</th>
                     <th className="p-3 border border-black" rowSpan={2}>% EQUIPE</th>
-                    <th className="p-3 border border-black border-l-[2mm] border-l-black border-r-[2mm] border-r-black bg-[#254D73]" colSpan={6}>
+                    <th className="p-3 border border-black border-l-[1mm] border-l-black border-r-[1mm] border-r-black bg-[#254D73]" colSpan={6}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>AZAMBUJA</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
