@@ -833,6 +833,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                   className="w-full px-3.5 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-gray-900"
                 >
                   <option value="Receitas Equipe">Receitas da Equipe (Azambuja, Marieta, Consultório, Cartão)</option>
+                  <option value="Salários">Salários (pagamento individual de médico)</option>
                   <option value="Infraestrutura">Infraestrutura (Salas, Aluguéis, Consultórios)</option>
                   <option value="Comunicação">Comunicação (Celular, Telefonia, Internet)</option>
                   <option value="Contabilidade">Contabilidade & Gestão (Contador Heart)</option>
