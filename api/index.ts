@@ -2358,23 +2358,40 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     // from the catalog so the matrix uses PROP_GERAL when the type is configured for
     // general PROP allocation, including transactions created before that setting was
     // corrected. Individual doctor transactions retain their individual scope.
+    const normalizeRateioMethod = (value: any) => String(value || "")
+      .normalize("NFD")
+      .replace(/[\\u0300-\\u036f]/g, "")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    const normalizeTypeName = (value: any) => String(value || "")
+      .normalize("NFD")
+      .replace(/[\\u0300-\\u036f]/g, "")
+      .trim()
+      .toUpperCase()
+      .replace(/\\s+/g, " ");
     const typeById = new Map<string, any>(
       transactionTypesForAllocation.map((type: any) => [String(type.id), type])
     );
+    const typeByName = new Map<string, any>(
+      transactionTypesForAllocation.map((type: any) => [normalizeTypeName(type.name), type])
+    );
     const transactions = rawTransactions.map((tx: any) => {
       const type = typeById.get(String(tx.typeId || ""))
-        || transactionTypesForAllocation.find((candidate: any) =>
-          String(candidate.name || "").trim().toUpperCase() === String(tx.typeName || "").trim().toUpperCase()
-        );
-      if (!type || String(tx.scope || "TEAM").toUpperCase() === "DOCTOR") return tx;
-      const configuredMethod = String(type.defaultRateioMethod || "").toUpperCase();
-      const savedMethod = String(tx.rateioMethod || "").toUpperCase();
-      // PROP_GERAL is an explicit transaction snapshot too. Do not let a stale
-      // catalog value silently route this expense back through nominal team split.
+        || typeByName.get(normalizeTypeName(tx.typeName));
+      const configuredMethod = normalizeRateioMethod(type?.defaultRateioMethod);
+      const savedMethod = normalizeRateioMethod(tx.rateioMethod);
+      // Explicit PROP % GERAL always wins over stale legacy methods.
       const effectiveMethod = configuredMethod === "PROP_GERAL" || savedMethod === "PROP_GERAL"
         ? "PROP_GERAL"
         : configuredMethod || savedMethod;
-      return { ...tx, rateioMethod: effectiveMethod };
+      return {
+        ...tx,
+        rateioMethod: effectiveMethod || tx.rateioMethod || null,
+        allocationMethod: effectiveMethod || tx.rateioMethod || null,
+        allocationTypeMatched: Boolean(type)
+      };
     });
     const batches = batchSnap.docs.map((d: any) => d.data());
     const reconciliation = reconSnap.docs.map((d: any) => d.data());
