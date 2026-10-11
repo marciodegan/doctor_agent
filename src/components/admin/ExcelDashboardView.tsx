@@ -1254,7 +1254,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>AZAMBUJA</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-black font-bold">TT:</span>
+                          <span className="text-blue-200 font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.azambujaTT || ""}
@@ -1263,7 +1263,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             className="w-20 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
-                          <span className="text-black font-bold ml-1">DS:</span>
+                          <span className="text-blue-200 font-bold ml-1">DS:</span>
                           <input
                             type="number"
                             value={globalEntradas.azambujaDS || ""}
@@ -1279,7 +1279,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>MARIETA</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-black font-bold">TT:</span>
+                          <span className="text-blue-200 font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.marietaTT || ""}
@@ -1288,7 +1288,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             className="w-20 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
-                          <span className="text-black font-bold ml-1">DS:</span>
+                          <span className="text-blue-200 font-bold ml-1">DS:</span>
                           <input
                             type="number"
                             value={globalEntradas.marietaDS || ""}
@@ -1304,10 +1304,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-2">
                         <span className="font-black">UNIMED</span>
                         <div className="flex items-center gap-2 bg-[#1E3A5F] px-2.5 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-black font-bold uppercase">VL NOTA:</span>
-                          <span className="text-white font-black">{totalUnimedTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                          <span className="text-black font-bold uppercase ml-2">DS:</span>
-                          <span className="text-black font-black">{excelData.lotesUnimed.reduce((sum: number, lote: any) => sum + (Number(lote.dsSaque) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-blue-200 font-bold uppercase">VL NOTA:</span>
+                          <span className="text-black font-black bg-white rounded px-1">{totalUnimedTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-blue-200 font-bold uppercase ml-2">DS:</span>
+                          <span className="text-black font-black bg-white rounded px-1">{excelData.lotesUnimed.reduce((sum: number, lote: any) => sum + (Number(lote.dsSaque) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </div>
                       </div>
                     </th>
@@ -1315,7 +1315,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>CONSULTÓRIO</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-black font-bold">TT:</span>
+                          <span className="text-blue-200 font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.consultorioTT || ""}
@@ -1323,7 +1323,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             className="w-16 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
-                          <span className="text-black font-bold ml-1">DS:</span>
+                          <span className="text-blue-200 font-bold ml-1">DS:</span>
                           <input
                             type="number"
                             value={globalEntradas.consultorioDS || ""}
@@ -1338,7 +1338,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>DINHEIRO</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-black font-bold">TT:</span>
+                          <span className="text-blue-200 font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.dinheiroTT || ""}
@@ -1346,7 +1346,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             className="w-16 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
-                          <span className="text-black font-bold ml-1">DS:</span>
+                          <span className="text-blue-200 font-bold ml-1">DS:</span>
                           <input
                             type="number"
                             value={globalEntradas.dinheiroDS || ""}
@@ -1361,7 +1361,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>UNIMED LUIS</span>
                         <div className="flex items-center gap-1.5 bg-slate-700/80 px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
-                          <span className="text-black font-bold">TT:</span>
+                          <span className="text-blue-200 font-bold">TT:</span>
                           <input
                             type="number"
                             value={globalEntradas.unimedLuisTT || ""}
@@ -1369,7 +1369,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             className="w-16 text-center bg-blue-100 text-black font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
-                          <span className="text-black font-bold ml-1">DS:</span>
+                          <span className="text-blue-200 font-bold ml-1">DS:</span>
                           <input
                             type="number"
                             value={globalEntradas.unimedLuisDS || ""}
