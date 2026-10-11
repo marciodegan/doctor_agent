@@ -1258,7 +1258,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   <tr className="bg-[#1E3A5F] text-white font-black uppercase tracking-wider">
                     <th className="p-3 border border-gray-200 text-left pl-4" rowSpan={2}>MÉDICO</th>
                     <th className="p-3 border border-gray-200" rowSpan={2}>% EQUIPE</th>
-                    <th className="p-3 border border-gray-200 border-r-4 border-r-slate-400 bg-[#254D73]" colSpan={6}>
+                    <th className="p-3 border border-gray-200 border-l-[2mm] border-l-black border-r-[2mm] border-r-black bg-[#254D73]" colSpan={6}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>AZAMBUJA</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1405,12 +1405,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
                     {/* Azambuja */}
-                    <th className="p-2 border border-gray-200">Equipe TT</th>
+                    <th className="p-2 border border-gray-200 border-l-[2mm] border-l-black">Equipe TT</th>
                     <th className="p-2 border border-gray-200">Equipe DS</th>
                     <th className="p-2 border border-gray-200 bg-slate-700 text-blue-100">Plantão TT</th>
                     <th className="p-2 border border-gray-200 bg-slate-700 text-blue-100">Plantão DS</th>
                     <th className="p-2 border border-gray-200">Total TT</th>
-                    <th className="p-2 border border-gray-200">Total DS</th>
+                    <th className="p-2 border border-gray-200 border-r-[2mm] border-r-black">Total DS</th>
                     {/* Marieta */}
                     <th className="p-2 border border-gray-200">Equipe TT</th>
                     <th className="p-2 border border-gray-200">Equipe DS</th>
@@ -1748,7 +1748,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           {r.percent > 0 ? `${r.percent}%` : "-"}
                         </td>
                         {/* Azambuja */}
-                        <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.azEqTT > 0 ? r.azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-200 border-l-[2mm] border-l-black font-mono text-gray-700">{r.azEqTT > 0 ? r.azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-gray-200 font-mono text-gray-700">{r.azEqDS > 0 ? r.azEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-gray-200 bg-blue-50/60 p-1">
                           <input
@@ -1939,12 +1939,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     return (
                       <tr className="bg-[#1E3A5F] text-white font-black text-xs">
                         <td className="p-3 border border-gray-200 text-left pl-4 uppercase" colSpan={2}>TOTAL GERAL CONSOLIDADO</td>
-                        <td className="p-3 border border-gray-200 font-mono">{fmt(sum('azEqTT'))}</td>
+                        <td className="p-3 border border-gray-200 border-l-[2mm] border-l-black font-mono">{fmt(sum('azEqTT'))}</td>
                         <td className="p-3 border border-gray-200 font-mono">{fmt(sum('azEqDS'))}</td>
                         <td className="p-3 border border-gray-200 font-mono text-blue-200">{fmt(sum('azPlTT'))}</td>
                         <td className="p-3 border border-gray-200 font-mono text-blue-200">{fmt(sum('azPlDS'))}</td>
                         <td className="p-3 border border-gray-200 font-mono">{fmt(sum('azTotTT'))}</td>
-                        <td className="p-3 border border-gray-200 font-mono">{fmt(sum('azTotDS'))}</td>
+                        <td className="p-3 border border-gray-200 border-r-[2mm] border-r-black font-mono">{fmt(sum('azTotDS'))}</td>
                         <td className="p-3 border border-gray-200 font-mono">{fmt(sum('marEqTT'))}</td>
                         <td className="p-3 border border-gray-200 font-mono">{fmt(sum('marEqDS'))}</td>
                         <td className="p-3 border border-gray-200 font-mono">{fmt(sum('marTotTT'))}</td>
