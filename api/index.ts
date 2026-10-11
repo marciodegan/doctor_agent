@@ -2821,7 +2821,7 @@ app.post("/api/app/financial/transaction-types", async (req, res) => {
     const user = (req as any).user;
     const docRef = db.collection("financial_transaction_types").doc();
     const salaryType = isSalary === true;
-    const adjustmentType = matrixAdjustmentType === "ACERTO_1" || matrixAdjustmentType === "SOBRE_MES_ANTERIOR" ? matrixAdjustmentType : null;
+    const adjustmentType = matrixAdjustmentType === "ACERTO_1" || matrixAdjustmentType === "SOBRE_MES_ANTERIOR" || matrixAdjustmentType === "ACERTO_FINAL" ? matrixAdjustmentType : null;
     const typeData = {
       id: docRef.id,
       teamId: groupId,
@@ -2865,7 +2865,7 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
     const existing = await docRef.get();
     
     const salaryType = isSalary === true || (isSalary === undefined && existing.exists && existing.data()?.isSalary === true);
-    const adjustmentType = matrixAdjustmentType === "ACERTO_1" || matrixAdjustmentType === "SOBRE_MES_ANTERIOR"
+    const adjustmentType = matrixAdjustmentType === "ACERTO_1" || matrixAdjustmentType === "SOBRE_MES_ANTERIOR" || matrixAdjustmentType === "ACERTO_FINAL"
       ? matrixAdjustmentType
       : (matrixAdjustmentType === undefined && existing.exists ? existing.data()?.matrixAdjustmentType || null : null);
     const updateData: any = {
@@ -3008,7 +3008,7 @@ app.post("/api/app/financial/transactions", async (req, res) => {
 
     const typeName = storedType.name || requestedTypeName || String(typeId);
     const isSalary = storedType.isSalary === true;
-    const matrixAdjustmentType = storedType.matrixAdjustmentType === "ACERTO_1" || storedType.matrixAdjustmentType === "SOBRE_MES_ANTERIOR" ? storedType.matrixAdjustmentType : null;
+    const matrixAdjustmentType = storedType.matrixAdjustmentType === "ACERTO_1" || storedType.matrixAdjustmentType === "SOBRE_MES_ANTERIOR" || storedType.matrixAdjustmentType === "ACERTO_FINAL" ? storedType.matrixAdjustmentType : null;
     const nature = isSalary || matrixAdjustmentType ? "DEBIT" : storedType.nature === "CREDIT" ? "CREDIT" : "DEBIT";
     // Salary and matrix adjustments are always individual debits linked to one doctor.
     const scope = isSalary || matrixAdjustmentType || String(storedType.defaultScope || "TEAM").toUpperCase() === "DOCTOR" ? "DOCTOR" : "TEAM";

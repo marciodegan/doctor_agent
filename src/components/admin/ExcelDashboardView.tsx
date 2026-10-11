@@ -603,14 +603,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const isSalaryTransaction = (tx: any) => tx.isSalary === true
     || transactionTypesById.get(String(tx.typeId || ""))?.isSalary === true
     || transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName))?.isSalary === true;
-  const getMatrixAdjustmentType = (tx: any): "ACERTO_1" | "SOBRE_MES_ANTERIOR" | null => {
+  const getMatrixAdjustmentType = (tx: any): "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "ACERTO_FINAL" | null => {
     const type = tx.matrixAdjustmentType
       || transactionTypesById.get(String(tx.typeId || ""))?.matrixAdjustmentType
       || transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName))?.matrixAdjustmentType;
-    if (type === "ACERTO_1" || type === "SOBRE_MES_ANTERIOR") return type;
+    if (type === "ACERTO_1" || type === "SOBRE_MES_ANTERIOR" || type === "ACERTO_FINAL") return type;
     const normalizedName = normalizeTransactionTypeName(tx.typeName || "");
     if (normalizedName === "ACERTO 1") return "ACERTO_1";
     if (normalizedName === "SOBRE MES ANTERIOR") return "SOBRE_MES_ANTERIOR";
+    if (normalizedName === "ACERTO FINAL") return "ACERTO_FINAL";
     return null;
   };
   const isMatrixAdjustmentTransaction = (tx: any) => getMatrixAdjustmentType(tx) !== null;
@@ -630,7 +631,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const incomingByDoctor: Record<string, number> = {};
     const expenseByDoctorType: Record<string, Record<string, number>> = {};
     const salaryByDoctor: Record<string, number> = {};
-    const matrixAdjustmentByDoctor: Record<string, { ACERTO_1: number; SOBRE_MES_ANTERIOR: number }> = {};
+    const matrixAdjustmentByDoctor: Record<string, { ACERTO_1: number; SOBRE_MES_ANTERIOR: number; ACERTO_FINAL: number }> = {};
     // Use the same canonical key for transaction allocation and matrix rows.
     // The previous regex escaped the backslashes, so it did not remove Unicode
     // diacritics or collapse whitespace as intended.
@@ -728,7 +729,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           return;
         }
         const key = matrixKey(resolvedSelectedDoctor);
-        matrixAdjustmentByDoctor[key] ||= { ACERTO_1: 0, SOBRE_MES_ANTERIOR: 0 };
+        matrixAdjustmentByDoctor[key] ||= { ACERTO_1: 0, SOBRE_MES_ANTERIOR: 0, ACERTO_FINAL: 0 };
         matrixAdjustmentByDoctor[key][adjustmentType] = Math.round((matrixAdjustmentByDoctor[key][adjustmentType] + rawAmount) * 100) / 100;
         return;
       }
@@ -1391,6 +1392,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <th className="p-3 border border-slate-700 bg-emerald-900 text-white" rowSpan={2}>DIV LUCROS</th>
                     <th className="p-3 border border-slate-700 bg-orange-900 text-white" rowSpan={2}>EXCEDENTE</th>
                     <th className="p-3 border border-slate-700 bg-blue-900 text-white" rowSpan={2}>TOTAL</th>
+                    <th className="p-3 border border-slate-700 bg-violet-900 text-white" rowSpan={2}>ACERTO FINAL</th>
+                    <th className="p-3 border border-slate-700 bg-slate-600 text-white" rowSpan={2}>FINALIZAÇÃO</th>
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
                     {/* Azambuja */}
@@ -1555,6 +1558,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         salaryAmount: cashFlowAllocation.salaryByDoctor[normalize(doc.name)] || 0,
                         acerto1Amount: cashFlowAllocation.matrixAdjustmentByDoctor[normalize(doc.name)]?.ACERTO_1 || 0,
                         sobreMesAnteriorAmount: cashFlowAllocation.matrixAdjustmentByDoctor[normalize(doc.name)]?.SOBRE_MES_ANTERIOR || 0,
+                        acertoFinalAmount: cashFlowAllocation.matrixAdjustmentByDoctor[normalize(doc.name)]?.ACERTO_FINAL || 0,
                         afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[normalize(doc.name)] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[normalize(doc.name)] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
                       };
                     });
@@ -1649,6 +1653,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       const limit = Math.max(0, Number(row.valorLimite) || 0);
                       row.divLucrosAmount = limit > 0 ? Math.min(totalForProfitDistribution, limit) : totalForProfitDistribution;
                       row.excedenteAmount = limit > 0 ? Math.max(0, Math.round((totalForProfitDistribution - limit) * 100) / 100) : 0;
+                      row.totalAmount = Math.round((Number(row.divLucrosAmount || 0) + Number(row.excedenteAmount || 0)) * 100) / 100;
+                      row.finalizacaoAmount = Math.round((row.totalAmount + (Number(row.acertoFinalAmount) || 0)) * 100) / 100;
                     });
 
                     // O percentual RESULT deve considerar somente os membros da equipe.
@@ -1868,7 +1874,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           {Number(r.excedenteAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
                         <td className="p-3 border border-slate-200 font-mono font-black text-blue-900 bg-blue-50/70">
-                          {(Math.round(((Number(r.divLucrosAmount) || 0) + (Number(r.excedenteAmount) || 0)) * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          {Number(r.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className={`p-3 border border-slate-200 font-mono font-bold ${Number(r.acertoFinalAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-violet-900 bg-violet-50/70"}`}>
+                          {Number(r.acertoFinalAmount) !== 0 ? Number(r.acertoFinalAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
+                        </td>
+                        <td className={`p-3 border border-slate-200 font-mono font-black ${Number(r.finalizacaoAmount) < 0 ? "text-rose-700 bg-rose-50" : "text-slate-900 bg-slate-100"}`}>
+                          {Number(r.finalizacaoAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
                     ))}
@@ -1926,6 +1938,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-700 font-mono font-black text-emerald-200">{sum('divLucrosAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-700 font-mono font-black text-orange-200">{sum('excedenteAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-700 font-mono font-black text-blue-200">{(Math.round((sum('divLucrosAmount') + sum('excedenteAmount')) * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-700 font-mono font-black text-violet-200">{sum('acertoFinalAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-700 font-mono font-black text-white">{sum('finalizacaoAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       </tr>
                     );
                   })()}

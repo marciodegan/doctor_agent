@@ -141,7 +141,7 @@ export interface FinancialTransaction {
   nature: "CREDIT" | "DEBIT";
   allowNegativeAmount?: boolean;
   isSalary?: boolean;
-  matrixAdjustmentType?: "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "" | null;
+  matrixAdjustmentType?: "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "ACERTO_FINAL" | "" | null;
   observation: string;
   protocol?: string;
   guide?: string;
@@ -163,7 +163,7 @@ export interface FinancialTransactionType {
   defaultRateioMethod?: "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL";
   allowNegativeAmount?: boolean;
   isSalary?: boolean;
-  matrixAdjustmentType?: "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "" | null;
+  matrixAdjustmentType?: "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "ACERTO_FINAL" | "" | null;
   category?: string;
   description?: string;
   isCustom?: boolean;
