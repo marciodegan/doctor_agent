@@ -590,6 +590,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       .replace(/\s+/g, " ");
     const team = configuredDoctors.filter((d: any) => d.isTeamMember === true);
     const allDoctors = configuredDoctors;
+    const transactionTypesById = new Map<string, any>(
+      (Array.isArray(details?.transactionTypes) ? details.transactionTypes : [])
+        .map((type: any) => [String(type.id), type])
+    );
+    const getEffectiveRateioMethod = (tx: any) => {
+      const currentType = transactionTypesById.get(String(tx.typeId || ""));
+      return String(currentType?.defaultRateioMethod || tx.rateioMethod || "").toUpperCase();
+    };
 
     // Resolve legacy transaction doctor IDs (Firestore IDs or names) to the stable
     // financial-settings key used by the matrix rows.
@@ -687,7 +695,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const eligible = isTeamRate ? team : allDoctors;
       if (!eligible.length) return;
 
-      const method = String(tx.rateioMethod || "").toUpperCase();
+      const method = getEffectiveRateioMethod(tx);
       // PROP_GERAL is allocated later, after the matrix computes the same PROP %
       // displayed to the user for every doctor in this closing.
       if (method === "PROP_GERAL") return;
@@ -1497,7 +1505,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     const propGeneralTransactions = cashFlowTransactions.filter((tx: any) =>
                       String(tx.nature || "").toUpperCase() === "DEBIT" &&
                       String(tx.scope || "TEAM").toUpperCase() !== "DOCTOR" &&
-                      String(tx.rateioMethod || "").toUpperCase() === "PROP_GERAL"
+                      getEffectiveRateioMethod(tx) === "PROP_GERAL"
                     );
                     propGeneralTransactions.forEach((tx: any) => {
                       const participatingRows = rows.filter((row: any) => {
@@ -1518,7 +1526,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       const typeId = String(tx.typeId || tx.typeName || "outros");
                       participatingRows.forEach((row: any) => {
                         const percent = Math.max(0, Number(row.proporcaoHeart) || 0);
-                        const allocated = Math.round(amount * percent) / 100;
+                        // Use the original transaction amount times this doctor's displayed PROP %.
+                        const allocated = Math.round((amount * percent / 100 + Number.EPSILON) * 100) / 100;
                         if (allocated <= 0) return;
                         row.cashFlowExpenses = { ...(row.cashFlowExpenses || {}) };
                         row.cashFlowExpenses[typeId] = Math.round(((Number(row.cashFlowExpenses[typeId]) || 0) + allocated) * 100) / 100;
