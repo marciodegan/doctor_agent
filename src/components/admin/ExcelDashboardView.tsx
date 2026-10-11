@@ -1278,9 +1278,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     const sharedUnimedTT = unimedParticipants.length
                       ? Math.round((participantProduction / unimedParticipants.length) * 100) / 100
                       : 0;
-                    const sharedUnimedDS = unimedParticipants.length
-                      ? Math.round((participantAvailable / unimedParticipants.length) * 100) / 100
-                      : 0;
+                    const totalLotsDS = excelData.lotesUnimed.reduce((sum: number, lote: any) => sum + (Number(lote.dsSaque) || 0), 0);
+                    const unimedDSRatio = totalUnimedTT > 0 ? totalLotsDS / totalUnimedTT : 0;
+
+                    const sharedUnimedDS = Math.round(sharedUnimedTT * unimedDSRatio * 100) / 100;
 
                     const mul = hasClosing ? 1 : 0;
 
@@ -1339,17 +1340,17 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         ? (participatesUnimed ? sharedUnimedTT : unimedData.prod + unimedData.operational + unimedData.film) * mul
                         : 0;
                       const unimedEqDS = isTeam
-                        ? (participatesUnimed ? sharedUnimedDS : unimedData.disp + unimedData.operational + unimedData.film) * mul
+                        ? Math.round(unimedEqTT * unimedDSRatio * 100) / 100
                         : 0;
                       const unimedPartTT = !isTeam ? Math.round((unimedData.prod + unimedData.operational + unimedData.film) * mul * 100) / 100 : 0;
-                      const unimedPartDS = !isTeam ? Math.round((unimedData.disp + unimedData.operational + unimedData.film) * mul * 100) / 100 : 0;
+                      const unimedPartDS = !isTeam ? Math.round(unimedPartTT * unimedDSRatio * 100) / 100 : 0;
                       // Os valores operacionais/filme já estão incluídos na cota igual dos participantes.
                       const unimedOp = isTeam && participatesUnimed ? 0 : unimedData.operational * mul;
                       const unimedFilm = isTeam && participatesUnimed ? 0 : unimedData.film * mul;
                       const unimPlTT = (man.unimedPlantaoTT || 0) * mul;
-                      const unimPlDS = (man.unimedPlantaoDS || 0) * mul;
+                      const unimPlDS = Math.round(unimPlTT * unimedDSRatio * 100) / 100;
                       const unimTotTT = unimedEqTT + unimedPartTT + (isTeam ? unimedOp + unimedFilm : 0) + unimPlTT;
-                      const unimTotDS = unimedEqDS + unimedPartDS + (isTeam ? unimedOp + unimedFilm : 0) + unimPlDS;
+                      const unimTotDS = Math.round(unimTotTT * unimedDSRatio * 100) / 100;
 
                       const consultTT = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioTT * 100) / 100 * mul : 0;
                       const consultDS = isTeam ? Math.round((pct / 100) * globalEntradas.consultorioDS * 100) / 100 * mul : 0;
