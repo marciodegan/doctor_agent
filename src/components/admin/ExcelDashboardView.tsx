@@ -1271,17 +1271,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       const data = getDoctorUnimed(doctor.key, doctor.name);
                       return sum + data.prod + data.operational + data.film;
                     }, 0);
-                    const participantAvailable = unimedParticipants.reduce((sum: number, doctor: any) => {
-                      const data = getDoctorUnimed(doctor.key, doctor.name);
-                      return sum + data.disp + data.operational + data.film;
-                    }, 0);
                     const sharedUnimedTT = unimedParticipants.length
                       ? Math.round((participantProduction / unimedParticipants.length) * 100) / 100
                       : 0;
                     const totalLotsDS = excelData.lotesUnimed.reduce((sum: number, lote: any) => sum + (Number(lote.dsSaque) || 0), 0);
                     const unimedDSRatio = totalUnimedTT > 0 ? totalLotsDS / totalUnimedTT : 0;
-
-                    const sharedUnimedDS = Math.round(sharedUnimedTT * unimedDSRatio * 100) / 100;
 
                     const mul = hasClosing ? 1 : 0;
 
