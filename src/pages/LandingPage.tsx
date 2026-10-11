@@ -66,7 +66,7 @@ const workflow = [
 
 const faqs = [
   {
-    q: "Para quem é o Dr. Agent?",
+    q: "Para quem é o iCare?",
     a: "Para médicos, cirurgiões e equipes que precisam acompanhar pacientes, agenda de procedimentos e informações clínicas de forma organizada.",
   },
   {
@@ -75,7 +75,7 @@ const faqs = [
   },
   {
     q: "O app substitui meu prontuário oficial?",
-    a: "Não. O Dr. Agent ajuda na organização do fluxo, comunicação e acompanhamento. O uso deve respeitar as regras internas da instituição e a legislação aplicável.",
+    a: "Não. O iCare ajuda na organização do fluxo, comunicação e acompanhamento. O uso deve respeitar as regras internas da instituição e a legislação aplicável.",
   },
   {
     q: "Existe controle de acesso?",
@@ -103,7 +103,7 @@ function PhoneMockup() {
                 <Stethoscope size={17} />
               </div>
               <span className="text-sm font-black text-blue-950">
-                Dr. Agent
+                iCare
               </span>
             </div>
 
@@ -196,7 +196,7 @@ function Nav() {
 
           <div>
             <p className="text-base font-black tracking-tight text-blue-950">
-              Dr. Agent
+              iCare
             </p>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">
               Surgical workflow
@@ -300,7 +300,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg font-medium leading-8 text-slate-600">
-            O Dr. Agent ajuda médicos e equipes a organizarem pacientes, agenda
+            O iCare ajuda médicos e equipes a organizarem pacientes, agenda
             cirúrgica, contatos, imagens e informações importantes com acesso
             por grupo.
           </p>
@@ -508,7 +508,7 @@ export default function LandingPage() {
           </h2>
 
           <p className="mx-auto mt-5 max-w-2xl text-base font-medium leading-7 text-blue-100">
-            Dr. Agent foi desenvolvido para médicos,
+            iCare foi desenvolvido para médicos,
             cirurgiões e equipes que precisam centralizar o acompanhamento dos
             pacientes.
           </p>
@@ -539,7 +539,7 @@ export default function LandingPage() {
               <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-white">
                 <HeartPulse size={18} />
               </div>
-              <p className="text-sm font-black text-blue-950">Dr. Agent</p>
+              <p className="text-sm font-black text-blue-950">iCare</p>
             </div>
             <p className="text-xs font-medium text-slate-500 max-w-sm">
               Organização clínica e acompanhamento de pacientes para equipes médicas.
