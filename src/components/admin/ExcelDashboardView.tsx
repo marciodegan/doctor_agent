@@ -720,6 +720,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
       // Adjustment columns are informational balances after FINAL. They accept signed amounts
       // and must not affect RESULT, salary, FINAL, or the general-expense columns.
+      const effectiveTypeName = String(tx.typeName || transactionTypesById.get(typeId)?.name || "");
+      const isSharedUnimedSobreaviso = isCredit
+        && normalizeTransactionTypeName(effectiveTypeName).includes("SOBREAVISO")
+        && ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM", "RATEIO_EQUIPE"].includes(scope);
+      // Sobreaviso de equipe entra na parcela Unimed TT compartilhada abaixo.
+      // Não o alocar também como "Outras Entradas", para evitar duplicidade.
+      if (isSharedUnimedSobreaviso) return;
+
       const adjustmentType = getMatrixAdjustmentType(tx);
       if (adjustmentType) {
         if (scope !== "DOCTOR" || isTeamPlaceholderId || !resolvedSelectedDoctor?.name) {
@@ -1454,13 +1462,24 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       };
                     };
 
-                    // Os médicos marcados em "Participa Unimed?" dividem igualmente
-                    // a soma da produção atribuída a todos os participantes.
-                    const unimedParticipants = configuredDoctors.filter((doctor: any) => doctor.participaUnimed === true);
+                    // Participantes UNIMED da equipe dividem a produção importada e os
+                    // lançamentos de entrada "Sobreaviso" com escopo de equipe.
+                    const unimedParticipants = configuredDoctors.filter((doctor: any) =>
+                      doctor.isTeamMember === true && doctor.participaUnimed === true
+                    );
+                    const isSharedUnimedSobreaviso = (tx: any) =>
+                      String(tx.nature || "").toUpperCase() === "CREDIT"
+                      && normalizeTransactionTypeName(tx.typeName || transactionTypesById.get(String(tx.typeId || ""))?.name || "").includes("SOBREAVISO")
+                      && ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM", "RATEIO_EQUIPE"].includes(String(tx.scope || "").toUpperCase());
+                    const sharedSobreavisoTransactions = cashFlowTransactions.filter(isSharedUnimedSobreaviso);
+                    const sharedSobreavisoTotal = sharedSobreavisoTransactions.reduce((sum: number, tx: any) => {
+                      const amount = Number(tx.amount) || 0;
+                      return sum + (tx.allowNegativeAmount === true ? amount : Math.abs(amount));
+                    }, 0);
                     const participantProduction = unimedParticipants.reduce((sum: number, doctor: any) => {
                       const data = getDoctorUnimed(doctor.key, doctor.name);
                       return sum + data.prod + data.operational + data.film;
-                    }, 0);
+                    }, 0) + sharedSobreavisoTotal;
                     const sharedUnimedTT = unimedParticipants.length
                       ? Math.round((participantProduction / unimedParticipants.length) * 100) / 100
                       : 0;
@@ -1766,7 +1785,30 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td 
                           onClick={() => {
                             const recs = production.filter(p => p.doctorId === r.key);
-                            setMatrixModalData({ isOpen: true, title: `Produção Unimed (Equipe) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
+                            const doctorConfig = configuredDoctors.find((d: any) => d.key === r.key)
+                              || configuredDoctors.find((d: any) => normalize(d.name) === normalize(r.name));
+                            const sharedCashRecords = doctorConfig?.isTeamMember === true && doctorConfig?.participaUnimed === true && unimedParticipants.length > 0
+                              ? sharedSobreavisoTransactions.map((tx: any) => ({
+                                  id: tx.id,
+                                  recordType: "CASH_FLOW",
+                                  protocol: tx.id || "FLUXO DE CAIXA",
+                                  date: tx.date || tx.createdAt || "",
+                                  patientName: tx.typeName || transactionTypesById.get(String(tx.typeId || ""))?.name || "Sobreaviso",
+                                  patientCode: r.name,
+                                  document: tx.description || tx.observation || "-",
+                                  quantity: 1,
+                                  ambCode: "SOBREAVISO",
+                                  procedureDescription: tx.description || tx.observation || "Entrada de Sobreaviso",
+                                  honorValue: Math.round(((tx.allowNegativeAmount === true ? Number(tx.amount) || 0 : Math.abs(Number(tx.amount) || 0)) / unimedParticipants.length) * 100) / 100,
+                                  operationalValue: 0,
+                                  filmValue: 0,
+                                  administrativeFee: 0,
+                                  executingProvider: "Lançamento financeiro",
+                                  paymentProvider: "-",
+                                  protocolProvider: "-"
+                                }))
+                              : [];
+                            setMatrixModalData({ isOpen: true, title: `Produção Unimed + Sobreaviso (Equipe) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: [...recs, ...sharedCashRecords] });
                           }}
                           className="p-3 border border-gray-200 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
                         >
