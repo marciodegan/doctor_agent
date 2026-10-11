@@ -2811,7 +2811,7 @@ app.get("/api/app/financial/transaction-types", async (req, res) => {
 
 app.post("/api/app/financial/transaction-types", async (req, res) => {
   const groupId = getGroupId(req);
-  const { name, nature, defaultScope, defaultRateioMethod, category, description } = req.body;
+  const { name, nature, defaultScope, defaultRateioMethod, allowNegativeAmount, category, description } = req.body;
   if (!name || !nature) {
     return res.status(400).json({ error: "name and nature are required" });
   }
@@ -2825,6 +2825,7 @@ app.post("/api/app/financial/transaction-types", async (req, res) => {
       nature: nature === "CREDIT" ? "CREDIT" : "DEBIT",
       defaultScope: defaultScope || "TEAM",
       defaultRateioMethod: defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
+      allowNegativeAmount: nature !== "CREDIT" && allowNegativeAmount === true,
       category: category?.trim() || "Geral",
       description: description?.trim() || "",
       isCustom: true,
@@ -2863,6 +2864,9 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
       ...(nature !== undefined && { nature: nature === "CREDIT" ? "CREDIT" : "DEBIT" }),
       ...(defaultScope !== undefined && { defaultScope }),
       ...(defaultRateioMethod !== undefined && { defaultRateioMethod }),
+      ...(allowNegativeAmount !== undefined || nature === "CREDIT"
+        ? { allowNegativeAmount: nature === "CREDIT" ? false : allowNegativeAmount === true }
+        : {}),
       ...(category !== undefined && { category: category.trim() }),
       ...(description !== undefined && { description: description.trim() }),
       updatedAt: new Date().toISOString()
@@ -2879,6 +2883,7 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
         nature: nature || matchedDefault?.nature || "DEBIT",
         defaultScope: defaultScope || matchedDefault?.defaultScope || "TEAM",
         defaultRateioMethod: defaultRateioMethod || matchedDefault?.defaultRateioMethod || "NOMINAL",
+        allowNegativeAmount: nature === "CREDIT" ? false : allowNegativeAmount === true,
         category: category?.trim() || matchedDefault?.category || "Geral",
         description: description?.trim() || matchedDefault?.description || "",
         isCustom: false,
@@ -2967,8 +2972,8 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     if (String(closingData.status || "").toUpperCase() === "FECHADO") return res.status(409).json({ error: "Este fechamento já foi concluído. Abra um novo fechamento para lançar valores." });
 
     const numAmount = Number(amount);
-    if (!Number.isFinite(numAmount) || numAmount <= 0) {
-      return res.status(400).json({ error: "Informe um valor maior que zero." });
+    if (!Number.isFinite(numAmount) || numAmount === 0) {
+      return res.status(400).json({ error: "Informe um valor numérico diferente de zero." });
     }
 
     // The saved catalog is the source of truth for nature, scope and rateio.
@@ -2979,6 +2984,10 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       : undefined;
     if (!storedType) {
       return res.status(400).json({ error: "Tipo de lançamento inválido. Atualize a lista e selecione um tipo cadastrado." });
+    }
+    const allowNegativeAmount = storedType.nature !== "CREDIT" && storedType.allowNegativeAmount === true;
+    if (numAmount < 0 && !allowNegativeAmount) {
+      return res.status(400).json({ error: "Este tipo de lançamento não permite valores negativos. Ative a opção no cadastro do tipo." });
     }
 
     const typeName = storedType.name || requestedTypeName || String(typeId);
@@ -3030,6 +3039,7 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       typeName: typeName || "Lançamento Avulso",
       typeId: typeId || "avulso",
       amount: numAmount,
+      allowNegativeAmount,
       nature: nature || "DEBIT",
       observation: observation || "",
       date: txDate,
