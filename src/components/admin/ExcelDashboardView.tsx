@@ -5,6 +5,9 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
+  setDoc,
+  doc,
   orderBy
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
@@ -140,11 +143,53 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   }), [rawProduction, providerMappings]);
 
   // Manual entries for green plantao / entrada cells
-  const [manualEntradas, setManualEntradas] = useState<Record<string, any>>({
+  const defaultManualEntradas: Record<string, any> = {
     thais: { azambujaPlantaoTT: 3600, azambujaPlantaoDS: 2933.04, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
     kathize: { azambujaPlantaoTT: 9000, azambujaPlantaoDS: 7332.59, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
     rochele: { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 1966.87, unimedPlantaoDS: 1610.61 }
-  });
+  };
+  const [manualEntradas, setManualEntradas] = useState<Record<string, any>>(defaultManualEntradas);
+  const [manualEntriesLoaded, setManualEntriesLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadManualEntries = async () => {
+      if (!activeGroup?.id || !selectedClosingId) return;
+      setManualEntriesLoaded(false);
+      try {
+        const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).replace(/\\//g, "_");
+        const settingsRef = doc(db, "financial_matrix_manual_entries", settingsId);
+        const snapshot = await getDoc(settingsRef);
+        if (cancelled) return;
+        if (snapshot.exists() && snapshot.data()?.manualEntradas) {
+          setManualEntradas({ ...defaultManualEntradas, ...snapshot.data().manualEntradas });
+        } else {
+          setManualEntradas(defaultManualEntradas);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar valores manuais da matriz:", error);
+      } finally {
+        if (!cancelled) setManualEntriesLoaded(true);
+      }
+    };
+    void loadManualEntries();
+    return () => { cancelled = true; };
+  }, [activeGroup?.id, selectedClosingId]);
+
+  const updateManualEntry = (doctorKey: string, patch: Record<string, any>) => {
+    const next = { ...manualEntradas, [doctorKey]: { ...(manualEntradas[doctorKey] || {}), ...patch } };
+    setManualEntradas(next);
+    if (!manualEntriesLoaded || !activeGroup?.id || !selectedClosingId) return;
+    const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).replace(/\\//g, "_");
+    void setDoc(doc(db, "financial_matrix_manual_entries", settingsId), {
+      groupId: activeGroup.id,
+      closingId: selectedClosingId,
+      manualEntradas: next,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch(error => {
+      console.error("Erro ao salvar valores manuais da matriz:", error);
+    });
+  };
 
   // Global manual entries for totals at the top of sections
   const [globalEntradas, setGlobalEntradas] = useState<{
@@ -1435,10 +1480,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                               const val = parseFloat(e.target.value) || 0;
                               const ratio = 0.8147;
                               const man = manualEntradas[r.key] || {};
-                              setManualEntradas({
-                                ...manualEntradas,
-                                [r.key]: { ...man, azambujaPlantaoTT: val, azambujaPlantaoDS: Math.round(val * ratio * 100) / 100 }
-                              });
+                              updateManualEntry(r.key, { azambujaPlantaoTT: val, azambujaPlantaoDS: Math.round(val * ratio * 100) / 100 });
                             }}
                             className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
                             placeholder="0,00"
@@ -1501,10 +1543,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                               const val = parseFloat(e.target.value) || 0;
                               const ratio = 0.8189;
                               const man = manualEntradas[r.key] || {};
-                              setManualEntradas({
-                                ...manualEntradas,
-                                [r.key]: { ...man, unimedPlantaoTT: val, unimedPlantaoDS: Math.round(val * ratio * 100) / 100 }
-                              });
+                              updateManualEntry(r.key, { unimedPlantaoTT: val, unimedPlantaoDS: Math.round(val * ratio * 100) / 100 });
                             }}
                             className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
                             placeholder="0,00"
