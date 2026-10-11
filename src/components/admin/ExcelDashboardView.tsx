@@ -1391,7 +1391,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <th className="p-3 border border-slate-500 bg-stone-600 text-white" rowSpan={2}>SOBRE MÊS ANTERIOR</th>
                     <th className="p-3 border border-slate-500 bg-[#1E3A5F] text-white" rowSpan={2}>DIV LUCROS</th>
                     <th className="p-3 border border-slate-500 bg-orange-700 text-white" rowSpan={2}>EXCEDENTE</th>
-                    <th className="p-3 border border-slate-500 bg-[#254D73] text-white" rowSpan={2}>TOTAL</th>
+                    <th className="p-3 border border-slate-500 bg-orange-100 text-orange-950" rowSpan={2}>TOTAL</th>
                     <th className="p-3 border border-slate-500 bg-orange-100 text-orange-950" rowSpan={2}>ACERTO FINAL</th>
                     <th className="p-3 border border-slate-500 bg-orange-500 text-orange-950" rowSpan={2}>FINALIZAÇÃO</th>
                   </tr>
@@ -1937,9 +1937,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-500 font-mono font-black text-stone-200">{sum('sobreMesAnteriorAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-500 font-mono font-black text-emerald-200">{sum('divLucrosAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-500 font-mono font-black text-orange-200">{sum('excedenteAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black text-blue-200">{(Math.round((sum('divLucrosAmount') + sum('excedenteAmount')) * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black bg-orange-100 text-orange-950">{(Math.round((sum('divLucrosAmount') + sum('excedenteAmount')) * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-500 font-mono font-black text-violet-200">{sum('acertoFinalAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-500 font-mono font-black text-white">{sum('finalizacaoAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-500 font-mono font-black bg-orange-500 text-orange-950">{sum('finalizacaoAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       </tr>
                     );
                   })()}
