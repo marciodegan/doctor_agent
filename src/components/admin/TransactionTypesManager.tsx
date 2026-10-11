@@ -45,6 +45,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
     defaultScope: "TEAM" as "TEAM" | "DOCTOR" | "CLOSING",
     defaultRateioMethod: "NOMINAL" as "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL",
     allowNegativeAmount: false,
+    isSalary: false,
     category: "Receitas Equipe",
     description: ""
   });
@@ -71,7 +72,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
     fetchTypes();
   }, [activeGroup]);
 
-  const handleOpenAdd = (preset?: "ENTRADA_EQUIPE" | "DESPESA_EQUIPE") => {
+  const handleOpenAdd = (preset?: "ENTRADA_EQUIPE" | "DESPESA_EQUIPE" | "SALARIO") => {
     setEditingType(null);
     if (preset === "ENTRADA_EQUIPE") {
       setForm({
@@ -93,12 +94,25 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         category: "Infraestrutura",
         description: "Despesa com rateio dinâmico pela Proporção HeaRT do período"
       });
+    } else if (preset === "SALARIO") {
+      setForm({
+        name: "Salário",
+        nature: "DEBIT",
+        defaultScope: "DOCTOR",
+        defaultRateioMethod: "NOMINAL",
+        allowNegativeAmount: false,
+        isSalary: true,
+        category: "Salários",
+        description: "Pagamento de salário individual. O valor aparece na coluna SALÁRIO e é deduzido do RESULT para calcular o FINAL."
+      });
     } else {
       setForm({
         name: "",
         nature: "CREDIT",
         defaultScope: "TEAM",
         defaultRateioMethod: "NOMINAL",
+        allowNegativeAmount: false,
+        isSalary: false,
         category: "Receitas Equipe",
         description: ""
       });
@@ -114,6 +128,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
       defaultScope: typeItem.defaultScope || "TEAM",
       defaultRateioMethod: typeItem.defaultRateioMethod || (typeItem.nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
       allowNegativeAmount: typeItem.allowNegativeAmount === true,
+      isSalary: typeItem.isSalary === true,
       category: typeItem.category || "Geral",
       description: typeItem.description || ""
     });
@@ -264,6 +279,14 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
             >
               <Plus size={16} />
               <span>Nova Saída / Despesa</span>
+            </button>
+
+            <button
+              onClick={() => handleOpenAdd("SALARIO")}
+              className="flex items-center gap-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-100 border border-emerald-300/30 px-4 py-3 rounded-2xl font-black text-xs tracking-wide active:scale-95 transition cursor-pointer"
+            >
+              <Plus size={16} />
+              <span>Novo Tipo: Salário</span>
             </button>
 
             {onClose && (
@@ -616,6 +639,13 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                 />
               </div>
 
+              {form.isSalary && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                  <span className="font-black block">Tipo especial: Salário individual</span>
+                  <span className="block mt-1">Será sempre uma saída vinculada a um único médico. Na matriz, ficará fora das despesas gerais e será descontado apenas no cálculo do FINAL.</span>
+                </div>
+              )}
+
               {/* Natureza: ENTRADA ou SAÍDA */}
               <div>
                 <label className="block text-[11px] font-black uppercase text-gray-700 tracking-wider mb-1.5">
@@ -624,6 +654,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
+                    disabled={form.isSalary}
                     onClick={() => {
                       setForm(prev => ({ 
                         ...prev, 
@@ -648,6 +679,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
 
                   <button
                     type="button"
+                    disabled={form.isSalary}
                     onClick={() => {
                       setForm(prev => ({ 
                         ...prev, 
@@ -696,6 +728,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
+                    disabled={form.isSalary}
                     onClick={() => setForm({ ...form, defaultScope: "TEAM" })}
                     className={`flex items-center gap-2 p-3 rounded-2xl border font-bold text-xs transition cursor-pointer ${
                       form.defaultScope === "TEAM"
@@ -712,6 +745,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
 
                   <button
                     type="button"
+                    disabled={form.isSalary}
                     onClick={() => setForm({ ...form, defaultScope: "DOCTOR" })}
                     className={`flex items-center gap-2 p-3 rounded-2xl border font-bold text-xs transition cursor-pointer ${
                       form.defaultScope === "DOCTOR"
