@@ -586,8 +586,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const getEffectiveRateioMethod = (tx: any) => {
     // The API sends allocationMethod after resolving the current catalog rule.
     // Normalize legacy display strings like "PROP % GERAL" to PROP_GERAL.
-    const currentType = transactionTypesById.get(String(tx.typeId || ""))
-      || transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName));
+    // Prefer matching the visible transaction type name. Older records may
+    // contain a generic/stale typeId that resolves to another catalog entry.
+    const currentType = transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName))
+      || transactionTypesById.get(String(tx.typeId || ""));
     const candidates = [
       tx.allocationMethod,
       currentType?.defaultRateioMethod,
