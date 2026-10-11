@@ -150,6 +150,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   };
   const [manualEntradas, setManualEntradas] = useState<Record<string, any>>(defaultManualEntradas);
   const [manualEntriesLoaded, setManualEntriesLoaded] = useState(false);
+  const [manualEntrySaveMessage, setManualEntrySaveMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -158,7 +159,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       setManualEntriesLoaded(false);
       try {
         const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).split("/").join("_");
-        const settingsRef = doc(db, "financial_matrix_manual_entries", settingsId);
+        const settingsRef = doc(db, "groups", activeGroup.id, "financial_matrix_manual_entries", String(selectedClosingId).split("/").join("_"));
         const snapshot = await getDoc(settingsRef);
         if (cancelled) return;
         if (snapshot.exists() && snapshot.data()?.manualEntradas) {
@@ -196,7 +197,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     try {
       setManualEntrySaveMessage("Salvando valores da matriz...");
       const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).split("/").join("_");
-      await setDoc(doc(db, "financial_matrix_manual_entries", settingsId), {
+      await setDoc(doc(db, "groups", activeGroup.id, "financial_matrix_manual_entries", String(selectedClosingId).split("/").join("_")), {
         groupId: activeGroup.id,
         closingId: selectedClosingId,
         manualEntradas: next,

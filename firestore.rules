@@ -282,6 +282,12 @@ service cloud.firestore {
       allow delete: if isMember(resource.data.teamId);
     }
 
+    // Manual values entered in the financial matrix, scoped to the owning group.
+    match /groups/{groupId}/financial_matrix_manual_entries/{closingId} {
+      allow read: if isMember(groupId);
+      allow create, update, delete: if isOwner(groupId);
+    }
+
     match /financial_closings/{closingId} {
       allow read: if isMember(resource.data.teamId || resource.data.groupId);
       allow write: if isOwner(resource.data.teamId || resource.data.groupId || incoming().teamId || incoming().groupId);
