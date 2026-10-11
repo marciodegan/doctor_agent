@@ -280,12 +280,15 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       alert("Por favor, selecione um fechamento / competência.");
       return;
     }
-    if (!newForm.amount || parseFloat(newForm.amount) <= 0) {
-      alert("Por favor, informe um valor válido.");
+    const selectedType = transactionTypes.find(t => String(t.id) === String(newForm.typeId));
+    const parsedAmount = Number(newForm.amount);
+    if (!newForm.amount || !Number.isFinite(parsedAmount) || parsedAmount === 0 ||
+        (parsedAmount < 0 && selectedType?.allowNegativeAmount !== true)) {
+      alert(selectedType?.allowNegativeAmount
+        ? "Informe um valor diferente de zero. Valores negativos são permitidos para este tipo."
+        : "Informe um valor maior que zero.");
       return;
     }
-
-    const selectedType = transactionTypes.find(t => String(t.id) === String(newForm.typeId));
     if (!selectedType) {
       alert("O tipo de lançamento selecionado não está mais disponível. Atualize a lista e selecione um tipo cadastrado.");
       await fetchTransactionTypes();
@@ -452,8 +455,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         <div className="bg-white p-5 rounded-3xl border border-gray-200/80 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Saídas & Deduções</span>
-            <span className="text-xl font-black text-rose-600">
-              -R$ {totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <span className={`text-xl font-black ${totalSaidas < 0 ? "text-emerald-600" : "text-rose-600"}`}>
+              {totalSaidas < 0 ? "+R$ " : "-R$ "}{Math.abs(totalSaidas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </span>
           </div>
           <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
@@ -619,9 +622,11 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                             className="border border-gray-300 rounded px-2 py-1 text-xs font-black text-right w-24"
                           />
                         ) : (
-                          <span className={`font-black text-xs ${isDebit ? "text-rose-600" : "text-emerald-600"}`}>
-                            {isDebit ? "-R$ " : "+R$ "}
-                            {Math.abs(t.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          <span className={`font-black text-xs ${(t.allowNegativeAmount === true && Number(t.amount) < 0) || !isDebit ? "text-emerald-600" : "text-rose-600"}`}>
+                            {t.allowNegativeAmount === true
+                              ? `${Number(t.amount) < 0 ? "-" : ""}R$ `
+                              : (isDebit ? "-R$ " : "+R$ ")}
+                            {Math.abs(Number(t.amount) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </span>
                         )}
                       </td>
@@ -745,8 +750,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                 <input
                   type="number"
                   step="0.01"
-                  min="0.01"
-                  placeholder="0,00"
+                  min={transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.allowNegativeAmount === true ? undefined : "0.01"}
+                  placeholder={transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.allowNegativeAmount === true ? "Ex.: 1000 ou -1000" : "0,00"}
                   required
                   value={newForm.amount}
                   onChange={e => setNewForm({ ...newForm, amount: e.target.value })}
@@ -767,6 +772,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
 
               <p className="text-[10px] text-gray-500 font-medium">
                 A natureza, o destino e as regras de rateio são definidos no cadastro do tipo de lançamento e não podem ser alterados aqui.
+                {transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.allowNegativeAmount === true && " Este tipo permite valores positivos e negativos para acertos entre médicos."}
               </p>
 
               {/* Submit Buttons */}
