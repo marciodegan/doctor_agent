@@ -78,9 +78,8 @@ export function TeamRateioConfig({ teamSettings, setTeamSettings, onSave, saving
               <th className="p-3.5">Especialidade</th>
               <th className="p-3.5 text-center">Membro da Equipe?</th>
               <th className="p-3.5 text-center bg-emerald-50 text-emerald-900">Participa UNIMED?</th>
-              <th className="p-3.5 text-center bg-violet-50 text-violet-900">Participa rateio geral?</th>
               <th className="p-3.5 text-center">% Nominal (Entradas)</th>
-              <th className="p-3.5 text-center bg-blue-50 text-blue-900">PROPORÇÃO HEART (Despesas)</th>
+              <th className="p-3.5 text-center bg-violet-50 text-violet-900">Participa rateio geral?</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
@@ -117,20 +116,7 @@ export function TeamRateioConfig({ teamSettings, setTeamSettings, onSave, saving
                     className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
                   />
                 </td>
-                <td className="p-3.5 text-center bg-violet-50/40">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(doc.participaRateioGeral)}
-                    onChange={(e) => {
-                      const updated = [...teamSettings.doctors];
-                      updated[idx].participaRateioGeral = e.target.checked;
-                      setTeamSettings({ ...teamSettings, doctors: updated });
-                    }}
-                    className="w-4 h-4 text-violet-600 rounded cursor-pointer"
-                    aria-label={`Participa do rateio geral: ${doc.name}`}
-                    title="Inclui este médico no rateio de saídas pela coluna PROP %"
-                  />
-                </td>
+
                 <td className="p-3.5 text-center">
                   {doc.isTeamMember ? (
                     <div className="inline-flex items-center gap-1">
@@ -154,14 +140,19 @@ export function TeamRateioConfig({ teamSettings, setTeamSettings, onSave, saving
                     <span className="text-gray-400 font-bold">0%</span>
                   )}
                 </td>
-                <td className="p-3.5 text-center bg-blue-50/40">
-                  {doc.isTeamMember ? (
-                    <span className="px-2.5 py-1 bg-blue-100 text-blue-900 border border-blue-200 rounded-lg font-black text-xs">
-                      {(doc.proporcaoHeartDinamica || 0).toFixed(2)}%
-                    </span>
-                  ) : (
-                    <span className="text-gray-400 font-bold">0%</span>
-                  )}
+                <td className="p-3.5 text-center bg-violet-50/40">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(doc.participaRateioGeral)}
+                    onChange={(e) => {
+                      const updated = [...teamSettings.doctors];
+                      updated[idx].participaRateioGeral = e.target.checked;
+                      setTeamSettings({ ...teamSettings, doctors: updated });
+                    }}
+                    className="w-4 h-4 text-violet-600 rounded cursor-pointer"
+                    aria-label={`Participa do rateio geral: ${doc.name}`}
+                    title="Inclui este médico no rateio de saídas pela coluna PROP %"
+                  />
                 </td>
               </tr>
             ))}
