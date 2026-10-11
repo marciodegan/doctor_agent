@@ -1202,9 +1202,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
+                    <th className="p-3 border border-slate-700 bg-emerald-900" colSpan={4}>TOTAL GERAL</th>
                     <th className="p-3 border border-slate-700 bg-emerald-950" colSpan={1}>OUTRAS ENTRADAS</th>
                     <th className="p-3 border border-slate-700 bg-rose-950" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
-                    <th className="p-3 border border-slate-700 bg-emerald-900" colSpan={4}>TOTAL GERAL</th>
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
                     {/* Azambuja */}
@@ -1239,13 +1239,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     {/* Unimed Luis */}
                     <th className="p-2 border border-slate-700">TT</th>
                     <th className="p-2 border border-slate-700">DS</th>
-                    {/* Total Geral */}
+                    {/* Totalizador consolidado logo após Unimed Luis */}
+                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">TT</th>
+                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">DS</th>
+                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Dispon. Heart</th>
+                    <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Proporção Heart</th>
+                    {/* Outras entradas e despesas */}
                     <th className="p-2 border border-slate-700 bg-emerald-950 text-emerald-200">Outras Entradas</th>
-                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-slate-700 bg-rose-950 text-rose-200">{type.name}</th>) : <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Despesas</th>}
-                    <th className="p-2 border border-slate-700">TT Geral</th>
-                    <th className="p-2 border border-slate-700">DS Geral</th>
-                    <th className="p-2 border border-slate-700">Prop Heart %</th>
-                    <th className="p-2 border border-slate-700">Disp Período</th>
+                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-slate-700 bg-rose-950 text-rose-200">{type.name}</th>) : <th className="p-2 border border-slate-700 bg-rose-950 text-rose-200">Despesas</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
@@ -1367,6 +1368,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         cashFlowExpenses: cashFlowAllocation.expenseByDoctorType[normalize(doc.name)] || {},
                         afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[normalize(doc.name)] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[normalize(doc.name)] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
                       };
+                    });
+
+                    const totalDispUnim = rows.reduce((sum: number, row: any) => sum + (Number(row.unimTotDS) || 0), 0);
+                    rows.forEach((row: any) => {
+                      row.proporcaoHeart = totalDispUnim > 0 ? (Number(row.unimTotDS) || 0) / totalDispUnim * 100 : 0;
                     });
 
                     (window as any).__matrixRowsCache = rows;
@@ -1521,13 +1527,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-200 font-mono text-gray-700">{r.unimLuisTT > 0 ? r.unimLuisTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-slate-200 font-mono font-bold text-rose-900 border-r-2 border-slate-500">{r.unimLuisDS > 0 ? r.unimLuisDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
 
-                        {/* Outras Entradas e Saídas por tipo */}
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-700">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{Math.abs(Number(r.cashFlowExpenses[type.id]) || 0) > 0 ? Math.abs(Number(r.cashFlowExpenses[type.id]) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>}
+                        {/* Totalizador consolidado */}
                         <td className="p-3 border border-slate-200 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{(r.isTeam && r.totalGeralDS > 0 ? (r.totalGeralDS / 36086.02 * 26.79).toFixed(2) : "0.00")}%</td>
-                        <td className="p-3 border border-slate-200 font-mono font-black bg-blue-50 text-blue-950">{r.isTeam ? r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-bold text-indigo-700 bg-slate-50">{(r.totalGeralDS - r.unimTotDS).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-3 border border-slate-200 font-mono font-black bg-blue-50 text-blue-950">{r.proporcaoHeart.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
+
+                        {/* Outras Entradas e Saídas por tipo */}
+                        <td className="p-3 border border-slate-200 font-mono font-black bg-emerald-50 text-emerald-700">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-200 font-mono font-bold text-rose-700 bg-rose-50/40">{Math.abs(Number(r.cashFlowExpenses[type.id]) || 0) > 0 ? Math.abs(Number(r.cashFlowExpenses[type.id]) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>) : <td className="p-3 border border-slate-200">-</td>
                       </tr>
                     ));
                   })()}
@@ -1567,12 +1575,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('dinheiroTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimLuisTT'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">{fmt(sum('unimLuisDS'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-700 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-slate-700">-</td>}
-                        <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('totalGeralTT'))}</td>
-                        <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('totalGeralDS'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('totalGeralTT'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('totalGeralDS'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono">{fmt(sum('totalGeralDS') - sum('unimTotDS'))}</td>
                         <td className="p-3 border border-slate-700 font-mono">100.00%</td>
-                        <td className="p-3 border border-slate-700 font-mono text-blue-300">{fmt(sum('totalGeralDS'))}</td>
+                        <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
+                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-700 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-slate-700">-</td>
                       </tr>
                     );
                   })()}
