@@ -723,7 +723,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   <option value="">Selecione um tipo cadastrado</option>
                   {transactionTypes.map(t => (
                     <option key={t.id} value={t.id}>
-                      {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.isSalary === true ? "(SALÁRIO INDIVIDUAL)" : t.matrixAdjustmentType ? "(ACERTO INDIVIDUAL)" : t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
+                      {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.isSalary === true ? "(SALÁRIO INDIVIDUAL)" : t.matrixAdjustmentType === "ACERTO_FINAL" ? "(ACERTO FINAL INDIVIDUAL)" : t.matrixAdjustmentType ? "(ACERTO INDIVIDUAL)" : t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
                     </option>
                   ))}
                 </select>
