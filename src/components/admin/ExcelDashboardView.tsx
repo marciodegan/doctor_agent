@@ -1588,10 +1588,16 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       row.afterCashFlowOut = Math.round(((Number(row.totalGeralDS) || 0) + (Number(row.cashFlowIn) || 0) - expenses) * 100) / 100;
                     });
 
-                    const totalResult = rows.reduce((sum: number, row: any) => sum + (Number(row.afterCashFlowOut) || 0), 0);
+                    // O percentual RESULT deve considerar somente os membros da equipe.
+                    // Médicos externos não entram no denominador e não recebem percentual.
+                    const teamRows = rows.filter((row: any) => row.isTeam === true);
+                    const totalTeamResult = teamRows.reduce(
+                      (sum: number, row: any) => sum + (Number(row.afterCashFlowOut) || 0),
+                      0
+                    );
                     rows.forEach((row: any) => {
-                      row.afterCashFlowOutPercent = totalResult !== 0
-                        ? Math.round(((Number(row.afterCashFlowOut) || 0) / totalResult) * 100000) / 1000
+                      row.afterCashFlowOutPercent = row.isTeam === true && totalTeamResult !== 0
+                        ? Math.round(((Number(row.afterCashFlowOut) || 0) / totalTeamResult) * 10000) / 100
                         : 0;
                     });
 
@@ -1828,7 +1834,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-slate-700 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
                         {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-slate-700 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-slate-700">-</td>}
                         <td className="p-3 border border-slate-700 font-mono font-black text-white">{sum('afterCashFlowOut').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-slate-700 font-mono font-black">100,00%</td>
+                        <td className="p-3 border border-slate-700 font-mono font-black">{rows.some((row: any) => row.isTeam === true) ? "100,00%" : "0,00%"}</td>
                       </tr>
                     );
                   })()}
