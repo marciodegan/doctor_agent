@@ -2393,7 +2393,8 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
         rateioMethod: effectiveMethod || tx.rateioMethod || null,
         allocationMethod: effectiveMethod || tx.rateioMethod || null,
         allocationTypeMatched: Boolean(type),
-        isSalary: tx.isSalary === true || type?.isSalary === true
+        isSalary: tx.isSalary === true || type?.isSalary === true,
+        matrixAdjustmentType: tx.matrixAdjustmentType || type?.matrixAdjustmentType || null
       };
     });
     const batches = batchSnap.docs.map((d: any) => d.data());
@@ -2812,7 +2813,7 @@ app.get("/api/app/financial/transaction-types", async (req, res) => {
 
 app.post("/api/app/financial/transaction-types", async (req, res) => {
   const groupId = getGroupId(req);
-  const { name, nature, defaultScope, defaultRateioMethod, allowNegativeAmount, isSalary, category, description } = req.body;
+  const { name, nature, defaultScope, defaultRateioMethod, allowNegativeAmount, isSalary, matrixAdjustmentType, category, description } = req.body;
   if (!name || !nature) {
     return res.status(400).json({ error: "name and nature are required" });
   }
@@ -2820,16 +2821,18 @@ app.post("/api/app/financial/transaction-types", async (req, res) => {
     const user = (req as any).user;
     const docRef = db.collection("financial_transaction_types").doc();
     const salaryType = isSalary === true;
+    const adjustmentType = matrixAdjustmentType === "ACERTO_1" || matrixAdjustmentType === "SOBRE_MES_ANTERIOR" ? matrixAdjustmentType : null;
     const typeData = {
       id: docRef.id,
       teamId: groupId,
       name: name.trim(),
-      nature: salaryType ? "DEBIT" : nature === "CREDIT" ? "CREDIT" : "DEBIT",
-      defaultScope: salaryType ? "DOCTOR" : defaultScope || "TEAM",
-      defaultRateioMethod: salaryType ? "NOMINAL" : defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
-      allowNegativeAmount: !salaryType && nature !== "CREDIT" && allowNegativeAmount === true,
+      nature: salaryType || adjustmentType ? "DEBIT" : nature === "CREDIT" ? "CREDIT" : "DEBIT",
+      defaultScope: salaryType || adjustmentType ? "DOCTOR" : defaultScope || "TEAM",
+      defaultRateioMethod: salaryType || adjustmentType ? "NOMINAL" : defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
+      allowNegativeAmount: adjustmentType ? true : !salaryType && nature !== "CREDIT" && allowNegativeAmount === true,
       isSalary: salaryType,
-      category: salaryType ? "Salários" : category?.trim() || "Geral",
+      matrixAdjustmentType: adjustmentType,
+      category: salaryType ? "Salários" : adjustmentType ? "Acertos" : category?.trim() || "Geral",
       description: description?.trim() || "",
       isCustom: true,
       createdAt: new Date().toISOString(),
@@ -2855,13 +2858,16 @@ app.post("/api/app/financial/transaction-types", async (req, res) => {
 app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
   const groupId = getGroupId(req);
   const { id } = req.params;
-  const { name, nature, defaultScope, defaultRateioMethod, allowNegativeAmount, isSalary, category, description } = req.body;
+  const { name, nature, defaultScope, defaultRateioMethod, allowNegativeAmount, isSalary, matrixAdjustmentType, category, description } = req.body;
   try {
     const user = (req as any).user;
     const docRef = db.collection("financial_transaction_types").doc(id);
     const existing = await docRef.get();
     
     const salaryType = isSalary === true || (isSalary === undefined && existing.exists && existing.data()?.isSalary === true);
+    const adjustmentType = matrixAdjustmentType === "ACERTO_1" || matrixAdjustmentType === "SOBRE_MES_ANTERIOR"
+      ? matrixAdjustmentType
+      : (matrixAdjustmentType === undefined && existing.exists ? existing.data()?.matrixAdjustmentType || null : null);
     const updateData: any = {
       teamId: groupId,
       ...(name !== undefined && { name: name.trim() }),
@@ -2872,9 +2878,11 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
         ? { allowNegativeAmount: nature === "CREDIT" ? false : allowNegativeAmount === true }
         : {}),
       ...(isSalary !== undefined && { isSalary: salaryType }),
+      ...(matrixAdjustmentType !== undefined && { matrixAdjustmentType: adjustmentType }),
       ...(category !== undefined && { category: category.trim() }),
       ...(description !== undefined && { description: description.trim() }),
-      ...(salaryType ? { nature: "DEBIT", defaultScope: "DOCTOR", defaultRateioMethod: "NOMINAL", allowNegativeAmount: false, isSalary: true, category: "Salários" } : {}),
+      ...(salaryType ? { nature: "DEBIT", defaultScope: "DOCTOR", defaultRateioMethod: "NOMINAL", allowNegativeAmount: false, isSalary: true, matrixAdjustmentType: null, category: "Salários" } : {}),
+      ...(adjustmentType ? { nature: "DEBIT", defaultScope: "DOCTOR", defaultRateioMethod: "NOMINAL", allowNegativeAmount: true, isSalary: false, matrixAdjustmentType: adjustmentType, category: "Acertos" } : {}),
       updatedAt: new Date().toISOString()
     };
 
@@ -2886,12 +2894,13 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
         id,
         teamId: groupId,
         name: name?.trim() || matchedDefault?.name || id,
-        nature: salaryType ? "DEBIT" : nature || matchedDefault?.nature || "DEBIT",
-        defaultScope: salaryType ? "DOCTOR" : defaultScope || matchedDefault?.defaultScope || "TEAM",
-        defaultRateioMethod: salaryType ? "NOMINAL" : defaultRateioMethod || matchedDefault?.defaultRateioMethod || "NOMINAL",
-        allowNegativeAmount: salaryType ? false : nature === "CREDIT" ? false : allowNegativeAmount === true,
+        nature: salaryType || adjustmentType ? "DEBIT" : nature || matchedDefault?.nature || "DEBIT",
+        defaultScope: salaryType || adjustmentType ? "DOCTOR" : defaultScope || matchedDefault?.defaultScope || "TEAM",
+        defaultRateioMethod: salaryType || adjustmentType ? "NOMINAL" : defaultRateioMethod || matchedDefault?.defaultRateioMethod || "NOMINAL",
+        allowNegativeAmount: adjustmentType ? true : salaryType ? false : nature === "CREDIT" ? false : allowNegativeAmount === true,
         isSalary: salaryType,
-        category: salaryType ? "Salários" : category?.trim() || matchedDefault?.category || "Geral",
+        matrixAdjustmentType: adjustmentType,
+        category: salaryType ? "Salários" : adjustmentType ? "Acertos" : category?.trim() || matchedDefault?.category || "Geral",
         description: description?.trim() || matchedDefault?.description || "",
         isCustom: false,
         createdAt: new Date().toISOString(),
@@ -2999,10 +3008,11 @@ app.post("/api/app/financial/transactions", async (req, res) => {
 
     const typeName = storedType.name || requestedTypeName || String(typeId);
     const isSalary = storedType.isSalary === true;
-    const nature = isSalary ? "DEBIT" : storedType.nature === "CREDIT" ? "CREDIT" : "DEBIT";
-    // The transaction type is the source of truth. Salary is always an individual debit.
-    const scope = isSalary || String(storedType.defaultScope || "TEAM").toUpperCase() === "DOCTOR" ? "DOCTOR" : "TEAM";
-    const rateioMethod = isSalary ? "NOMINAL" : storedType.defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART");
+    const matrixAdjustmentType = storedType.matrixAdjustmentType === "ACERTO_1" || storedType.matrixAdjustmentType === "SOBRE_MES_ANTERIOR" ? storedType.matrixAdjustmentType : null;
+    const nature = isSalary || matrixAdjustmentType ? "DEBIT" : storedType.nature === "CREDIT" ? "CREDIT" : "DEBIT";
+    // Salary and matrix adjustments are always individual debits linked to one doctor.
+    const scope = isSalary || matrixAdjustmentType || String(storedType.defaultScope || "TEAM").toUpperCase() === "DOCTOR" ? "DOCTOR" : "TEAM";
+    const rateioMethod = isSalary || matrixAdjustmentType ? "NOMINAL" : storedType.defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART");
     const autoSplitTeam = scope === "TEAM";
     if (scope === "DOCTOR" && !requestedDoctorId && !storedType.doctorId) {
       return res.status(400).json({ error: "Este tipo está configurado como individual. Selecione o médico antes de lançar." });
@@ -3046,8 +3056,9 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       typeName: typeName || "Lançamento Avulso",
       typeId: typeId || "avulso",
       amount: numAmount,
-      allowNegativeAmount: isSalary ? false : allowNegativeAmount,
+      allowNegativeAmount: matrixAdjustmentType ? true : isSalary ? false : allowNegativeAmount,
       isSalary,
+      matrixAdjustmentType,
       nature: nature || "DEBIT",
       observation: observation || "",
       date: txDate,

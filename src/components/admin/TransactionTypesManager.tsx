@@ -46,6 +46,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
     defaultRateioMethod: "NOMINAL" as "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL",
     allowNegativeAmount: false,
     isSalary: false,
+    matrixAdjustmentType: "" as "" | "ACERTO_1" | "SOBRE_MES_ANTERIOR",
     category: "Receitas Equipe",
     description: ""
   });
@@ -72,7 +73,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
     fetchTypes();
   }, [activeGroup]);
 
-  const handleOpenAdd = (preset?: "ENTRADA_EQUIPE" | "DESPESA_EQUIPE" | "SALARIO") => {
+  const handleOpenAdd = (preset?: "ENTRADA_EQUIPE" | "DESPESA_EQUIPE" | "SALARIO" | "ACERTO_1" | "SOBRE_MES_ANTERIOR") => {
     setEditingType(null);
     if (preset === "ENTRADA_EQUIPE") {
       setForm({
@@ -82,6 +83,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         defaultRateioMethod: "NOMINAL",
         allowNegativeAmount: false,
         isSalary: false,
+        matrixAdjustmentType: "",
         category: "Receitas Equipe",
         description: "Entrada de produção ou plantão com rateio societário da equipe (29%, 29%, 29%, 13%)"
       });
@@ -93,6 +95,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         defaultRateioMethod: "PROPORCAO_HEART",
         allowNegativeAmount: false,
         isSalary: false,
+        matrixAdjustmentType: "",
         category: "Infraestrutura",
         description: "Despesa com rateio dinâmico pela Proporção HeaRT do período"
       });
@@ -107,6 +110,21 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         category: "Salários",
         description: "Pagamento de salário individual. O valor aparece na coluna SALÁRIO e é deduzido do RESULT para calcular o FINAL."
       });
+    } else if (preset === "ACERTO_1" || preset === "SOBRE_MES_ANTERIOR") {
+      const isAcerto1 = preset === "ACERTO_1";
+      setForm({
+        name: isAcerto1 ? "Acerto 1" : "Sobre Mês Anterior",
+        nature: "DEBIT",
+        defaultScope: "DOCTOR",
+        defaultRateioMethod: "NOMINAL",
+        allowNegativeAmount: true,
+        isSalary: false,
+        matrixAdjustmentType: preset,
+        category: "Acertos",
+        description: isAcerto1
+          ? "Acerto individual do médico. Aceita valores positivos ou negativos e aparece após FINAL na matriz."
+          : "Ajuste referente ao mês anterior, vinculado individualmente ao médico. Aceita valores positivos ou negativos e aparece após FINAL na matriz."
+      });
     } else {
       setForm({
         name: "",
@@ -115,6 +133,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         defaultRateioMethod: "NOMINAL",
         allowNegativeAmount: false,
         isSalary: false,
+        matrixAdjustmentType: "",
         category: "Receitas Equipe",
         description: ""
       });
@@ -131,6 +150,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
       defaultRateioMethod: typeItem.defaultRateioMethod || (typeItem.nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
       allowNegativeAmount: typeItem.allowNegativeAmount === true,
       isSalary: typeItem.isSalary === true,
+      matrixAdjustmentType: typeItem.matrixAdjustmentType || "",
       category: typeItem.category || "Geral",
       description: typeItem.description || ""
     });
@@ -284,7 +304,22 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
             </button>
 
             <button
-              onClick={() => handleOpenAdd("SALARIO")}
+              onClick={() => handleOpenAdd("ACERTO_1")}
+              className="flex items-center gap-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-100 border border-amber-300/30 px-4 py-3 rounded-2xl font-black text-xs tracking-wide active:scale-95 transition cursor-pointer"
+            >
+              <Plus size={16} />
+              <span>Novo Tipo: Acerto 1</span>
+            </button>
+            <button
+              onClick={() => handleOpenAdd("SOBRE_MES_ANTERIOR")}
+              className="flex items-center gap-2 bg-sky-500/15 hover:bg-sky-500/25 text-sky-100 border border-sky-300/30 px-4 py-3 rounded-2xl font-black text-xs tracking-wide active:scale-95 transition cursor-pointer"
+            >
+              <Plus size={16} />
+              <span>Novo Tipo: Sobre Mês Anterior</span>
+            </button>
+
+            <button
+              onClick={() => handleOpenAdd("SALARIO")
               className="flex items-center gap-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-100 border border-emerald-300/30 px-4 py-3 rounded-2xl font-black text-xs tracking-wide active:scale-95 transition cursor-pointer"
             >
               <Plus size={16} />
@@ -642,10 +677,10 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                 />
               </div>
 
-              {form.isSalary && (
+              {(form.isSalary || form.matrixAdjustmentType) && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
-                  <span className="font-black block">Tipo especial: Salário individual</span>
-                  <span className="block mt-1">Será sempre uma saída vinculada a um único médico. Na matriz, ficará fora das despesas gerais e será descontado apenas no cálculo do FINAL.</span>
+                  <span className="font-black block">{form.isSalary ? "Tipo especial: Salário individual" : form.matrixAdjustmentType === "ACERTO_1" ? "Tipo especial: Acerto 1" : "Tipo especial: Sobre Mês Anterior"}</span>
+                  <span className="block mt-1">{form.isSalary ? "Será sempre uma saída vinculada a um único médico. Na matriz, ficará fora das despesas gerais e será descontado apenas no cálculo do FINAL." : "Será um lançamento individual do médico, aceita valores positivos e negativos e aparece em coluna própria após FINAL. Não altera RESULT nem FINAL."}</span>
                 </div>
               )}
 
@@ -657,7 +692,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    disabled={form.isSalary}
+                    disabled={form.isSalary || Boolean(form.matrixAdjustmentType)}
                     onClick={() => {
                       setForm(prev => ({ 
                         ...prev, 
@@ -682,7 +717,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
 
                   <button
                     type="button"
-                    disabled={form.isSalary}
+                    disabled={form.isSalary || Boolean(form.matrixAdjustmentType)}
                     onClick={() => {
                       setForm(prev => ({ 
                         ...prev, 
@@ -711,6 +746,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                   <input
                     type="checkbox"
                     checked={form.allowNegativeAmount}
+                    disabled={Boolean(form.matrixAdjustmentType)}
                     onChange={e => setForm(prev => ({ ...prev, allowNegativeAmount: e.target.checked }))}
                     className="mt-0.5 h-4 w-4 accent-amber-600"
                   />
@@ -731,7 +767,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    disabled={form.isSalary}
+                    disabled={form.isSalary || Boolean(form.matrixAdjustmentType)}
                     onClick={() => setForm({ ...form, defaultScope: "TEAM" })}
                     className={`flex items-center gap-2 p-3 rounded-2xl border font-bold text-xs transition cursor-pointer ${
                       form.defaultScope === "TEAM"
@@ -748,7 +784,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
 
                   <button
                     type="button"
-                    disabled={form.isSalary}
+                    disabled={form.isSalary || Boolean(form.matrixAdjustmentType)}
                     onClick={() => setForm({ ...form, defaultScope: "DOCTOR" })}
                     className={`flex items-center gap-2 p-3 rounded-2xl border font-bold text-xs transition cursor-pointer ${
                       form.defaultScope === "DOCTOR"
