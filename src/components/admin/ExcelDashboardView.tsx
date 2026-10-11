@@ -157,7 +157,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       if (!activeGroup?.id || !selectedClosingId) return;
       setManualEntriesLoaded(false);
       try {
-        const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).replace(/\\//g, "_");
+        const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).split("/").join("_");
         const settingsRef = doc(db, "financial_matrix_manual_entries", settingsId);
         const snapshot = await getDoc(settingsRef);
         if (cancelled) return;
@@ -180,7 +180,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const next = { ...manualEntradas, [doctorKey]: { ...(manualEntradas[doctorKey] || {}), ...patch } };
     setManualEntradas(next);
     if (!manualEntriesLoaded || !activeGroup?.id || !selectedClosingId) return;
-    const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).replace(/\\//g, "_");
+    const settingsId = (String(activeGroup.id) + "_" + String(selectedClosingId)).split("/").join("_");
     void setDoc(doc(db, "financial_matrix_manual_entries", settingsId), {
       groupId: activeGroup.id,
       closingId: selectedClosingId,
