@@ -2818,7 +2818,7 @@ app.get("/api/app/financial/transaction-types", async (req, res) => {
 
 app.post("/api/app/financial/transaction-types", async (req, res) => {
   const groupId = getGroupId(req);
-  const { name, nature, defaultScope, defaultRateioMethod, allowNegativeAmount, isSalary, matrixAdjustmentType, category, description } = req.body;
+  const { name, nature, defaultScope, defaultRateioMethod, displayOrder, allowNegativeAmount, isSalary, matrixAdjustmentType, category, description } = req.body;
   if (!name || !nature) {
     return res.status(400).json({ error: "name and nature are required" });
   }
@@ -2834,6 +2834,7 @@ app.post("/api/app/financial/transaction-types", async (req, res) => {
       nature: salaryType || adjustmentType ? "DEBIT" : nature === "CREDIT" ? "CREDIT" : "DEBIT",
       defaultScope: salaryType || adjustmentType ? "DOCTOR" : defaultScope || "TEAM",
       defaultRateioMethod: salaryType || adjustmentType ? "NOMINAL" : defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
+      ...(displayOrder !== undefined && { displayOrder: Math.max(0, Math.trunc(Number(displayOrder) || 0)) }),
       allowNegativeAmount: adjustmentType ? true : !salaryType && nature !== "CREDIT" && allowNegativeAmount === true,
       isSalary: salaryType,
       matrixAdjustmentType: adjustmentType,
@@ -2879,6 +2880,7 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
       ...(nature !== undefined && { nature: nature === "CREDIT" ? "CREDIT" : "DEBIT" }),
       ...(defaultScope !== undefined && { defaultScope }),
       ...(defaultRateioMethod !== undefined && { defaultRateioMethod }),
+      ...(displayOrder !== undefined && { displayOrder: Math.max(0, Math.trunc(Number(displayOrder) || 0)) }),
       ...(allowNegativeAmount !== undefined || nature === "CREDIT"
         ? { allowNegativeAmount: nature === "CREDIT" ? false : allowNegativeAmount === true }
         : {}),
@@ -2902,6 +2904,7 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
         nature: salaryType || adjustmentType ? "DEBIT" : nature || matchedDefault?.nature || "DEBIT",
         defaultScope: salaryType || adjustmentType ? "DOCTOR" : defaultScope || matchedDefault?.defaultScope || "TEAM",
         defaultRateioMethod: salaryType || adjustmentType ? "NOMINAL" : defaultRateioMethod || matchedDefault?.defaultRateioMethod || "NOMINAL",
+        ...(displayOrder !== undefined && { displayOrder: Math.max(0, Math.trunc(Number(displayOrder) || 0)) }),
         allowNegativeAmount: adjustmentType ? true : salaryType ? false : nature === "CREDIT" ? false : allowNegativeAmount === true,
         isSalary: salaryType,
         matrixAdjustmentType: adjustmentType,
