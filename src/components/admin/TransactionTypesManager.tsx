@@ -52,6 +52,11 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
   });
   const [submitting, setSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+  const [displayOrder, setDisplayOrder] = useState(1);
+  const getNextDisplayOrder = (excludeId?: string) =>
+    Math.max(0, ...types
+      .filter(t => t.id !== excludeId && t.nature === "DEBIT")
+      .map(t => Number(t.displayOrder) || 0)) + 1;
 
   const fetchTypes = async () => {
     if (!activeGroup) return;
@@ -75,6 +80,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
 
   const handleOpenAdd = (preset?: "ENTRADA_EQUIPE" | "DESPESA_EQUIPE" | "SALARIO" | "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "ACERTO_FINAL") => {
     setEditingType(null);
+    setDisplayOrder(getNextDisplayOrder());
     if (preset === "ENTRADA_EQUIPE") {
       setForm({
         name: "",
@@ -146,6 +152,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
 
   const handleOpenEdit = (typeItem: FinancialTransactionType) => {
     setEditingType(typeItem);
+    setDisplayOrder(typeItem.nature === "DEBIT" ? (Number(typeItem.displayOrder) || getNextDisplayOrder(typeItem.id)) : (Number(typeItem.displayOrder) || 0));
     setForm({
       name: typeItem.name,
       nature: typeItem.nature,
@@ -169,14 +176,18 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
 
     try {
       setSubmitting(true);
+      const formPayload = {
+        ...form,
+        displayOrder: form.nature === "DEBIT" ? Math.max(1, Math.trunc(Number(displayOrder) || 1)) : (Number(displayOrder) || 0)
+      };
       if (editingType) {
         // Edit existing
         const res = await apiFetch(`/api/app/financial/transaction-types/${editingType.id}`, {
           method: "PUT",
-          body: JSON.stringify(form)
+          body: JSON.stringify(formPayload)
         });
         if (res.ok) {
-          setTypes(prev => prev.map(t => t.id === editingType.id ? { ...t, ...form } : t));
+          setTypes(prev => prev.map(t => t.id === editingType.id ? { ...t, ...formPayload } : t));
           setIsModalOpen(false);
           setFeedbackMsg("Tipo de lançamento atualizado com sucesso!");
           setTimeout(() => setFeedbackMsg(null), 3000);
@@ -185,7 +196,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
         // Create new
         const res = await apiFetch("/api/app/financial/transaction-types", {
           method: "POST",
-          body: JSON.stringify(form)
+          body: JSON.stringify(formPayload)
         });
         if (res.ok) {
           const created = await res.json();
@@ -205,16 +216,18 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
   const handleQuickToggleNature = async (typeItem: FinancialTransactionType) => {
     const nextNature = typeItem.nature === "DEBIT" ? "CREDIT" : "DEBIT";
     const nextMethod = nextNature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART";
+    const nextDisplayOrder = nextNature === "DEBIT" ? (Number(typeItem.displayOrder) || getNextDisplayOrder(typeItem.id)) : (Number(typeItem.displayOrder) || 0);
     try {
       const res = await apiFetch(`/api/app/financial/transaction-types/${typeItem.id}`, {
         method: "PUT",
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           nature: nextNature,
-          defaultRateioMethod: nextMethod 
+          defaultRateioMethod: nextMethod,
+          displayOrder: nextDisplayOrder
         })
       });
       if (res.ok) {
-        setTypes(prev => prev.map(t => t.id === typeItem.id ? { ...t, nature: nextNature, defaultRateioMethod: nextMethod } : t));
+        setTypes(prev => prev.map(t => t.id === typeItem.id ? { ...t, nature: nextNature, defaultRateioMethod: nextMethod, displayOrder: nextDisplayOrder } : t));
         setFeedbackMsg(`Natureza de "${typeItem.name}" alterada para ${nextNature === "DEBIT" ? "SAÍDA (Débito)" : "ENTRADA (Crédito)"}`);
         setTimeout(() => setFeedbackMsg(null), 3000);
       }
@@ -517,6 +530,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                   <th className="py-3.5 px-4 text-center">Natureza (Entrada / Saída)</th>
                   <th className="py-3.5 px-4 text-center">Escopo Sugerido</th>
                   <th className="py-3.5 px-4 text-center">Método de Rateio</th>
+                  <th className="py-3.5 px-4 text-center">Ordem na Matriz</th>
                   <th className="py-3.5 px-4">Categoria</th>
                   <th className="py-3.5 px-4">Descrição / Observação</th>
                   <th className="py-3.5 px-4 text-right">Ações</th>
@@ -590,6 +604,13 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                         ) : (
                           <span className="text-gray-400 text-[10px]">Sem Rateio</span>
                         )}
+                      </td>
+
+                      {/* Matrix display order */}
+                      <td className="py-3.5 px-4 text-center">
+                        {isDebit
+                          ? <span className="inline-flex min-w-8 justify-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-black text-slate-700">{Number(t.displayOrder) > 0 ? t.displayOrder : "—"}</span>
+                          : <span className="text-gray-300">—</span>}
                       </td>
 
                       {/* Category */}
@@ -686,6 +707,26 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                   className="w-full px-3.5 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-gray-900"
                 />
               </div>
+
+              {form.nature === "DEBIT" && !form.isSalary && !form.matrixAdjustmentType && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+                  <label className="block text-[11px] font-black uppercase text-indigo-950 tracking-wider mb-1.5">
+                    Ordem de exibição na matriz
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    required
+                    value={displayOrder}
+                    onChange={e => setDisplayOrder(Math.max(1, Math.trunc(Number(e.target.value) || 1)))}
+                    className="w-full px-3.5 py-2.5 text-xs bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-bold text-gray-900"
+                  />
+                  <p className="mt-1.5 text-[10px] text-indigo-800">
+                    Defina a posição desta despesa. A matriz exibirá as despesas nesta ordem e depois os três totalizadores. Alterar a posição não muda nenhum cálculo.
+                  </p>
+                </div>
+              )}
 
               {(form.isSalary || form.matrixAdjustmentType) && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
