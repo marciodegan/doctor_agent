@@ -3296,14 +3296,17 @@ Não retorne resumo financeiro nem lançamentos que não estejam visíveis no do
       const doctorNameRaw = String(row.doctorName || "").trim();
       const doctor = doctors.find(d => normalize(d.name) === normalize(doctorNameRaw));
       const typeNameRaw = String(row.typeName || "").trim();
-      const type = types.find((t: any) => normalize(t.name) === normalize(typeNameRaw));
+      const matchingTypes = types.filter((t: any) => normalize(t.name) === normalize(typeNameRaw));
+      // Duplicate names are intentionally left unresolved so the reviewer can choose
+      // the correct catalog record rather than silently selecting the first ID.
+      const type = matchingTypes.length === 1 ? matchingTypes[0] : undefined;
       const rawAmount = Number(row.amount);
       const amount = Number.isFinite(rawAmount) ? rawAmount : 0;
       const warnings: string[] = [];
       if (!String(row.date || "").trim()) warnings.push("Data não identificada");
       if (!doctor && doctorNameRaw) warnings.push("Médico não corresponde a um cadastro ativo");
       if (!doctor && !doctorNameRaw) warnings.push("Médico não identificado");
-      if (!type) warnings.push("Tipo de lançamento precisa ser selecionado");
+      if (!type) warnings.push(matchingTypes.length > 1 ? "Há tipos cadastrados com o mesmo nome; selecione o correto" : "Tipo de lançamento precisa ser selecionado");
       if (!Number.isFinite(rawAmount) || rawAmount === 0) warnings.push("Valor precisa ser conferido");
       if (type && type.scope === "DOCTOR" && !doctor) warnings.push("Tipo individual exige um médico");
       if (type && amount < 0 && !type.allowNegativeAmount) warnings.push("Valor negativo: confira se o tipo permite valor negativo");
