@@ -1628,9 +1628,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         : 0;
                     });
 
-                    // PROP_GERAL uses the exact PROP % displayed in the matrix.
-                    // Do not normalize percentages: a subtotal below 100% leaves a remainder
-                    // undistributed, and a subtotal above 100% shows a warning but still allocates.
+                    // PROP_GERAL uses the Unimed matrix "Prop %" column for every doctor,
+                    // regardless of team membership. The displayed percentage is each doctor's
+                    // Unimed TT divided by totalUnimedTT; only participaRateioGeral controls eligibility.
+                    // Do not normalize: warn above 100% but still apply each individual percentage.
+                    const getPropGeralPercent = (row: any) => totalUnimedTT > 0
+                      ? Math.max(0, Number(row.unimTotTT) || 0) / totalUnimedTT * 100
+                      : 0;
                     const propGeneralErrors: string[] = [];
                     const propGeneralWarnings: string[] = [];
                     const propGeneralTransactions = cashFlowTransactions.filter((tx: any) => {
@@ -1665,7 +1669,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         propGeneralErrors.push(`${tx.typeName || "Saída"}: nenhum médico está habilitado para o rateio geral. Rateio bloqueado.`);
                         return;
                       }
-                      const propSum = participatingRows.reduce((sum: number, row: any) => sum + Math.max(0, Number(row.proporcaoHeart) || 0), 0);
+                      const propSum = participatingRows.reduce((sum: number, row: any) => sum + getPropGeralPercent(row), 0);
                       if (propSum > 100.000001) {
                         propGeneralWarnings.push(`${tx.typeName || "Saída"}: a soma dos percentuais PROP dos médicos habilitados é ${propSum.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%, acima de 100%. O rateio será aplicado pelos percentuais individuais, sem normalização.`);
                       }
@@ -1675,8 +1679,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         : Math.max(0, Number(tx.amount) || 0);
                       const typeId = String(tx.typeId || tx.typeName || "outros");
                       participatingRows.forEach((row: any) => {
-                        const percent = Math.max(0, Number(row.proporcaoHeart) || 0);
-                        // Use the original transaction amount times this doctor's displayed PROP %.
+                        const percent = getPropGeralPercent(row);
+                        // Use the original transaction amount times this doctor's displayed Unimed PROP %.
                         const allocated = Math.round((amount * percent / 100 + Number.EPSILON) * 100) / 100;
                         if (allocated === 0 || (allocated < 0 && !allowNegativeAmount)) return;
                         row.cashFlowExpenses = { ...(row.cashFlowExpenses || {}) };
