@@ -2713,14 +2713,17 @@ app.post("/api/app/financial/team-settings", async (req, res) => {
 
     // Recalculate dynamic PROPORÇÃO HEART based on disponivelPeriodo if present
     const rawDoctors = doctors || DEFAULT_TEAM_CONFIG.doctors;
-    const teamMembers = rawDoctors.filter((d: any) => d.isTeamMember);
+    // Only doctors marked as team members contribute to the period total and HEART proportion.
+    const teamMembers = rawDoctors.filter((d: any) => d.isTeamMember === true);
     const sumDisponivel = teamMembers.reduce((acc: number, d: any) => acc + (Number(d.disponivelPeriodo) || 0), 0);
 
     const processedDoctors = rawDoctors.map((d: any) => {
       const participaUnimed = d.participaUnimed !== undefined ? Boolean(d.participaUnimed) : (['rochele', 'thais', 'luis'].includes(d.key?.toLowerCase()));
       const unimedDistributionRule = d.unimedDistributionRule || "EQUAL";
-      if (d.isTeamMember && sumDisponivel > 0 && d.disponivelPeriodo !== undefined) {
-        const dynamicPercent = Math.round(((Number(d.disponivelPeriodo) || 0) / sumDisponivel) * 10000) / 100;
+      if (d.isTeamMember === true) {
+        const dynamicPercent = sumDisponivel > 0
+          ? Math.round(((Number(d.disponivelPeriodo) || 0) / sumDisponivel) * 10000) / 100
+          : 0;
         return {
           ...d,
           participaUnimed,
@@ -2728,10 +2731,12 @@ app.post("/api/app/financial/team-settings", async (req, res) => {
           proporcaoHeartDinamica: dynamicPercent
         };
       }
+      // Non-team doctors never participate in the HEART proportion.
       return {
         ...d,
         participaUnimed,
-        unimedDistributionRule
+        unimedDistributionRule,
+        proporcaoHeartDinamica: 0
       };
     });
 
