@@ -1586,32 +1586,43 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       };
                     });
 
-                    // PROP % is calculated across all doctors. For team members, remove
-                    // the shared Unimed amount so it does not distort the team's own
-                    // available balance. For individual doctors, their Unimed production
-                    // is their own income and must remain in the PROP base.
+                    // DISP PERÍODO is based on the same matrix totals as Consultório,
+                    // Dinheiro and Unimed Luis, but only for doctors marked as team members.
+                    // Exclude the shared Unimed amount from each team member's DS balance.
+                    const normalizeTeamDoctorName = (value: any) => String(value || "")
+                      .normalize("NFD")
+                      .replace(/[\u0300-\u036f]/g, "")
+                      .trim()
+                      .toUpperCase()
+                      .replace(/\s+/g, " ");
+                    const isConfiguredTeamMember = (row: any) => {
+                      const config = configuredDoctors.find((doctor: any) =>
+                        doctor.key === row.key ||
+                        normalizeTeamDoctorName(doctor.name) === normalizeTeamDoctorName(row.name)
+                      );
+                      // The saved doctor configuration is authoritative; row.isTeam is a fallback
+                      // for rows whose doctor is not present in the configuration yet.
+                      return config ? config.isTeamMember === true : row.isTeam === true;
+                    };
                     const getAvailableForProp = (row: any) => {
+                      if (!isConfiguredTeamMember(row)) return 0;
                       const totalDS = Number(row.totalGeralDS) || 0;
                       const unimedDS = Number(row.unimTotDS) || 0;
-                      const available = row.isTeam
-                        ? totalDS - unimedDS
-                        : totalDS;
-                      return Math.max(0, available);
+                      return Math.max(0, totalDS - unimedDS);
                     };
-                    // DISP PERÍODO and PROPORÇÃO HEART are team-only calculations.
-                    // Doctors outside the team must not affect the denominator or receive a share.
-                    const teamRowsForHeart = rows.filter((row: any) => row.isTeam === true);
+
+                    // The denominator for PROPORÇÃO HEART is the sum of DISP PERÍODO
+                    // of team members only. Their percentages therefore add up to 100%.
+                    const teamRowsForHeart = rows.filter(isConfiguredTeamMember);
                     const totalDispPeriodo = teamRowsForHeart.reduce(
                       (sum: number, row: any) => sum + getAvailableForProp(row),
                       0
                     );
                     rows.forEach((row: any) => {
-                      const isTeamMember = row.isTeam === true;
+                      const isTeamMember = isConfiguredTeamMember(row);
                       const dispPeriodo = isTeamMember ? getAvailableForProp(row) : 0;
+                      row.isTeam = isTeamMember;
                       row.dispPeriodo = Math.round(dispPeriodo * 100) / 100;
-                      // Keep full precision for validation and allocation. Rounding
-                      // each doctor's PROP to 2 decimals here can make a true 100% total
-                      // appear as 100.01% and incorrectly block every allocation.
                       row.proporcaoHeart = isTeamMember && totalDispPeriodo > 0
                         ? (dispPeriodo / totalDispPeriodo) * 100
                         : 0;
