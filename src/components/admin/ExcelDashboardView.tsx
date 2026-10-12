@@ -620,7 +620,19 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         rateioMethod: String(tx.rateioMethod || ""),
         allowNegativeAmount: tx.allowNegativeAmount === true
       }])
-  ).values()) as Array<{id:string; name:string; scope:string; rateioMethod:string; allowNegativeAmount:boolean}>;
+  ).values())
+    // Display order only: PROPORCAO_HEART first, PROP_GERAL second, remaining
+    // expense types afterward in their existing relative order. Do not alter allocation.
+    .map((type, index) => ({ type, index, method: getEffectiveRateioMethod({
+      typeId: type.id,
+      typeName: type.name,
+      rateioMethod: type.rateioMethod
+    }) }))
+    .sort((a, b) => {
+      const rank = (method: string) => method === "PROPORCAO_HEART" ? 0 : method === "PROP_GERAL" ? 1 : 2;
+      return rank(a.method) - rank(b.method) || a.index - b.index;
+    })
+    .map(item => item.type) as Array<{id:string; name:string; scope:string; rateioMethod:string; allowNegativeAmount:boolean}>;
 
   const cashFlowAllocation = React.useMemo(() => {
     const incomingByDoctor: Record<string, number> = {};
