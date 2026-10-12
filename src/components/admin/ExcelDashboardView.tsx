@@ -583,18 +583,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     .replace(/[^A-Z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
   const getEffectiveRateioMethod = (tx: any) => {
-    // The API sends allocationMethod after resolving the current catalog rule.
-    // Normalize legacy display strings like "PROP % GERAL" to PROP_GERAL.
-    // Prefer matching the visible transaction type name. Older records may
-    // contain a generic/stale typeId that resolves to another catalog entry.
-    // The saved typeId is the exact catalog relationship; name is legacy fallback.
-    const currentType = transactionTypesById.get(String(tx.typeId || ""))
-      || transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName));
-    const candidates = [
-      tx.allocationMethod,
-      currentType?.defaultRateioMethod,
-      tx.rateioMethod
-    ].map(normalizeRateioMethod).filter(Boolean);
+    // The transaction type's current catalog configuration is authoritative.
+    // Prefer the visible type name because older transactions can carry a stale
+    // or generic typeId, and do not let a saved allocation snapshot override it.
+    const currentType = transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName))
+      || transactionTypesById.get(String(tx.typeId || ""));
+    const configuredMethod = normalizeRateioMethod(currentType?.defaultRateioMethod);
+    if (configuredMethod) return configuredMethod;
+    // Legacy fallback only when the type is no longer available in the catalog.
+    const candidates = [tx.allocationMethod, tx.rateioMethod].map(normalizeRateioMethod).filter(Boolean);
     if (candidates.includes("PROP_GERAL")) return "PROP_GERAL";
     return candidates[0] || "";
   };
@@ -782,6 +779,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const savedMethod = normalizeRateioMethod(tx.rateioMethod);
       const apiMethod = normalizeRateioMethod(tx.allocationMethod);
       if (savedMethod === "PROP_GERAL" || apiMethod === "PROP_GERAL" || method === "PROP_GERAL") return;
+      // Team expenses configured for PROPORCAO_HEART are allocated later, after
+      // the matrix's actual "Proporção Heart" column has been calculated.
+      if (!isCredit && method === "PROPORCAO_HEART") return;
       const nominalWeight = (d: any) => Math.max(0, Number(d.teamSharePercent) || 0);
       const heartWeight = (d: any) => Math.max(0, Number(d.proporcaoHeartDinamica) || 0);
       // Prop Heart can be zero on older/uninitialized settings. Use it when configured;
@@ -1626,6 +1626,41 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       row.proporcaoHeart = isTeamMember && totalDispPeriodo > 0
                         ? (dispPeriodo / totalDispPeriodo) * 100
                         : 0;
+                    });
+
+                    // PROPORCAO_HEART expenses must use the calculated "Proporção Heart"
+                    // column from this matrix, not the nominal 29/29/29/13% or a saved setting.
+                    const heartRateTransactions = cashFlowTransactions.filter((tx: any) => {
+                      if (isSalaryTransaction(tx) || isMatrixAdjustmentTransaction(tx)) return false;
+                      const method = getEffectiveRateioMethod(tx);
+                      return String(tx.nature || "").toUpperCase() === "DEBIT"
+                        && String(tx.scope || "TEAM").toUpperCase() !== "DOCTOR"
+                        && method === "PROPORCAO_HEART";
+                    });
+                    const heartRateTypeIds = new Set(
+                      heartRateTransactions.map((tx: any) => String(tx.typeId || tx.typeName || "outros"))
+                    );
+                    // Remove allocations previously produced by the nominal fallback before
+                    // applying the matrix's dynamic proportions.
+                    rows.forEach((row: any) => {
+                      const expenses = { ...(row.cashFlowExpenses || {}) };
+                      heartRateTypeIds.forEach((typeId: string) => { delete expenses[typeId]; });
+                      row.cashFlowExpenses = expenses;
+                    });
+                    heartRateTransactions.forEach((tx: any) => {
+                      const participatingRows = rows.filter((row: any) => row.isTeam === true);
+                      if (participatingRows.length === 0) return;
+                      const amount = tx.allowNegativeAmount === true
+                        ? Number(tx.amount) || 0
+                        : Math.max(0, Number(tx.amount) || 0);
+                      const typeId = String(tx.typeId || tx.typeName || "outros");
+                      participatingRows.forEach((row: any) => {
+                        const percent = Math.max(0, Number(row.proporcaoHeart) || 0);
+                        const allocated = Math.round((amount * percent / 100 + Number.EPSILON) * 100) / 100;
+                        if (allocated === 0 || (allocated < 0 && tx.allowNegativeAmount !== true)) return;
+                        row.cashFlowExpenses = { ...(row.cashFlowExpenses || {}) };
+                        row.cashFlowExpenses[typeId] = Math.round(((Number(row.cashFlowExpenses[typeId]) || 0) + allocated) * 100) / 100;
+                      });
                     });
 
                     // PROP_GERAL uses the Unimed matrix "Prop %" column for every doctor,
