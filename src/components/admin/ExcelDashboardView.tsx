@@ -1253,7 +1253,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
             </div>
 
             <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-[11px] border-collapse text-center">
+              <table className="w-full text-[11px] border-collapse text-center [&_tr>*:nth-child(3)]:border-l-2 [&_tr>*:nth-child(3)]:border-l-black [&_tr>*:nth-child(8)]:border-r-2 [&_tr>*:nth-child(8)]:border-r-black [&_tr>*:nth-child(9)]:border-l-2 [&_tr>*:nth-child(9)]:border-l-black [&_tr>*:nth-child(12)]:border-r-2 [&_tr>*:nth-child(12)]:border-r-black [&_tr>*:nth-child(13)]:border-l-2 [&_tr>*:nth-child(13)]:border-l-black">
                 <thead>
                   <tr className="bg-[#1E3A5F] text-white font-black uppercase tracking-wider">
                     <th className="p-3 border border-gray-300 text-left pl-4" rowSpan={2}>MÉDICO</th>
