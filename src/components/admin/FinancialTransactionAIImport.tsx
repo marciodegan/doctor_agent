@@ -116,6 +116,7 @@ export function FinancialTransactionAIImport({ open, closingId, apiFetch, transa
     let saved = 0;
     let failed = 0;
     const errors: string[] = [];
+    const savedIds = new Set<string>();
     for (const row of selected) {
       const type = transactionTypes.find(item => String(item.id) === row.typeId)!;
       try {
@@ -136,14 +137,16 @@ export function FinancialTransactionAIImport({ open, closingId, apiFetch, transa
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Falha ao salvar");
         saved++;
+        savedIds.add(row.id);
       } catch (e: any) {
         failed++;
         errors.push(`${row.description || type.name}: ${e?.message || "erro ao salvar"}`);
       }
     }
     setResult({ saved, failed });
+    if (savedIds.size > 0) setRows(current => current.map(row => savedIds.has(row.id) ? { ...row, selected: false } : row));
     setSaving(false);
-    if (failed) setError(`Importados: ${saved}. Falharam: ${failed}. ${errors.slice(0, 3).join(" | ")}`);
+    if (failed) setError(`Importados: ${saved}. Falharam: ${failed}. Os itens já importados foram desmarcados para evitar duplicação. ${errors.slice(0, 3).join(" | ")}`);
     if (saved > 0) onImported();
     if (failed === 0) setStage("done");
   };
