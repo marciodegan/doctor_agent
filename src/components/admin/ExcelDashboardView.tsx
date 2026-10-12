@@ -620,19 +620,29 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         rateioMethod: String(tx.rateioMethod || ""),
         allowNegativeAmount: tx.allowNegativeAmount === true
       }])
-  ).values())
-    // Display order only: PROPORCAO_HEART first, PROP_GERAL second, remaining
-    // expense types afterward in their existing relative order. Do not alter allocation.
-    .map((type, index) => ({ type, index, method: getEffectiveRateioMethod({
-      typeId: type.id,
-      typeName: type.name,
-      rateioMethod: type.rateioMethod
-    }) }))
-    .sort((a, b) => {
-      const rank = (method: string) => method === "PROPORCAO_HEART" ? 0 : method === "PROP_GERAL" ? 1 : 2;
-      return rank(a.method) - rank(b.method) || a.index - b.index;
-    })
-    .map(item => item.type) as Array<{id:string; name:string; scope:string; rateioMethod:string; allowNegativeAmount:boolean}>;
+  ).values()) as Array<{id:string; name:string; scope:string; rateioMethod:string; allowNegativeAmount:boolean}>;
+
+  // Display-only grouping: Heart-proportion expenses, general-PROP expenses,
+  // then their subtotals, followed by individual and any other expense columns.
+  // This does not change any allocation or financial calculation.
+  const expenseTypeMethod = (type: {id:string; name:string; rateioMethod:string}) =>
+    getEffectiveRateioMethod({ typeId: type.id, typeName: type.name, rateioMethod: type.rateioMethod });
+  const heartExpenseTypes = cashFlowExpenseTypes.filter(type =>
+    type.scope.toUpperCase() !== "DOCTOR" && expenseTypeMethod(type) === "PROPORCAO_HEART");
+  const generalPropExpenseTypes = cashFlowExpenseTypes.filter(type =>
+    type.scope.toUpperCase() !== "DOCTOR" && expenseTypeMethod(type) === "PROP_GERAL");
+  const individualExpenseTypes = cashFlowExpenseTypes.filter(type => type.scope.toUpperCase() === "DOCTOR");
+  const otherExpenseTypes = cashFlowExpenseTypes.filter(type =>
+    !heartExpenseTypes.some(item => item.id === type.id)
+    && !generalPropExpenseTypes.some(item => item.id === type.id)
+    && !individualExpenseTypes.some(item => item.id === type.id));
+  const displayedExpenseTypes = [...heartExpenseTypes, ...generalPropExpenseTypes, ...individualExpenseTypes, ...otherExpenseTypes];
+  const getDisplayedExpenseValue = (row: any, type: {id:string; allowNegativeAmount:boolean}) => {
+    const value = Number(row.cashFlowExpenses?.[type.id]) || 0;
+    return type.allowNegativeAmount ? value : Math.abs(value);
+  };
+  const getExpenseGroupTotal = (row: any, types: Array<{id:string; allowNegativeAmount:boolean}>) =>
+    types.reduce((sum, type) => sum + getDisplayedExpenseValue(row, type), 0);
 
   const cashFlowAllocation = React.useMemo(() => {
     const incomingByDoctor: Record<string, number> = {};
@@ -1406,7 +1416,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     </th>
                     <th className="p-3 border border-gray-300 border-r-[1px] border-r-black bg-[#1E3A5F]" colSpan={4}>TOTAL GERAL</th>
                     <th className="p-3 border border-gray-300 bg-slate-700" colSpan={1}>OUTRAS ENTRADAS</th>
-                    <th className="p-3 border border-gray-300 bg-slate-700" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
+                    <th className="p-3 border border-gray-300 bg-slate-700" colSpan={Math.max(1, cashFlowExpenseTypes.length) + 2}>SAÍDAS / DESPESAS</th>
                     <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>RESULT</th>
                     <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>%</th>
                     <th className="p-3 border border-gray-300 bg-[#254D73] text-white" rowSpan={2}>SALÁRIO</th>
@@ -1459,7 +1469,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Proporção Heart</th>
                     {/* Outras entradas e despesas */}
                     <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Outras Entradas</th>
-                    {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <th key={type.id} className="p-2 border border-gray-300 bg-slate-700 text-blue-100">{type.name}</th>) : <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Despesas</th>}
+                    {heartExpenseTypes.map(type => <th key={type.id} className="p-2 border border-gray-300 bg-slate-700 text-blue-100">{type.name}</th>)}
+                    {generalPropExpenseTypes.map(type => <th key={type.id} className="p-2 border border-gray-300 bg-slate-700 text-blue-100">{type.name}</th>)}
+                    <th className="p-2 border border-gray-300 bg-orange-200 text-orange-950">TOTAL PROP. HEART</th>
+                    <th className="p-2 border border-gray-300 bg-purple-200 text-purple-950">TOTAL PROP. GERAL</th>
+                    {individualExpenseTypes.map(type => <th key={type.id} className="p-2 border border-gray-300 bg-slate-700 text-blue-100">{type.name}</th>)}
+                    {otherExpenseTypes.map(type => <th key={type.id} className="p-2 border border-gray-300 bg-slate-700 text-blue-100">{type.name}</th>)}
+                    {!cashFlowExpenseTypes.length && <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Despesas</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 font-medium text-gray-800">
@@ -1968,9 +1984,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
                         {/* Outras Entradas e Saídas por tipo */}
                         <td className="p-3 border border-gray-300 font-mono font-black bg-blue-50 text-blue-900">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono font-bold text-rose-700 bg-rose-50/40">{(type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)) !== 0
-                          ? (type.allowNegativeAmount === true ? (Number(r.cashFlowExpenses[type.id]) || 0) : Math.abs(Number(r.cashFlowExpenses[type.id]) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-                          : "-"}</td>) : <td className="p-3 border border-gray-300">-</td>}
+                        {heartExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono font-bold text-rose-700 bg-rose-50/40">{getDisplayedExpenseValue(r, type) !== 0 ? getDisplayedExpenseValue(r, type).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>)}
+                        {generalPropExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono font-bold text-rose-700 bg-rose-50/40">{getDisplayedExpenseValue(r, type) !== 0 ? getDisplayedExpenseValue(r, type).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>)}
+                        <td className="p-3 border border-gray-300 font-mono font-black text-orange-900 bg-orange-100">{getExpenseGroupTotal(r, heartExpenseTypes) !== 0 ? getExpenseGroupTotal(r, heartExpenseTypes).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-purple-900 bg-purple-100">{getExpenseGroupTotal(r, generalPropExpenseTypes) !== 0 ? getExpenseGroupTotal(r, generalPropExpenseTypes).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {individualExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono font-bold text-rose-700 bg-rose-50/40">{getDisplayedExpenseValue(r, type) !== 0 ? getDisplayedExpenseValue(r, type).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>)}
+                        {otherExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono font-bold text-rose-700 bg-rose-50/40">{getDisplayedExpenseValue(r, type) !== 0 ? getDisplayedExpenseValue(r, type).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>)}
+                        {!cashFlowExpenseTypes.length && <td className="p-3 border border-gray-300">-</td>}
                         <td className={`p-3 border border-gray-300 font-mono font-black ${r.afterCashFlowOut < 0 ? "text-rose-700 bg-rose-50" : "text-orange-900 bg-orange-100"}`}>
                           {r.afterCashFlowOut.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
@@ -2050,7 +2070,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-gray-300 font-mono">{fmt(sum('totalGeralDS') - sum('unimTotDS'))}</td>
                         <td className="p-3 border border-gray-300 font-mono">100.00%</td>
                         <td className="p-3 border border-gray-300 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
-                        {cashFlowExpenseTypes.length ? cashFlowExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + (row.cashFlowExpenses[type.id] || 0), 0))}</td>) : <td className="p-3 border border-gray-300">-</td>}
+                        {heartExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + getDisplayedExpenseValue(row, type), 0))}</td>)}
+                        {generalPropExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + getDisplayedExpenseValue(row, type), 0))}</td>)}
+                        <td className="p-3 border border-gray-300 font-mono font-black text-orange-200">{fmt(rows.reduce((acc: number, row: any) => acc + getExpenseGroupTotal(row, heartExpenseTypes), 0))}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black text-purple-200">{fmt(rows.reduce((acc: number, row: any) => acc + getExpenseGroupTotal(row, generalPropExpenseTypes), 0))}</td>
+                        {individualExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + getDisplayedExpenseValue(row, type), 0))}</td>)}
+                        {otherExpenseTypes.map(type => <td key={type.id} className="p-3 border border-gray-300 font-mono text-rose-300">{fmt(rows.reduce((acc: number, row: any) => acc + getDisplayedExpenseValue(row, type), 0))}</td>)}
+                        {!cashFlowExpenseTypes.length && <td className="p-3 border border-gray-300">-</td>}
                         <td className="p-3 border border-gray-300 font-mono font-black text-white">{sum('afterCashFlowOut').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-gray-300 font-mono font-black">{rows.some((row: any) => row.isTeam === true) ? "100,00%" : "0,00%"}</td>
                         <td className="p-3 border border-gray-300 font-mono font-black text-amber-200">{sum('salaryAmount').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
