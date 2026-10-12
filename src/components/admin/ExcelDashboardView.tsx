@@ -1628,10 +1628,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         : 0;
                     });
 
-                    // PROP_GERAL uses the exact PROP % calculated above, not nominal or
-                    // team-only HeaRT percentages. A subtotal below 100% leaves the
-                    // unallocated remainder undistributed; a subtotal above 100% blocks it.
+                    // PROP_GERAL uses the exact PROP % displayed in the matrix.
+                    // Do not normalize percentages: a subtotal below 100% leaves a remainder
+                    // undistributed, and a subtotal above 100% shows a warning but still allocates.
                     const propGeneralErrors: string[] = [];
+                    const propGeneralWarnings: string[] = [];
                     const propGeneralTransactions = cashFlowTransactions.filter((tx: any) => {
                       if (isSalaryTransaction(tx)) return false;
                       const savedMethod = normalizeRateioMethod(tx.rateioMethod);
@@ -1666,8 +1667,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       }
                       const propSum = participatingRows.reduce((sum: number, row: any) => sum + Math.max(0, Number(row.proporcaoHeart) || 0), 0);
                       if (propSum > 100.000001) {
-                        propGeneralErrors.push(`${tx.typeName || "Saída"}: a soma dos percentuais PROP dos médicos habilitados é ${propSum.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%, acima de 100%. Rateio bloqueado.`);
-                        return;
+                        propGeneralWarnings.push(`${tx.typeName || "Saída"}: a soma dos percentuais PROP dos médicos habilitados é ${propSum.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%, acima de 100%. O rateio será aplicado pelos percentuais individuais, sem normalização.`);
                       }
                       const allowNegativeAmount = tx.allowNegativeAmount === true;
                       const amount = allowNegativeAmount
@@ -1716,8 +1716,18 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           <tr>
                             <td colSpan={50} className="p-3 border border-rose-300 bg-rose-50 text-rose-800 text-left font-bold whitespace-normal">
                               <div className="flex items-start gap-2">
-                                <span className="font-black">Rateio PROP % bloqueado:</span>
+                                <span className="font-black">Rateio PROP % não aplicado:</span>
                                 <span>{propGeneralErrors.join(" ")}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        {propGeneralWarnings.length > 0 && (
+                          <tr>
+                            <td colSpan={50} className="p-3 border border-amber-300 bg-amber-50 text-amber-900 text-left font-bold whitespace-normal">
+                              <div className="flex items-start gap-2">
+                                <span className="font-black">Atenção no rateio PROP %:</span>
+                                <span>{propGeneralWarnings.join(" ")}</span>
                               </div>
                             </td>
                           </tr>
