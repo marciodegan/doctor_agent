@@ -3241,6 +3241,95 @@ const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) =>
   throw lastError || new Error("Nenhum modelo Gemini conseguiu processar o PDF.");
 };
 
+app.post("/api/app/financial/transactions/ai-preview", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { fileName, mimeType, base64 } = req.body || {};
+  if (!base64 || !fileName) return res.status(400).json({ error: "Selecione um documento para interpretar." });
+  const allowedMime = ["application/pdf", "image/png", "image/jpeg"];
+  if (!allowedMime.includes(String(mimeType || "").toLowerCase())) {
+    return res.status(400).json({ error: "Formato não suportado. Envie um PDF, JPG ou PNG." });
+  }
+  if (String(base64).length > 80 * 1024 * 1024) return res.status(413).json({ error: "O arquivo é muito grande. Envie um documento menor que 60 MB." });
+
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: "A interpretação por IA não está configurada neste ambiente." });
+
+    const [typesSnapshot, doctorsSnapshot] = await Promise.all([
+      db.collection("financial_transaction_types").where("teamId", "==", groupId).get(),
+      db.collection("doctors").where("active", "==", true).get()
+    ]);
+    const types = typesSnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter((type: any) => type.isDeleted !== true)
+      .map((type: any) => ({
+        id: String(type.id), name: String(type.name || ""), nature: type.nature === "CREDIT" ? "CREDIT" : "DEBIT",
+        scope: String(type.defaultScope || "TEAM").toUpperCase(), description: String(type.description || ""),
+        category: String(type.category || ""), allowNegativeAmount: type.allowNegativeAmount === true
+      }));
+    const doctors = doctorsSnapshot.docs.map(doc => ({
+      id: doc.id, name: String(doc.data().name || "").trim()
+    })).filter(doc => doc.name);
+
+    const prompt = `Você extrai lançamentos de ocorrências financeiras de documentos médicos brasileiros.
+Leia o documento inteiro e retorne SOMENTE JSON válido, sem markdown. Extraia apenas ocorrências financeiras que possam ser lançamentos de fluxo de caixa; não extraia procedimentos médicos/produção como se fossem ocorrências.
+Para cada linha extraída retorne date (data exatamente como aparece, preferencialmente DD/MM/AAAA), description, amount (número em reais sem símbolo), nature ("DEBIT" para despesa/desconto/valor devido e "CREDIT" para recebimento/repasse), doctorName (nome EXATO de um médico da lista abaixo, ou string vazia quando não houver identificação segura), typeName (nome EXATO de um tipo cadastrado abaixo, ou string vazia quando não houver correspondência segura), observation (descrição/contexto relevante), confidence ("HIGH", "MEDIUM" ou "LOW") e warning (explicação curta quando houver dúvida).
+Não invente dados. Preserve valores e datas. Se o documento separar ocorrências por médico, associe cada linha ao médico do bloco correspondente. Valores negativos no documento devem ser interpretados pelo significado da ocorrência; não transforme uma despesa em entrada apenas pelo sinal. Não invente uma categoria nem crie tipos novos. Se não for possível identificar uma data, use string vazia.
+CATÁLOGO DE MÉDICOS: ${JSON.stringify(doctors.map(d => ({ name: d.name })))}
+TIPOS CADASTRADOS: ${JSON.stringify(types.map(t => ({ name: t.name, nature: t.nature, scope: t.scope, category: t.category, description: t.description, allowNegativeAmount: t.allowNegativeAmount })))}
+Formato de saída: {"rows":[{"date":"","description":"","amount":0,"nature":"DEBIT","doctorName":"","typeName":"","observation":"","confidence":"LOW","warning":""}]}
+Não retorne resumo financeiro nem lançamentos que não estejam visíveis no documento.`;
+
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await generateGeminiFinancialParse(ai, [
+      { text: prompt },
+      { inlineData: { mimeType: String(mimeType).toLowerCase(), data: String(base64).replace(/^data:[^,]+,/, "") } }
+    ]);
+    const raw = String(response.text || "").replace(/```json/gi, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.rows) || parsed.rows.length === 0) {
+      return res.status(422).json({ error: "A IA não identificou lançamentos de ocorrências financeiras neste documento." });
+    }
+
+    const normalize = (value: any) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, " ");
+    const rows = parsed.rows.map((row: any, index: number) => {
+      const doctorNameRaw = String(row.doctorName || "").trim();
+      const doctor = doctors.find(d => normalize(d.name) === normalize(doctorNameRaw));
+      const typeNameRaw = String(row.typeName || "").trim();
+      const type = types.find((t: any) => normalize(t.name) === normalize(typeNameRaw));
+      const rawAmount = Number(row.amount);
+      const amount = Number.isFinite(rawAmount) ? rawAmount : 0;
+      const warnings: string[] = [];
+      if (!String(row.date || "").trim()) warnings.push("Data não identificada");
+      if (!doctor && doctorNameRaw) warnings.push("Médico não corresponde a um cadastro ativo");
+      if (!doctor && !doctorNameRaw) warnings.push("Médico não identificado");
+      if (!type) warnings.push("Tipo de lançamento precisa ser selecionado");
+      if (!Number.isFinite(rawAmount) || rawAmount === 0) warnings.push("Valor precisa ser conferido");
+      if (type && type.scope === "DOCTOR" && !doctor) warnings.push("Tipo individual exige um médico");
+      if (type && amount < 0 && !type.allowNegativeAmount) warnings.push("Valor negativo: confira se o tipo permite valor negativo");
+      const finalAmount = type?.allowNegativeAmount ? amount : Math.abs(amount);
+      return {
+        id: String(index + 1),
+        date: String(row.date || "").trim(),
+        description: String(row.description || "").trim(),
+        amount: finalAmount,
+        nature: type ? type.nature : (row.nature === "CREDIT" ? "CREDIT" : "DEBIT"),
+        doctorId: doctor?.id || "",
+        doctorName: doctor?.name || doctorNameRaw,
+        typeId: type?.id || "",
+        typeName: type?.name || typeNameRaw,
+        observation: String(row.observation || row.description || "").trim(),
+        confidence: ["HIGH", "MEDIUM", "LOW"].includes(String(row.confidence || "").toUpperCase()) ? String(row.confidence).toUpperCase() : "LOW",
+        warning: [...warnings, String(row.warning || "").trim()].filter(Boolean).join("; ")
+      };
+    });
+    res.json({ fileName: String(fileName), rows, count: rows.length, saved: false });
+  } catch (error: any) {
+    console.error("[AI Cash Flow Preview] Failed:", error?.message || error);
+    res.status(422).json({ error: "Não foi possível interpretar o documento com segurança.", details: String(error?.message || error || "Erro desconhecido") });
+  }
+});
+
 app.post("/api/app/financial/ai-parse", async (req, res) => {
   const groupId = getGroupId(req);
   const { closingId, files, reprocess } = req.body;
