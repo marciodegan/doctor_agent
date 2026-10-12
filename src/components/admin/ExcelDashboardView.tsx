@@ -358,16 +358,18 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
 
-  // Recalculates dynamic PROPORÇÃO HEART based on disponivelPeriodo
+  // DISP PERÍODO and PROPORÇÃO HEART consider only doctors marked as team members.
   const recalculateHeartProportions = (docs: DoctorTeamMember[]) => {
-    const teamMembers = docs.filter(d => d.isTeamMember);
+    const teamMembers = docs.filter(d => d.isTeamMember === true);
     const sumDisponivel = teamMembers.reduce((acc, d) => acc + (Number(d.disponivelPeriodo) || 0), 0);
     return docs.map(d => {
-      if (d.isTeamMember && sumDisponivel > 0 && d.disponivelPeriodo !== undefined) {
-        const dyn = Math.round(((Number(d.disponivelPeriodo) || 0) / sumDisponivel) * 10000) / 100;
+      if (d.isTeamMember === true) {
+        const dyn = sumDisponivel > 0
+          ? Math.round(((Number(d.disponivelPeriodo) || 0) / sumDisponivel) * 10000) / 100
+          : 0;
         return { ...d, proporcaoHeartDinamica: dyn };
       }
-      return d;
+      return { ...d, proporcaoHeartDinamica: 0 };
     });
   };
 
