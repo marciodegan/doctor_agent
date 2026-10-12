@@ -25,6 +25,7 @@ import {
   DollarSign
 } from "lucide-react";
 import { TransactionTypesManager } from "./TransactionTypesManager";
+import { FinancialTransactionAIImport } from "./FinancialTransactionAIImport";
 import { FinancialTransactionType } from "../../types/financial";
 import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
@@ -48,6 +49,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   // Transaction Types list loaded from API
   const [transactionTypes, setTransactionTypes] = useState<FinancialTransactionType[]>([]);
   const [isTypesModalOpen, setIsTypesModalOpen] = useState(false);
+  const [isAIImportOpen, setIsAIImportOpen] = useState(false);
 
   // New Transaction Modal State
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
@@ -420,6 +422,17 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
           >
             <Tag size={15} />
             <span>Tipos de Lançamento</span>
+          </button>
+
+          {/* AI Import Preview Button */}
+          <button
+            onClick={() => setIsAIImportOpen(true)}
+            disabled={!selectedClosingId || closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO")}
+            title="Interpretar PDF ou imagem e revisar pré-lançamentos antes de importar"
+            className="flex items-center gap-2 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Sparkles size={15} />
+            <span>Importar com IA</span>
           </button>
 
           {/* Novo Lançamento Button */}
@@ -797,6 +810,16 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
           </div>
         </div>
       )}
+
+      <FinancialTransactionAIImport
+        open={isAIImportOpen}
+        closingId={selectedClosingId}
+        apiFetch={apiFetch}
+        transactionTypes={transactionTypes}
+        doctors={selectableDoctors}
+        onClose={() => setIsAIImportOpen(false)}
+        onImported={() => { fetchTransactions(); fetchTransactionTypes(); }}
+      />
 
       {/* Modal: Gerenciar Tipos de Lançamento */}
       {isTypesModalOpen && (
