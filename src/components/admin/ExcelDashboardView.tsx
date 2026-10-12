@@ -143,11 +143,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   }), [rawProduction, providerMappings]);
 
   // Manual entries for green plantao / entrada cells
-  const defaultManualEntradas: Record<string, any> = {
-    thais: { azambujaPlantaoTT: 3600, azambujaPlantaoDS: 2933.04, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
-    kathize: { azambujaPlantaoTT: 9000, azambujaPlantaoDS: 7332.59, unimedPlantaoTT: 0, unimedPlantaoDS: 0 },
-    rochele: { azambujaPlantaoTT: 0, azambujaPlantaoDS: 0, unimedPlantaoTT: 1966.87, unimedPlantaoDS: 1610.61 }
-  };
+  const defaultManualEntradas: Record<string, any> = {};
   const [manualEntradas, setManualEntradas] = useState<Record<string, any>>(defaultManualEntradas);
   const [manualEntriesLoaded, setManualEntriesLoaded] = useState(false);
   const [manualEntrySaveMessage, setManualEntrySaveMessage] = useState("");
@@ -216,16 +212,16 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
   // Global manual entries for totals at the top of sections
   const defaultGlobalEntradas = {
-    azambujaTT: 70020.94,
-    azambujaDS: 57048.34,
-    marietaTT: 81042.09,
-    marietaDS: 67645.83,
-    consultorioTT: 400,
-    consultorioDS: 400,
-    dinheiroTT: 1200,
-    dinheiroDS: 1200,
-    unimedLuisTT: 8406,
-    unimedLuisDS: 7016.49
+    azambujaTT: 0,
+    azambujaDS: 0,
+    marietaTT: 0,
+    marietaDS: 0,
+    consultorioTT: 0,
+    consultorioDS: 0,
+    dinheiroTT: 0,
+    dinheiroDS: 0,
+    unimedLuisTT: 0,
+    unimedLuisDS: 0
   };
   const [globalEntradas, setGlobalEntradas] = useState<typeof defaultGlobalEntradas>(defaultGlobalEntradas);
 
