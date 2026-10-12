@@ -1324,6 +1324,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.consultorioTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, consultorioTT: parseFloat(e.target.value) || 0 })}
+                            onBlur={(e) => void saveGlobalEntryOnBlur("consultorioTT", parseFloat(e.currentTarget.value) || 0)}
                             className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
@@ -1332,6 +1333,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.consultorioDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, consultorioDS: parseFloat(e.target.value) || 0 })}
+                            onBlur={(e) => void saveGlobalEntryOnBlur("consultorioDS", parseFloat(e.currentTarget.value) || 0)}
                             className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
@@ -1347,6 +1349,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.dinheiroTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, dinheiroTT: parseFloat(e.target.value) || 0 })}
+                            onBlur={(e) => void saveGlobalEntryOnBlur("dinheiroTT", parseFloat(e.currentTarget.value) || 0)}
                             className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
@@ -1355,6 +1358,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.dinheiroDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, dinheiroDS: parseFloat(e.target.value) || 0 })}
+                            onBlur={(e) => void saveGlobalEntryOnBlur("dinheiroDS", parseFloat(e.currentTarget.value) || 0)}
                             className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
@@ -1370,6 +1374,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.unimedLuisTT || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, unimedLuisTT: parseFloat(e.target.value) || 0 })}
+                            onBlur={(e) => void saveGlobalEntryOnBlur("unimedLuisTT", parseFloat(e.currentTarget.value) || 0)}
                             className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
@@ -1378,6 +1383,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             type="number"
                             value={globalEntradas.unimedLuisDS || ""}
                             onChange={(e) => setGlobalEntradas({ ...globalEntradas, unimedLuisDS: parseFloat(e.target.value) || 0 })}
+                            onBlur={(e) => void saveGlobalEntryOnBlur("unimedLuisDS", parseFloat(e.currentTarget.value) || 0)}
                             className="w-14 text-center bg-blue-100 text-blue-950 font-black rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-blue-400"
                             placeholder="0,00"
                           />
