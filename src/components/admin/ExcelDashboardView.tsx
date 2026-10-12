@@ -1891,8 +1891,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         {/* Totalizador consolidado */}
                         <td className="p-3 border border-gray-300 font-mono font-black bg-slate-100 text-gray-900">{r.totalGeralTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="p-3 border border-gray-300 font-mono font-black bg-blue-50 text-blue-950">{r.totalGeralDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-gray-300 font-mono font-bold text-indigo-700 bg-slate-50">{r.dispPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 border border-gray-300 font-mono font-black bg-blue-50 text-blue-950">{r.proporcaoHeart.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
+                        <td className="p-3 border border-gray-300 font-mono font-bold text-indigo-700 bg-slate-50">{r.isTeam === true ? r.dispPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "0,00"}</td>
+                        <td className="p-3 border border-gray-300 font-mono font-black bg-blue-50 text-blue-950">{(r.isTeam === true ? r.proporcaoHeart : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
 
                         {/* Outras Entradas e Saídas por tipo */}
                         <td className="p-3 border border-gray-300 font-mono font-black bg-blue-50 text-blue-900">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
