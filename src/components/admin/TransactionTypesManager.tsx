@@ -901,7 +901,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                       >
                         <span className="block font-black text-xs text-violet-800">PROP % GERAL</span>
                         <span className="text-[10px] text-gray-500 font-normal leading-tight block mt-0.5">
-                          Usa o percentual PROP da matriz para os médicos habilitados. Não normaliza; bloqueia se a soma passar de 100%.
+                          Usa o percentual PROP da matriz para os médicos habilitados. Não normaliza; exibe um aviso se a soma passar de 100%, sem bloquear o cálculo.
                         </span>
                       </button>
                     )}
