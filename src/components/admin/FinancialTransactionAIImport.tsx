@@ -77,7 +77,17 @@ export function FinancialTransactionAIImport({ open, closingId, apiFetch, transa
         selected: true
       }));
       if (!parsedRows.length) throw new Error("A IA não identificou lançamentos para conferir.");
-      setRows(parsedRows);
+      const seen = new Set<string>();
+      const checkedRows = parsedRows.map((row: PreviewRow) => {
+        const fingerprint = [row.date.trim().toUpperCase(), row.doctorId || row.doctorName.trim().toUpperCase(), row.typeId, Number(row.amount)].join("|");
+        if (!row.date || !row.typeId || !row.amount || !fingerprint) return row;
+        if (seen.has(fingerprint)) {
+          return { ...row, confidence: "LOW" as const, warning: [row.warning, "Possível duplicidade: confira antes de importar"].filter(Boolean).join("; ") };
+        }
+        seen.add(fingerprint);
+        return row;
+      });
+      setRows(checkedRows);
       setStage("preview");
     } catch (e: any) {
       setError(e?.message || "Falha ao interpretar o documento.");
