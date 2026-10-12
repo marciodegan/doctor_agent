@@ -161,6 +161,7 @@ export interface FinancialTransactionType {
   nature: "CREDIT" | "DEBIT";
   defaultScope: "DOCTOR" | "TEAM" | "CLOSING";
   defaultRateioMethod?: "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL";
+  displayOrder?: number; // Ordem manual de exibição das despesas na matriz financeira
   allowNegativeAmount?: boolean;
   isSalary?: boolean;
   matrixAdjustmentType?: "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "ACERTO_FINAL" | "" | null;
