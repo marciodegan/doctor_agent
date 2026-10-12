@@ -1258,7 +1258,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   <tr className="bg-[#1E3A5F] text-white font-black uppercase tracking-wider">
                     <th className="p-3 border border-gray-300 text-left pl-4" rowSpan={2}>MÉDICO</th>
                     <th className="p-3 border border-gray-300" rowSpan={2}>% EQUIPE</th>
-                    <th className="p-3 border border-gray-300 border-l-2 border-l-black border-r-2 border-r-black bg-[#254D73]" colSpan={6}>
+                    <th className="p-3 border border-gray-300 border-l-[1px] border-l-black border-r-[1px] border-r-black bg-[#254D73]" colSpan={6}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>AZAMBUJA</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1283,7 +1283,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#315F86]" colSpan={4}>
+                    <th className="p-3 border border-gray-300 border-r-[1px] border-r-black bg-[#315F86]" colSpan={4}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
                         <span>MARIETA</span>
                         <div className="flex items-center gap-1.5 bg-[#1E3A5F] px-2 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1308,7 +1308,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#254D73]" colSpan={10}>
+                    <th className="p-3 border border-gray-300 border-r-[1px] border-r-black bg-[#254D73]" colSpan={10}>
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-2">
                         <span className="font-black">UNIMED</span>
                         <div className="flex items-center gap-2 bg-[#1E3A5F] px-2.5 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1319,7 +1319,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#315F86]" colSpan={2}>
+                    <th className="p-3 border border-gray-300 border-r-[1px] border-r-black bg-[#315F86]" colSpan={2}>
                       <div className="flex flex-col items-center justify-center gap-1 px-0">
                         <span>CONSULTÓRIO</span>
                         <div className="flex items-center justify-center gap-1 bg-[#1E3A5F] px-1 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1342,7 +1342,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#254D73]" colSpan={2}>
+                    <th className="p-3 border border-gray-300 border-r-[1px] border-r-black bg-[#254D73]" colSpan={2}>
                       <div className="flex flex-col items-center justify-center gap-1 px-0">
                         <span>DINHEIRO</span>
                         <div className="flex items-center justify-center gap-1 bg-[#1E3A5F] px-1 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1365,7 +1365,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#315F86]" colSpan={2}>
+                    <th className="p-3 border border-gray-300 border-r-[1px] border-r-black bg-[#315F86]" colSpan={2}>
                       <div className="flex flex-col items-center justify-center gap-1 px-0">
                         <span>UNIMED LUIS</span>
                         <div className="flex items-center justify-center gap-1 bg-slate-700/80 px-1 py-1 rounded-lg border border-blue-300/60 font-mono text-[10px]">
@@ -1388,7 +1388,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         </div>
                       </div>
                     </th>
-                    <th className="p-3 border border-gray-300 border-r-2 border-r-black bg-[#1E3A5F]" colSpan={4}>TOTAL GERAL</th>
+                    <th className="p-3 border border-gray-300 border-r-[1px] border-r-black bg-[#1E3A5F]" colSpan={4}>TOTAL GERAL</th>
                     <th className="p-3 border border-gray-300 bg-slate-700" colSpan={1}>OUTRAS ENTRADAS</th>
                     <th className="p-3 border border-gray-300 bg-slate-700" colSpan={Math.max(1, cashFlowExpenseTypes.length)}>SAÍDAS / DESPESAS</th>
                     <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>RESULT</th>
@@ -1405,12 +1405,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   </tr>
                   <tr className="bg-slate-800 text-slate-200 font-bold uppercase text-[10px]">
                     {/* Azambuja */}
-                    <th className="p-2 border border-gray-300 border-l-2 border-l-black">Equipe TT</th>
+                    <th className="p-2 border border-gray-300 border-l-[1px] border-l-black">Equipe TT</th>
                     <th className="p-2 border border-gray-300">Equipe DS</th>
                     <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Plantão TT</th>
                     <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Plantão DS</th>
                     <th className="p-2 border border-gray-300">Total TT</th>
-                    <th className="p-2 border border-gray-300 border-r-2 border-r-black">Total DS</th>
+                    <th className="p-2 border border-gray-300 border-r-[1px] border-r-black">Total DS</th>
                     {/* Marieta */}
                     <th className="p-2 border border-gray-300">Equipe TT</th>
                     <th className="p-2 border border-gray-300">Equipe DS</th>
@@ -1748,7 +1748,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           {r.percent > 0 ? `${r.percent}%` : "-"}
                         </td>
                         {/* Azambuja */}
-                        <td className="p-3 border border-gray-300 border-l-2 border-l-black font-mono text-gray-700">{r.azEqTT > 0 ? r.azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        <td className="p-3 border border-gray-300 border-l-[1px] border-l-black font-mono text-gray-700">{r.azEqTT > 0 ? r.azEqTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-gray-300 font-mono text-gray-700">{r.azEqDS > 0 ? r.azEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
                         <td className="p-3 border border-gray-300 bg-blue-50/60 p-1">
                           <input
@@ -1939,12 +1939,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     return (
                       <tr className="bg-[#1E3A5F] text-white font-black text-xs">
                         <td className="p-3 border border-gray-300 text-left pl-4 uppercase" colSpan={2}>TOTAL GERAL CONSOLIDADO</td>
-                        <td className="p-3 border border-gray-300 border-l-2 border-l-black font-mono">{fmt(sum('azEqTT'))}</td>
+                        <td className="p-3 border border-gray-300 border-l-[1px] border-l-black font-mono">{fmt(sum('azEqTT'))}</td>
                         <td className="p-3 border border-gray-300 font-mono">{fmt(sum('azEqDS'))}</td>
                         <td className="p-3 border border-gray-300 font-mono text-blue-200">{fmt(sum('azPlTT'))}</td>
                         <td className="p-3 border border-gray-300 font-mono text-blue-200">{fmt(sum('azPlDS'))}</td>
                         <td className="p-3 border border-gray-300 font-mono">{fmt(sum('azTotTT'))}</td>
-                        <td className="p-3 border border-gray-300 border-r-2 border-r-black font-mono">{fmt(sum('azTotDS'))}</td>
+                        <td className="p-3 border border-gray-300 border-r-[1px] border-r-black font-mono">{fmt(sum('azTotDS'))}</td>
                         <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marEqTT'))}</td>
                         <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marEqDS'))}</td>
                         <td className="p-3 border border-gray-300 font-mono">{fmt(sum('marTotTT'))}</td>
