@@ -1598,17 +1598,21 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         : totalDS;
                       return Math.max(0, available);
                     };
-                    const totalDispPeriodo = rows.reduce(
+                    // DISP PERÍODO and PROPORÇÃO HEART are team-only calculations.
+                    // Doctors outside the team must not affect the denominator or receive a share.
+                    const teamRowsForHeart = rows.filter((row: any) => row.isTeam === true);
+                    const totalDispPeriodo = teamRowsForHeart.reduce(
                       (sum: number, row: any) => sum + getAvailableForProp(row),
                       0
                     );
                     rows.forEach((row: any) => {
-                      const dispPeriodo = getAvailableForProp(row);
+                      const isTeamMember = row.isTeam === true;
+                      const dispPeriodo = isTeamMember ? getAvailableForProp(row) : 0;
                       row.dispPeriodo = Math.round(dispPeriodo * 100) / 100;
                       // Keep full precision for validation and allocation. Rounding
                       // each doctor's PROP to 2 decimals here can make a true 100% total
                       // appear as 100.01% and incorrectly block every allocation.
-                      row.proporcaoHeart = totalDispPeriodo > 0
+                      row.proporcaoHeart = isTeamMember && totalDispPeriodo > 0
                         ? (dispPeriodo / totalDispPeriodo) * 100
                         : 0;
                     });
