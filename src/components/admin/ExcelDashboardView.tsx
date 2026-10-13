@@ -680,6 +680,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
   const cashFlowAllocation = React.useMemo(() => {
     const incomingByDoctor: Record<string, number> = {};
+    const incomingTransactionsByDoctor: Record<string, any[]> = {};
     const expenseByDoctorType: Record<string, Record<string, number>> = {};
     const salaryByDoctor: Record<string, number> = {};
     const matrixAdjustmentByDoctor: Record<string, { ACERTO_1: number; SOBRE_MES_ANTERIOR: number; ACERTO_FINAL: number }> = {};
@@ -760,10 +761,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       // Firestore-generated settings keys. This guarantees the value follows the
       // selected doctor's visible matrix row.
       const matrixKey = (doctor: any) => normalize(doctor?.name);
-      const addAllocation = (key: string, allocated: number) => {
+      const addAllocation = (key: string, allocated: number, transaction: any) => {
         if (!Number.isFinite(allocated) || allocated === 0 || (allocated < 0 && !allowNegativeAmount)) return;
-        if (isCredit) incomingByDoctor[key] = (incomingByDoctor[key] || 0) + allocated;
-        else {
+        if (isCredit) {
+          incomingByDoctor[key] = (incomingByDoctor[key] || 0) + allocated;
+          incomingTransactionsByDoctor[key] ||= [];
+          incomingTransactionsByDoctor[key].push({ ...transaction, allocatedAmount: allocated });
+        } else {
           expenseByDoctorType[key] ||= {};
           expenseByDoctorType[key][typeId] = (expenseByDoctorType[key][typeId] || 0) + allocated;
         }
@@ -820,7 +824,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           });
           return;
         }
-        addAllocation(matrixKey(resolvedSelectedDoctor), amount);
+        addAllocation(matrixKey(resolvedSelectedDoctor), amount, tx);
         return;
       }
 
@@ -857,10 +861,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           ? Math.round((amount - allocatedSoFar) * 100) / 100
           : Math.round((amount * weight(d) / totalWeight) * 100) / 100;
         allocatedSoFar += allocated;
-        addAllocation(matrixKey(d), allocated);
+        addAllocation(matrixKey(d), allocated, tx);
       });
     });
-    return { incomingByDoctor, expenseByDoctorType, salaryByDoctor, matrixAdjustmentByDoctor };
+    return { incomingByDoctor, incomingTransactionsByDoctor, expenseByDoctorType, salaryByDoctor, matrixAdjustmentByDoctor };
   }, [details?.transactions, details?.transactionTypes, configuredDoctors, doctors]);
 
   // Calculate sum of team percentages
@@ -1609,8 +1613,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       const unimedEqDS = isTeam
                         ? Math.round(unimedEqTT * unimedDSRatio * 100) / 100
                         : 0;
-                      const unimedPartTT = !isTeam ? Math.round((unimedData.prod + unimedData.operational + unimedData.film) * mul * 100) / 100 : 0;
-                      const unimedPartDS = !isTeam ? Math.round(unimedPartTT * unimedDSRatio * 100) / 100 : 0;
+                      // Entradas de fluxo de caixa passam a compor Part. TT na seção Unimed.
+                      // Para médicos externos, somam à produção CSV; para membros da equipe,
+                      // ficam em Part. TT sem duplicar a parcela compartilhada em Equipe TT.
+                      const importedAndOtherIncoming = cashFlowAllocation.incomingByDoctor[normalize(doc.name)] || 0;
+                      const unimedPartTT = Math.round((((!isTeam ? unimedData.prod + unimedData.operational + unimedData.film : 0) + importedAndOtherIncoming) * mul) * 100) / 100;
+                      const unimedPartDS = Math.round(unimedPartTT * unimedDSRatio * 100) / 100;
                       // Os valores operacionais/filme já estão incluídos na cota igual dos participantes.
                       const unimedOp = isTeam && participatesUnimed ? 0 : unimedData.operational * mul;
                       const unimedFilm = isTeam && participatesUnimed ? 0 : unimedData.film * mul;
@@ -1636,13 +1644,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         unimedEqTT, unimedEqDS, unimedPartTT, unimedPartDS, unimedOp, unimedFilm, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
                         consultTT, consultDS, dinheiroTT, dinheiroDS, unimLuisTT, unimLuisDS,
                         totalGeralTT, totalGeralDS,
-                        cashFlowIn: cashFlowAllocation.incomingByDoctor[normalize(doc.name)] || 0,
+                        cashFlowIn: 0,
+                        incomingTransactions: cashFlowAllocation.incomingTransactionsByDoctor[normalize(doc.name)] || [],
                         cashFlowExpenses: cashFlowAllocation.expenseByDoctorType[normalize(doc.name)] || {},
                         salaryAmount: cashFlowAllocation.salaryByDoctor[normalize(doc.name)] || 0,
                         acerto1Amount: cashFlowAllocation.matrixAdjustmentByDoctor[normalize(doc.name)]?.ACERTO_1 || 0,
                         sobreMesAnteriorAmount: cashFlowAllocation.matrixAdjustmentByDoctor[normalize(doc.name)]?.SOBRE_MES_ANTERIOR || 0,
                         acertoFinalAmount: cashFlowAllocation.matrixAdjustmentByDoctor[normalize(doc.name)]?.ACERTO_FINAL || 0,
-                        afterCashFlowOut: Math.round((totalGeralDS + (cashFlowAllocation.incomingByDoctor[normalize(doc.name)] || 0) - Object.values(cashFlowAllocation.expenseByDoctorType[normalize(doc.name)] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
+                        afterCashFlowOut: Math.round((totalGeralDS - Object.values(cashFlowAllocation.expenseByDoctorType[normalize(doc.name)] || {}).reduce((sum: number, value: number) => sum + value, 0)) * 100) / 100
                       };
                     });
 
