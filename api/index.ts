@@ -2350,10 +2350,25 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       queryCollection("financial_reconciliation")
     ]);
 
-    const production = prodSnap.docs.map((d: any) => d.data());
-    const glosas = glosaSnap.docs.map((d: any) => d.data());
-    const taxes = taxSnap.docs.map((d: any) => d.data());
-    const adjustments = adjSnap.docs.map((d: any) => d.data());
+    // The import registry is the source of truth for imported CSV/PDF records.
+    // If an import was removed separately, its orphaned rows must not remain in the matrix.
+    const activeImportIds = new Set<string>();
+    try {
+      const importSnapshots = await Promise.all(ids.map(id =>
+        db.collection("financial_imports").where("closingId", "==", id).get()
+      ));
+      importSnapshots.forEach(snapshot => snapshot.docs.forEach((doc: any) => {
+        const data = doc.data() || {};
+        if (!data.teamId || !groupId || data.teamId === groupId) activeImportIds.add(doc.id);
+      }));
+    } catch (importLookupError: any) {
+      console.error("[API] Import registry lookup failed:", importLookupError?.message || importLookupError);
+    }
+    const keepNonImportedOrActive = (record: any) => !record.importId || activeImportIds.has(String(record.importId));
+    const production = prodSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
+    const glosas = glosaSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
+    const taxes = taxSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
+    const adjustments = adjSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
     // Load current transaction type rules. The saved type is authoritative for
     // allocation, including older transactions created before switching to PROP_GERAL.
     let transactionTypesForAllocation: any[] = [];
@@ -2368,7 +2383,7 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       console.error("[API] Could not load transaction types for allocation:", typeLookupError?.message || typeLookupError);
     }
 
-    const rawTransactions = txSnap.docs.map((d: any) => d.data());
+    const rawTransactions = txSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
     // A transaction type defines the allocation rule. Resolve the current saved rule
     // from the catalog so the matrix uses PROP_GERAL when the type is configured for
     // general PROP allocation, including transactions created before that setting was
@@ -2412,8 +2427,8 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
         matrixAdjustmentType: tx.matrixAdjustmentType || type?.matrixAdjustmentType || null
       };
     });
-    const batches = batchSnap.docs.map((d: any) => d.data());
-    const reconciliation = reconSnap.docs.map((d: any) => d.data());
+    const batches = batchSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
+    const reconciliation = reconSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
 
     // Preserve the allocation saved during import. Only use mappings as a
     // fallback for legacy records that do not already have doctorId.
