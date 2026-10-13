@@ -2050,33 +2050,48 @@ app.delete("/api/app/financial/closings/:closingId", async (req, res) => {
   }
 });
 
-// DELETE Specific Import batch and its associated items
+// DELETE a financial import and every record generated from it.
+// Use multiple Firestore batches because a CSV can create thousands of production rows.
 app.delete("/api/app/financial/imports/:importId", async (req, res) => {
   const groupId = getGroupId(req);
   const { importId } = req.params;
   try {
-    const importDoc = await db.collection("financial_imports").doc(importId).get();
-    if (!importDoc.exists) return res.status(404).json({ error: "Importação não encontrada" });
+    const importRef = db.collection("financial_imports").doc(importId);
+    const importDoc = await importRef.get();
+    if (!importDoc.exists) return res.status(404).json({ error: "Importação não encontrada." });
+    const importData = importDoc.data() || {};
+    if (importData.teamId && groupId && importData.teamId !== groupId) {
+      return res.status(403).json({ error: "Sem permissão para excluir esta importação." });
+    }
 
-    const [prodSnap, glosaSnap, taxSnap, adjSnap, txSnap] = await Promise.all([
-      db.collection("financial_production").where("importId", "==", importId).get(),
-      db.collection("financial_glosas").where("importId", "==", importId).get(),
-      db.collection("financial_taxes").where("importId", "==", importId).get(),
-      db.collection("financial_adjustments").where("importId", "==", importId).get(),
-      db.collection("financial_transactions").where("importId", "==", importId).get()
-    ]);
+    const collectionNames = [
+      "financial_production",
+      "financial_glosas",
+      "financial_taxes",
+      "financial_adjustments",
+      "financial_transactions",
+      "financial_batches",
+      "financial_reconciliation"
+    ];
+    const snapshots = await Promise.all(collectionNames.map(name =>
+      db.collection(name).where("importId", "==", importId).get()
+    ));
+    const refs: any[] = [importRef];
+    snapshots.forEach(snapshot => snapshot.docs.forEach((doc: any) => refs.push(doc.ref)));
 
-    const batch = db.batch();
-    batch.delete(db.collection("financial_imports").doc(importId));
+    let deleted = 0;
+    for (let i = 0; i < refs.length; i += 400) {
+      const batch = db.batch();
+      refs.slice(i, i + 400).forEach(ref => batch.delete(ref));
+      await batch.commit();
+      deleted += Math.min(400, refs.length - i);
+    }
 
-    prodSnap.docs.forEach(d => batch.delete(d.ref));
-    glosaSnap.docs.forEach(d => batch.delete(d.ref));
-    taxSnap.docs.forEach(d => batch.delete(d.ref));
-    adjSnap.docs.forEach(d => batch.delete(d.ref));
-    txSnap.docs.forEach(d => batch.delete(d.ref));
-
-    await batch.commit();
-    res.json({ success: true, message: "Dados importados excluídos com sucesso." });
+    return res.json({
+      success: true,
+      deletedRecords: Math.max(0, deleted - 1),
+      message: "Importação e todos os registros associados foram excluídos."
+    });
   } catch (error: any) {
     handleApiError(res, error, "Delete Import");
   }
