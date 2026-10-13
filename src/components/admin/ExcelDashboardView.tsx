@@ -89,6 +89,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const [loteAliquotas, setLoteAliquotas] = useState<Record<string, any>>({});
   const [savingNoteSettings, setSavingNoteSettings] = useState(false);
   const [noteSettingsMessage, setNoteSettingsMessage] = useState("");
+  const [isManualNoteOpen, setIsManualNoteOpen] = useState(false);
+  const [savingManualNote, setSavingManualNote] = useState(false);
+  const [manualNoteMessage, setManualNoteMessage] = useState("");
+  const [manualNote, setManualNote] = useState({ lote: "", competencia: "", tipo: "Produção Estruturada", titulo: "", vencimento: "", bruto: "", glosa: "0", liquido: "" });
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [matrixModalData, setMatrixModalData] = useState<{
@@ -2741,6 +2745,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <h3 className="font-black text-gray-900 text-base uppercase tracking-tight">Demonstrativo de Notas & Lotes Unimed</h3>
               <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Cruzamento de Notas Fiscais, Retenções Tributárias Federais e Glosas (Montado a partir do Demonstrativo de Produção importado)</p>
             </div>
+            <button type="button" onClick={() => { setManualNote({ lote: "", competencia: details?.closing?.monthKey || excelData?.monthKey || "", tipo: "Produção Estruturada", titulo: "", vencimento: "", bruto: "", glosa: "0", liquido: "" }); setManualNoteMessage(""); setIsManualNoteOpen(true); }} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl inline-flex items-center gap-2"><Plus size={14} /> Lançar nota manualmente</button>
             {removedLotes.length > 0 && (
               <button
                 onClick={handleRestoreLotes}
@@ -2804,6 +2809,30 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               </div>
             );
           })()}
+          {isManualNoteOpen && (
+            <div className="mx-4 mb-4 p-5 rounded-2xl border border-emerald-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-4"><div><h4 className="font-black text-gray-900 text-sm uppercase">Nova nota manual</h4><p className="text-xs text-gray-500 mt-1">Cadastre uma nota mesmo sem CSV. Os valores entram nos totais deste fechamento.</p></div><button type="button" onClick={() => setIsManualNoteOpen(false)} className="px-3 py-2 rounded-lg border text-xs font-bold">Cancelar</button></div>
+              <form onSubmit={async (event) => {
+                event.preventDefault();
+                if (!selectedClosingId) { setManualNoteMessage("Selecione um fechamento antes de lançar a nota."); return; }
+                setSavingManualNote(true); setManualNoteMessage("");
+                try {
+                  const response = await apiFetch("/api/app/financial/closings/" + selectedClosingId + "/manual-note", { method: "POST", body: JSON.stringify({ note: { ...manualNote, bruto: Number(manualNote.bruto), glosa: Number(manualNote.glosa || 0), liquido: manualNote.liquido === "" ? undefined : Number(manualNote.liquido) } }) });
+                  const data = await response.json().catch(() => ({}));
+                  if (!response.ok) throw new Error(data.error || "Não foi possível salvar a nota.");
+                  const detailsRes = await apiFetch("/api/app/financial/closings/" + selectedClosingId + "/details");
+                  if (detailsRes.ok) setDetails(await detailsRes.json());
+                  setIsManualNoteOpen(false); setManualNoteMessage("Nota manual salva com sucesso.");
+                } catch (error: any) { setManualNoteMessage(error?.message || "Erro ao salvar nota manual."); } finally { setSavingManualNote(false); }
+              }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {([{ key: "lote", label: "Número da nota/lote", required: true }, { key: "competencia", label: "Competência" }, { key: "tipo", label: "Período / natureza" }, { key: "titulo", label: "Título" }, { key: "vencimento", label: "Vencimento" }, { key: "bruto", label: "Bruto (R$)", required: true }, { key: "glosa", label: "Glosas (R$)" }, { key: "liquido", label: "Líquido oficial (R$), opcional" }] as any[]).map((field) => (
+                  <label key={field.key} className="text-xs font-bold text-gray-700">{field.label}<input required={field.required} type={["bruto", "glosa", "liquido"].includes(field.key) ? "number" : "text"} min={["bruto", "glosa", "liquido"].includes(field.key) ? "0" : undefined} step={["bruto", "glosa", "liquido"].includes(field.key) ? "0.01" : undefined} value={(manualNote as any)[field.key]} onChange={(event) => setManualNote(current => ({ ...current, [field.key]: event.target.value }))} className="block w-full mt-1 p-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 font-medium" /></label>
+                ))}
+                <div className="sm:col-span-2 lg:col-span-4 flex items-center justify-between gap-3"><p className="text-[11px] text-gray-500">Os impostos e o DS usam as alíquotas configuradas para este fechamento.</p><button disabled={savingManualNote} type="submit" className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-black disabled:opacity-50">{savingManualNote ? "Salvando..." : "Salvar nota"}</button></div>
+              </form>{manualNoteMessage && <p className="mt-3 text-xs font-bold text-rose-700">{manualNoteMessage}</p>}
+            </div>
+          )}
+          {manualNoteMessage && !isManualNoteOpen && <p className="mx-4 mb-3 text-xs font-bold text-emerald-700">{manualNoteMessage}</p>}
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[11px]">
               <thead>
