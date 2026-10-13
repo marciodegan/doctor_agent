@@ -3337,7 +3337,7 @@ app.post("/api/app/financial/transactions/ai-preview", async (req, res) => {
 
     const prompt = `Você extrai lançamentos de ocorrências financeiras de documentos médicos brasileiros.
 Leia TODAS as páginas e TODAS as seções do documento. Retorne SOMENTE JSON válido, sem markdown. Extraia cada ocorrência financeira individual que possa virar lançamento de fluxo de caixa; não extraia procedimentos médicos/produção como se fossem ocorrências, mas NÃO ignore linhas financeiras só porque estão dentro de uma tabela de atendimento/plantão.
-REGRA DE COMPLETUDE: percorra o documento do início ao fim, bloco por bloco de médico, e extraia todas as linhas financeiras visíveis, sem pular nenhuma. Inclua contribuições, integralizações, mensalidades, glosas, descontos, bonificações, sobreavisos, remunerações, disponibilidades e recebimentos. Linhas com o rótulo "Disponibilidade - [especialidade]" também são ocorrências financeiras e DEVEM ser extraídas quando tiverem data e valor, inclusive se aparecerem imediatamente antes de uma tabela de atendimento/plantão. Não confunda o valor da disponibilidade com o valor de plantão detalhado logo abaixo; são linhas separadas quando ambas aparecem.
+REGRA DE COMPLETUDE: percorra o documento do início ao fim, bloco por bloco de médico, e extraia todas as linhas financeiras visíveis, sem pular nenhuma. Inclua contribuições, integralizações, mensalidades, glosas, descontos, bonificações, sobreavisos, remunerações, disponibilidades e recebimentos. Linhas com o rótulo "Disponibilidade - [especialidade]" também são ocorrências financeiras e DEVEM ser extraídas quando tiverem data e valor, inclusive se aparecerem imediatamente antes de uma tabela de atendimento/plantão. Quando uma tabela de atendimento/plantão aparece aninhada logo abaixo de uma ocorrência financeira de disponibilidade e repete exatamente o mesmo valor para o mesmo médico, trate a tabela como detalhamento da ocorrência, NÃO como um segundo lançamento. Nesse caso, mantenha apenas a linha principal "Disponibilidade - [especialidade]" e use os dados da tabela como observação/contexto. Só extraia um plantão separado se ele tiver um valor financeiro próprio distinto ou estiver claramente identificado como outra ocorrência independente.
 Para cada linha extraída retorne date (data exatamente como aparece, preferencialmente DD/MM/AAAA), description, amount (número em reais sem símbolo e com o sinal original), nature ("DEBIT" para despesa/desconto/valor devido e "CREDIT" para recebimento/repasse), doctorName (nome EXATO de um médico da lista abaixo, ou string vazia quando não houver identificação segura), typeName (nome EXATO de um tipo cadastrado abaixo, ou string vazia quando não houver correspondência segura), observation (descrição/contexto relevante), confidence ("HIGH", "MEDIUM" ou "LOW") e warning (explicação curta quando houver dúvida).
 Não invente dados. Preserve valores e datas. Se o documento separar ocorrências por médico, associe cada linha ao médico do bloco correspondente, inclusive tabelas anexas que aparecem dentro desse bloco. Valores negativos no documento normalmente representam saídas; use o significado e o rótulo da ocorrência para definir a natureza. Não transforme uma despesa em entrada apenas pelo sinal. Não invente categorias nem crie tipos novos. Se não for possível identificar uma data, use string vazia.
 Ao encontrar uma descrição que corresponda a um tipo cadastrado, escolha o nome EXATO desse tipo. Por exemplo, uma linha "Disponibilidade - Reumatologia" deve ser vinculada ao tipo "Disponibilidade - Reumatologia" se ele existir no catálogo.
@@ -3360,7 +3360,7 @@ Não retorne resumo financeiro nem lançamentos que não estejam visíveis no do
     // hidden in nested tables, such as Disponibilidade - Reumatologia.
     const auditPrompt = `Faça uma SEGUNDA LEITURA INDEPENDENTE deste documento, do início ao fim, para encontrar ocorrências financeiras que a primeira leitura possa ter esquecido.
 Retorne SOMENTE JSON válido no formato {"rows":[...]}. Compare com a lista já extraída e retorne APENAS ocorrências que estejam visíveis no documento original e que NÃO estejam representadas na lista existente. Não repita ocorrências já listadas. Não invente nem estime valores.
-Confira cada bloco de médico e cada linha antes das tabelas de atendimento/plantão, dentro delas e depois delas. Dê atenção especial a linhas chamadas "Disponibilidade - [especialidade]" (ex.: "Disponibilidade - Reumatologia"), que são lançamentos financeiros e não devem ser descartadas como simples cabeçalhos de produção. Se uma linha de disponibilidade e uma linha de plantão aparecem separadas, registre ambas.
+Confira cada bloco de médico e cada linha antes das tabelas de atendimento/plantão, dentro delas e depois delas. Dê atenção especial a linhas chamadas "Disponibilidade - [especialidade]" (ex.: "Disponibilidade - Reumatologia"), que são lançamentos financeiros e não devem ser descartadas como simples cabeçalhos de produção. Se uma tabela de plantão estiver aninhada sob uma ocorrência de disponibilidade e repetir o mesmo valor para o mesmo médico, não a devolva como outra ocorrência: ela é detalhamento da disponibilidade. Só retorne o plantão separadamente se estiver claramente identificado como lançamento independente com valor próprio distinto.
 Use a mesma regra de campos da primeira leitura: date, description, amount (número em reais com sinal original), nature ("DEBIT" ou "CREDIT"), doctorName, typeName (preferir o nome EXATO do catálogo), observation, confidence e warning. Associe cada ocorrência ao médico do bloco correspondente. Não inclua procedimentos sem valor financeiro próprio nem totais de seção.
 CATÁLOGO DE MÉDICOS: ${JSON.stringify(doctors.map(d => ({ name: d.name })))}
 TIPOS CADASTRADOS: ${JSON.stringify(types.map(t => ({ name: t.name, nature: t.nature, scope: t.scope, category: t.category, description: t.description, allowNegativeAmount: t.allowNegativeAmount })))}
@@ -3379,51 +3379,71 @@ Se não houver nenhuma ocorrência esquecida, retorne {"rows":[]}.`;
     }
 
     const normalizeAuditText = (value: any) => String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, " ");
+    const amountForAudit = (row: any) => Math.abs(Number(row.amount) || 0).toFixed(2);
     const identityForAudit = (row: any) => [
       String(row.date || "").trim(),
       normalizeAuditText(row.doctorName),
-      Number.isFinite(Number(row.amount)) ? Number(row.amount).toFixed(2) : "",
+      amountForAudit(row),
       normalizeAuditText(row.description || row.observation)
     ].join("|");
+    const isAvailability = (row: any) => /DISPONIBILIDADE/.test(normalizeAuditText([row.typeName, row.description, row.observation].join(" ")));
+    const isNestedPlantao = (row: any) => /PLANTAO/.test(normalizeAuditText([row.typeName, row.description, row.observation].join(" ")));
+    const sameDoctorAndAmount = (a: any, b: any) =>
+      normalizeAuditText(a.doctorName) !== "" &&
+      normalizeAuditText(a.doctorName) === normalizeAuditText(b.doctorName) &&
+      amountForAudit(a) === amountForAudit(b);
+    const isNestedAvailabilityDuplicate = (candidate: any, existingRows: any[]) =>
+      existingRows.some(existing =>
+        sameDoctorAndAmount(candidate, existing) &&
+        ((isAvailability(existing) && isNestedPlantao(candidate)) ||
+         (isAvailability(candidate) && isNestedPlantao(existing)))
+      );
     const originalIdentities = new Set(parsed.rows.map(identityForAudit));
     const mergedRows = [...parsed.rows];
     for (const auditRow of auditRows) {
       const identity = identityForAudit(auditRow);
-      if (!originalIdentities.has(identity)) {
+      if (!originalIdentities.has(identity) && !isNestedAvailabilityDuplicate(auditRow, mergedRows)) {
         mergedRows.push(auditRow);
         originalIdentities.add(identity);
       }
     }
-    parsed.rows = mergedRows;
+    // Models can both return the same nested table row with different dates/descriptions.
+    // Keep the named availability occurrence and drop a repeated-value plantão detail for that doctor.
+    parsed.rows = mergedRows.filter((row: any, index: number, all: any[]) =>
+      !(isNestedPlantao(row) && all.some((other: any, otherIndex: number) =>
+        otherIndex !== index && isAvailability(other) && sameDoctorAndAmount(row, other)
+      ))
+    );
 
     const normalize = (value: any) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, " ");
     const rows = parsed.rows.map((row: any, index: number) => {
       const doctorNameRaw = String(row.doctorName || "").trim();
       const doctor = doctors.find(d => normalize(d.name) === normalize(doctorNameRaw));
       const typeNameRaw = String(row.typeName || "").trim();
-      // Resolve against the registered catalog using the AI's chosen type name first,
-      // then exact description/observation matches. Never use a broad fuzzy match.
-      const candidateLabels = [typeNameRaw, String(row.description || "").trim(), String(row.observation || "").trim()]
-        .map(normalize).filter(Boolean);
-      const matchingTypes = types.filter((t: any) => candidateLabels.includes(normalize(t.name)));
-      // Duplicate names and nature mismatches are intentionally left unresolved;
-      // the reviewer must explicitly choose the correct catalog record.
+      // Prefer the exact catalog name selected by the AI. Only fall back to exact
+      // description/observation matches when no unique type-name match exists.
+      const exactNameMatches = types.filter((t: any) => normalize(t.name) === normalize(typeNameRaw));
+      const exactDescriptionMatches = types.filter((t: any) =>
+        normalize(t.name) === normalize(row.description) || normalize(t.name) === normalize(row.observation)
+      );
+      const matchingTypes = exactNameMatches.length ? exactNameMatches : exactDescriptionMatches;
       const uniqueType = matchingTypes.length === 1 ? matchingTypes[0] : undefined;
+      // For imported rows, the registered type defines Entrada/Saída. The sign printed
+      // in the source document must not override the catalog's nature.
       const parsedNature = String(row.nature || "").toUpperCase() === "CREDIT" ? "CREDIT" : "DEBIT";
       // If the source identifies a specific doctor, don't silently map the row
       // to a team-wide type because the transaction endpoint would discard that doctor link.
-      const type = uniqueType && uniqueType.nature === parsedNature && !(doctorNameRaw && uniqueType.scope === "TEAM") ? uniqueType : undefined;
+      const type = uniqueType && !(doctorNameRaw && uniqueType.scope === "TEAM") ? uniqueType : undefined;
       const rawAmount = Number(row.amount);
-      const amount = Number.isFinite(rawAmount) ? rawAmount : 0;
+      const amount = Number.isFinite(rawAmount) ? Math.abs(rawAmount) : 0;
       const warnings: string[] = [];
       if (!String(row.date || "").trim()) warnings.push("Data não identificada");
       if (!doctor && doctorNameRaw) warnings.push("Médico não corresponde a um cadastro ativo");
       if (!doctor && !doctorNameRaw) warnings.push("Médico não identificado");
-      if (!type) warnings.push(matchingTypes.length > 1 ? "Há tipos cadastrados com o mesmo nome; selecione o correto" : uniqueType && uniqueType.nature !== parsedNature ? "A natureza identificada difere da natureza do tipo cadastrado; confira o vínculo" : doctorNameRaw && uniqueType && uniqueType.scope === "TEAM" ? "O documento identifica um médico, mas o tipo é de equipe; selecione um tipo individual ou revise o lançamento" : "Tipo de lançamento precisa ser selecionado");
+      if (!type) warnings.push(matchingTypes.length > 1 ? "Há tipos cadastrados com o mesmo nome; selecione o correto" : doctorNameRaw && uniqueType && uniqueType.scope === "TEAM" ? "O documento identifica um médico, mas o tipo é de equipe; selecione um tipo individual ou revise o lançamento" : "Tipo de lançamento precisa ser selecionado");
       if (!Number.isFinite(rawAmount) || rawAmount === 0) warnings.push("Valor precisa ser conferido");
       if (type && type.scope === "DOCTOR" && !doctor) warnings.push("Tipo individual exige um médico");
-      if (type && amount < 0 && !type.allowNegativeAmount) warnings.push("Valor negativo: confira se o tipo permite valor negativo");
-      const finalAmount = type ? (type.allowNegativeAmount ? amount : Math.abs(amount)) : amount;
+      const finalAmount = amount;
       return {
         id: String(index + 1),
         date: String(row.date || "").trim(),
@@ -3439,7 +3459,7 @@ Se não houver nenhuma ocorrência esquecida, retorne {"rows":[]}.`;
         confidence: ["HIGH", "MEDIUM", "LOW"].includes(String(row.confidence || "").toUpperCase()) ? String(row.confidence).toUpperCase() : "LOW",
         aiWarning: String(row.warning || "").trim(),
         warning: warnings.join("; "),
-        readyForApproval: Boolean(type && String(row.date || "").trim() && Number.isFinite(rawAmount) && amount !== 0 && (type.scope !== "DOCTOR" || Boolean(doctor)) && !(amount < 0 && !type.allowNegativeAmount))
+        readyForApproval: Boolean(type && String(row.date || "").trim() && Number.isFinite(rawAmount) && amount !== 0 && (type.scope !== "DOCTOR" || Boolean(doctor)))
       };
     });
     const seenPrelaunchFingerprints = new Set<string>();
