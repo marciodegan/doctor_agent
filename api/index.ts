@@ -3243,7 +3243,8 @@ const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) =>
 
 app.post("/api/app/financial/transactions/ai-preview", async (req, res) => {
   const groupId = getGroupId(req);
-  const { fileName, mimeType, base64 } = req.body || {};
+  const { fileName, mimeType, base64, closingId } = req.body || {};
+  if (!closingId) return res.status(400).json({ error: "Selecione uma competência antes de importar." });
   if (!base64 || !fileName) return res.status(400).json({ error: "Selecione um documento para interpretar." });
   const allowedMime = ["application/pdf", "image/png", "image/jpeg"];
   if (!allowedMime.includes(String(mimeType || "").toLowerCase())) {
@@ -3252,6 +3253,12 @@ app.post("/api/app/financial/transactions/ai-preview", async (req, res) => {
   if (String(base64).length > 80 * 1024 * 1024) return res.status(413).json({ error: "O arquivo é muito grande. Envie um documento menor que 60 MB." });
 
   try {
+    const closingSnap = await db.collection("financial_closings").doc(String(closingId)).get();
+    if (!closingSnap.exists) return res.status(404).json({ error: "A competência selecionada não foi encontrada." });
+    const closingData = closingSnap.data() || {};
+    if (closingData.teamId && closingData.teamId !== groupId) return res.status(403).json({ error: "A competência pertence a outro grupo." });
+    if (String(closingData.status || "").toUpperCase() === "FECHADO") return res.status(409).json({ error: "A competência está fechada. Selecione uma competência em aberto." });
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(503).json({ error: "A interpretação por IA não está configurada neste ambiente." });
 
@@ -3326,10 +3333,187 @@ Não retorne resumo financeiro nem lançamentos que não estejam visíveis no do
         warning: [...warnings, String(row.warning || "").trim()].filter(Boolean).join("; ")
       };
     });
-    res.json({ fileName: String(fileName), rows, count: rows.length, saved: false });
+    const batchRef = db.collection("financial_transaction_prelaunch_batches").doc();
+    const now = new Date().toISOString();
+    const batchData = {
+      id: batchRef.id,
+      teamId: groupId,
+      closingId: String(closingId),
+      fileName: String(fileName),
+      status: "PENDING_REVIEW",
+      recordCount: rows.length,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: String((req as any).user?.uid || "")
+    };
+    await batchRef.set(batchData);
+
+    // Persist parsed rows as staging records only. No financial transaction is
+    // created until the user approves a row from the Pre-launches screen.
+    let writeBatch = db.batch();
+    let writesInBatch = 0;
+    const persistedRows: any[] = [];
+    for (const row of rows) {
+      const rowRef = db.collection("financial_transaction_prelaunches").doc();
+      const record = {
+        ...row,
+        id: rowRef.id,
+        teamId: groupId,
+        closingId: String(closingId),
+        batchId: batchRef.id,
+        fileName: String(fileName),
+        status: "PENDING",
+        createdAt: now,
+        updatedAt: now
+      };
+      writeBatch.set(rowRef, record);
+      writesInBatch++;
+      persistedRows.push(record);
+      if (writesInBatch >= 400) {
+        await writeBatch.commit();
+        writeBatch = db.batch();
+        writesInBatch = 0;
+      }
+    }
+    if (writesInBatch > 0) await writeBatch.commit();
+    res.json({ fileName: String(fileName), batchId: batchRef.id, rows: persistedRows, count: persistedRows.length, saved: false, staged: true });
   } catch (error: any) {
     console.error("[AI Cash Flow Preview] Failed:", error?.message || error);
     res.status(422).json({ error: "Não foi possível interpretar o documento com segurança.", details: String(error?.message || error || "Erro desconhecido") });
+  }
+});
+
+app.get("/api/app/financial/prelaunches", async (req, res) => {
+  const groupId = getGroupId(req);
+  const closingId = String(req.query.closingId || "");
+  if (!closingId) return res.status(400).json({ error: "closingId é obrigatório." });
+  try {
+    const snap = await db.collection("financial_transaction_prelaunches")
+      .where("teamId", "==", groupId)
+      .get();
+    const rows = snap.docs
+      .map(doc => ({ ...doc.data(), id: doc.id }))
+      .filter((row: any) => row.closingId === closingId && row.status === "PENDING")
+      .sort((a: any, b: any) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+    const batches = Array.from(new Map(rows.map((row: any) => [row.batchId, {
+      id: row.batchId, fileName: row.fileName, createdAt: row.createdAt
+    }])).values());
+    res.json({ rows, batches, count: rows.length });
+  } catch (error: any) {
+    handleApiError(res, error, "Get Financial Pre-launches");
+  }
+});
+
+app.patch("/api/app/financial/prelaunches/:id", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { id } = req.params;
+  try {
+    const ref = db.collection("financial_transaction_prelaunches").doc(String(id));
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: "Pré-lançamento não encontrado." });
+    const current: any = snap.data() || {};
+    if (current.teamId !== groupId) return res.status(403).json({ error: "Você não tem permissão para alterar este pré-lançamento." });
+    if (current.status !== "PENDING") return res.status(409).json({ error: "Este pré-lançamento não está mais pendente." });
+
+    const body = req.body || {};
+    const update: any = { updatedAt: new Date().toISOString() };
+    if (body.date !== undefined) update.date = String(body.date || "").trim();
+    if (body.amount !== undefined) {
+      const amount = Number(body.amount);
+      if (!Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: "Informe um valor diferente de zero." });
+      update.amount = amount;
+    }
+    if (body.observation !== undefined) update.observation = String(body.observation || "").trim();
+    if (body.description !== undefined) update.description = String(body.description || "").trim();
+    if (body.doctorId !== undefined) {
+      const doctorId = String(body.doctorId || "");
+      if (doctorId) {
+        const doctorSnap = await db.collection("doctors").doc(doctorId).get();
+        if (!doctorSnap.exists || doctorSnap.data()?.active === false) return res.status(400).json({ error: "Médico inválido ou inativo." });
+        update.doctorId = doctorId;
+        update.doctorName = String(doctorSnap.data()?.name || "");
+      } else {
+        update.doctorId = "";
+        update.doctorName = "";
+      }
+    }
+    if (body.typeId !== undefined) {
+      const typeId = String(body.typeId || "");
+      if (!typeId) {
+        update.typeId = "";
+        update.typeName = "";
+        update.typeScope = "";
+        update.nature = current.nature || "DEBIT";
+      } else {
+        const typeSnap = await db.collection("financial_transaction_types").doc(typeId).get();
+        const type: any = typeSnap.exists ? typeSnap.data() : null;
+        if (!type || type.teamId !== groupId || type.isDeleted === true) return res.status(400).json({ error: "Selecione um tipo de lançamento cadastrado neste grupo." });
+        update.typeId = typeSnap.id;
+        update.typeName = String(type.name || "");
+        update.typeScope = String(type.defaultScope || "TEAM").toUpperCase();
+        update.nature = type.isSalary === true || Boolean(type.matrixAdjustmentType) ? "DEBIT" : type.nature === "CREDIT" ? "CREDIT" : "DEBIT";
+        if ((update.typeScope === "DOCTOR") && !(body.doctorId !== undefined ? String(body.doctorId || "") : String(current.doctorId || ""))) {
+          update.warning = "Este tipo é individual e exige um médico.";
+        } else {
+          update.warning = "";
+        }
+        const amount = body.amount !== undefined ? Number(body.amount) : Number(current.amount);
+        if (amount < 0 && !(type.nature !== "CREDIT" && type.allowNegativeAmount === true)) {
+          return res.status(400).json({ error: "Este tipo não permite valor negativo. Ajuste o valor ou escolha um tipo compatível." });
+        }
+      }
+    }
+    const finalTypeId = update.typeId !== undefined ? update.typeId : String(current.typeId || "");
+    const finalScope = update.typeScope !== undefined ? update.typeScope : String(current.typeScope || "");
+    const finalDoctorId = update.doctorId !== undefined ? update.doctorId : String(current.doctorId || "");
+    const finalDate = update.date !== undefined ? update.date : String(current.date || "");
+    const finalAmount = update.amount !== undefined ? update.amount : Number(current.amount);
+    const warnings = String(update.warning !== undefined ? update.warning : current.warning || "").split(";").map((v: string) => v.trim()).filter(Boolean);
+    if (finalTypeId && finalScope === "DOCTOR" && !finalDoctorId && !warnings.includes("Este tipo é individual e exige um médico.")) {
+      warnings.push("Este tipo é individual e exige um médico.");
+    }
+    update.warning = warnings.join("; ");
+    update.readyForApproval = Boolean(finalTypeId && finalDate && Number.isFinite(Number(finalAmount)) && Number(finalAmount) !== 0 && (finalScope !== "DOCTOR" || Boolean(finalDoctorId)) && !update.warning);
+    await ref.update(update);
+    const saved = await ref.get();
+    res.json({ ...saved.data(), id: saved.id });
+  } catch (error: any) {
+    handleApiError(res, error, "Update Financial Pre-launch");
+  }
+});
+
+app.post("/api/app/financial/prelaunches/batches/:batchId/cancel", async (req, res) => {
+  const groupId = getGroupId(req);
+  const batchId = String(req.params.batchId || "");
+  try {
+    const batchRef = db.collection("financial_transaction_prelaunch_batches").doc(batchId);
+    const batchSnap = await batchRef.get();
+    if (!batchSnap.exists) return res.status(404).json({ error: "Importação não encontrada." });
+    const batchData: any = batchSnap.data() || {};
+    if (batchData.teamId !== groupId) return res.status(403).json({ error: "Você não tem permissão para cancelar esta importação." });
+    if (batchData.status !== "PENDING_REVIEW") return res.status(409).json({ error: "Esta importação já foi concluída ou cancelada." });
+
+    const pendingSnap = await db.collection("financial_transaction_prelaunches")
+      .where("teamId", "==", groupId).get();
+    let batch = db.batch();
+    let writes = 0;
+    for (const doc of pendingSnap.docs) {
+      const data: any = doc.data();
+      if (data.batchId === batchId && data.status === "PENDING") {
+        batch.update(doc.ref, { status: "CANCELLED", updatedAt: new Date().toISOString() });
+        writes++;
+        if (writes >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          writes = 0;
+        }
+      }
+    }
+    if (writes > 0) await batch.commit();
+    await batchRef.update({ status: "CANCELLED", cancelledAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    res.json({ success: true, batchId });
+  } catch (error: any) {
+    handleApiError(res, error, "Cancel Financial Pre-launch Batch");
   }
 });
 
