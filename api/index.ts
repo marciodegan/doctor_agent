@@ -3378,7 +3378,7 @@ Não retorne resumo financeiro nem lançamentos que não estejam visíveis no do
       if (!Number.isFinite(rawAmount) || rawAmount === 0) warnings.push("Valor precisa ser conferido");
       if (type && type.scope === "DOCTOR" && !doctor) warnings.push("Tipo individual exige um médico");
       if (type && amount < 0 && !type.allowNegativeAmount) warnings.push("Valor negativo: confira se o tipo permite valor negativo");
-      const finalAmount = type?.allowNegativeAmount ? amount : Math.abs(amount);
+      const finalAmount = type ? (type.allowNegativeAmount ? amount : Math.abs(amount)) : amount;
       return {
         id: String(index + 1),
         date: String(row.date || "").trim(),
