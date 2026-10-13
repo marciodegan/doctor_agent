@@ -619,7 +619,19 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     // quando o médico selecionado participa da Unimed. O tipo continua sendo
     // Médico Individual no cadastro; a regra abaixo só define a coluna da matriz.
     if (scope === "DOCTOR") {
-      const selectedDoctor = resolveDoctor(String(tx.doctorId || ""), tx.doctorName);
+      // This predicate is evaluated outside cashFlowAllocation's useMemo, so it
+      // must not reference resolveDoctor declared inside that callback.
+      const rawDoctorId = String(tx.doctorId || "").trim();
+      const rawDoctorName = String(tx.doctorName || "").trim();
+      const firestoreDoctor = (Array.isArray(doctors) ? doctors : []).find((doctor: any) =>
+        String(doctor.id || "") === rawDoctorId
+      );
+      const doctorName = firestoreDoctor?.name || rawDoctorName;
+      const selectedDoctor = configuredDoctors.find((doctor: any) =>
+        String(doctor.key || "") === rawDoctorId
+        || normalizeTransactionTypeName(doctor.name) === normalizeTransactionTypeName(doctorName)
+        || normalizeTransactionTypeName(doctor.name) === normalizeTransactionTypeName(rawDoctorId)
+      );
       return selectedDoctor?.participaUnimed === true;
     }
     return teamScope;
