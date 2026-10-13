@@ -78,13 +78,19 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
     return "";
   }, [doctors]);
 
+  const isDoctorSelectableType = useCallback((type?: FinancialTransactionType | null) =>
+    Boolean(type && /SOBREAVISOS/i.test(String(type.name || ""))), []);
+
+  const isDoctorRequiredForRow = useCallback((type: FinancialTransactionType | undefined, doctorId?: string) =>
+    Boolean(type && (type.defaultScope === "DOCTOR" || isDoctorSelectableType(type)) && !doctorId), [isDoctorSelectableType]);
+
   const isRowReady = useCallback((row: Prelaunch) => {
     const type = transactionTypes.find(item => String(item.id) === String(row.typeId));
     return Boolean(type && row.date && Number.isFinite(Number(row.amount)) && Number(row.amount) !== 0 &&
-      (type.defaultScope !== "DOCTOR" || Boolean(row.doctorId)) &&
+      !isDoctorRequiredForRow(type, row.doctorId) &&
       !(Number(row.amount) < 0 && type.allowNegativeAmount !== true) &&
       row.readyForApproval !== false && !dirty[row.id]);
-  }, [transactionTypes, dirty]);
+  }, [transactionTypes, dirty, isDoctorRequiredForRow]);
 
   const groupedRows = useMemo(() => {
     const byBatch = new Map<string, Prelaunch[]>();
@@ -97,13 +103,13 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
     const typeFor = (row: Prelaunch) => transactionTypes.find(item => String(item.id) === String(row.typeId));
     const groupKeyFor = (row: Prelaunch) => {
       const type = typeFor(row);
-      if (type?.defaultScope === "TEAM") return "__TEAM__";
+      if (type?.defaultScope === "TEAM" && !isDoctorSelectableType(type)) return "__TEAM__";
       if (row.doctorId) return `doctor:${row.doctorId}`;
       return "__UNIDENTIFIED__";
     };
     const groupNameFor = (row: Prelaunch) => {
       const type = typeFor(row);
-      if (type?.defaultScope === "TEAM") return "Equipe";
+      if (type?.defaultScope === "TEAM" && !isDoctorSelectableType(type)) return "Equipe";
       return getDoctorName(row);
     };
     for (const batchRows of byBatch.values()) {
@@ -126,7 +132,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
       });
     }
     return byBatch;
-  }, [rows, getDoctorName, transactionTypes]);
+  }, [rows, getDoctorName, transactionTypes, isDoctorSelectableType]);
 
   const updateLocal = (id: string, patch: Partial<Prelaunch>) => {
     setRows(current => current.map(row => row.id === id ? { ...row, ...patch } : row));
@@ -173,7 +179,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
       setError("Confira a data e o valor antes de aprovar.");
       return false;
     }
-    if (type.defaultScope === "DOCTOR" && !row.doctorId) {
+    if ((type.defaultScope === "DOCTOR" || isDoctorSelectableType(type)) && !row.doctorId) {
       setError("Este tipo é individual. Selecione o médico antes de aprovar.");
       return false;
     }
@@ -355,7 +361,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                         const selectedType = transactionTypes.find(type => String(type.id) === String(row.typeId));
                         const subtotalGroupKey = (item: Prelaunch) => {
                           const itemType = transactionTypes.find(type => String(type.id) === String(item.typeId));
-                          if (itemType?.defaultScope === "TEAM") return "__TEAM__";
+                          if (itemType?.defaultScope === "TEAM" && !isDoctorSelectableType(itemType)) return "__TEAM__";
                           if (item.doctorId) return `doctor:${item.doctorId}`;
                           return "__UNIDENTIFIED__";
                         };
@@ -368,14 +374,14 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                           const amount = Math.abs(Number(item.amount) || 0);
                           return sum + (nature === "CREDIT" ? amount : -amount);
                         }, 0);
-                        const subtotalLabel = selectedType?.defaultScope === "TEAM"
+                        const subtotalLabel = selectedType?.defaultScope === "TEAM" && !isDoctorSelectableType(selectedType)
                           ? "Total da equipe"
                           : row.doctorId
                             ? `Total de ${getDoctorName(row) || "médico"}`
                             : "Total sem médico identificado";
                         const formatSubtotal = (value: number) => value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                         const missingType = !selectedType;
-                        const missingDoctor = selectedType?.defaultScope === "DOCTOR" && !row.doctorId;
+                        const missingDoctor = isDoctorRequiredForRow(selectedType, row.doctorId);
                         const isDirty = Boolean(dirty[row.id]);
                         const ready = isRowReady(row);
                         return (
@@ -383,7 +389,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                             <tr className={missingType || missingDoctor || !row.date || isDirty ? "bg-amber-50/80" : "bg-white hover:bg-slate-50/70"}>
                               <td className="p-2"><input value={row.date || ""} onChange={e => updateLocal(row.id, { date: e.target.value })} placeholder="DD/MM/AAAA" className={fieldClass + " min-w-28"}/></td>
                               <td className="p-2">
-                                {selectedType?.defaultScope === "TEAM" ? (
+                                {selectedType?.defaultScope === "TEAM" && !isDoctorSelectableType(selectedType) ? (
                                   <div className="min-w-44 rounded-lg bg-slate-100 px-2.5 py-2 text-[11px] text-slate-500">Equipe · conforme tipo cadastrado</div>
                                 ) : (
                                   <select value={row.doctorId || ""} onChange={e => { const doctor = doctors.find(item => String(item.id) === e.target.value); updateLocal(row.id, { doctorId: doctor?.id || "", doctorName: doctor?.name || "" }); }} className={fieldClass + " min-w-48"}>
@@ -398,7 +404,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                                   updateLocal(row.id, {
                                     typeId: type?.id || "", typeName: type?.name || "", typeScope: type?.defaultScope || "",
                                     nature: type?.nature || row.nature,
-                                    ...(type?.defaultScope === "TEAM" ? { doctorId: "", doctorName: "" } : {})
+                                    ...(type?.defaultScope === "TEAM" && !isDoctorSelectableType(type) ? { doctorId: "", doctorName: "" } : {})
                                   });
                                 }} className={fieldClass + (missingType ? " min-w-64 border-amber-400 bg-amber-50" : " min-w-64")}>
                                   <option value="">⚠ Vincule um tipo cadastrado...</option>
