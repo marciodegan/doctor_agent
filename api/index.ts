@@ -3367,14 +3367,14 @@ Não retorne resumo financeiro nem lançamentos que não estejam visíveis no do
       const parsedNature = String(row.nature || "").toUpperCase() === "CREDIT" ? "CREDIT" : "DEBIT";
       // If the source identifies a specific doctor, don't silently map the row
       // to a team-wide type because the transaction endpoint would discard that doctor link.
-      const type = uniqueType && uniqueType.nature === parsedNature && !(doctor && uniqueType.scope === "TEAM") ? uniqueType : undefined;
+      const type = uniqueType && uniqueType.nature === parsedNature && !(doctorNameRaw && uniqueType.scope === "TEAM") ? uniqueType : undefined;
       const rawAmount = Number(row.amount);
       const amount = Number.isFinite(rawAmount) ? rawAmount : 0;
       const warnings: string[] = [];
       if (!String(row.date || "").trim()) warnings.push("Data não identificada");
       if (!doctor && doctorNameRaw) warnings.push("Médico não corresponde a um cadastro ativo");
       if (!doctor && !doctorNameRaw) warnings.push("Médico não identificado");
-      if (!type) warnings.push(matchingTypes.length > 1 ? "Há tipos cadastrados com o mesmo nome; selecione o correto" : uniqueType && uniqueType.nature !== parsedNature ? "A natureza identificada difere da natureza do tipo cadastrado; confira o vínculo" : doctor && uniqueType && uniqueType.scope === "TEAM" ? "O documento identifica um médico, mas o tipo é de equipe; selecione um tipo individual ou revise o lançamento" : "Tipo de lançamento precisa ser selecionado");
+      if (!type) warnings.push(matchingTypes.length > 1 ? "Há tipos cadastrados com o mesmo nome; selecione o correto" : uniqueType && uniqueType.nature !== parsedNature ? "A natureza identificada difere da natureza do tipo cadastrado; confira o vínculo" : doctorNameRaw && uniqueType && uniqueType.scope === "TEAM" ? "O documento identifica um médico, mas o tipo é de equipe; selecione um tipo individual ou revise o lançamento" : "Tipo de lançamento precisa ser selecionado");
       if (!Number.isFinite(rawAmount) || rawAmount === 0) warnings.push("Valor precisa ser conferido");
       if (type && type.scope === "DOCTOR" && !doctor) warnings.push("Tipo individual exige um médico");
       if (type && amount < 0 && !type.allowNegativeAmount) warnings.push("Valor negativo: confira se o tipo permite valor negativo");
