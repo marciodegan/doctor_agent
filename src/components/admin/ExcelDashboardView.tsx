@@ -611,12 +611,18 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const typeName = normalizeTransactionTypeName(type?.name || tx.typeName || "");
     const scope = getEffectiveTransactionScope(tx);
     const teamScope = ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM", "RATEIO_EQUIPE"].includes(scope);
-    // A configuração atual do tipo prevalece sobre snapshots antigos da transação.
-    // Sobreavisos/rateios de equipe devem compor Equipe TT, divididos igualmente
-    // entre os participantes Unimed, e não voltar para Part. TT.
-    return isCreditTransaction(tx)
-      && teamScope
+    const isRateioCredit = isCreditTransaction(tx)
       && (typeName.includes("SOBREAVISO") || typeName.includes("RATEIO"));
+    if (!isRateioCredit) return false;
+
+    // Lançamentos individuais (ex.: Sobreavisos) também são compartilhados
+    // quando o médico selecionado participa da Unimed. O tipo continua sendo
+    // Médico Individual no cadastro; a regra abaixo só define a coluna da matriz.
+    if (scope === "DOCTOR") {
+      const selectedDoctor = resolveDoctor(String(tx.doctorId || ""), tx.doctorName);
+      return selectedDoctor?.participaUnimed === true;
+    }
+    return teamScope;
   };
   const isSalaryTransaction = (tx: any) => tx.isSalary === true
     || transactionTypesById.get(String(tx.typeId || ""))?.isSalary === true
@@ -1552,7 +1558,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     // A produção CSV e os créditos de rateio da equipe são divididos
                     // igualmente apenas entre os médicos marcados em "Participa Unimed?".
                     const unimedParticipants = configuredDoctors.filter((doctor: any) =>
-                      doctor.isTeamMember === true && doctor.participaUnimed === true
+                      doctor.participaUnimed === true
                     );
                     const sharedRateioTransactions = cashFlowTransactions.filter(isSharedUnimedRateioTransaction);
                     const sharedRateioTotal = sharedRateioTransactions.reduce((sum: number, tx: any) => {
