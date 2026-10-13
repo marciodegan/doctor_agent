@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useGroup } from "../../contexts/GroupContext";
+import { storage } from "../../lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
   UploadCloud, 
   CheckCircle2, 
@@ -37,6 +39,7 @@ interface UploadedFileItem {
   size: number;
   type: string;
   content: string; // base64 or text
+  file?: File;
 }
 
 export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWizardProps) {
@@ -105,7 +108,8 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
         name: file.name,
         size: file.size,
         type: file.type || "application/pdf",
-        content
+        content,
+        file
       });
     } catch (err) {
       console.error("Erro ao ler arquivo:", err);
@@ -205,12 +209,20 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
     setErrorMessage(null);
 
     try {
+      let sourceFileUrl = "";
+      if (selectedFile?.file) {
+        const safeName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const sourceRef = ref(storage, "financial-import-sources/" + (activeGroup?.id || "default") + "/" + effectiveClosingId + "/" + Date.now() + "_" + safeName);
+        const uploaded = await uploadBytes(sourceRef, selectedFile.file, { contentType: selectedFile.type || "application/octet-stream" });
+        sourceFileUrl = await getDownloadURL(uploaded.ref);
+      }
       const commitRes = await apiFetch("/api/app/financial/ai-commit", {
         method: "POST",
         body: JSON.stringify({
           closingId: effectiveClosingId,
           parsedData: parsedPreview.parsedData,
           fileName: selectedFile?.name || "10944_PROD.PDF",
+          sourceFileUrl,
           reprocess: reprocessMode
         })
       });
