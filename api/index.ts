@@ -3395,6 +3395,21 @@ Não retorne resumo financeiro nem lançamentos que não estejam visíveis no do
         readyForApproval: Boolean(type && String(row.date || "").trim() && Number.isFinite(rawAmount) && amount !== 0 && (type.scope !== "DOCTOR" || Boolean(doctor)) && !(amount < 0 && !type.allowNegativeAmount))
       };
     });
+    const seenPrelaunchFingerprints = new Set<string>();
+    for (const row of rows) {
+      const fingerprint = [
+        String(row.date || "").trim().toUpperCase(),
+        String(row.doctorId || row.doctorName || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase(),
+        String(row.typeId || row.typeName || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase(),
+        Number(row.amount)
+      ].join("|");
+      if (seenPrelaunchFingerprints.has(fingerprint)) {
+        row.confidence = "LOW";
+        row.aiWarning = [String(row.aiWarning || "").trim(), "Possível duplicidade no documento; confira antes de aprovar"].filter(Boolean).join("; ");
+      } else {
+        seenPrelaunchFingerprints.add(fingerprint);
+      }
+    }
     const batchRef = db.collection("financial_transaction_prelaunch_batches").doc();
     const now = new Date().toISOString();
     const batchData = {
