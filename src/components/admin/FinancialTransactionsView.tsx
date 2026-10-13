@@ -437,19 +437,23 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
             <span>Importar PDF com IA</span>
           </button>
 
-          {/* Novo Lançamento Button */}
-          <button
-            onClick={async () => {
-              await fetchTransactionTypes();
-              setIsNewModalOpen(true);
-            }}
-            disabled={transactionTypes.length === 0 || closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO")}
-            title={transactionTypes.length === 0 ? "Cadastre um tipo de lançamento antes de lançar valores." : closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO") ? "Fechamento concluído. Crie ou selecione um fechamento em aberto." : "Novo lançamento"}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Plus size={16} />
-            <span>Novo Lançamento</span>
-          </button>
+          {activeSection === "FLOW" && (
+            <>
+              {/* Novo Lançamento Button */}
+              <button
+                onClick={async () => {
+                  await fetchTransactionTypes();
+                  setIsNewModalOpen(true);
+                }}
+                disabled={transactionTypes.length === 0 || closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO")}
+                title={transactionTypes.length === 0 ? "Cadastre um tipo de lançamento antes de lançar valores." : closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO") ? "Fechamento concluído. Crie ou selecione um fechamento em aberto." : "Novo lançamento"}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus size={16} />
+                <span>Novo Lançamento</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
