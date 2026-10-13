@@ -3009,6 +3009,15 @@ app.post("/api/app/financial/transactions", async (req, res) => {
         const existingTransaction = await db.collection("financial_transactions").doc(String(prelaunchData.transactionId)).get();
         if (existingTransaction.exists) return res.json({ ...existingTransaction.data(), id: existingTransaction.id, alreadyImported: true });
       }
+      // Recover safely if the transaction write succeeded but the staging status
+      // update was interrupted; never create a duplicate on retry.
+      const priorTransaction = await db.collection("financial_transactions")
+        .where("prelaunchId", "==", String(prelaunchId)).limit(1).get();
+      if (!priorTransaction.empty) {
+        const existingDoc = priorTransaction.docs[0];
+        await prelaunchRef.update({ status: "IMPORTED", transactionId: existingDoc.id, importedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+        return res.json({ ...existingDoc.data(), id: existingDoc.id, alreadyImported: true });
+      }
       if (prelaunchData.status !== "PENDING") return res.status(409).json({ error: "Este pré-lançamento não está mais pendente." });
       if (String(prelaunchData.typeId || "") !== String(typeId || "")) {
         return res.status(400).json({ error: "Vincule um tipo de lançamento cadastrado antes de aprovar." });
@@ -3344,16 +3353,18 @@ Não retorne resumo financeiro nem lançamentos que não estejam visíveis no do
       const doctor = doctors.find(d => normalize(d.name) === normalize(doctorNameRaw));
       const typeNameRaw = String(row.typeName || "").trim();
       const matchingTypes = types.filter((t: any) => normalize(t.name) === normalize(typeNameRaw));
-      // Duplicate names are intentionally left unresolved so the reviewer can choose
-      // the correct catalog record rather than silently selecting the first ID.
-      const type = matchingTypes.length === 1 ? matchingTypes[0] : undefined;
+      // Duplicate names and nature mismatches are intentionally left unresolved;
+      // the reviewer must explicitly choose the correct catalog record.
+      const uniqueType = matchingTypes.length === 1 ? matchingTypes[0] : undefined;
+      const parsedNature = String(row.nature || "").toUpperCase() === "CREDIT" ? "CREDIT" : "DEBIT";
+      const type = uniqueType && uniqueType.nature === parsedNature ? uniqueType : undefined;
       const rawAmount = Number(row.amount);
       const amount = Number.isFinite(rawAmount) ? rawAmount : 0;
       const warnings: string[] = [];
       if (!String(row.date || "").trim()) warnings.push("Data não identificada");
       if (!doctor && doctorNameRaw) warnings.push("Médico não corresponde a um cadastro ativo");
       if (!doctor && !doctorNameRaw) warnings.push("Médico não identificado");
-      if (!type) warnings.push(matchingTypes.length > 1 ? "Há tipos cadastrados com o mesmo nome; selecione o correto" : "Tipo de lançamento precisa ser selecionado");
+      if (!type) warnings.push(matchingTypes.length > 1 ? "Há tipos cadastrados com o mesmo nome; selecione o correto" : uniqueType && uniqueType.nature !== parsedNature ? "A natureza identificada difere da natureza do tipo cadastrado; confira o vínculo" : "Tipo de lançamento precisa ser selecionado");
       if (!Number.isFinite(rawAmount) || rawAmount === 0) warnings.push("Valor precisa ser conferido");
       if (type && type.scope === "DOCTOR" && !doctor) warnings.push("Tipo individual exige um médico");
       if (type && amount < 0 && !type.allowNegativeAmount) warnings.push("Valor negativo: confira se o tipo permite valor negativo");
