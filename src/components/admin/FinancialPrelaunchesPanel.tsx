@@ -206,7 +206,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
 
   const approveAll = async () => {
     if (!rows.length || !rows.every(row => isRowReady(row))) return;
-    if (!confirm(`Aprovar os ${rows.length} lançamentos pendentes? Todos entrarão no Fluxo de Caixa. Esta ação não pode ser desfeita em lote.`)) return;
+    if (!confirm(`Aprovar os ${rows.length} lançamentos pendentes? Eles serão incorporados um por vez. Se algum lançamento falhar, o processo será interrompido e os restantes continuarão pendentes.`)) return;
     setBulkApproving(true);
     setError("");
     try {
