@@ -94,20 +94,34 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
       byBatch.set(row.batchId, current);
     }
     const comparePortuguese = new Intl.Collator("pt-BR", { sensitivity: "base", numeric: true });
+    const typeFor = (row: Prelaunch) => transactionTypes.find(item => String(item.id) === String(row.typeId));
+    const groupKeyFor = (row: Prelaunch) => {
+      const type = typeFor(row);
+      if (type?.defaultScope === "TEAM") return "__TEAM__";
+      if (row.doctorId) return `doctor:${row.doctorId}`;
+      return "__UNIDENTIFIED__";
+    };
+    const groupNameFor = (row: Prelaunch) => {
+      const type = typeFor(row);
+      if (type?.defaultScope === "TEAM") return "Equipe";
+      return getDoctorName(row);
+    };
     for (const batchRows of byBatch.values()) {
       batchRows.sort((a, b) => {
-        const nameA = getDoctorName(a);
-        const nameB = getDoctorName(b);
-        const typeA = transactionTypes.find(item => String(item.id) === String(a.typeId));
-        const typeB = transactionTypes.find(item => String(item.id) === String(b.typeId));
-        const needsReviewWithoutDoctor = (row: Prelaunch, doctorName: string, type: any) =>
-          !doctorName && Boolean(row.warning || row.readyForApproval === false || !type || (type.defaultScope === "DOCTOR" && !row.doctorId));
-        const attentionA = needsReviewWithoutDoctor(a, nameA, typeA);
-        const attentionB = needsReviewWithoutDoctor(b, nameB, typeB);
+        const keyA = groupKeyFor(a);
+        const keyB = groupKeyFor(b);
+        const nameA = groupNameFor(a);
+        const nameB = groupNameFor(b);
+        const needsReviewWithoutDoctor = (row: Prelaunch, key: string) =>
+          key === "__UNIDENTIFIED__" && Boolean(row.warning || row.readyForApproval === false || !typeFor(row) || typeFor(row)?.defaultScope === "DOCTOR");
+        const attentionA = needsReviewWithoutDoctor(a, keyA);
+        const attentionB = needsReviewWithoutDoctor(b, keyB);
         if (attentionA !== attentionB) return attentionA ? -1 : 1;
-        if (nameA && !nameB) return -1;
-        if (!nameA && nameB) return 1;
-        if (nameA && nameB) return comparePortuguese.compare(nameA, nameB);
+        if (keyA === "__UNIDENTIFIED__" && keyB !== "__UNIDENTIFIED__") return -1;
+        if (keyB === "__UNIDENTIFIED__" && keyA !== "__UNIDENTIFIED__") return 1;
+        if (keyA === "__TEAM__" && keyB !== "__TEAM__") return 1;
+        if (keyB === "__TEAM__" && keyA !== "__TEAM__") return -1;
+        if (keyA !== keyB) return comparePortuguese.compare(nameA, nameB);
         return String(a.date || "").localeCompare(String(b.date || ""));
       });
     }
@@ -337,8 +351,29 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                       <tr><th className="p-3">Data</th><th className="p-3">Médico</th><th className="p-3">Tipo cadastrado</th><th className="p-3">Descrição / Observação</th><th className="p-3 text-right">Valor</th><th className="p-3">Conferência</th><th className="p-3">Ações</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {batchRows.map(row => {
+                      {batchRows.map((row, rowIndex) => {
                         const selectedType = transactionTypes.find(type => String(type.id) === String(row.typeId));
+                        const subtotalGroupKey = (item: Prelaunch) => {
+                          const itemType = transactionTypes.find(type => String(type.id) === String(item.typeId));
+                          if (itemType?.defaultScope === "TEAM") return "__TEAM__";
+                          if (item.doctorId) return `doctor:${item.doctorId}`;
+                          return "__UNIDENTIFIED__";
+                        };
+                        const currentGroupKey = subtotalGroupKey(row);
+                        const isLastInGroup = rowIndex === batchRows.length - 1 || subtotalGroupKey(batchRows[rowIndex + 1]) !== currentGroupKey;
+                        const subtotalRows = isLastInGroup ? batchRows.filter(item => subtotalGroupKey(item) === currentGroupKey) : [];
+                        const subtotal = subtotalRows.reduce((sum, item) => {
+                          const itemType = transactionTypes.find(type => String(type.id) === String(item.typeId));
+                          const nature = itemType?.nature || item.nature;
+                          const amount = Math.abs(Number(item.amount) || 0);
+                          return sum + (nature === "CREDIT" ? amount : -amount);
+                        }, 0);
+                        const subtotalLabel = selectedType?.defaultScope === "TEAM"
+                          ? "Total da equipe"
+                          : row.doctorId
+                            ? `Total de ${getDoctorName(row) || "médico"}`
+                            : "Total sem médico identificado";
+                        const formatSubtotal = (value: number) => value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                         const missingType = !selectedType;
                         const missingDoctor = selectedType?.defaultScope === "DOCTOR" && !row.doctorId;
                         const isDirty = Boolean(dirty[row.id]);
@@ -427,6 +462,15 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                                     </div>
                                   </div>
                                 </td>
+                              </tr>
+                            )}
+                            {isLastInGroup && (
+                              <tr className="border-t-2 border-slate-300 bg-slate-100 font-black text-slate-800">
+                                <td colSpan={4} className="px-3 py-2 text-right uppercase tracking-wide text-[10px]">{subtotalLabel} · Total ({subtotalRows.length})</td>
+                                <td className="px-3 py-2 text-right font-mono text-xs">
+                                  <span className={subtotal < 0 ? "text-rose-700" : subtotal > 0 ? "text-emerald-800" : "text-slate-700"}>{subtotal < 0 ? "-" : ""}{formatSubtotal(Math.abs(subtotal))}</span>
+                                </td>
+                                <td colSpan={2} className="px-3 py-2 text-[10px] text-slate-500">Entradas menos saídas</td>
                               </tr>
                             )}
                           </React.Fragment>
