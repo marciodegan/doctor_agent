@@ -53,6 +53,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const [isTypesModalOpen, setIsTypesModalOpen] = useState(false);
   const [isAIImportOpen, setIsAIImportOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<"FLOW" | "PRELAUNCHES">("FLOW");
+  const [prelaunchRefreshToken, setPrelaunchRefreshToken] = useState(0);
 
   // New Transaction Modal State
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
@@ -720,6 +721,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
           apiFetch={apiFetch}
           transactionTypes={transactionTypes}
           doctors={selectableDoctors}
+          refreshToken={prelaunchRefreshToken}
           onTypesChanged={fetchTransactionTypes}
           onImported={() => { fetchTransactions(); fetchTransactionTypes(); }}
         />
@@ -848,7 +850,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         closingId={selectedClosingId}
         apiFetch={apiFetch}
         onClose={() => setIsAIImportOpen(false)}
-        onPrelaunchesCreated={() => setActiveSection("PRELAUNCHES")}
+        onPrelaunchesCreated={() => { setActiveSection("PRELAUNCHES"); setPrelaunchRefreshToken(value => value + 1); }}
       />
 
       {/* Modal: Gerenciar Tipos de Lançamento */}
