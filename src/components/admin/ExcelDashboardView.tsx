@@ -1945,7 +1945,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             const recs = production.filter(p => p.doctorId === r.key);
                             const doctorConfig = configuredDoctors.find((d: any) => d.key === r.key)
                               || configuredDoctors.find((d: any) => normalize(d.name) === normalize(r.name));
-                            const sharedCashRecords = doctorConfig?.isTeamMember === true && doctorConfig?.participaUnimed === true && unimedParticipants.length > 0
+                            const sharedCashRecords = doctorConfig?.participaUnimed === true && unimedParticipants.length > 0
                               ? sharedRateioTransactions.map((tx: any) => ({
                                   id: tx.id,
                                   recordType: "CASH_FLOW",
