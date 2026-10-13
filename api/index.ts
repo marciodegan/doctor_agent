@@ -2979,7 +2979,8 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     typeId,
     amount,
     observation,
-    date
+    date,
+    prelaunchId
   } = req.body;
 
   if (!closingId || amount === undefined || !typeId) {
@@ -2994,6 +2995,25 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     const closingData = closingSnap.data() || {};
     if (closingData.teamId && closingData.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outro grupo." });
     if (String(closingData.status || "").toUpperCase() === "FECHADO") return res.status(409).json({ error: "Este fechamento já foi concluído. Abra um novo fechamento para lançar valores." });
+
+    let prelaunchRef: any = null;
+    if (prelaunchId) {
+      prelaunchRef = db.collection("financial_transaction_prelaunches").doc(String(prelaunchId));
+      const prelaunchSnap = await prelaunchRef.get();
+      if (!prelaunchSnap.exists) return res.status(404).json({ error: "Pré-lançamento não encontrado." });
+      const prelaunchData: any = prelaunchSnap.data() || {};
+      if (prelaunchData.teamId !== groupId || prelaunchData.closingId !== String(closingId)) {
+        return res.status(403).json({ error: "Este pré-lançamento não pertence à competência selecionada." });
+      }
+      if (prelaunchData.status === "IMPORTED" && prelaunchData.transactionId) {
+        const existingTransaction = await db.collection("financial_transactions").doc(String(prelaunchData.transactionId)).get();
+        if (existingTransaction.exists) return res.json({ ...existingTransaction.data(), id: existingTransaction.id, alreadyImported: true });
+      }
+      if (prelaunchData.status !== "PENDING") return res.status(409).json({ error: "Este pré-lançamento não está mais pendente." });
+      if (String(prelaunchData.typeId || "") !== String(typeId || "")) {
+        return res.status(400).json({ error: "Vincule um tipo de lançamento cadastrado antes de aprovar." });
+      }
+    }
 
     const numAmount = Number(amount);
     if (!Number.isFinite(numAmount) || numAmount === 0) {
@@ -3045,7 +3065,7 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     const doctorName = scope === "TEAM"
       ? "HEART CIRURGIA CARDIOVASCULAR"
       : (selectedDoctorData?.name || requestedDoctorName || storedType.doctorName || String(selectedDoctorId));
-    const source = scope === "TEAM" ? "RATEIO_EQUIPE" : "MANUAL";
+    const source = prelaunchId ? "PDF" : (scope === "TEAM" ? "RATEIO_EQUIPE" : "MANUAL");
     const txDate = date || new Date().toLocaleDateString("pt-BR");
     const isTeamScope = scope === "TEAM";
 
@@ -3071,9 +3091,29 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       observation: observation || "",
       date: txDate,
       source: source || "MANUAL",
+      ...(prelaunchId ? { prelaunchId: String(prelaunchId) } : {}),
       createdAt: new Date().toISOString()
     };
     await txRef.set(txData);
+    if (prelaunchRef) {
+      await prelaunchRef.update({
+        status: "IMPORTED",
+        transactionId: txRef.id,
+        importedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      const batchRef = db.collection("financial_transaction_prelaunch_batches").doc(String((await prelaunchRef.get()).data()?.batchId || ""));
+      const batchSnap = await batchRef.get();
+      if (batchSnap.exists) {
+        const remaining = await db.collection("financial_transaction_prelaunches")
+          .where("teamId", "==", groupId).get();
+        const stillPending = remaining.docs.some(doc => {
+          const data: any = doc.data();
+          return data.batchId === batchRef.id && data.status === "PENDING";
+        });
+        if (!stillPending) await batchRef.update({ status: "IMPORTED", importedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      }
+    }
     res.json(txData);
   } catch (error: any) {
     handleApiError(res, error, "Create Financial Transaction");
