@@ -18,6 +18,7 @@ import {
   UserCheck,
   UserX,
   Sparkles,
+  FileText,
   Tag,
   Settings2,
   Percent,
