@@ -28,7 +28,11 @@ export function ProviderLinker({ doctors }: { doctors: any[] }) {
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProviderLink));
-      setLinks(data.filter(l => l.active !== false));
+      setLinks(data.filter(l => l.active !== false).sort((a, b) => {
+        const executanteCompare = (a.executante || "").localeCompare(b.executante || "", "pt-BR", { sensitivity: "base" });
+        if (executanteCompare !== 0) return executanteCompare;
+        return (a.prestador || "").localeCompare(b.prestador || "", "pt-BR", { sensitivity: "base" });
+      }));
     });
     return unsubscribe;
   }, [activeGroup]);
