@@ -43,7 +43,7 @@ export function FinancialTransactionAIImport({ open, closingId, apiFetch, onClos
         body: JSON.stringify({
           closingId,
           fileName: file.name,
-          mimeType: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : file.name.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg"),
+          mimeType: file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : file.name.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg",
           base64
         })
       });
