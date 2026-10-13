@@ -2050,6 +2050,79 @@ app.delete("/api/app/financial/closings/:closingId", async (req, res) => {
   }
 });
 
+// List imports for the active group, including closing status and summary values.
+app.get("/api/app/financial/imports", async (req, res) => {
+  const groupId = getGroupId(req);
+  try {
+    const snap = groupId
+      ? await db.collection("financial_imports").where("teamId", "==", groupId).get()
+      : await db.collection("financial_imports").get();
+    const closingIds = Array.from(new Set(snap.docs.map((d: any) => String(d.data()?.closingId || "")).filter(Boolean)));
+    const closingSnaps = await Promise.all(closingIds.map(id => db.collection("financial_closings").doc(id).get()));
+    const closingById = new Map<string, any>();
+    closingSnaps.forEach((d: any) => { if (d.exists) closingById.set(d.id, d.data() || {}); });
+    const imports = await Promise.all(snap.docs.map(async (doc: any) => {
+      const data = doc.data() || {};
+      const closing = closingById.get(String(data.closingId || "")) || {};
+      const [prod, taxes, txs] = await Promise.all([
+        db.collection("financial_production").where("importId", "==", doc.id).get(),
+        db.collection("financial_taxes").where("importId", "==", doc.id).get(),
+        db.collection("financial_transactions").where("importId", "==", doc.id).get()
+      ]);
+      const productionValue = prod.docs.reduce((sum: number, d: any) => sum + (Number(d.data()?.value ?? d.data()?.amount ?? d.data()?.honorarios) || 0), 0);
+      return {
+        id: doc.id, ...data,
+        closingMonthKey: closing.monthKey || data.closingId || "Fechamento não encontrado",
+        closingStatus: closing.status || "DESCONHECIDO",
+        productionCount: prod.size,
+        taxesCount: taxes.size,
+        transactionsCount: txs.size,
+        recordCount: prod.size + taxes.size + txs.size,
+        productionValue
+      };
+    }));
+    imports.sort((a: any, b: any) => String(b.importedAt || "").localeCompare(String(a.importedAt || "")));
+    return res.json(imports);
+  } catch (error: any) {
+    handleApiError(res, error, "List Financial Imports");
+  }
+});
+
+app.get("/api/app/financial/imports/:importId/details", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { importId } = req.params;
+  try {
+    const importDoc = await db.collection("financial_imports").doc(importId).get();
+    if (!importDoc.exists) return res.status(404).json({ error: "Importação não encontrada." });
+    const importData = importDoc.data() || {};
+    if (importData.teamId && groupId && importData.teamId !== groupId) {
+      return res.status(403).json({ error: "Sem permissão para consultar esta importação." });
+    }
+    const [prod, glosas, taxes, adjustments, txs, batches, reconciliation] = await Promise.all([
+      db.collection("financial_production").where("importId", "==", importId).get(),
+      db.collection("financial_glosas").where("importId", "==", importId).get(),
+      db.collection("financial_taxes").where("importId", "==", importId).get(),
+      db.collection("financial_adjustments").where("importId", "==", importId).get(),
+      db.collection("financial_transactions").where("importId", "==", importId).get(),
+      db.collection("financial_batches").where("importId", "==", importId).get(),
+      db.collection("financial_reconciliation").where("importId", "==", importId).get()
+    ]);
+    const records = (collectionName: string, snap: any) => snap.docs.map((d: any) => ({ id: d.id, recordType: collectionName, ...d.data() }));
+    return res.json({
+      import: { id: importDoc.id, ...importData },
+      production: records("Produção", prod),
+      glosas: records("Glosa", glosas),
+      taxes: records("Imposto / Nota", taxes),
+      adjustments: records("Ajuste", adjustments),
+      transactions: records("Fluxo de caixa", txs),
+      batches: records("Lote", batches),
+      reconciliation: records("Conciliação", reconciliation)
+    });
+  } catch (error: any) {
+    handleApiError(res, error, "Get Financial Import Details");
+  }
+});
+
 // DELETE a financial import and every record generated from it.
 // Use multiple Firestore batches because a CSV can create thousands of production rows.
 app.delete("/api/app/financial/imports/:importId", async (req, res) => {
