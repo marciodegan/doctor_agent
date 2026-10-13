@@ -3378,7 +3378,7 @@ Se não houver nenhuma ocorrência esquecida, retorne {"rows":[]}.`;
       return res.status(422).json({ error: "Não foi possível concluir a verificação de completude do PDF. Nenhum pré-lançamento foi criado. Tente importar novamente.", details: String(auditError?.message || auditError || "Erro na segunda leitura") });
     }
 
-    const normalizeAuditText = (value: any) => String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, " ");
+    const normalizeAuditText = (value: any) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, " ");
     const amountForAudit = (row: any) => Math.abs(Number(row.amount) || 0).toFixed(2);
     const identityForAudit = (row: any) => [
       String(row.date || "").trim(),
