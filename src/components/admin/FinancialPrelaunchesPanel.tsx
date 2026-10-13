@@ -307,7 +307,10 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                                   });
                                 }} className={fieldClass + (missingType ? " min-w-64 border-amber-400 bg-amber-50" : " min-w-64")}>
                                   <option value="">⚠ Vincule um tipo cadastrado...</option>
-                                  {transactionTypes.map(type => <option key={type.id} value={type.id}>{type.name} · {type.nature === "DEBIT" ? "Saída" : "Entrada"} · {type.defaultScope === "DOCTOR" ? "Individual" : "Equipe"}{type.category ? " · " + type.category : ""}</option>)}
+                                  {transactionTypes.map(type => {
+                                    const duplicateName = transactionTypes.filter(candidate => candidate.name.trim().toLocaleLowerCase() === type.name.trim().toLocaleLowerCase()).length > 1;
+                                    return <option key={type.id} value={type.id}>{type.name} · {type.nature === "DEBIT" ? "Saída" : "Entrada"} · {type.defaultScope === "DOCTOR" ? "Individual" : "Equipe"}{type.category ? " · " + type.category : ""}{duplicateName ? " · ID " + String(type.id).slice(0, 6) : ""}</option>;
+                                  })}
                                 </select>
                                 {missingType && <p className="mt-1 text-[10px] font-bold text-amber-800">Obrigatório: selecione ou crie um tipo</p>}
                               </td>
