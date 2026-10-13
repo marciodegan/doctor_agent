@@ -2510,6 +2510,46 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
   }
 });
 
+const financialSourceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+app.post("/api/app/financial/import-source-upload", (req, res, next) => {
+  financialSourceUpload.single("file")(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || "Falha ao receber arquivo." });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    await requireAuth(req);
+    const groupId = getGroupId(req);
+    const closingId = String(req.body?.closingId || "");
+    const file = (req as any).file;
+    if (!groupId || !closingId || !file) return res.status(400).json({ error: "Grupo, fechamento e arquivo são obrigatórios." });
+    const closingSnap = await db.collection("financial_closings").doc(closingId).get();
+    if (!closingSnap.exists) return res.status(404).json({ error: "Fechamento não encontrado." });
+    const closingData = closingSnap.data() || {};
+    if (closingData.teamId && closingData.teamId !== groupId) return res.status(403).json({ error: "Sem permissão para este fechamento." });
+    const safeName = String(file.originalname || "arquivo").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const objectPath = "financial-import-sources/" + groupId + "/" + closingId + "/" + Date.now() + "_" + safeName;
+    const token = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    const bucketNames = [firebaseConfig.storageBucket, firebaseConfig.projectId + ".firebasestorage.app", firebaseConfig.projectId + ".appspot.com"].filter((v, i, a) => v && a.indexOf(v) === i);
+    let savedBucket: any = null;
+    let lastError: any = null;
+    for (const bucketName of bucketNames) {
+      try {
+        const candidate = getStorage().bucket(bucketName).file(objectPath);
+        await candidate.save(file.buffer, { resumable: false, metadata: { contentType: file.mimetype || "application/octet-stream", metadata: { firebaseStorageDownloadTokens: token, originalFileName: safeName, groupId, closingId } } });
+        savedBucket = candidate;
+        break;
+      } catch (error: any) { lastError = error; }
+    }
+    if (!savedBucket) throw lastError || new Error("Não foi possível salvar no Storage.");
+    const url = "https://firebasestorage.googleapis.com/v0/b/" + savedBucket.bucket.name + "/o/" + encodeURIComponent(objectPath) + "?alt=media&token=" + token;
+    return res.json({ success: true, fileName: safeName, sourceFileUrl: url, storagePath: objectPath });
+  } catch (error: any) {
+    console.error("[Financial source upload] Failed:", error?.message || error);
+    return res.status(500).json({ error: error?.message || "Falha ao armazenar arquivo de origem." });
+  }
+});
+
 // Create a manually entered Unimed note for a closing without a CSV import.
 app.post("/api/app/financial/closings/:closingId/manual-note", async (req, res) => {
   const groupId = getGroupId(req);
