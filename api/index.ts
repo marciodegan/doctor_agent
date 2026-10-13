@@ -3388,7 +3388,11 @@ Se não houver nenhuma ocorrência esquecida, retorne {"rows":[]}.`;
     const originalIdentities = new Set(parsed.rows.map(identityForAudit));
     const mergedRows = [...parsed.rows];
     for (const auditRow of auditRows) {
-      if (!originalIdentities.has(identityForAudit(auditRow))) mergedRows.push(auditRow);
+      const identity = identityForAudit(auditRow);
+      if (!originalIdentities.has(identity)) {
+        mergedRows.push(auditRow);
+        originalIdentities.add(identity);
+      }
     }
     parsed.rows = mergedRows;
 
@@ -3397,7 +3401,11 @@ Se não houver nenhuma ocorrência esquecida, retorne {"rows":[]}.`;
       const doctorNameRaw = String(row.doctorName || "").trim();
       const doctor = doctors.find(d => normalize(d.name) === normalize(doctorNameRaw));
       const typeNameRaw = String(row.typeName || "").trim();
-      const matchingTypes = types.filter((t: any) => normalize(t.name) === normalize(typeNameRaw));
+      // Resolve against the registered catalog using the AI's chosen type name first,
+      // then exact description/observation matches. Never use a broad fuzzy match.
+      const candidateLabels = [typeNameRaw, String(row.description || "").trim(), String(row.observation || "").trim()]
+        .map(normalize).filter(Boolean);
+      const matchingTypes = types.filter((t: any) => candidateLabels.includes(normalize(t.name)));
       // Duplicate names and nature mismatches are intentionally left unresolved;
       // the reviewer must explicitly choose the correct catalog record.
       const uniqueType = matchingTypes.length === 1 ? matchingTypes[0] : undefined;
