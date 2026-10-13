@@ -595,6 +595,29 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     if (candidates.includes("PROP_GERAL")) return "PROP_GERAL";
     return candidates[0] || "";
   };
+  const getEffectiveTransactionType = (tx: any) =>
+    transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName))
+    || transactionTypesById.get(String(tx.typeId || ""));
+  const getEffectiveTransactionScope = (tx: any) => {
+    const configuredScope = String(getEffectiveTransactionType(tx)?.defaultScope || "").trim().toUpperCase();
+    return configuredScope || String(tx.scope || "").trim().toUpperCase();
+  };
+  const isCreditTransaction = (tx: any) => {
+    const nature = String(tx.nature || getEffectiveTransactionType(tx)?.nature || "").trim().toUpperCase();
+    return ["CREDIT", "ENTRADA", "INCOME", "RECEITA"].includes(nature);
+  };
+  const isSharedUnimedRateioTransaction = (tx: any) => {
+    const type = getEffectiveTransactionType(tx);
+    const typeName = normalizeTransactionTypeName(type?.name || tx.typeName || "");
+    const scope = getEffectiveTransactionScope(tx);
+    const teamScope = ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM", "RATEIO_EQUIPE"].includes(scope);
+    // A configuração atual do tipo prevalece sobre snapshots antigos da transação.
+    // Sobreavisos/rateios de equipe devem compor Equipe TT, divididos igualmente
+    // entre os participantes Unimed, e não voltar para Part. TT.
+    return isCreditTransaction(tx)
+      && teamScope
+      && (typeName.includes("SOBREAVISO") || typeName.includes("RATEIO"));
+  };
   const isSalaryTransaction = (tx: any) => tx.isSalary === true
     || transactionTypesById.get(String(tx.typeId || ""))?.isSalary === true
     || transactionTypesByName.get(normalizeTransactionTypeName(tx.typeName))?.isSalary === true;
@@ -746,7 +769,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     cashFlowTransactions.forEach((tx: any) => {
       const rawAmount = Number(tx.amount) || 0;
       if (!Number.isFinite(rawAmount) || rawAmount === 0) return;
-      const isCredit = String(tx.nature || "").toUpperCase() === "CREDIT";
+      const isCredit = isCreditTransaction(tx);
       const allowNegativeAmount = tx.allowNegativeAmount === true;
       const amount = allowNegativeAmount ? rawAmount : Math.abs(rawAmount);
       const doctorId = String(tx.doctorId || "");
@@ -775,11 +798,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
       // Adjustment columns are informational balances after FINAL. They accept signed amounts
       // and must not affect RESULT, salary, FINAL, or the general-expense columns.
-      const effectiveTypeName = String(tx.typeName || transactionTypesById.get(typeId)?.name || "");
-      const normalizedEffectiveTypeName = normalizeTransactionTypeName(effectiveTypeName);
-      const isSharedUnimedRateio = isCredit
-        && (normalizedEffectiveTypeName.includes("SOBREAVISO") || normalizedEffectiveTypeName.includes("RATEIO"))
-        && ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM", "RATEIO_EQUIPE"].includes(scope);
+      const isSharedUnimedRateio = isSharedUnimedRateioTransaction(tx);
       // Entradas de rateio da equipe (incluindo Sobreaviso) são distribuídas
       // igualmente entre os participantes da Unimed na coluna Equipe TT.
       // Evita alocá-las também como entradas individuais em Part. TT.
@@ -1535,15 +1554,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     const unimedParticipants = configuredDoctors.filter((doctor: any) =>
                       doctor.isTeamMember === true && doctor.participaUnimed === true
                     );
-                    const isSharedUnimedRateio = (tx: any) => {
-                      const typeName = normalizeTransactionTypeName(
-                        tx.typeName || transactionTypesById.get(String(tx.typeId || ""))?.name || ""
-                      );
-                      return String(tx.nature || "").toUpperCase() === "CREDIT"
-                        && (typeName.includes("SOBREAVISO") || typeName.includes("RATEIO"))
-                        && ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM", "RATEIO_EQUIPE"].includes(String(tx.scope || "").toUpperCase());
-                    };
-                    const sharedRateioTransactions = cashFlowTransactions.filter(isSharedUnimedRateio);
+                    const sharedRateioTransactions = cashFlowTransactions.filter(isSharedUnimedRateioTransaction);
                     const sharedRateioTotal = sharedRateioTransactions.reduce((sum: number, tx: any) => {
                       const amount = Number(tx.amount) || 0;
                       return sum + (tx.allowNegativeAmount === true ? amount : Math.abs(amount));
