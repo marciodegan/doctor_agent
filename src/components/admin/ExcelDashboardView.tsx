@@ -2865,7 +2865,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
                 {excelData.lotesUnimed.length === 0 ? (
                   <tr>
-                    <td colSpan={22} className="p-12 text-center">
+                    <td colSpan={23} className="p-12 text-center">
                       <div className="max-w-md mx-auto space-y-3">
                         <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
                           <BrainCircuit size={24} />
