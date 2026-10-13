@@ -3336,24 +3336,61 @@ app.post("/api/app/financial/transactions/ai-preview", async (req, res) => {
     })).filter(doc => doc.name);
 
     const prompt = `Você extrai lançamentos de ocorrências financeiras de documentos médicos brasileiros.
-Leia o documento inteiro e retorne SOMENTE JSON válido, sem markdown. Extraia apenas ocorrências financeiras que possam ser lançamentos de fluxo de caixa; não extraia procedimentos médicos/produção como se fossem ocorrências.
-Para cada linha extraída retorne date (data exatamente como aparece, preferencialmente DD/MM/AAAA), description, amount (número em reais sem símbolo), nature ("DEBIT" para despesa/desconto/valor devido e "CREDIT" para recebimento/repasse), doctorName (nome EXATO de um médico da lista abaixo, ou string vazia quando não houver identificação segura), typeName (nome EXATO de um tipo cadastrado abaixo, ou string vazia quando não houver correspondência segura), observation (descrição/contexto relevante), confidence ("HIGH", "MEDIUM" ou "LOW") e warning (explicação curta quando houver dúvida).
-Não invente dados. Preserve valores e datas. Se o documento separar ocorrências por médico, associe cada linha ao médico do bloco correspondente. Valores negativos no documento devem ser interpretados pelo significado da ocorrência; não transforme uma despesa em entrada apenas pelo sinal. Não invente uma categoria nem crie tipos novos. Se não for possível identificar uma data, use string vazia.
+Leia TODAS as páginas e TODAS as seções do documento. Retorne SOMENTE JSON válido, sem markdown. Extraia cada ocorrência financeira individual que possa virar lançamento de fluxo de caixa; não extraia procedimentos médicos/produção como se fossem ocorrências, mas NÃO ignore linhas financeiras só porque estão dentro de uma tabela de atendimento/plantão.
+REGRA DE COMPLETUDE: percorra o documento do início ao fim, bloco por bloco de médico, e extraia todas as linhas financeiras visíveis, sem pular nenhuma. Inclua contribuições, integralizações, mensalidades, glosas, descontos, bonificações, sobreavisos, remunerações, disponibilidades e recebimentos. Linhas com o rótulo "Disponibilidade - [especialidade]" também são ocorrências financeiras e DEVEM ser extraídas quando tiverem data e valor, inclusive se aparecerem imediatamente antes de uma tabela de atendimento/plantão. Não confunda o valor da disponibilidade com o valor de plantão detalhado logo abaixo; são linhas separadas quando ambas aparecem.
+Para cada linha extraída retorne date (data exatamente como aparece, preferencialmente DD/MM/AAAA), description, amount (número em reais sem símbolo e com o sinal original), nature ("DEBIT" para despesa/desconto/valor devido e "CREDIT" para recebimento/repasse), doctorName (nome EXATO de um médico da lista abaixo, ou string vazia quando não houver identificação segura), typeName (nome EXATO de um tipo cadastrado abaixo, ou string vazia quando não houver correspondência segura), observation (descrição/contexto relevante), confidence ("HIGH", "MEDIUM" ou "LOW") e warning (explicação curta quando houver dúvida).
+Não invente dados. Preserve valores e datas. Se o documento separar ocorrências por médico, associe cada linha ao médico do bloco correspondente, inclusive tabelas anexas que aparecem dentro desse bloco. Valores negativos no documento normalmente representam saídas; use o significado e o rótulo da ocorrência para definir a natureza. Não transforme uma despesa em entrada apenas pelo sinal. Não invente categorias nem crie tipos novos. Se não for possível identificar uma data, use string vazia.
+Ao encontrar uma descrição que corresponda a um tipo cadastrado, escolha o nome EXATO desse tipo. Por exemplo, uma linha "Disponibilidade - Reumatologia" deve ser vinculada ao tipo "Disponibilidade - Reumatologia" se ele existir no catálogo.
 CATÁLOGO DE MÉDICOS: ${JSON.stringify(doctors.map(d => ({ name: d.name })))}
 TIPOS CADASTRADOS: ${JSON.stringify(types.map(t => ({ name: t.name, nature: t.nature, scope: t.scope, category: t.category, description: t.description, allowNegativeAmount: t.allowNegativeAmount })))}
 Formato de saída: {"rows":[{"date":"","description":"","amount":0,"nature":"DEBIT","doctorName":"","typeName":"","observation":"","confidence":"LOW","warning":""}]}
 Não retorne resumo financeiro nem lançamentos que não estejam visíveis no documento.`;
 
     const ai = new GoogleGenAI({ apiKey });
-    const response = await generateGeminiFinancialParse(ai, [
-      { text: prompt },
-      { inlineData: { mimeType: String(mimeType).toLowerCase(), data: String(base64).replace(/^data:[^,]+,/, "") } }
-    ]);
+    const documentContent = { inlineData: { mimeType: String(mimeType).toLowerCase(), data: String(base64).replace(/^data:[^,]+,/, "") } };
+    const response = await generateGeminiFinancialParse(ai, [{ text: prompt }, documentContent]);
     const raw = String(response.text || "").replace(/```json/gi, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed.rows) || parsed.rows.length === 0) {
       return res.status(422).json({ error: "A IA não identificou lançamentos de ocorrências financeiras neste documento." });
     }
+
+    // Independent completeness audit: ask the model to inspect the original file again
+    // and return only financial rows missing from the first extraction. This catches rows
+    // hidden in nested tables, such as Disponibilidade - Reumatologia.
+    const auditPrompt = `Faça uma SEGUNDA LEITURA INDEPENDENTE deste documento, do início ao fim, para encontrar ocorrências financeiras que a primeira leitura possa ter esquecido.
+Retorne SOMENTE JSON válido no formato {"rows":[...]}. Compare com a lista já extraída e retorne APENAS ocorrências que estejam visíveis no documento original e que NÃO estejam representadas na lista existente. Não repita ocorrências já listadas. Não invente nem estime valores.
+Confira cada bloco de médico e cada linha antes das tabelas de atendimento/plantão, dentro delas e depois delas. Dê atenção especial a linhas chamadas "Disponibilidade - [especialidade]" (ex.: "Disponibilidade - Reumatologia"), que são lançamentos financeiros e não devem ser descartadas como simples cabeçalhos de produção. Se uma linha de disponibilidade e uma linha de plantão aparecem separadas, registre ambas.
+Use a mesma regra de campos da primeira leitura: date, description, amount (número em reais com sinal original), nature ("DEBIT" ou "CREDIT"), doctorName, typeName (preferir o nome EXATO do catálogo), observation, confidence e warning. Associe cada ocorrência ao médico do bloco correspondente. Não inclua procedimentos sem valor financeiro próprio nem totais de seção.
+CATÁLOGO DE MÉDICOS: ${JSON.stringify(doctors.map(d => ({ name: d.name })))}
+TIPOS CADASTRADOS: ${JSON.stringify(types.map(t => ({ name: t.name, nature: t.nature, scope: t.scope, category: t.category, description: t.description, allowNegativeAmount: t.allowNegativeAmount })))}
+LINHAS JÁ EXTRAÍDAS: ${JSON.stringify(parsed.rows)}
+Se não houver nenhuma ocorrência esquecida, retorne {"rows":[]}.`;
+    let auditRows: any[] = [];
+    try {
+      const auditResponse = await generateGeminiFinancialParse(ai, [{ text: auditPrompt }, documentContent]);
+      const auditRaw = String(auditResponse.text || "").replace(/```json/gi, "").replace(/```/g, "").trim();
+      const audited = JSON.parse(auditRaw);
+      if (!Array.isArray(audited.rows)) throw new Error("A segunda leitura não retornou uma lista válida.");
+      auditRows = audited.rows;
+    } catch (auditError: any) {
+      console.error("[AI Financial Parse] Completeness audit failed:", auditError?.message || auditError);
+      return res.status(422).json({ error: "Não foi possível concluir a verificação de completude do PDF. Nenhum pré-lançamento foi criado. Tente importar novamente.", details: String(auditError?.message || auditError || "Erro na segunda leitura") });
+    }
+
+    const normalizeAuditText = (value: any) => String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, " ");
+    const identityForAudit = (row: any) => [
+      String(row.date || "").trim(),
+      normalizeAuditText(row.doctorName),
+      Number.isFinite(Number(row.amount)) ? Number(row.amount).toFixed(2) : "",
+      normalizeAuditText(row.description || row.observation)
+    ].join("|");
+    const originalIdentities = new Set(parsed.rows.map(identityForAudit));
+    const mergedRows = [...parsed.rows];
+    for (const auditRow of auditRows) {
+      if (!originalIdentities.has(identityForAudit(auditRow))) mergedRows.push(auditRow);
+    }
+    parsed.rows = mergedRows;
 
     const normalize = (value: any) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, " ");
     const rows = parsed.rows.map((row: any, index: number) => {
