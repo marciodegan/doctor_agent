@@ -227,7 +227,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
     const type = transactionTypes.find(item => String(item.id) === String(row.typeId));
     return Boolean(type && row.date && Number(row.amount) !== 0 && Number.isFinite(Number(row.amount)) &&
       (type.defaultScope !== "DOCTOR" || Boolean(row.doctorId)) &&
-      !(Number(row.amount) < 0 && type.allowNegativeAmount !== true) && !dirty[row.id]);
+      !(Number(row.amount) < 0 && type.allowNegativeAmount !== true) && row.readyForApproval !== false && !dirty[row.id]);
   }).length;
 
   return (
@@ -282,7 +282,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                         const missingType = !selectedType;
                         const missingDoctor = selectedType?.defaultScope === "DOCTOR" && !row.doctorId;
                         const isDirty = Boolean(dirty[row.id]);
-                        const ready = Boolean(selectedType && row.date && Number.isFinite(Number(row.amount)) && Number(row.amount) !== 0 && !missingDoctor && !(Number(row.amount) < 0 && selectedType.allowNegativeAmount !== true) && !isDirty);
+                        const ready = Boolean(selectedType && row.date && Number.isFinite(Number(row.amount)) && Number(row.amount) !== 0 && !missingDoctor && !(Number(row.amount) < 0 && selectedType.allowNegativeAmount !== true) && row.readyForApproval !== false && !isDirty);
                         return (
                           <React.Fragment key={row.id}>
                             <tr className={missingType || missingDoctor || !row.date || isDirty ? "bg-amber-50/80" : "bg-white hover:bg-slate-50/70"}>
@@ -326,7 +326,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                               </td>
                               <td className="p-2">
                                 <div className="flex min-w-36 flex-col gap-1.5">
-                                  <button onClick={() => saveRow(row)} disabled={savingId === row.id || !isDirty} className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 disabled:opacity-40">
+                                  <button onClick={() => saveRow(row)} disabled={savingId === row.id || (!isDirty && !row.warning)} className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 disabled:opacity-40">
                                     {savingId === row.id ? <Loader2 size={12} className="animate-spin"/> : <Save size={12}/>} Salvar ajustes
                                   </button>
                                   <button onClick={() => { setCreatingTypeForId(creatingTypeForId === row.id ? "" : row.id); setTypeForm({ name: row.typeName || row.description || "", nature: row.nature || "DEBIT", defaultScope: row.doctorId ? "DOCTOR" : "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Geral" }); }} className="inline-flex items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1.5 text-[10px] font-bold text-violet-700">
