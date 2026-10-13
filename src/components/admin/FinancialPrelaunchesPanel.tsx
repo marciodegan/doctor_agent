@@ -35,7 +35,6 @@ interface Props {
 }
 
 const fieldClass = "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100";
-const formatMoney = (value: any) => Number(value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionTypes, doctors, refreshToken, onTypesChanged, onImported }: Props) {
   const [rows, setRows] = useState<Prelaunch[]>([]);
