@@ -2510,6 +2510,56 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
   }
 });
 
+// Create a manually entered Unimed note for a closing without a CSV import.
+app.post("/api/app/financial/closings/:closingId/manual-note", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { closingId } = req.params;
+  const note = req.body?.note || {};
+  const lote = String(note.lote || "").trim();
+  const bruto = Number(note.bruto);
+  if (!closingId || !lote || !Number.isFinite(bruto) || bruto < 0) {
+    return res.status(400).json({ error: "Informe o número da nota/lote e um valor bruto válido." });
+  }
+  try {
+    let closingRef = db.collection("financial_closings").doc(closingId);
+    let closingSnap = await closingRef.get();
+    if (!closingSnap.exists) {
+      const byMonth = await db.collection("financial_closings")
+        .where("monthKey", "==", closingId.toUpperCase()).limit(1).get();
+      if (!byMonth.empty) {
+        closingRef = byMonth.docs[0].ref;
+        closingSnap = byMonth.docs[0];
+      }
+    }
+    if (!closingSnap.exists) return res.status(404).json({ error: "Fechamento não encontrado." });
+    const closing = closingSnap.data() || {};
+    if (closing.teamId && groupId && closing.teamId !== groupId) {
+      return res.status(403).json({ error: "Sem permissão para alterar este fechamento." });
+    }
+    const duplicate = await db.collection("financial_taxes")
+      .where("closingId", "==", closingRef.id).where("lote", "==", lote).limit(1).get();
+    if (!duplicate.empty) return res.status(409).json({ error: "Já existe uma nota/lote com esse identificador neste fechamento." });
+    const ref = db.collection("financial_taxes").doc();
+    const record = {
+      id: ref.id, teamId: closing.teamId || groupId || "default-group",
+      closingId: closingRef.id, lote, batchNumber: lote,
+      competencia: String(note.competencia || closing.monthKey || ""),
+      tipo: String(note.tipo || "Produção Estruturada"),
+      demonstrativo: String(note.tipo || "Produção Estruturada"),
+      titulo: String(note.titulo || ""),
+      vencimento: String(note.vencimento || ""),
+      bruto, glosa: Number(note.glosa) || 0,
+      liquido: note.liquido === "" || note.liquido === null || note.liquido === undefined ? bruto - (Number(note.glosa) || 0) : Number(note.liquido),
+      manualEntry: true, sourceType: "MANUAL",
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+    await ref.set(record);
+    return res.status(201).json({ success: true, note: record });
+  } catch (error: any) {
+    handleApiError(res, error, "Create Manual Unimed Note");
+  }
+});
+
 // Persist editable note-tax and internal DS settings per closing.
 app.post("/api/app/financial/closings/:closingId/note-settings", async (req, res) => {
   const groupId = getGroupId(req);
