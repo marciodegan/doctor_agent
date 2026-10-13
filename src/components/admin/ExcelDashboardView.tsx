@@ -3097,13 +3097,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                 <p className="text-center text-gray-500 py-12 text-xs font-bold">Nenhum lançamento encontrado para este médico.</p>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-5">
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 mb-5">
                     {[
                       ["Lançamentos", matrixModalData.records.length, "bg-gray-50"],
-                      ["Vlr. Hon.", matrixModalData.records.reduce((s: number, x: any) => s + (Number(x.honorValue) || 0), 0), "bg-blue-50"],
-                      ["Vlr. Oper.", matrixModalData.records.reduce((s: number, x: any) => s + (Number(x.operationalValue) || 0), 0), "bg-teal-50"],
-                      ["Vlr. Filme", matrixModalData.records.reduce((s: number, x: any) => s + (Number(x.filmValue) || 0), 0), "bg-teal-50"],
-                      ["Vlr. Nota", matrixModalData.records.reduce((s: number, x: any) => s + (Number(x.honorValue) || 0) + (Number(x.operationalValue) || 0) + (Number(x.filmValue) || 0), 0), "bg-emerald-50"]
+                      ["Vlr. Hon.", matrixModalData.records.filter((x: any) => x._recordType !== "CASH_FLOW").reduce((s: number, x: any) => s + (Number(x.honorValue) || 0), 0), "bg-blue-50"],
+                      ["Vlr. Oper.", matrixModalData.records.filter((x: any) => x._recordType !== "CASH_FLOW").reduce((s: number, x: any) => s + (Number(x.operationalValue) || 0), 0), "bg-teal-50"],
+                      ["Vlr. Filme", matrixModalData.records.filter((x: any) => x._recordType !== "CASH_FLOW").reduce((s: number, x: any) => s + (Number(x.filmValue) || 0), 0), "bg-teal-50"],
+                      ["Vlr. Nota", matrixModalData.records.filter((x: any) => x._recordType !== "CASH_FLOW").reduce((s: number, x: any) => s + (Number(x.honorValue) || 0) + (Number(x.operationalValue) || 0) + (Number(x.filmValue) || 0), 0), "bg-emerald-50"],
+                      ["Entradas do fluxo de caixa", matrixModalData.records.filter((x: any) => x._recordType === "CASH_FLOW").reduce((s: number, x: any) => s + (Number(x.transactionAmount) || 0), 0), "bg-violet-50"]
                     ].map(([label, value, bg]) => (
                       <div key={String(label)} className={`rounded-xl border border-gray-200 px-3 py-2 ${bg}`}>
                         <div className="text-[9px] font-black uppercase text-gray-500">{label}</div>
@@ -3118,9 +3119,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <table className="min-w-[1900px] w-full text-left border-collapse text-[11px]">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-slate-800 text-white font-black uppercase text-[9px] tracking-wider">
-                          <th className="p-2">Relação Nr</th>
+                          <th className="p-2">Relação Nr / Origem</th>
                           <th className="p-2">Data</th>
-                          <th className="p-2">Nome do Usuário</th>
+                          <th className="p-2">Médico / Usuário</th>
                           <th className="p-2">Código do Usuário</th>
                           <th className="p-2">Documento</th>
                           <th className="p-2">Qt.</th>
@@ -3130,31 +3131,36 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           <th className="p-2 text-right">Vlr. Oper.</th>
                           <th className="p-2 text-right">Vlr. Filme</th>
                           <th className="p-2 text-right">Vlr. Tx Adm</th>
+                          <th className="p-2 text-right">Valor lançamento</th>
                           <th className="p-2 min-w-[230px]">Prestador Executante</th>
                           <th className="p-2 min-w-[230px]">Prestador Pagamento</th>
                           <th className="p-2 min-w-[230px]">Prestador Protocolo</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-                        {matrixModalData.records.map((rec, idx) => (
-                          <tr key={idx} className="hover:bg-blue-50/30">
-                            <td className="p-2 font-bold">{rec.protocol || "-"}</td>
-                            <td className="p-2 whitespace-nowrap">{rec.date || "-"}</td>
-                            <td className="p-2 font-semibold">{rec.patientName || "-"}</td>
-                            <td className="p-2 font-mono">{rec.patientCode || "-"}</td>
-                            <td className="p-2 font-mono">{rec.document || "-"}</td>
-                            <td className="p-2 text-right">{rec.quantity ?? "-"}</td>
-                            <td className="p-2 font-mono">{rec.ambCode || "-"}</td>
-                            <td className="p-2">{rec.procedureDescription || "-"}</td>
-                            <td className="p-2 text-right font-mono">{(Number(rec.honorValue) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                            <td className="p-2 text-right font-mono text-teal-700">{(Number(rec.operationalValue) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                            <td className="p-2 text-right font-mono text-teal-700">{(Number(rec.filmValue) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                            <td className="p-2 text-right font-mono">{(Number(rec.administrativeFee) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                            <td className="p-2">{rec.executingProvider || "-"}</td>
-                            <td className="p-2">{rec.paymentProvider || "-"}</td>
-                            <td className="p-2">{rec.protocolProvider || "-"}</td>
-                          </tr>
-                        ))}
+                        {matrixModalData.records.map((rec, idx) => {
+                          const isCashFlow = rec._recordType === "CASH_FLOW";
+                          return (
+                            <tr key={idx} className={isCashFlow ? "bg-violet-50/70 hover:bg-violet-100/70" : "hover:bg-blue-50/30"}>
+                              <td className="p-2 font-bold">{isCashFlow ? "Entrada de caixa" : rec.protocol || "Produção CSV"}</td>
+                              <td className="p-2 whitespace-nowrap">{isCashFlow ? rec.transactionDate || rec.date || "-" : rec.date || "-"}</td>
+                              <td className="p-2 font-semibold">{isCashFlow ? rec.doctorName || matrixModalData.doctorName : rec.patientName || "-"}</td>
+                              <td className="p-2 font-mono">{isCashFlow ? "-" : rec.patientCode || "-"}</td>
+                              <td className="p-2 font-mono">{isCashFlow ? rec.transactionTypeName || rec.typeName || "-" : rec.document || "-"}</td>
+                              <td className="p-2 text-right">{isCashFlow ? "-" : rec.quantity ?? "-"}</td>
+                              <td className="p-2 font-mono">{isCashFlow ? "-" : rec.ambCode || "-"}</td>
+                              <td className="p-2">{isCashFlow ? rec.transactionDescription || rec.observation || rec.description || "-" : rec.procedureDescription || "-"}</td>
+                              <td className="p-2 text-right font-mono">{isCashFlow ? "-" : (Number(rec.honorValue) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                              <td className="p-2 text-right font-mono text-teal-700">{isCashFlow ? "-" : (Number(rec.operationalValue) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                              <td className="p-2 text-right font-mono text-teal-700">{isCashFlow ? "-" : (Number(rec.filmValue) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                              <td className="p-2 text-right font-mono">{isCashFlow ? "-" : (Number(rec.administrativeFee) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                              <td className="p-2 text-right font-mono font-black text-violet-800">{isCashFlow ? (Number(rec.transactionAmount) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "-"}</td>
+                              <td className="p-2">{isCashFlow ? "Fluxo de Caixa" : rec.executingProvider || "-"}</td>
+                              <td className="p-2">{isCashFlow ? rec.source || "-" : rec.paymentProvider || "-"}</td>
+                              <td className="p-2">{isCashFlow ? rec.transactionNature === "CREDIT" ? "Entrada" : "Saída" : rec.protocolProvider || "-"}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
