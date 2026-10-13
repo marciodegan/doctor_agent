@@ -3022,6 +3022,14 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       if (String(prelaunchData.typeId || "") !== String(typeId || "")) {
         return res.status(400).json({ error: "Vincule um tipo de lançamento cadastrado antes de aprovar." });
       }
+      if (
+        Number(prelaunchData.amount) !== Number(amount) ||
+        String(prelaunchData.date || "") !== String(date || "") ||
+        String(prelaunchData.doctorId || "") !== String(requestedDoctorId || "") ||
+        String(prelaunchData.observation || prelaunchData.description || "") !== String(observation || "")
+      ) {
+        return res.status(409).json({ error: "As alterações deste pré-lançamento não foram salvas. Salve os ajustes e tente aprovar novamente." });
+      }
     }
 
     const numAmount = Number(amount);
