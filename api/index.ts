@@ -2073,6 +2073,7 @@ app.get("/api/app/financial/imports", async (req, res) => {
       return {
         id: doc.id, ...data,
         closingMonthKey: closing.monthKey || data.closingId || "Fechamento não encontrado",
+        closingExists: closingById.has(String(data.closingId || "")),
         closingStatus: closing.status || "DESCONHECIDO",
         productionCount: prod.size,
         taxesCount: taxes.size,
