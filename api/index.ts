@@ -3056,7 +3056,8 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     const matrixAdjustmentType = storedType.matrixAdjustmentType === "ACERTO_1" || storedType.matrixAdjustmentType === "SOBRE_MES_ANTERIOR" || storedType.matrixAdjustmentType === "ACERTO_FINAL" ? storedType.matrixAdjustmentType : null;
     const nature = isSalary || matrixAdjustmentType ? "DEBIT" : storedType.nature === "CREDIT" ? "CREDIT" : "DEBIT";
     // Salary and matrix adjustments are always individual debits linked to one doctor.
-    const scope = isSalary || matrixAdjustmentType || String(storedType.defaultScope || "TEAM").toUpperCase() === "DOCTOR" ? "DOCTOR" : "TEAM";
+    const isSobreavisosWithDoctor = /SOBREAVISOS/i.test(String(storedType.name || "")) && Boolean(requestedDoctorId);
+    const scope = isSalary || matrixAdjustmentType || String(storedType.defaultScope || "TEAM").toUpperCase() === "DOCTOR" || isSobreavisosWithDoctor ? "DOCTOR" : "TEAM";
     const rateioMethod = isSalary || matrixAdjustmentType ? "NOMINAL" : storedType.defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART");
     const autoSplitTeam = scope === "TEAM";
     if (scope === "DOCTOR" && !requestedDoctorId && !storedType.doctorId) {
@@ -3433,7 +3434,8 @@ Se não houver nenhuma ocorrência esquecida, retorne {"rows":[]}.`;
       const parsedNature = String(row.nature || "").toUpperCase() === "CREDIT" ? "CREDIT" : "DEBIT";
       // If the source identifies a specific doctor, don't silently map the row
       // to a team-wide type because the transaction endpoint would discard that doctor link.
-      const type = uniqueType && !(doctorNameRaw && uniqueType.scope === "TEAM") ? uniqueType : undefined;
+      const doctorSelectableType = (candidate: any) => /SOBREAVISOS/i.test(String(candidate?.name || ""));
+      const type = uniqueType && !(doctorNameRaw && uniqueType.scope === "TEAM" && !doctorSelectableType(uniqueType)) ? uniqueType : undefined;
       const rawAmount = Number(row.amount);
       const amount = Number.isFinite(rawAmount) ? Math.abs(rawAmount) : 0;
       const warnings: string[] = [];
