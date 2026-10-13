@@ -2838,6 +2838,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <thead>
                 <tr className="bg-gray-100 text-gray-700 font-black uppercase text-[9px] tracking-wider border-b border-gray-200">
                   <th className="p-3 pl-4">Lote</th>
+                  <th className="p-3">Arquivo de origem</th>
                   <th className="p-3">Comp.</th>
                   <th className="p-3">Período / Natureza</th>
                   <th className="p-3">Título</th>
@@ -2891,6 +2892,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   excelData.lotesUnimed.map((lote: any) => (
                     <tr key={lote.lote} className="hover:bg-blue-50/20 transition-colors">
                       <td className="p-3 pl-4 font-black text-gray-900">{lote.lote}</td>
+                      <td className="p-3 min-w-[130px]">
+                        {lote.sourceFileUrl ? (
+                          <a href={lote.sourceFileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 underline font-bold" title={lote.sourceDocument || "Abrir arquivo importado"}>
+                            <FileText size={13} /> Abrir arquivo
+                          </a>
+                        ) : (
+                          <span className="text-gray-400" title={lote.sourceDocument || "Arquivo original não foi armazenado nesta importação"}>{lote.sourceDocument || (lote.manualEntry ? "Lançamento manual" : "Não disponível")}</span>
+                        )}
+                      </td>
                       <td className="p-3 text-gray-600">{lote.competencia}</td>
                       <td className="p-3 font-bold text-gray-700">{lote.tipo}</td>
                       <td className="p-3 font-mono text-gray-600">{lote.titulo}</td>
