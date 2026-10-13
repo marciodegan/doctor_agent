@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, FileText, Loader2, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowDownAZ, Check, CheckCheck, FileText, Loader2, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { FinancialTransactionType } from "../../types/financial";
 
 type Prelaunch = {
@@ -44,6 +44,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const [savingId, setSavingId] = useState("");
   const [approvingId, setApprovingId] = useState("");
+  const [bulkApproving, setBulkApproving] = useState(false);
   const [cancellingBatch, setCancellingBatch] = useState("");
   const [creatingTypeForId, setCreatingTypeForId] = useState("");
   const [typeForm, setTypeForm] = useState({ name: "", nature: "DEBIT" as "CREDIT" | "DEBIT", defaultScope: "DOCTOR" as "DOCTOR" | "TEAM", defaultRateioMethod: "PROPORCAO_HEART" as "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL", category: "Geral" });
@@ -68,6 +69,23 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
 
   useEffect(() => { load(); }, [load, refreshToken]);
 
+  const getDoctorName = useCallback((row: Prelaunch) => {
+    if (row.doctorName?.trim()) return row.doctorName.trim();
+    if (row.doctorId) {
+      const doctor = doctors.find(item => String(item.id) === String(row.doctorId));
+      if (doctor?.name) return String(doctor.name).trim();
+    }
+    return "";
+  }, [doctors]);
+
+  const isRowReady = useCallback((row: Prelaunch) => {
+    const type = transactionTypes.find(item => String(item.id) === String(row.typeId));
+    return Boolean(type && row.date && Number.isFinite(Number(row.amount)) && Number(row.amount) !== 0 &&
+      (type.defaultScope !== "DOCTOR" || Boolean(row.doctorId)) &&
+      !(Number(row.amount) < 0 && type.allowNegativeAmount !== true) &&
+      row.readyForApproval !== false && !dirty[row.id]);
+  }, [transactionTypes, dirty]);
+
   const groupedRows = useMemo(() => {
     const byBatch = new Map<string, Prelaunch[]>();
     for (const row of rows) {
@@ -75,8 +93,26 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
       current.push(row);
       byBatch.set(row.batchId, current);
     }
+    const comparePortuguese = new Intl.Collator("pt-BR", { sensitivity: "base", numeric: true });
+    for (const batchRows of byBatch.values()) {
+      batchRows.sort((a, b) => {
+        const nameA = getDoctorName(a);
+        const nameB = getDoctorName(b);
+        const typeA = transactionTypes.find(item => String(item.id) === String(a.typeId));
+        const typeB = transactionTypes.find(item => String(item.id) === String(b.typeId));
+        const needsReviewWithoutDoctor = (row: Prelaunch, doctorName: string, type: any) =>
+          !doctorName && Boolean(row.warning || row.readyForApproval === false || !type || (type.defaultScope === "DOCTOR" && !row.doctorId));
+        const attentionA = needsReviewWithoutDoctor(a, nameA, typeA);
+        const attentionB = needsReviewWithoutDoctor(b, nameB, typeB);
+        if (attentionA !== attentionB) return attentionA ? -1 : 1;
+        if (nameA && !nameB) return -1;
+        if (!nameA && nameB) return 1;
+        if (nameA && nameB) return comparePortuguese.compare(nameA, nameB);
+        return String(a.date || "").localeCompare(String(b.date || ""));
+      });
+    }
     return byBatch;
-  }, [rows]);
+  }, [rows, getDoctorName, transactionTypes]);
 
   const updateLocal = (id: string, patch: Partial<Prelaunch>) => {
     setRows(current => current.map(row => row.id === id ? { ...row, ...patch } : row));
@@ -112,24 +148,28 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
     }
   };
 
-  const approve = async (row: Prelaunch) => {
+  const approve = async (row: Prelaunch): Promise<boolean> => {
     if (dirty[row.id]) {
       setError("Salve as alterações do pré-lançamento antes de aprová-lo.");
-      return;
+      return false;
     }
     const type = transactionTypes.find(item => String(item.id) === String(row.typeId));
-    if (!type) { setError("Este pré-lançamento precisa ser vinculado a um tipo cadastrado."); return; }
+    if (!type) { setError("Este pré-lançamento precisa ser vinculado a um tipo cadastrado."); return false; }
     if (!row.date || !Number.isFinite(Number(row.amount)) || Number(row.amount) === 0) {
       setError("Confira a data e o valor antes de aprovar.");
-      return;
+      return false;
     }
     if (type.defaultScope === "DOCTOR" && !row.doctorId) {
-      setError("Este tipo é individual. Selecione um médico antes de aprovar.");
-      return;
+      setError("Este tipo é individual. Selecione o médico antes de aprovar.");
+      return false;
     }
     if (Number(row.amount) < 0 && type.allowNegativeAmount !== true) {
       setError("O tipo selecionado não permite valor negativo.");
-      return;
+      return false;
+    }
+    if (row.readyForApproval === false) {
+      setError("Este pré-lançamento ainda precisa ser revisado e salvo.");
+      return false;
     }
 
     setApprovingId(row.id);
@@ -154,11 +194,29 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
       if (!response.ok) throw new Error(data.error || "Não foi possível incorporar este lançamento.");
       setRows(current => current.filter(item => item.id !== row.id));
       onImported();
+      return true;
     } catch (e: any) {
       setError(e?.message || "Falha ao aprovar o pré-lançamento.");
       await load();
+      return false;
     } finally {
       setApprovingId("");
+    }
+  };
+
+  const approveAll = async () => {
+    if (!rows.length || !rows.every(row => isRowReady(row))) return;
+    if (!confirm(`Aprovar os ${rows.length} lançamentos pendentes? Todos entrarão no Fluxo de Caixa. Esta ação não pode ser desfeita em lote.`)) return;
+    setBulkApproving(true);
+    setError("");
+    try {
+      const orderedRows = Array.from(groupedRows.values()).flat();
+      for (const row of orderedRows) {
+        const success = await approve(row);
+        if (!success) break;
+      }
+    } finally {
+      setBulkApproving(false);
     }
   };
 
@@ -223,12 +281,8 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
   };
 
   const pendingCount = rows.length;
-  const readyCount = rows.filter(row => {
-    const type = transactionTypes.find(item => String(item.id) === String(row.typeId));
-    return Boolean(type && row.date && Number(row.amount) !== 0 && Number.isFinite(Number(row.amount)) &&
-      (type.defaultScope !== "DOCTOR" || Boolean(row.doctorId)) &&
-      !(Number(row.amount) < 0 && type.allowNegativeAmount !== true) && row.readyForApproval !== false && !dirty[row.id]);
-  }).length;
+  const readyCount = rows.filter(isRowReady).length;
+  const canApproveAll = pendingCount > 0 && readyCount === pendingCount && !loading && !bulkApproving && !approvingId && !savingId && !cancellingBatch;
 
   return (
     <section className="space-y-4">
@@ -237,10 +291,16 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
           <h3 className="font-black text-slate-900">Pré-lançamentos</h3>
           <p className="mt-1 text-xs text-slate-600">Revise os dados importados. Nenhum valor entra no fluxo de caixa até ser aprovado.</p>
           <p className="mt-2 text-xs font-bold text-violet-800">{pendingCount} pendentes · {readyCount} prontos para aprovação</p>
+          <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500"><ArrowDownAZ size={13}/> Ordenação por médico; itens sem médico que precisam de revisão aparecem primeiro.</p>
         </div>
-        <button onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50">
-          {loading ? <Loader2 size={14} className="animate-spin"/> : <RefreshCw size={14}/>} Atualizar
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={approveAll} disabled={!canApproveAll} title={canApproveAll ? "Aprovar todos os pré-lançamentos revisados e salvos" : "Revise e salve todos os itens para habilitar a aprovação em lote"} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
+            {bulkApproving ? <Loader2 size={14} className="animate-spin"/> : <CheckCheck size={14}/>} {bulkApproving ? "Aprovando lançamentos..." : `Aprovar todos (${pendingCount})`}
+          </button>
+          <button onClick={load} disabled={loading || bulkApproving} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50">
+            {loading ? <Loader2 size={14} className="animate-spin"/> : <RefreshCw size={14}/>} Atualizar
+          </button>
+        </div>
       </div>
 
       {error && <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800"><AlertTriangle size={16} className="mt-0.5 shrink-0"/><span>{error}</span></div>}
@@ -267,7 +327,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                       <p className="text-[10px] text-slate-500">{batchRows.length} pré-lançamentos pendentes{batch.createdAt ? ` · ${new Date(batch.createdAt).toLocaleString("pt-BR")}` : ""}</p>
                     </div>
                   </div>
-                  <button onClick={() => cancelBatch(batch)} disabled={Boolean(cancellingBatch)} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-[11px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+                  <button onClick={() => cancelBatch(batch)} disabled={Boolean(cancellingBatch) || bulkApproving} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-[11px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
                     {cancellingBatch === batch.id ? <Loader2 size={13} className="animate-spin"/> : <Trash2 size={13}/>} Cancelar importação
                   </button>
                 </div>
@@ -282,7 +342,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                         const missingType = !selectedType;
                         const missingDoctor = selectedType?.defaultScope === "DOCTOR" && !row.doctorId;
                         const isDirty = Boolean(dirty[row.id]);
-                        const ready = Boolean(selectedType && row.date && Number.isFinite(Number(row.amount)) && Number(row.amount) !== 0 && !missingDoctor && !(Number(row.amount) < 0 && selectedType.allowNegativeAmount !== true) && row.readyForApproval !== false && !isDirty);
+                        const ready = isRowReady(row);
                         return (
                           <React.Fragment key={row.id}>
                             <tr className={missingType || missingDoctor || !row.date || isDirty ? "bg-amber-50/80" : "bg-white hover:bg-slate-50/70"}>
@@ -326,13 +386,13 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                               </td>
                               <td className="p-2">
                                 <div className="flex min-w-36 flex-col gap-1.5">
-                                  <button onClick={() => saveRow(row)} disabled={savingId === row.id || (!isDirty && !row.warning)} className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 disabled:opacity-40">
+                                  <button onClick={() => saveRow(row)} disabled={bulkApproving || savingId === row.id || (!isDirty && !row.warning)} className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 disabled:opacity-40">
                                     {savingId === row.id ? <Loader2 size={12} className="animate-spin"/> : <Save size={12}/>} Salvar ajustes
                                   </button>
-                                  <button onClick={() => { setCreatingTypeForId(creatingTypeForId === row.id ? "" : row.id); setTypeForm({ name: row.typeName || row.description || "", nature: row.nature || "DEBIT", defaultScope: (row.doctorId || row.doctorName) ? "DOCTOR" : "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Geral" }); }} className="inline-flex items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1.5 text-[10px] font-bold text-violet-700">
+                                  <button onClick={() => { setCreatingTypeForId(creatingTypeForId === row.id ? "" : row.id); setTypeForm({ name: row.typeName || row.description || "", nature: row.nature || "DEBIT", defaultScope: (row.doctorId || row.doctorName) ? "DOCTOR" : "TEAM", defaultRateioMethod: "PROPORCAO_HEART", category: "Geral" }); }} disabled={bulkApproving} className="inline-flex items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1.5 text-[10px] font-bold text-violet-700 disabled:opacity-40">
                                     <Plus size={12}/> Criar tipo e vincular
                                   </button>
-                                  <button onClick={() => approve(row)} disabled={!ready || Boolean(approvingId) || Boolean(savingId)} className="inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-2 py-1.5 text-[10px] font-black text-white disabled:opacity-40">
+                                  <button onClick={() => approve(row)} disabled={!ready || Boolean(approvingId) || Boolean(savingId) || bulkApproving} className="inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-2 py-1.5 text-[10px] font-black text-white disabled:opacity-40">
                                     {approvingId === row.id ? <Loader2 size={12} className="animate-spin"/> : <Check size={12}/>} Aprovar lançamento
                                   </button>
                                 </div>
