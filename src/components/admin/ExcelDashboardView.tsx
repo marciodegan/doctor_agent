@@ -1453,7 +1453,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       </div>
                     </th>
                     <th className="p-3 border border-gray-300 border-r-[1px] border-r-black bg-[#1E3A5F]" colSpan={4}>TOTAL GERAL</th>
-                    <th className="p-3 border border-gray-300 bg-slate-700" colSpan={1}>OUTRAS ENTRADAS</th>
                     <th className="p-3 border border-gray-300 bg-slate-700" colSpan={Math.max(1, cashFlowExpenseTypes.length) + 3}>SAÍDAS / DESPESAS</th>
                     <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>RESULT</th>
                     <th className="p-3 border border-gray-300 bg-slate-700 text-white" rowSpan={2}>%</th>
@@ -1505,8 +1504,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">DS</th>
                     <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Disp Período</th>
                     <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Proporção Heart</th>
-                    {/* Outras entradas e despesas */}
-                    <th className="p-2 border border-gray-300 bg-slate-700 text-blue-100">Outras Entradas</th>
+                    {/* Despesas por tipo */}
                     {displayedExpenseTypes.map(type => <th key={type.id} className={`p-2 border border-gray-300 ${getExpenseHeaderColor(type)}`}>{type.name}</th>)}
                     {!cashFlowExpenseTypes.length && <th className="p-2 border border-gray-300 bg-slate-200 text-slate-900">Despesas</th>}
                     <th className="p-2 border border-gray-300 bg-orange-200 text-orange-950">TOTAL HEART</th>
@@ -2023,8 +2021,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-gray-300 font-mono font-bold text-indigo-700 bg-slate-50">{r.isTeam === true ? r.dispPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "0,00"}</td>
                         <td className="p-3 border border-gray-300 font-mono font-black bg-blue-50 text-blue-950">{(r.isTeam === true ? r.proporcaoHeart : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</td>
 
-                        {/* Outras Entradas e Saídas por tipo */}
-                        <td className="p-3 border border-gray-300 font-mono font-black bg-blue-50 text-blue-900">{r.cashFlowIn > 0 ? r.cashFlowIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
+                        {/* Despesas por tipo */}
                         {displayedExpenseTypes.map(type => <td key={type.id} className={`p-3 border border-gray-300 font-mono font-bold ${getExpenseCellColor(type)}`}>{getDisplayedExpenseValue(r, type) !== 0 ? getDisplayedExpenseValue(r, type).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>)}
                         {!cashFlowExpenseTypes.length && <td className="p-3 border border-gray-300 bg-slate-50">-</td>}
                         <td className="p-3 border border-gray-300 font-mono font-black text-orange-900 bg-orange-100">{getExpenseGroupTotal(r, heartExpenseTypes) !== 0 ? getExpenseGroupTotal(r, heartExpenseTypes).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}</td>
@@ -2108,7 +2105,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <td className="p-3 border border-gray-300 font-mono">{fmt(sum('totalGeralDS'))}</td>
                         <td className="p-3 border border-gray-300 font-mono">{fmt(sum('totalGeralDS') - sum('unimTotDS'))}</td>
                         <td className="p-3 border border-gray-300 font-mono">100.00%</td>
-                        <td className="p-3 border border-gray-300 font-mono text-emerald-400">{fmt(sum('cashFlowIn'))}</td>
                         {displayedExpenseTypes.map(type => <td key={type.id} className={`p-3 border border-gray-300 font-mono ${getExpenseCellColor(type)}`}>{fmt(rows.reduce((acc: number, row: any) => acc + getDisplayedExpenseValue(row, type), 0))}</td>)}
                         {!cashFlowExpenseTypes.length && <td className="p-3 border border-gray-300 bg-slate-50">-</td>}
                         <td className="p-3 border border-gray-300 font-mono font-black text-orange-200">{fmt(rows.reduce((acc: number, row: any) => acc + getExpenseGroupTotal(row, heartExpenseTypes), 0))}</td>
