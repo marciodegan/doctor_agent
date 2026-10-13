@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { TransactionTypesManager } from "./TransactionTypesManager";
 import { FinancialTransactionAIImport } from "./FinancialTransactionAIImport";
+import { FinancialPrelaunchesPanel } from "./FinancialPrelaunchesPanel";
 import { FinancialTransactionType } from "../../types/financial";
 import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
@@ -50,6 +51,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const [transactionTypes, setTransactionTypes] = useState<FinancialTransactionType[]>([]);
   const [isTypesModalOpen, setIsTypesModalOpen] = useState(false);
   const [isAIImportOpen, setIsAIImportOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<"FLOW" | "PRELAUNCHES">("FLOW");
 
   // New Transaction Modal State
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
@@ -432,7 +434,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
             className="flex items-center gap-2 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Sparkles size={15} />
-            <span>Importar com IA</span>
+            <span>Importar PDF com IA</span>
           </button>
 
           {/* Novo Lançamento Button */}
@@ -451,6 +453,17 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         </div>
       </div>
 
+      <div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xs">
+        <button onClick={() => setActiveSection("FLOW")} className={`rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition ${activeSection === "FLOW" ? "bg-emerald-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}>
+          <span className="inline-flex items-center gap-2"><Wallet size={14}/> Fluxo de Caixa</span>
+        </button>
+        <button onClick={() => setActiveSection("PRELAUNCHES")} className={`rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition ${activeSection === "PRELAUNCHES" ? "bg-violet-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}>
+          <span className="inline-flex items-center gap-2"><FileText size={14}/> Pré-lançamentos</span>
+        </button>
+      </div>
+
+      {activeSection === "FLOW" && (
+        <>
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-3xl border border-gray-200/80 shadow-xs flex items-center justify-between">
@@ -693,6 +706,20 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         )}
       </div>
 
+        </>
+      )}
+
+      {activeSection === "PRELAUNCHES" && (
+        <FinancialPrelaunchesPanel
+          closingId={selectedClosingId}
+          apiFetch={apiFetch}
+          transactionTypes={transactionTypes}
+          doctors={selectableDoctors}
+          onTypesChanged={fetchTransactionTypes}
+          onImported={() => { fetchTransactions(); fetchTransactionTypes(); }}
+        />
+      )}
+
       {/* Modal: New Manual Transaction with Team Dynamic Rateio Logic */}
       {isNewModalOpen && (
         <div className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -815,10 +842,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         open={isAIImportOpen}
         closingId={selectedClosingId}
         apiFetch={apiFetch}
-        transactionTypes={transactionTypes}
-        doctors={selectableDoctors}
         onClose={() => setIsAIImportOpen(false)}
-        onImported={() => { fetchTransactions(); fetchTransactionTypes(); }}
+        onPrelaunchesCreated={() => setActiveSection("PRELAUNCHES")}
       />
 
       {/* Modal: Gerenciar Tipos de Lançamento */}
