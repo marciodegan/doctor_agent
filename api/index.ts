@@ -3368,9 +3368,12 @@ Não retorne resumo financeiro nem lançamentos que não estejam visíveis no do
         doctorName: doctor?.name || doctorNameRaw,
         typeId: type?.id || "",
         typeName: type?.name || typeNameRaw,
+        typeScope: type?.scope || "",
         observation: String(row.observation || row.description || "").trim(),
         confidence: ["HIGH", "MEDIUM", "LOW"].includes(String(row.confidence || "").toUpperCase()) ? String(row.confidence).toUpperCase() : "LOW",
-        warning: [...warnings, String(row.warning || "").trim()].filter(Boolean).join("; ")
+        aiWarning: String(row.warning || "").trim(),
+        warning: warnings.join("; "),
+        readyForApproval: Boolean(type && String(row.date || "").trim() && Number.isFinite(rawAmount) && amount !== 0 && (type.scope !== "DOCTOR" || Boolean(doctor)) && !(amount < 0 && !type.allowNegativeAmount))
       };
     });
     const batchRef = db.collection("financial_transaction_prelaunch_batches").doc();
@@ -3507,13 +3510,20 @@ app.patch("/api/app/financial/prelaunches/:id", async (req, res) => {
     const finalScope = update.typeScope !== undefined ? update.typeScope : String(current.typeScope || "");
     const finalDoctorId = update.doctorId !== undefined ? update.doctorId : String(current.doctorId || "");
     const finalDate = update.date !== undefined ? update.date : String(current.date || "");
-    const finalAmount = update.amount !== undefined ? update.amount : Number(current.amount);
-    const warnings = String(update.warning !== undefined ? update.warning : current.warning || "").split(";").map((v: string) => v.trim()).filter(Boolean);
-    if (finalTypeId && finalScope === "DOCTOR" && !finalDoctorId && !warnings.includes("Este tipo é individual e exige um médico.")) {
-      warnings.push("Este tipo é individual e exige um médico.");
+    const finalAmount = update.amount !== undefined ? Number(update.amount) : Number(current.amount);
+    const validationWarnings: string[] = [];
+    let finalType: any = null;
+    if (finalTypeId) {
+      const finalTypeSnap = await db.collection("financial_transaction_types").doc(finalTypeId).get();
+      finalType = finalTypeSnap.exists && finalTypeSnap.data()?.teamId === groupId ? finalTypeSnap.data() : null;
     }
-    update.warning = warnings.join("; ");
-    update.readyForApproval = Boolean(finalTypeId && finalDate && Number.isFinite(Number(finalAmount)) && Number(finalAmount) !== 0 && (finalScope !== "DOCTOR" || Boolean(finalDoctorId)) && !update.warning);
+    if (!finalType) validationWarnings.push("Vincule um tipo de lançamento cadastrado");
+    if (!finalDate) validationWarnings.push("Data obrigatória");
+    if (!Number.isFinite(finalAmount) || finalAmount === 0) validationWarnings.push("Valor inválido");
+    if (finalType && String(finalType.defaultScope || "TEAM").toUpperCase() === "DOCTOR" && !finalDoctorId) validationWarnings.push("Este tipo individual exige um médico");
+    if (finalType && finalAmount < 0 && !(finalType.nature !== "CREDIT" && finalType.allowNegativeAmount === true)) validationWarnings.push("O tipo selecionado não permite valor negativo");
+    update.warning = validationWarnings.join("; ");
+    update.readyForApproval = validationWarnings.length === 0;
     await ref.update(update);
     const saved = await ref.get();
     res.json({ ...saved.data(), id: saved.id });
