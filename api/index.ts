@@ -2149,7 +2149,7 @@ app.delete("/api/app/financial/imports/:importId", async (req, res) => {
     }
     const closingStatus = String(closingData.status || "").trim().toUpperCase();
     const lockedStatuses = ["FECHADO", "CONCLUIDO", "CONCLUÍDO", "FINALIZADO", "ENCERRADO", "CLOSED", "COMPLETED"];
-    if (lockedStatuses.includes(closingStatus) || closingData.closedAt) {
+    if (lockedStatuses.includes(closingStatus)) {
       return res.status(409).json({ error: "Não é possível remover importações de um fechamento fechado ou concluído. Reabra o fechamento antes de fazer alterações." });
     }
 
