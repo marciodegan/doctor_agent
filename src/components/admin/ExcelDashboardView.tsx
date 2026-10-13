@@ -76,7 +76,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const rawProduction = Array.isArray(details?.productionRecords) ? details.productionRecords : [];
   const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
-    "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores"
+    "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores" | "lancamentos_importados"
   >(initialSubTab);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
@@ -105,6 +105,144 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
   const [doctors, setDoctors] = useState<any[]>([]);
   const [providerMappings, setProviderMappings] = useState<any[]>([]);
+  const [financialImports, setFinancialImports] = useState<any[]>([]);
+  const [loadingFinancialImports, setLoadingFinancialImports] = useState(false);
+  const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
+  const [selectedImportDetails, setSelectedImportDetails] = useState<any>(null);
+  const [loadingImportDetails, setLoadingImportDetails] = useState(false);
+  const [deletingImportId, setDeletingImportId] = useState<string | null>(null);
+  const [deletingAllImports, setDeletingAllImports] = useState(false);
+  const [importManagementMessage, setImportManagementMessage] = useState("");
+
+
+  useEffect(() => {
+    if (activeSubTab !== "lancamentos_importados") return;
+    let cancelled = false;
+    const loadImports = async () => {
+      setLoadingFinancialImports(true);
+      setImportManagementMessage("");
+      try {
+        const response = await apiFetch("/api/app/financial/imports");
+        const data = await response.json().catch(() => []);
+        if (!response.ok) throw new Error(data.error || "Não foi possível carregar as importações.");
+        if (!cancelled) {
+          const spreadsheetImports = (Array.isArray(data) ? data : []).filter((item: any) =>
+            item.source === "XLS_IMPORT" || /\\.(csv|xls|xlsx)$/i.test(String(item.fileName || ""))
+          );
+          setFinancialImports(spreadsheetImports);
+          if (selectedImportId && !spreadsheetImports.some((item: any) => item.id === selectedImportId)) {
+            setSelectedImportId(null);
+            setSelectedImportDetails(null);
+          }
+        }
+      } catch (error: any) {
+        if (!cancelled) setImportManagementMessage(error?.message || "Erro ao carregar importações.");
+      } finally {
+        if (!cancelled) setLoadingFinancialImports(false);
+      }
+    };
+    loadImports();
+    return () => { cancelled = true; };
+  }, [activeSubTab, activeGroup?.id]);
+
+  const refreshFinancialImports = async () => {
+    const response = await apiFetch("/api/app/financial/imports");
+    const data = await response.json().catch(() => []);
+    if (!response.ok) throw new Error(data.error || "Não foi possível atualizar as importações.");
+    const spreadsheetImports = (Array.isArray(data) ? data : []).filter((item: any) =>
+      item.source === "XLS_IMPORT" || /\\.(csv|xls|xlsx)$/i.test(String(item.fileName || ""))
+    );
+    setFinancialImports(spreadsheetImports);
+    return spreadsheetImports;
+  };
+
+  const openImportedRecords = async (importId: string) => {
+    setSelectedImportId(importId);
+    setSelectedImportDetails(null);
+    setLoadingImportDetails(true);
+    setImportManagementMessage("");
+    try {
+      const response = await apiFetch("/api/app/financial/imports/" + importId + "/details");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Não foi possível abrir os lançamentos.");
+      setSelectedImportDetails(data);
+    } catch (error: any) {
+      setImportManagementMessage(error?.message || "Erro ao consultar os lançamentos.");
+    } finally {
+      setLoadingImportDetails(false);
+    }
+  };
+
+  const isImportClosingOpen = (item: any) =>
+    !["FECHADO", "CONCLUIDO", "CONCLUÍDO", "FINALIZADO", "ENCERRADO", "CLOSED", "COMPLETED"].includes(String(item.closingStatus || "").trim().toUpperCase());
+
+  const removeImportedFile = async (item: any) => {
+    if (!isImportClosingOpen(item)) {
+      setImportManagementMessage("Esta importação pertence a um fechamento fechado ou concluído e não pode ser removida.");
+      return;
+    }
+    if (!window.confirm("Remover a importação " + (item.fileName || item.id) + " e todos os lançamentos vinculados? Esta ação não pode ser desfeita.")) return;
+    setDeletingImportId(item.id);
+    setImportManagementMessage("");
+    try {
+      const response = await apiFetch("/api/app/financial/imports/" + item.id, { method: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Não foi possível remover a importação.");
+      if (selectedImportId === item.id) {
+        setSelectedImportId(null);
+        setSelectedImportDetails(null);
+      }
+      await refreshFinancialImports();
+      if (selectedClosingId) {
+        const detailsRes = await apiFetch("/api/app/financial/closings/" + selectedClosingId + "/details");
+        if (detailsRes.ok) setDetails(await detailsRes.json());
+      }
+      setImportManagementMessage("Importação removida e lançamentos vinculados excluídos.");
+    } catch (error: any) {
+      setImportManagementMessage(error?.message || "Erro ao remover importação.");
+    } finally {
+      setDeletingImportId(null);
+    }
+  };
+
+  const removeAllOpenImports = async () => {
+    const eligible = financialImports.filter(isImportClosingOpen);
+    if (!eligible.length) {
+      setImportManagementMessage("Não há importações de planilhas vinculadas a fechamentos abertos.");
+      return;
+    }
+    if (!window.confirm("Remover " + eligible.length + " importação(ões) de fechamentos abertos e todos os seus lançamentos? Importações de fechamentos fechados serão preservadas.")) return;
+    setDeletingAllImports(true);
+    setImportManagementMessage("");
+    let removed = 0;
+    const errors: string[] = [];
+    try {
+      for (const item of eligible) {
+        try {
+          const response = await apiFetch("/api/app/financial/imports/" + item.id, { method: "DELETE" });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "Falha ao remover " + item.fileName);
+          removed++;
+        } catch (error: any) {
+          errors.push((item.fileName || item.id) + ": " + (error?.message || "erro"));
+        }
+      }
+      setSelectedImportId(null);
+      setSelectedImportDetails(null);
+      await refreshFinancialImports();
+      if (selectedClosingId) {
+        const detailsRes = await apiFetch("/api/app/financial/closings/" + selectedClosingId + "/details");
+        if (detailsRes.ok) setDetails(await detailsRes.json());
+      }
+      setImportManagementMessage(errors.length
+        ? removed + " importação(ões) removidas. Algumas não puderam ser removidas: " + errors.slice(0, 3).join(" | ")
+        : removed + " importação(ões) removidas com sucesso.");
+    } catch (error: any) {
+      setImportManagementMessage(error?.message || "Erro ao remover as importações.");
+    } finally {
+      setDeletingAllImports(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1326,6 +1464,18 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         >
           <UserCheck size={16} />
           <span>Prestadores</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("lancamentos_importados")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "lancamentos_importados"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <UploadCloud size={16} />
+          <span>9. Lançamentos Importados</span>
         </button>
 
         <button
@@ -3117,6 +3267,97 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       {activeSubTab === "config_prestadores" && (
         <div className="bg-white rounded-[32px] border border-gray-200 shadow-xl overflow-hidden p-6">
           <ProviderLinker doctors={doctors} />
+        </div>
+      )}
+
+      {activeSubTab === "lancamentos_importados" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-[28px] border border-gray-200 shadow-sm p-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
+              <div>
+                <h3 className="text-xl font-black text-gray-900 uppercase">Lançamentos Importados</h3>
+                <p className="text-sm text-gray-500 mt-1">Confira os registros de cada arquivo antes de removê-lo. Só é possível excluir importações vinculadas a fechamentos abertos.</p>
+              </div>
+              <button type="button" onClick={removeAllOpenImports} disabled={deletingAllImports || loadingFinancialImports || !financialImports.some(isImportClosingOpen)} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black disabled:opacity-40">
+                <Trash2 size={15} /> {deletingAllImports ? "Removendo importações..." : "Remover todas dos fechamentos abertos"}
+              </button>
+            </div>
+            {importManagementMessage && <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-900 px-4 py-3 text-sm font-semibold">{importManagementMessage}</div>}
+            {loadingFinancialImports ? (
+              <div className="py-12 text-center text-gray-500"><Loader2 className="animate-spin inline mr-2" size={18} />Carregando importações...</div>
+            ) : financialImports.length === 0 ? (
+              <div className="py-12 text-center text-gray-500"><FileText className="mx-auto mb-3 text-gray-300" size={34} /><p className="font-bold">Nenhuma importação de CSV ou planilha encontrada.</p></div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-white text-[10px] uppercase tracking-wider">
+                    <tr><th className="p-3">Arquivo</th><th className="p-3">Fechamento</th><th className="p-3">Data da importação</th><th className="p-3">Lançamentos</th><th className="p-3">Situação</th><th className="p-3 text-right">Ações</th></tr>
+                  </thead>
+                  <tbody>
+                    {financialImports.map((item: any) => {
+                      const open = isImportClosingOpen(item);
+                      return (
+                        <tr key={item.id} className={`border-b border-gray-100 ${selectedImportId === item.id ? "bg-emerald-50" : "hover:bg-gray-50"}`}>
+                          <td className="p-3 font-bold text-gray-900 min-w-[220px] break-all">{item.fileName || item.batch || item.id}</td>
+                          <td className="p-3 whitespace-nowrap">{item.closingMonthKey || item.closingId}</td>
+                          <td className="p-3 whitespace-nowrap">{item.importedAt ? new Date(item.importedAt).toLocaleString("pt-BR") : "-"}</td>
+                          <td className="p-3 tabular-nums">{Number(item.recordCount ?? item.recordsCreated ?? 0).toLocaleString("pt-BR")}</td>
+                          <td className="p-3"><span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${open ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{open ? "FECHAMENTO ABERTO" : "BLOQUEADO: FECHADO"}</span></td>
+                          <td className="p-3"><div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => openImportedRecords(item.id)} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50"><Eye size={14} /> Ver lançamentos</button>
+                            <button type="button" onClick={() => removeImportedFile(item)} disabled={!open || deletingImportId === item.id || deletingAllImports} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-35 disabled:cursor-not-allowed"><Trash2 size={14} /> {deletingImportId === item.id ? "Removendo..." : "Remover"}</button>
+                          </div></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          {selectedImportId && (
+            <div className="bg-white rounded-[28px] border border-gray-200 shadow-sm p-6">
+              {loadingImportDetails ? (
+                <div className="py-10 text-center text-gray-500"><Loader2 className="animate-spin inline mr-2" size={18} />Carregando lançamentos vinculados...</div>
+              ) : selectedImportDetails ? (() => {
+                const detail = selectedImportDetails;
+                const records = [
+                  ...(detail.production || []), ...(detail.glosas || []), ...(detail.taxes || []),
+                  ...(detail.adjustments || []), ...(detail.transactions || []), ...(detail.batches || []),
+                  ...(detail.reconciliation || [])
+                ];
+                const money = (value: any) => value === undefined || value === null || value === "" || !Number.isFinite(Number(value)) ? "-" : "R$ " + Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const recordValue = (r: any) => r.value ?? r.amount ?? r.honorarios ?? r.productionValue ?? r.taxValue ?? r.glosaValue ?? r.netValue ?? r.baseValue;
+                return (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                      <div><h4 className="text-lg font-black text-gray-900">Lançamentos de {detail.import?.fileName || selectedImportId}</h4><p className="text-xs text-gray-500 mt-1">{records.length} registro(s) vinculado(s) ao arquivo. Confira abaixo antes de remover.</p></div>
+                      <button type="button" onClick={() => { setSelectedImportId(null); setSelectedImportDetails(null); }} className="px-3 py-2 rounded-lg border border-gray-200 text-xs font-bold text-gray-600">Fechar detalhes</button>
+                    </div>
+                    {records.length === 0 ? <p className="py-8 text-center text-gray-500">Não foram encontrados registros vinculados por importId para este arquivo.</p> : (
+                      <div className="overflow-x-auto max-h-[650px] overflow-y-auto border border-gray-200 rounded-xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="sticky top-0 bg-slate-900 text-white uppercase tracking-wide"><tr><th className="p-3">Categoria</th><th className="p-3">Data</th><th className="p-3">Médico / Executante</th><th className="p-3">Documento</th><th className="p-3">Descrição</th><th className="p-3 text-right">Valor</th></tr></thead>
+                          <tbody>
+                            {records.map((r: any, index: number) => (
+                              <tr key={r.recordType + "-" + r.id + "-" + index} className="border-b border-gray-100 hover:bg-gray-50">
+                                <td className="p-3 whitespace-nowrap font-bold">{r.recordType}</td>
+                                <td className="p-3 whitespace-nowrap">{r.date || r.data || r.createdAt || "-"}</td>
+                                <td className="p-3 min-w-[160px]">{r.doctorName || r.medico || r.executingProvider || r.executante || r.userName || "-"}</td>
+                                <td className="p-3 whitespace-nowrap">{r.document || r.documentNumber || r.numeroDocumento || r.protocolNumber || "-"}</td>
+                                <td className="p-3 min-w-[220px]">{r.description || r.typeName || r.observation || r.procedureDescription || r.sourceDocument || r.fileName || "-"}</td>
+                                <td className="p-3 text-right whitespace-nowrap tabular-nums">{money(recordValue(r))}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                );
+              })() : <p className="text-sm text-gray-500">Não foi possível carregar os lançamentos desta importação.</p>}
+            </div>
+          )}
         </div>
       )}
 
