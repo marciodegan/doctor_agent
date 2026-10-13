@@ -1,7 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useGroup } from "../../contexts/GroupContext";
-import { storage } from "../../lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
   UploadCloud, 
   CheckCircle2, 
@@ -211,10 +209,13 @@ export function FinancialImportWizard({ onClose, onComplete }: FinancialImportWi
     try {
       let sourceFileUrl = "";
       if (selectedFile?.file) {
-        const safeName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const sourceRef = ref(storage, "financial-import-sources/" + (activeGroup?.id || "default") + "/" + effectiveClosingId + "/" + Date.now() + "_" + safeName);
-        const uploaded = await uploadBytes(sourceRef, selectedFile.file, { contentType: selectedFile.type || "application/octet-stream" });
-        sourceFileUrl = await getDownloadURL(uploaded.ref);
+        const formData = new FormData();
+        formData.append("file", selectedFile.file, selectedFile.name);
+        formData.append("closingId", effectiveClosingId);
+        const uploadRes = await apiFetch("/api/app/financial/import-source-upload", { method: "POST", body: formData });
+        const uploadData = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok) throw new Error(uploadData.error || "Não foi possível armazenar o arquivo original.");
+        sourceFileUrl = uploadData.sourceFileUrl || "";
       }
       const commitRes = await apiFetch("/api/app/financial/ai-commit", {
         method: "POST",
