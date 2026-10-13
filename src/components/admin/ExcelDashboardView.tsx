@@ -46,7 +46,8 @@ import {
   Trash2,
   Sparkles,
   BrainCircuit,
-  UploadCloud
+  UploadCloud,
+  Loader2
 } from "lucide-react";
 import { DoctorTeamMember, TeamFinancialSettings } from "../../types/financial";
 import { TransactionTypesManager } from "./TransactionTypesManager";
