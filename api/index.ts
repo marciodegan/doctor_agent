@@ -3399,8 +3399,8 @@ Não retorne resumo financeiro nem lançamentos que não estejam visíveis no do
     for (const row of rows) {
       const fingerprint = [
         String(row.date || "").trim().toUpperCase(),
-        String(row.doctorId || row.doctorName || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase(),
-        String(row.typeId || row.typeName || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase(),
+        String(row.doctorId || row.doctorName || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(),
+        String(row.typeId || row.typeName || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(),
         Number(row.amount)
       ].join("|");
       if (seenPrelaunchFingerprints.has(fingerprint)) {
