@@ -1958,12 +1958,30 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         >
                           {r.unimedEqDS > 0 ? r.unimedEqDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td 
+                        <td
                           onClick={() => {
-                            const recs = production.filter(p => p.doctorId === r.key);
-                            setMatrixModalData({ isOpen: true, title: `Produção Unimed (Part. TT) — ${r.name}`, doctorName: r.name, source: "UNIMED", records: recs });
+                            const productionRows = production
+                              .filter(p => p.doctorId === r.key || normalize(p.doctorName) === normalize(r.name))
+                              .map(p => ({ ...p, _recordType: "PRODUCTION" }));
+                            const incomingRows = (r.incomingTransactions || []).map((tx: any) => ({
+                              ...tx,
+                              _recordType: "CASH_FLOW",
+                              transactionAmount: Number(tx.allocatedAmount ?? tx.amount) || 0,
+                              transactionTypeName: tx.typeName || transactionTypesById.get(String(tx.typeId || ""))?.name || "Entrada",
+                              transactionDescription: tx.observation || tx.description || "",
+                              transactionDate: tx.date || "",
+                              transactionNature: tx.nature || "CREDIT"
+                            }));
+                            setMatrixModalData({
+                              isOpen: true,
+                              title: `Unimed Part. TT — ${r.name}`,
+                              doctorName: r.name,
+                              source: "UNIMED",
+                              records: [...productionRows, ...incomingRows]
+                            });
                           }}
                           className="p-3 border border-gray-300 font-mono text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors"
+                          title="Clique para ver a produção CSV e as entradas do fluxo de caixa que compõem este total"
                         >
                           {r.unimedPartTT > 0 ? r.unimedPartTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
