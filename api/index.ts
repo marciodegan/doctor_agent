@@ -3451,7 +3451,7 @@ app.get("/api/app/financial/prelaunches", async (req, res) => {
       .sort((a: any, b: any) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
     const batches = Array.from(new Map(rows.map((row: any) => [row.batchId, {
       id: row.batchId, fileName: row.fileName, createdAt: row.createdAt
-    }])).values());
+    }] as const)).values());
     res.json({ rows, batches, count: rows.length });
   } catch (error: any) {
     handleApiError(res, error, "Get Financial Pre-launches");
