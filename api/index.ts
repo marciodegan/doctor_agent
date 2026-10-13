@@ -3908,7 +3908,7 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
 
 app.post("/api/app/financial/ai-commit", async (req, res) => {
   const groupId = getGroupId(req);
-  const { closingId, parsedData, fileName, reprocess } = req.body;
+  const { closingId, parsedData, fileName, sourceFileUrl, reprocess } = req.body;
   if (!closingId || !parsedData) {
     return res.status(400).json({ error: "closingId e parsedData são obrigatórios" });
   }
@@ -3954,6 +3954,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       teamId: groupId,
       closingId,
       fileName: srcFile,
+      sourceFileUrl: String(sourceFileUrl || ""),
       batch: bNum,
       source: parsedData.sourceType === "STRUCTURED_SPREADSHEET" ? "XLS_IMPORT" : "PDF_AI",
       status: parsedData.mathValidation?.isReconciled ? "CONCILIADO" : "PENDENTE_CONFERENCIA",
@@ -3985,6 +3986,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       totalTaxes: Number(parsedData.totals?.taxes) || 0,
       totalGlosas: Number(parsedData.totals?.glosas) || 0,
       sourceFile: srcFile,
+      sourceFileUrl: String(sourceFileUrl || ""),
       createdAt: new Date().toISOString()
     });
 
@@ -4021,6 +4023,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
         importId,
         source: "PDF_AI",
         sourceDocument: srcFile,
+        sourceFileUrl: String(sourceFileUrl || ""),
         ...parsedData.loteRow,
         createdAt: new Date().toISOString()
       });
