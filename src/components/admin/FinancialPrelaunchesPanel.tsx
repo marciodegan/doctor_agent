@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, ChevronDown, FileText, Loader2, Plus, RefreshCw, Save, Trash2, UserRound, X } from "lucide-react";
+import { AlertTriangle, Check, FileText, Loader2, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { FinancialTransactionType } from "../../types/financial";
 
 type Prelaunch = {
@@ -153,7 +153,6 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Não foi possível incorporar este lançamento.");
       setRows(current => current.filter(item => item.id !== row.id));
-      setBatches(current => current.filter(batch => current.some(item => item.batchId === batch.id && item.id !== row.id)));
       onImported();
     } catch (e: any) {
       setError(e?.message || "Falha ao aprovar o pré-lançamento.");
