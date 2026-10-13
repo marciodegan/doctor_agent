@@ -174,7 +174,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   };
 
   const isImportClosingOpen = (item: any) =>
-    !["FECHADO", "CONCLUIDO", "CONCLUÍDO", "FINALIZADO", "ENCERRADO", "CLOSED", "COMPLETED"].includes(String(item.closingStatus || "").trim().toUpperCase());
+    item.closingExists === true &&
+    !["FECHADO", "CONCLUIDO", "CONCLUÍDO", "FINALIZADO", "ENCERRADO", "CLOSED", "COMPLETED", "DESCONHECIDO"].includes(String(item.closingStatus || "").trim().toUpperCase());
 
   const removeImportedFile = async (item: any) => {
     if (!isImportClosingOpen(item)) {
