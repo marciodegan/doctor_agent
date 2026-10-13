@@ -1143,7 +1143,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
 
     return {
       doctorsAggregated: processedDoctors,
-      totalUnimedTT: totalTT,
+      // VL NOTA includes all Unimed notes, including manual notes without doctor production rows.
+      totalUnimedTT: productionBase,
       totalUnimedDS: totalDS,
       pendingRecords: pending
     };
