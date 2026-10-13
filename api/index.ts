@@ -2137,6 +2137,22 @@ app.delete("/api/app/financial/imports/:importId", async (req, res) => {
       return res.status(403).json({ error: "Sem permissão para excluir esta importação." });
     }
 
+    // Deletion is allowed only while the linked financial closing is still open.
+    const closingId = String(importData.closingId || "");
+    if (!closingId) return res.status(409).json({ error: "A importação não possui fechamento vinculado; exclusão bloqueada por segurança." });
+    const closingRef = db.collection("financial_closings").doc(closingId);
+    const closingSnap = await closingRef.get();
+    if (!closingSnap.exists) return res.status(409).json({ error: "O fechamento desta importação não foi encontrado; exclusão bloqueada por segurança." });
+    const closingData = closingSnap.data() || {};
+    if (closingData.teamId && groupId && closingData.teamId !== groupId) {
+      return res.status(403).json({ error: "O fechamento vinculado pertence a outro grupo." });
+    }
+    const closingStatus = String(closingData.status || "").trim().toUpperCase();
+    const lockedStatuses = ["FECHADO", "CONCLUIDO", "CONCLUÍDO", "FINALIZADO", "ENCERRADO", "CLOSED", "COMPLETED"];
+    if (lockedStatuses.includes(closingStatus) || closingData.closedAt) {
+      return res.status(409).json({ error: "Não é possível remover importações de um fechamento fechado ou concluído. Reabra o fechamento antes de fazer alterações." });
+    }
+
     const collectionNames = [
       "financial_production",
       "financial_glosas",
