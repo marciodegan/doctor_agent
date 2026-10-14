@@ -43,7 +43,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ amount: "", observation: "", typeName: "" });
+  const [editForm, setEditForm] = useState({ date: "", lote: "", doctorId: "", doctorName: "", typeId: "", typeName: "", amount: "", observation: "" });
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState("ALL");
   const [selectedNatureFilter, setSelectedNatureFilter] = useState("ALL");
@@ -70,7 +70,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     amount: "",
     nature: "DEBIT" as "DEBIT" | "CREDIT",
     observation: "",
-    date: new Date().toLocaleDateString("pt-BR")
+    date: new Date().toLocaleDateString("pt-BR"),
+    lote: ""
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -266,15 +267,36 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   };
 
   const handleSaveEdit = async (id: string) => {
+    const selectedType = transactionTypes.find(t => String(t.id) === String(editForm.typeId));
+    if (!selectedType) {
+      alert("Selecione um tipo de lançamento cadastrado.");
+      return;
+    }
+    if (selectedType.defaultScope === "DOCTOR" && !editForm.doctorId && !(selectedType as any).doctorId) {
+      alert("Este tipo exige a seleção de um médico.");
+      return;
+    }
     try {
+      const doctor = selectableDoctors.find(d => String(d.id) === String(editForm.doctorId));
+      const payload = {
+        ...editForm,
+        typeId: selectedType.id,
+        typeName: selectedType.name,
+        doctorId: selectedType.defaultScope === "TEAM" ? "" : (editForm.doctorId || (selectedType as any).doctorId || ""),
+        doctorName: selectedType.defaultScope === "TEAM" ? "" : (doctor?.name || editForm.doctorName || ""),
+        lote: editForm.lote.trim()
+      };
       const res = await apiFetch(`/api/app/financial/transactions/${id}`, {
         method: "PUT",
-        body: JSON.stringify(editForm)
+        body: JSON.stringify(payload)
       });
-      if (res.ok) {
-        setTransactions(transactions.map(t => t.id === id ? { ...t, ...editForm } : t));
-        setEditingId(null);
+      const responseData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert("Erro ao salvar: " + (responseData.error || responseData.message || `HTTP ${res.status}`));
+        return;
       }
+      await fetchTransactions();
+      setEditingId(null);
     } catch (e: any) {
       alert("Erro ao salvar: " + e.message);
     }
@@ -322,6 +344,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
           nature: newForm.nature,
           observation: newForm.observation,
           date: newForm.date,
+          lote: newForm.lote.trim(),
           source: isTeam ? "RATEIO_EQUIPE" : "MANUAL",
           autoSplitTeam: isTeam && autoSplitTeam,
           rateioMethod: isTeam ? rateioMethod : undefined
@@ -343,7 +366,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         amount: "",
         nature: "DEBIT",
         observation: "",
-        date: new Date().toLocaleDateString("pt-BR")
+        date: new Date().toLocaleDateString("pt-BR"),
+        lote: ""
       });
       await fetchTransactions();
     } catch (err: any) {
