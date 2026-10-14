@@ -1937,7 +1937,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         ...doc,
                         azEqTT, azEqDS, azPlTT, azPlDS, azTotTT, azTotDS,
                         marEqTT, marEqDS, marTotTT, marTotDS,
-                        unimedEqTT, unimedEqDS, unimedPartTT, unimedPartDS, unimedOp, unimedFilm, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
+                        unimedEqTT, unimedEqDS, unimedPartTT, unimedPartDS, unimedOp, unimedFilm, importedUtiPlantaoTT, unimPlTT, unimPlDS, unimTotTT, unimTotDS,
                         consultTT, consultDS, dinheiroTT, dinheiroDS, unimLuisTT, unimLuisDS,
                         totalGeralTT, totalGeralDS,
                         cashFlowIn: 0,
@@ -2293,6 +2293,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           {r.unimedPartDS > 0 ? r.unimedPartDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
                         <td className="p-3 border border-gray-300 bg-blue-50/60 p-1">
+                          {r.importedUtiPlantaoTT > 0 && (
+                            <div className="mb-1 rounded border border-emerald-300 bg-emerald-100 px-1 py-0.5 text-center font-mono text-[10px] font-bold text-emerald-900" title="Importado do PDF; não editável na matriz">
+                              PDF {r.importedUtiPlantaoTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                          )}
                           <input
                             type="number"
                             value={manualEntradas[r.key]?.unimedPlantaoTT || ""}
