@@ -3421,7 +3421,9 @@ const parseStructuredFinancialSpreadsheet = (file: any, closingData: any) => {
 
   if (!productionRecords.length) throw new Error("Nenhum lançamento financeiro foi encontrado na planilha.");
   const production = productionRecords.reduce((s: number, p: any) => s + p.honorValue + p.operationalValue + p.filmValue, 0);
-  const batchNumber = String(closingData?.batchNumber || closingData?.lote || file.name.replace(/\.[^.]+$/, ""));
+  const filename = String(file?.name || "").trim();
+  const filenameLot = filename.match(/^(\d+)/)?.[1] || filename.replace(/\.[^.]+$/, "").replace(/[ _-]+$/, "");
+  const batchNumber = String(filenameLot || closingData?.batchNumber || closingData?.lote || closingData?.monthKey || "");
   const doctors = new Map<string, any>();
   for (const p of productionRecords as any[]) {
     const key = normalizeImportHeader(p.protocolProvider || p.executingProvider);
