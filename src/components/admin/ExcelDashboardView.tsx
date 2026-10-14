@@ -1198,7 +1198,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         const lotGross = Number(item.producaoCsv ?? item.bruto) || 0;
         const lotTotal = pdfTransactions.length
           ? Math.round((lotGross + computedOtherValues) * 100) / 100
-          : lotTotal;
+          : Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0;
         return ({
         ...item,
         lote: lotNumber,
