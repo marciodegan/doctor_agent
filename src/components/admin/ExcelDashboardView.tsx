@@ -968,15 +968,21 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       // O importador pode gravar o nome legado "Disponibilidade Médica - UTI"
       // mesmo após a nova configuração do tipo. Reconhecer ambos os nomes evita
       // que a entrada individual do PDF caia em Part. TT.
-      const isImportedUtiPlantao = (
-        normalizedTypeName === "DISPONIBILIDADE MEDICA - UTI"
-        || normalizedTypeName === "DISPONIBILIDADE MEDICA - UTI (PLANTAO INDIVIDUAL)"
-      ) && scope === "DOCTOR"
+      const normalizedOccurrence = normalizeTransactionTypeName(tx.observation || tx.description || "");
+      const isUtiPlantaoType = [
+        "DISPONIBILIDADE MEDICA - UTI",
+        "DISPONIBILIDADE MEDICA - UTI (PLANTAO INDIVIDUAL)"
+      ].includes(normalizedTypeName)
+        || normalizedTypeName.includes("DISPONIBILIDADE MEDICA - UTI")
+        || normalizedOccurrence.includes("PLANTAO UTI");
+      // Para este tipo importado, a regra individual é fixa e prevalece sobre
+      // snapshots antigos de scope TEAM ou configurações "Participa Unimed".
+      const isImportedUtiPlantao = isUtiPlantaoType
         && /PDF/i.test(String(tx.source || tx.sourceFile || tx.importId || ""));
       if (isImportedUtiPlantao) {
-        if (scope !== "DOCTOR" || isTeamPlaceholderId || !resolvedSelectedDoctor?.name) {
+        if (isTeamPlaceholderId || !resolvedSelectedDoctor?.name) {
           console.error("[CashFlowAllocation] UTI plantão individual sem médico válido", {
-            transactionId: tx.id, doctorId, doctorName: tx.doctorName || null
+            transactionId: tx.id, doctorId, doctorName: tx.doctorName || null, scope
           });
           return;
         }
@@ -1924,7 +1930,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       // Plantão TT soma os valores manuais legados e as disponibilidades UTI
                       // importadas do PDF. O lançamento UTI não é incluído em Part. TT.
                       const importedUtiPlantaoTT = cashFlowAllocation.unimedPlantaoByDoctor[normalize(doc.name)] || 0;
-                      const unimPlTT = ((man.unimedPlantaoTT || 0) + importedUtiPlantaoTT) * mul;
+                      // Plantão TT é alimentado exclusivamente pela importação PDF de UTI.
+                      // Não considerar valores manuais legados nem participação Unimed.
+                      const unimPlTT = importedUtiPlantaoTT * mul;
                       const unimPlDS = Math.round(unimPlTT * unimedDSRatio * 100) / 100;
                       const unimTotTT = unimedEqTT + unimedPartTT + (isTeam ? unimedOp + unimedFilm : 0) + unimPlTT;
                       const unimTotDS = Math.round(unimTotTT * unimedDSRatio * 100) / 100;
@@ -2298,29 +2306,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         >
                           {r.unimedPartDS > 0 ? r.unimedPartDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
                         </td>
-                        <td className="p-3 border border-gray-300 bg-blue-50/60 p-1">
-                          {r.importedUtiPlantaoTT > 0 && (
-                            <div className="mb-1 rounded border border-emerald-300 bg-emerald-100 px-1 py-0.5 text-center font-mono text-[10px] font-bold text-emerald-900" title="Importado do PDF; não editável na matriz">
-                              PDF {r.importedUtiPlantaoTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </div>
-                          )}
-                          <input
-                            type="number"
-                            value={manualEntradas[r.key]?.unimedPlantaoTT || ""}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              const ratio = 0.8189;
-                              const man = manualEntradas[r.key] || {};
-                              updateManualEntry(r.key, { unimedPlantaoTT: val, unimedPlantaoDS: Math.round(val * ratio * 100) / 100 });
-                            }}
-                            onBlur={(e) => {
-                              const val = parseFloat(e.currentTarget.value) || 0;
-                              const ratio = 0.8189;
-                              void saveManualEntryOnBlur(r.key, { unimedPlantaoTT: val, unimedPlantaoDS: Math.round(val * ratio * 100) / 100 });
-                            }}
-                            className="w-20 text-center bg-emerald-100/80 border border-emerald-300 rounded-lg font-mono text-xs py-1 text-emerald-950 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                            placeholder="0,00"
-                          />
+                        <td className="p-3 border border-gray-300 bg-blue-50/60 font-mono text-center font-bold text-gray-800">
+                          {r.importedUtiPlantaoTT > 0
+                            ? r.importedUtiPlantaoTT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                            : "-"}
                         </td>
                         <td className="p-3 border border-gray-300 bg-blue-50/30 font-mono text-emerald-800 font-bold">
                           {r.unimPlDS > 0 ? r.unimPlDS.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "-"}
