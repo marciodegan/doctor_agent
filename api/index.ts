@@ -2367,19 +2367,6 @@ app.post("/api/app/financial/import", async (req, res) => {
 
     await batch.commit();
 
-    // If the CSV arrives after its PDF, refresh the PDF lot row using the CSV production total.
-    if (importSource === "XLS_IMPORT" && csvProductionForLot !== null) {
-      const pdfImports = sameLotImports.filter((item: any) => item.source === "PDF_AI");
-      for (const pdfImport of pdfImports) {
-        const taxRows = await db.collection("financial_taxes").where("importId", "==", pdfImport.id).get();
-        for (const taxDoc of taxRows.docs) {
-          const taxData: any = taxDoc.data() || {};
-          if (taxData.lote === undefined || taxData.bruto === undefined || taxData.liquido === undefined) continue;
-          await taxDoc.ref.set(recalculateLotFromProduction(taxData, csvProductionForLot), { merge: true });
-        }
-      }
-    }
-
     res.json({
       success: true,
       importId,
