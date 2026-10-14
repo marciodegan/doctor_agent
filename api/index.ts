@@ -4095,32 +4095,43 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
     const bNum = String(parsedData.batchNumber || closingId);
     const srcFile = fileName || `${bNum}_PROD.PDF`;
 
-    // If reprocess === true, clean up old records for this closing and batch
+    const importSource = parsedData.sourceType === "STRUCTURED_SPREADSHEET" ? "XLS_IMPORT" : "PDF_AI";
+    // Reprocessing a source must not delete its companion file (CSV or PDF) for the same lot.
     if (reprocess) {
-      const [oldImports, oldBatches, oldTaxes, oldTxs, oldRecon, oldProd] = await Promise.all([
-        db.collection("financial_imports").where("teamId", "==", groupId).where("closingId", "==", closingId).where("batch", "==", bNum).get(),
-        db.collection("financial_batches").where("closingId", "==", closingId).where("batchNumber", "==", bNum).get(),
-        db.collection("financial_taxes").where("closingId", "==", closingId).get(),
-        db.collection("financial_transactions").where("teamId", "==", groupId).where("closingId", "==", closingId).where("batch", "==", bNum).get(),
-        db.collection("financial_reconciliation").where("closingId", "==", closingId).where("batchId", "==", bNum).get(),
-        db.collection("financial_production").where("teamId", "==", groupId).where("closingId", "==", closingId).where("batchNumber", "==", bNum).get()
-      ]);
-
-      const deleteBatch = db.batch();
-      oldImports.docs.forEach(d => deleteBatch.delete(d.ref));
-      oldBatches.docs.forEach(d => deleteBatch.delete(d.ref));
-      oldTaxes.docs.forEach(d => {
-        const dData = d.data();
-        if (dData.batchNumber === bNum || dData.lote === bNum || dData.sourceDocument === srcFile) {
-          deleteBatch.delete(d.ref);
+      const oldImportsSnap = await db.collection("financial_imports")
+        .where("teamId", "==", groupId).where("closingId", "==", closingId).where("batch", "==", bNum).get();
+      const oldImports = oldImportsSnap.docs.filter((doc: any) => String(doc.data()?.source || "") === importSource);
+      for (const oldImport of oldImports) {
+        const oldId = oldImport.id;
+        const collections = ["financial_production", "financial_glosas", "financial_taxes", "financial_adjustments", "financial_transactions", "financial_batches", "financial_reconciliation"];
+        const snapshots = await Promise.all(collections.map(name => db.collection(name).where("importId", "==", oldId).get()));
+        const refs: any[] = [oldImport.ref];
+        snapshots.forEach(snapshot => snapshot.docs.forEach((doc: any) => refs.push(doc.ref)));
+        for (let i = 0; i < refs.length; i += 400) {
+          const deleteBatch = db.batch();
+          refs.slice(i, i + 400).forEach(ref => deleteBatch.delete(ref));
+          await deleteBatch.commit();
         }
-      });
-      oldTxs.docs.forEach(d => deleteBatch.delete(d.ref));
-      oldRecon.docs.forEach(d => deleteBatch.delete(d.ref));
-      oldProd.docs.forEach(d => deleteBatch.delete(d.ref));
-      await deleteBatch.commit();
+      }
     }
 
+    const sameLotImportsSnap = await db.collection("financial_imports")
+      .where("teamId", "==", groupId).where("closingId", "==", closingId).where("batch", "==", bNum).get();
+    const sameLotImports = sameLotImportsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    const hasCsvImport = sameLotImports.some((item: any) => item.source === "XLS_IMPORT");
+
+    // If the CSV arrives after the PDF, keep CSV production as the source of truth and remove duplicate PDF production rows.
+    if (importSource === "XLS_IMPORT") {
+      const pdfImports = sameLotImports.filter((item: any) => item.source === "PDF_AI");
+      for (const pdfImport of pdfImports) {
+        const pdfProduction = await db.collection("financial_production").where("importId", "==", pdfImport.id).get();
+        for (let i = 0; i < pdfProduction.docs.length; i += 400) {
+          const deleteBatch = db.batch();
+          pdfProduction.docs.slice(i, i + 400).forEach((doc: any) => deleteBatch.delete(doc.ref));
+          await deleteBatch.commit();
+        }
+      }
+    }
     const batch = db.batch();
     const importRef = db.collection("financial_imports").doc();
     const importId = importRef.id;
@@ -4133,7 +4144,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       fileName: srcFile,
       sourceFileUrl: String(sourceFileUrl || ""),
       batch: bNum,
-      source: parsedData.sourceType === "STRUCTURED_SPREADSHEET" ? "XLS_IMPORT" : "PDF_AI",
+      source: importSource,
       status: parsedData.mathValidation?.isReconciled ? "CONCILIADO" : "PENDENTE_CONFERENCIA",
       importedAt: new Date().toISOString(),
       importedBy: user.email || user.uid,
@@ -4190,7 +4201,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
     }
 
     // 3.1 financial_taxes - Lote row for "Demonstrativo de Notas & Lotes Unimed"
-    if (parsedData.loteRow) {
+    if (parsedData.loteRow && importSource === "PDF_AI") {
       const loteTaxRef = db.collection("financial_taxes").doc();
       batch.set(loteTaxRef, {
         id: loteTaxRef.id,
@@ -4215,6 +4226,9 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
           teamId: groupId,
           closingId,
           batch: bNum,
+          lote: bNum,
+          loteNumber: bNum,
+          batchNumber: bNum,
           importId,
           scope: "TEAM",
           doctorId: "heart_cirurgia",
@@ -4241,7 +4255,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
 
     const normalize = (s: string) => (s || "").trim().toUpperCase().replace(/\s+/g, ' ');
 
-    if (Array.isArray(parsedData.productionRecords)) {
+    if (Array.isArray(parsedData.productionRecords) && !(importSource === "PDF_AI" && hasCsvImport)) {
       for (const p of parsedData.productionRecords) {
         const executante = p.executingProvider || "";
         const prestador = p.protocolProvider || p.paymentProvider || "";
