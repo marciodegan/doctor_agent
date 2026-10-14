@@ -4796,10 +4796,13 @@ app.put("/api/app/financial/transactions/:id", async (req, res) => {
     }
 
     const nextNature = isSalary || matrixAdjustmentType ? "DEBIT" : typeData.nature === "CREDIT" ? "CREDIT" : "DEBIT";
-    const isSobreavisosWithDoctor = /SOBREAVISOS/i.test(String(typeData.name || "")) && Boolean(requestedDoctorId ?? existingTransaction.doctorId);
+    const selectedDoctorId = String(requestedDoctorId !== undefined
+      ? requestedDoctorId || ""
+      : (String(existingTransaction.scope || "").toUpperCase() === "DOCTOR" ? existingTransaction.doctorId || "" : ""));
+    const isPlaceholderDoctorId = ["HEART_EQUIPE", "HEART", "TEAM", "EQUIPE", "HEART_CIRURGIA"].includes(selectedDoctorId.toUpperCase());
+    const isSobreavisosWithDoctor = /SOBREAVISOS/i.test(String(typeData.name || "")) && Boolean(selectedDoctorId) && !isPlaceholderDoctorId;
     const nextScope = isSalary || matrixAdjustmentType || String(typeData.defaultScope || "TEAM").toUpperCase() === "DOCTOR" || isSobreavisosWithDoctor
       ? "DOCTOR" : "TEAM";
-    const selectedDoctorId = String(requestedDoctorId !== undefined ? requestedDoctorId || "" : existingTransaction.doctorId || "");
     let selectedDoctorData: any = null;
     if (nextScope === "DOCTOR") {
       const fixedDoctorId = selectedDoctorId || String(typeData.doctorId || "");
