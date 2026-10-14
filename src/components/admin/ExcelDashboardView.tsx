@@ -128,7 +128,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         if (!response.ok) throw new Error(data.error || "Não foi possível carregar as importações.");
         if (!cancelled) {
           const spreadsheetImports = (Array.isArray(data) ? data : []).filter((item: any) =>
-            item.source === "XLS_IMPORT" || /\\.(csv|xls|xlsx)$/i.test(String(item.fileName || ""))
+            item.source === "XLS_IMPORT" || /\.(csv|xls|xlsx)$/i.test(String(item.fileName || ""))
           );
           setFinancialImports(spreadsheetImports);
           if (selectedImportId && !spreadsheetImports.some((item: any) => item.id === selectedImportId)) {
@@ -151,7 +151,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const data = await response.json().catch(() => []);
     if (!response.ok) throw new Error(data.error || "Não foi possível atualizar as importações.");
     const spreadsheetImports = (Array.isArray(data) ? data : []).filter((item: any) =>
-      item.source === "XLS_IMPORT" || /\\.(csv|xls|xlsx)$/i.test(String(item.fileName || ""))
+      item.source === "XLS_IMPORT" || /\.(csv|xls|xlsx)$/i.test(String(item.fileName || ""))
     );
     setFinancialImports(spreadsheetImports);
     return spreadsheetImports;
@@ -1076,8 +1076,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     // consolidada de lotes. Os campos totalNota/vlNotaCalculado vindos do backend
     // podem estar antigos e conter apenas o Bruto CSV.
     const normalizeLotLabel = (value: any) => String(value || "")
-      .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ");
-    const normalizeLotKey = (value: any) => String(value ?? "").trim().replace(/\\.0$/, "");
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
+    const normalizeLotKey = (value: any) => String(value ?? "").trim().replace(/\.0$/, "");
     const allLotTransactions = Array.isArray(details?.transactions) ? details.transactions : [];
     const lotProductionBase = loteRows.reduce((sum: number, item: any) => {
       const lotNumber = normalizeLotKey(item.lote ?? item.batchNumber ?? item.id);
