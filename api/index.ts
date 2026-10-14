@@ -2458,6 +2458,42 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     const production = prodSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
     const glosas = glosaSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
     const taxes = taxSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
+
+    // Backfill the visible lot row for CSV imports made before this behavior existed.
+    // The import registry can contain hundreds of production rows while financial_taxes has no lot summary.
+    try {
+      const registeredImports = await Promise.all(ids.map(id => db.collection("financial_imports").where("closingId", "==", id).get()));
+      const importDocs = registeredImports.flatMap(snapshot => snapshot.docs)
+        .filter((doc: any) => {
+          const data = doc.data() || {};
+          return (!data.teamId || !groupId || data.teamId === groupId) && data.source === "XLS_IMPORT";
+        });
+      for (const importDoc of importDocs) {
+        const importId = importDoc.id;
+        if (taxes.some((row: any) => String(row.importId || "") === importId && row.lote !== undefined && row.bruto !== undefined)) continue;
+        const importData: any = importDoc.data() || {};
+        const productionForImport = production.filter((row: any) => String(row.importId || "") === importId);
+        if (!productionForImport.length) continue;
+        const fileName = String(importData.fileName || "");
+        const lote = String(importData.batch || importData.batchNumber || fileName.match(/^([0-9]+)/)?.[1] || "").trim();
+        if (!lote || taxes.some((row: any) => String(row.lote || row.batchNumber || "") === lote && row.bruto !== undefined)) continue;
+        const bruto = Math.round(productionForImport.reduce((sum: number, row: any) => sum + (Number(row.honorValue) || 0) + (Number(row.operationalValue) || 0) + (Number(row.filmValue) || 0), 0) * 100) / 100;
+        const lotRow = {
+          id: db.collection("financial_taxes").doc().id, teamId: groupId, closingId: actualClosingId, importId,
+          batchNumber: lote, lote, source: "XLS_IMPORT", sourceDocument: fileName,
+          competencia: "", tipo: "Produção CSV", titulo: fileName, vencimento: "",
+          bruto, vlNotaCalculado: bruto, producaoCsv: bruto, ocorrenciasPositivas: 0, glosasNota: 0, glosa: 0,
+          pis: 0, cofins: 0, csll: 0, irrf: 0, iss: 0, ttImpostosNota: 0, ttRetencao: 0,
+          lucroPresumido: 0, irpj: 0, csll9: 0, add10: 0, reservaImposto: 0, liquido: bruto,
+          createdAt: new Date().toISOString()
+        };
+        await db.collection("financial_taxes").doc(lotRow.id).set(lotRow);
+        taxes.push(lotRow);
+      }
+    } catch (lotBackfillError: any) {
+      console.error("[API] Could not backfill Unimed lot rows:", lotBackfillError?.message || lotBackfillError);
+    }
+
     const adjustments = adjSnap.docs.map((d: any) => d.data()).filter(keepNonImportedOrActive);
     // Load current transaction type rules. The saved type is authoritative for
     // allocation, including older transactions created before switching to PROP_GERAL.
