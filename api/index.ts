@@ -4070,14 +4070,15 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
     // Use itemized financial glosas only. The separate "Glosa 2.703" summary is intentionally ignored.
     const financialGlosas = financialOccurrences.filter((occ: any) => /GLOSAS.*CLINICA COOPERADA/.test(normalizeOccurrenceLabel(occ.description || occ.typeName)))
       .reduce((sum: number, occ: any) => sum + Math.abs(Number(occ.amount) || 0), 0);
-    const noteGross = Math.round((prodVal + eligiblePositiveOccurrences - financialGlosas) * 100) / 100;
-    const lucroPresum = Math.round(noteGross * 0.32 * 100) / 100;
+    const outrosValores = Math.round((eligiblePositiveOccurrences - financialGlosas) * 100) / 100;
+    const totalNota = Math.round((prodVal + outrosValores) * 100) / 100;
+    const lucroPresum = Math.round(totalNota * 0.32 * 100) / 100;
     const irpjVal = Math.round(Math.max(0, (lucroPresum * 0.15) - irrfVal) * 100) / 100;
     const csll9Val = Math.round(Math.max(0, (lucroPresum * 0.09) - csllVal) * 100) / 100;
     const add10Val = Math.round((lucroPresum * 0.10) * 100) / 100;
     const reservaImposto = Math.round((irpjVal + csll9Val + add10Val) * 100) / 100;
     const ttRetencao = Math.round((effectiveTaxesNota + (reservaImposto * 0.596)) * 100) / 100;
-    const liqSpreadsheet = netReported || Math.round((noteGross - effectiveTaxesNota - debitOccurrences) * 100) / 100;
+    const liqSpreadsheet = netReported || Math.round((totalNota - effectiveTaxesNota - debitOccurrences) * 100) / 100;
     const loteRow = {
       lote: bNum,
       batchNumber: bNum,
@@ -4085,8 +4086,10 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
       tipo: aiParsed.demonstrativo || "",
       titulo: aiParsed.holerit || "",
       vencimento: aiParsed.creditDate || "",
-      bruto: noteGross,
-      vlNotaCalculado: noteGross,
+      bruto: prodVal,
+      outrosValores,
+      totalNota,
+      vlNotaCalculado: totalNota,
       producaoCsv: prodVal,
       ocorrenciasPositivas: Math.round(eligiblePositiveOccurrences * 100) / 100,
       glosasNota: Math.round(financialGlosas * 100) / 100,
@@ -4171,15 +4174,17 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
     const recalculateLotFromProduction = (row: any, productionValue: number) => {
       const positiveOccurrences = Number(row?.ocorrenciasPositivas) || 0;
       const glosaValue = Number(row?.glosasNota ?? row?.glosa) || 0;
-      const bruto = Math.round((productionValue + positiveOccurrences - glosaValue) * 100) / 100;
-      const lucroPresumido = Math.round(bruto * 0.32 * 100) / 100;
+      const outrosValores = Math.round((Number(row?.outrosValores ?? (positiveOccurrences - glosaValue)) || 0) * 100) / 100;
+      const bruto = Math.round(productionValue * 100) / 100;
+      const totalNota = Math.round((bruto + outrosValores) * 100) / 100;
+      const lucroPresumido = Math.round(totalNota * 0.32 * 100) / 100;
       const irrf = Number(row?.irrf) || 0;
       const csll = Number(row?.csll) || 0;
       const irpj = Math.round(Math.max(0, lucroPresumido * 0.15 - irrf) * 100) / 100;
       const csll9 = Math.round(Math.max(0, lucroPresumido * 0.09 - csll) * 100) / 100;
       const add10 = Math.round(lucroPresumido * 0.10 * 100) / 100;
       const reservaImposto = Math.round((irpj + csll9 + add10) * 100) / 100;
-      return { ...row, bruto, vlNotaCalculado: bruto, producaoCsv: productionValue, lucroPresumido, irpj, csll9, add10, reservaImposto };
+      return { ...row, bruto, outrosValores, totalNota, vlNotaCalculado: totalNota, producaoCsv: productionValue, lucroPresumido, irpj, csll9, add10, reservaImposto };
     };
     let csvProductionForLot: number | null = null;
     if (importSource === "XLS_IMPORT") {
