@@ -621,29 +621,49 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   return (
                     <tr key={t.id} className="hover:bg-gray-50/60 transition-colors">
                       <td className="p-4 pl-6 text-gray-500 font-mono text-[11px] whitespace-nowrap">
-                        {t.date || "14/09/2026"}
+                        {editingId === t.id ? (
+                          <input type="text" value={editForm.date} onChange={e => setEditForm({ ...editForm, date: e.target.value })} placeholder="DD/MM/AAAA" className="border border-gray-300 rounded px-2 py-1 w-24 text-xs" />
+                        ) : (t.date || "14/09/2026")}
                       </td>
 
-                      <td className="p-4 font-bold text-blue-700 whitespace-nowrap">{t.lote || t.loteNumber || t.batchNumber || t.batch || "—"}</td>
+                      <td className="p-4 font-bold text-blue-700 whitespace-nowrap">
+                        {editingId === t.id ? (
+                          <input type="text" value={editForm.lote} onChange={e => setEditForm({ ...editForm, lote: e.target.value })} placeholder="Lote" className="border border-gray-300 rounded px-2 py-1 w-20 text-xs" />
+                        ) : (t.lote || t.loteNumber || t.batchNumber || t.batch || "—")}
+                      </td>
 
                       <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-gray-900">{t.doctorName}</span>
-                          {isHeartTeam && (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800">
-                              Equipe HeaRT
-                            </span>
-                          )}
-                          {isTeamSplit && (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-blue-100 text-blue-800">
-                              Rateio {t.teamSharePercent ? `${t.teamSharePercent}%` : "HeaRT"}
-                            </span>
-                          )}
-                        </div>
+                        {editingId === t.id ? (
+                          <select value={editForm.doctorId} onChange={e => {
+                            const doctor = selectableDoctors.find(d => String(d.id) === String(e.target.value));
+                            setEditForm({ ...editForm, doctorId: doctor?.id || "", doctorName: doctor?.name || "" });
+                          }} className="border border-gray-300 rounded px-2 py-1 w-48 text-xs">
+                            <option value="">Equipe / compartilhado</option>
+                            {selectableDoctors.map(doctor => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
+                          </select>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-gray-900">{t.doctorName}</span>
+                            {isHeartTeam && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800">Equipe HeaRT</span>
+                            )}
+                            {isTeamSplit && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-blue-100 text-blue-800">Rateio {t.teamSharePercent ? `${t.teamSharePercent}%` : "HeaRT"}</span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       <td className="p-4 font-bold text-gray-800">
-                        {t.typeName || t.typeId}
+                        {editingId === t.id ? (
+                          <select value={editForm.typeId} onChange={e => {
+                            const type = transactionTypes.find(item => String(item.id) === String(e.target.value));
+                            setEditForm({ ...editForm, typeId: type?.id || "", typeName: type?.name || "", doctorId: type?.defaultScope === "TEAM" ? "" : editForm.doctorId, doctorName: type?.defaultScope === "TEAM" ? "" : editForm.doctorName });
+                          }} className="border border-gray-300 rounded px-2 py-1 w-52 text-xs">
+                            <option value="">Selecione o tipo</option>
+                            {transactionTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
+                          </select>
+                        ) : (t.typeName || t.typeId)}
                       </td>
 
                       <td className="p-4 text-gray-500 text-[11px] max-w-xs truncate">
@@ -711,10 +731,17 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                             <button
                               onClick={() => {
                                 setEditingId(t.id);
+                                const matchedType = transactionTypes.find(type => String(type.id) === String(t.typeId))
+                                  || transactionTypes.find(type => type.name === t.typeName);
                                 setEditForm({
-                                  amount: String(t.amount || ""),
-                                  observation: t.observation || "",
-                                  typeName: t.typeName || ""
+                                  date: t.date || "",
+                                  lote: String(t.lote || t.loteNumber || t.batchNumber || t.batch || ""),
+                                  doctorId: t.scope === "TEAM" ? "" : String(t.doctorId || ""),
+                                  doctorName: t.scope === "TEAM" ? "" : String(t.doctorName || ""),
+                                  typeId: String(matchedType?.id || t.typeId || ""),
+                                  typeName: matchedType?.name || t.typeName || "",
+                                  amount: String(t.amount ?? ""),
+                                  observation: t.observation || ""
                                 });
                               }}
                               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
