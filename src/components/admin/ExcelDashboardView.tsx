@@ -866,6 +866,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const cashFlowAllocation = React.useMemo(() => {
     const incomingByDoctor: Record<string, number> = {};
     const incomingTransactionsByDoctor: Record<string, any[]> = {};
+    const unimedPlantaoByDoctor: Record<string, number> = {};
     const expenseByDoctorType: Record<string, Record<string, number>> = {};
     const salaryByDoctor: Record<string, number> = {};
     const matrixAdjustmentByDoctor: Record<string, { ACERTO_1: number; SOBRE_MES_ANTERIOR: number; ACERTO_FINAL: number }> = {};
@@ -961,6 +962,22 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       // Adjustment columns are informational balances after FINAL. They accept signed amounts
       // and must not affect RESULT, salary, FINAL, or the general-expense columns.
       const isSharedUnimedRateio = isSharedUnimedRateioTransaction(tx);
+      // Disponibilidade UTI importada do PDF é individual, exclusiva de Plantão TT.
+      // Não deve aparecer em Part. TT nem ser rateada para Equipe TT.
+      const normalizedTypeName = normalize(getEffectiveTransactionType(tx)?.name || tx.typeName || "");
+      const isImportedUtiPlantao = normalizedTypeName === "DISPONIBILIDADE MEDICA - UTI (PLANTAO INDIVIDUAL)"
+        && String(tx.source || "").toUpperCase() === "PDF_AI";
+      if (isImportedUtiPlantao) {
+        if (scope !== "DOCTOR" || isTeamPlaceholderId || !resolvedSelectedDoctor?.name) {
+          console.error("[CashFlowAllocation] UTI plantão individual sem médico válido", {
+            transactionId: tx.id, doctorId, doctorName: tx.doctorName || null
+          });
+          return;
+        }
+        const key = matrixKey(resolvedSelectedDoctor);
+        unimedPlantaoByDoctor[key] = Math.round(((unimedPlantaoByDoctor[key] || 0) + amount) * 100) / 100;
+        return;
+      }
       // Entradas de rateio da equipe (incluindo Sobreaviso) são distribuídas
       // igualmente entre os participantes da Unimed na coluna Equipe TT.
       // Evita alocá-las também como entradas individuais em Part. TT.
@@ -1047,7 +1064,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         addAllocation(matrixKey(d), allocated, tx);
       });
     });
-    return { incomingByDoctor, incomingTransactionsByDoctor, expenseByDoctorType, salaryByDoctor, matrixAdjustmentByDoctor };
+    return { incomingByDoctor, incomingTransactionsByDoctor, unimedPlantaoByDoctor, expenseByDoctorType, salaryByDoctor, matrixAdjustmentByDoctor };
   }, [details?.transactions, details?.transactionTypes, configuredDoctors, doctors]);
 
   // Calculate sum of team percentages
@@ -1898,7 +1915,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       // Os valores operacionais/filme já estão incluídos na cota igual dos participantes.
                       const unimedOp = isTeam && participatesUnimed ? 0 : unimedData.operational * mul;
                       const unimedFilm = isTeam && participatesUnimed ? 0 : unimedData.film * mul;
-                      const unimPlTT = (man.unimedPlantaoTT || 0) * mul;
+                      // Plantão TT soma os valores manuais legados e as disponibilidades UTI
+                      // importadas do PDF. O lançamento UTI não é incluído em Part. TT.
+                      const importedUtiPlantaoTT = cashFlowAllocation.unimedPlantaoByDoctor[normalize(doc.name)] || 0;
+                      const unimPlTT = ((man.unimedPlantaoTT || 0) + importedUtiPlantaoTT) * mul;
                       const unimPlDS = Math.round(unimPlTT * unimedDSRatio * 100) / 100;
                       const unimTotTT = unimedEqTT + unimedPartTT + (isTeam ? unimedOp + unimedFilm : 0) + unimPlTT;
                       const unimTotDS = Math.round(unimTotTT * unimedDSRatio * 100) / 100;
