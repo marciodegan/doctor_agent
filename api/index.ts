@@ -3987,8 +3987,9 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
       .where("closingId", "==", closingId)
       .where("batch", "==", bNum)
       .get();
-
-    const isDuplicate = !existingSnap.empty;
+    const expectedSource = aiParsed.sourceType === "STRUCTURED_SPREADSHEET" ? "XLS_IMPORT" : "PDF_AI";
+    // A CSV and its PDF may share the same lot. Only a repeat of the same source type is a duplicate.
+    const isDuplicate = existingSnap.docs.some((doc: any) => String(doc.data()?.source || "") === expectedSource);
 
     // Mathematical reconciliation validation:
     // Produção - Impostos - Capitalização = Líquido
