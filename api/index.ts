@@ -4011,14 +4011,24 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
     const calculatedTaxesNota = Math.round((irrfVal + pisVal + cofinsVal + csllVal) * 100) / 100;
     const effectiveTaxesNota = taxVal > 0 ? taxVal : calculatedTaxesNota;
 
-    const lucroPresum = Math.round(prodVal * 0.32 * 100) / 100;
+    const normalizeOccurrenceLabel = (value: any) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
+    const financialOccurrences = Array.isArray(aiParsed.occurrences) ? aiParsed.occurrences : [];
+    const eligiblePositiveOccurrences = financialOccurrences.filter((occ: any) => {
+      const label = normalizeOccurrenceLabel(occ.description || occ.typeName);
+      const amount = Number(occ.amount) || 0;
+      return amount > 0 && (occ.nature === "CREDIT" || !occ.nature) && /DISPONIBILIDADE|SOBREAVISOS|REMUNERACAO BONIFICACAO PARTO NORMAL/.test(label);
+    }).reduce((sum: number, occ: any) => sum + Math.abs(Number(occ.amount) || 0), 0);
+    // Use itemized financial glosas only. The separate "Glosa 2.703" summary is intentionally ignored.
+    const financialGlosas = financialOccurrences.filter((occ: any) => /GLOSAS.*CLINICA COOPERADA/.test(normalizeOccurrenceLabel(occ.description || occ.typeName)))
+      .reduce((sum: number, occ: any) => sum + Math.abs(Number(occ.amount) || 0), 0);
+    const noteGross = Math.round((prodVal + eligiblePositiveOccurrences - financialGlosas) * 100) / 100;
+    const lucroPresum = Math.round(noteGross * 0.32 * 100) / 100;
     const irpjVal = Math.round(Math.max(0, (lucroPresum * 0.15) - irrfVal) * 100) / 100;
     const csll9Val = Math.round(Math.max(0, (lucroPresum * 0.09) - csllVal) * 100) / 100;
     const add10Val = Math.round((lucroPresum * 0.10) * 100) / 100;
     const reservaImposto = Math.round((irpjVal + csll9Val + add10Val) * 100) / 100;
     const ttRetencao = Math.round((effectiveTaxesNota + (reservaImposto * 0.596)) * 100) / 100;
-    const liqSpreadsheet = netReported || Math.round((prodVal - effectiveTaxesNota - debitOccurrences) * 100) / 100;
-
+    const liqSpreadsheet = netReported || Math.round((noteGross - effectiveTaxesNota - debitOccurrences) * 100) / 100;
     const loteRow = {
       lote: bNum,
       batchNumber: bNum,
@@ -4026,8 +4036,12 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
       tipo: aiParsed.demonstrativo || "",
       titulo: aiParsed.holerit || "",
       vencimento: aiParsed.creditDate || "",
-      bruto: prodVal,
-      glosa: Number(aiParsed.totals?.glosas) || 0,
+      bruto: noteGross,
+      vlNotaCalculado: noteGross,
+      producaoCsv: prodVal,
+      ocorrenciasPositivas: Math.round(eligiblePositiveOccurrences * 100) / 100,
+      glosasNota: Math.round(financialGlosas * 100) / 100,
+      glosa: Math.round(financialGlosas * 100) / 100,
       pis: pisVal,
       cofins: cofinsVal,
       csll: csllVal,
