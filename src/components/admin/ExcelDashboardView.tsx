@@ -1072,7 +1072,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       .filter((item: any) => item.bruto !== undefined && item.liquido !== undefined);
     // When a lot row exists, bruto already represents the reconciled VL NOTA (production plus eligible occurrences less itemized glosas).
     // Do not add operational/film again because they are already included in the imported production total.
-    const lotProductionBase = loteRows.reduce((sum: number, item: any) => sum + (Number(item.vlNotaCalculado ?? item.bruto) || 0), 0);
+    // VL NOTA na seção Unimed deve refletir o total consolidado de cada lote,
+    // incluindo Outros Valores PDF. totalNota é o campo calculado/exibido na tabela.
+    const lotProductionBase = loteRows.reduce((sum: number, item: any) => sum + (Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0), 0);
     const productionBase = lotProductionBase > 0 ? lotProductionBase : productionRecords.reduce((sum: number, item: any) => sum + (Number(item.honorValue) || 0) + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
     const irrfTotal = Math.round(productionBase * noteSettings.irrfPercent) / 100;
     const pisTotal = Math.round(productionBase * noteSettings.pisPercent) / 100;
