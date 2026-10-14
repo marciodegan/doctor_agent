@@ -58,7 +58,7 @@ const KNOWN_DOCTORS = ['ROCHELE', 'THAIS', 'LUIS', 'KATHIZE'];
 
 interface ExcelDashboardViewProps {
   closingId: string | null;
-  initialSubTab?: "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores";
+  initialSubTab?: "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores" | "descritivo_pagamentos";
   onOpenImport?: () => void;
 }
 
@@ -77,7 +77,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const rawProduction = Array.isArray(details?.productionRecords) ? details.productionRecords : [];
   const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
-    "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores" | "lancamentos_importados"
+    "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores" | "lancamentos_importados" | "descritivo_pagamentos"
   >(initialSubTab);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
@@ -1508,6 +1508,18 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         </button>
 
         <button
+          onClick={() => setActiveSubTab("descritivo_pagamentos")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "descritivo_pagamentos"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <FileText size={16} />
+          <span>Descritivo de Pagamentos</span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab("matriz_entradas")}
           className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
             activeSubTab === "matriz_entradas"
@@ -1617,8 +1629,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       </div>
 
       {/* VIEW: MATRIZ DE ENTRADAS (TT & DS) */}
-      {activeSubTab === "matriz_entradas" && (
-        <div className="space-y-6">
+      {(activeSubTab === "matriz_entradas" || activeSubTab === "descritivo_pagamentos") && (
+        <div className={activeSubTab === "descritivo_pagamentos" ? "hidden" : "space-y-6"}>
           <div className="bg-white rounded-[32px] border border-gray-300 shadow-xl overflow-hidden p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-300">
               <div>
@@ -2453,6 +2465,98 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           </div>
         </div>
       )}
+
+      {activeSubTab === "descritivo_pagamentos" && (() => {
+        const rows = (window as any).__matrixRowsCache || [];
+        const money = (value: number) => (Number(value) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const totalDS = rows.reduce((sum: number, row: any) => sum + (Number(row.totalGeralDS) || 0), 0);
+        const totalDivisao = rows.reduce((sum: number, row: any) => sum + (Number(row.divLucrosAmount) || 0), 0);
+        const totalFlash = rows.reduce((sum: number, row: any) => sum + (Number(row.excedenteAmount) || 0), 0);
+        const totalSalario = rows.reduce((sum: number, row: any) => sum + (Number(row.salaryAmount) || 0), 0);
+        const totalDistribuicao = rows.reduce((sum: number, row: any) =>
+          sum + (Number(row.divLucrosAmount) || 0) + (Number(row.excedenteAmount) || 0) + (Number(row.salaryAmount) || 0), 0);
+        const totalReservadoImpostos = Number(excelData.totals.totalReservadoImpostos) || 0;
+        const totalFinal = Math.round((totalDS - totalDistribuicao - totalReservadoImpostos) * 100) / 100;
+        return (
+          <div className="space-y-5">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 uppercase">Descritivo de Pagamentos</h3>
+                <p className="text-xs text-gray-500">Resumo calculado a partir do fechamento atual. Os valores acompanham a matriz financeira.</p>
+              </div>
+              <div className="rounded-lg bg-[#1E3A5F] px-4 py-2 text-white text-xs font-bold">
+                {selectedClosingId || "Fechamento atual"}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto bg-white border border-gray-300 shadow-sm rounded-xl">
+              <table className="w-full min-w-[700px] border-collapse text-xs text-center">
+                <thead>
+                  <tr className="bg-[#BFBFBF] text-black font-black uppercase">
+                    <th className="p-2 border border-gray-500 text-left">MÉDICO</th>
+                    <th className="p-2 border border-gray-500">DIVISÃO</th>
+                    <th className="p-2 border border-gray-500">FLASH</th>
+                    <th className="p-2 border border-gray-500">SALÁRIO</th>
+                    <th className="p-2 border border-gray-500">TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row: any) => {
+                    const divisao = Number(row.divLucrosAmount) || 0;
+                    const flash = Number(row.excedenteAmount) || 0;
+                    const salario = Number(row.salaryAmount) || 0;
+                    const total = Math.round((divisao + flash + salario) * 100) / 100;
+                    return (
+                      <tr key={row.key || row.name} className="hover:bg-blue-50/50">
+                        <td className="p-2 border border-gray-400 text-left font-bold uppercase whitespace-nowrap">{row.name}</td>
+                        <td className="p-2 border border-gray-400 font-mono">{money(divisao)}</td>
+                        <td className="p-2 border border-gray-400 font-mono">{money(flash)}</td>
+                        <td className="p-2 border border-gray-400 font-mono">{money(salario)}</td>
+                        <td className="p-2 border border-gray-400 font-mono font-black">{money(total)}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="bg-[#BFBFBF] text-black font-black">
+                    <td className="p-2 border border-gray-500 text-left">TOTAL</td>
+                    <td className="p-2 border border-gray-500 font-mono">{money(totalDivisao)}</td>
+                    <td className="p-2 border border-gray-500 font-mono">{money(totalFlash)}</td>
+                    <td className="p-2 border border-gray-500 font-mono">{money(totalSalario)}</td>
+                    <td className="p-2 border border-gray-500 font-mono">{money(totalDistribuicao)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="overflow-x-auto bg-white border border-gray-300 shadow-sm rounded-xl">
+              <table className="w-full border-collapse text-xs">
+                <tbody className="font-black">
+                  <tr>
+                    <td className="p-3 border border-gray-400 uppercase">TOTAL RECEBIMENTOS DISPONÍVEL SAQUE</td>
+                    <td className="p-3 border border-gray-400 text-right font-mono">{money(totalDS)}</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3 border border-gray-400 uppercase">TOTAL DISTRIBUIÇÃO MÉDICOS</td>
+                    <td className="p-3 border border-gray-400 text-right font-mono">{money(totalDistribuicao)}</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3 border border-gray-400 uppercase">TOTAL RESERVADO IMPOSTOS</td>
+                    <td className="p-3 border border-gray-400 text-right font-mono text-amber-700">{money(totalReservadoImpostos)}</td>
+                  </tr>
+                  <tr className="bg-[#BFBFBF] text-black">
+                    <td className="p-3 border border-gray-500 uppercase">TOTAL FINAL</td>
+                    <td className="p-3 border border-gray-500 text-right font-mono">{money(totalFinal)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            {rows.length === 0 && (
+              <p className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                A matriz ainda está calculando os dados deste fechamento. Selecione outra aba e volte ao Descritivo de Pagamentos.
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       {/* VIEW 1: MAPA MESTRE DE RATEIO E SALÁRIOS (SEPARADO ENTRE EQUIPE E FORA DA EQUIPE) */}
       {activeSubTab === "visao_geral" && (
