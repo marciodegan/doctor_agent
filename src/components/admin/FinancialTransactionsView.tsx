@@ -579,6 +579,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
               <thead>
                 <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-400 font-black uppercase text-[10px] tracking-wider">
                   <th className="p-4 pl-6">Data</th>
+                  <th className="p-4">Lote</th>
                   <th className="p-4">Médico / Destinatário</th>
                   <th className="p-4">Tipo de Lançamento</th>
                   <th className="p-4">Descrição / Observação</th>
@@ -598,6 +599,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                       <td className="p-4 pl-6 text-gray-500 font-mono text-[11px] whitespace-nowrap">
                         {t.date || "14/09/2026"}
                       </td>
+
+                      <td className="p-4 font-bold text-blue-700 whitespace-nowrap">{t.lote || t.loteNumber || t.batchNumber || t.batch || "—"}</td>
 
                       <td className="p-4">
                         <div className="flex items-center gap-2">
