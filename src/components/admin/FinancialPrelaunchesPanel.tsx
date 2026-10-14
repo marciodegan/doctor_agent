@@ -6,6 +6,8 @@ type Prelaunch = {
   id: string;
   batchId: string;
   fileName: string;
+  lote?: string;
+  loteNumber?: string;
   date: string;
   doctorId: string;
   doctorName: string;
@@ -148,6 +150,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
         method: "PATCH",
         body: JSON.stringify({
           date: values.date,
+          lote: String(values.lote || values.loteNumber || "").trim(),
           amount: Number(values.amount),
           observation: values.observation || values.description,
           description: values.description,
@@ -207,6 +210,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
           amount: Number(row.amount),
           date: row.date,
           observation: row.observation || row.description,
+          lote: String(row.lote || row.loteNumber || "").trim(),
           source: "PDF"
         })
       });
@@ -354,7 +358,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                 <div className="overflow-x-auto">
                   <table className="min-w-[1250px] w-full text-left text-xs">
                     <thead className="bg-slate-100 text-[10px] font-black uppercase tracking-wide text-slate-500">
-                      <tr><th className="p-3">Data</th><th className="p-3">Médico</th><th className="p-3">Tipo cadastrado</th><th className="p-3">Descrição / Observação</th><th className="p-3 text-right">Valor</th><th className="p-3">Conferência</th><th className="p-3">Ações</th></tr>
+                      <tr><th className="p-3">Data</th><th className="p-3">Lote</th><th className="p-3">Médico</th><th className="p-3">Tipo cadastrado</th><th className="p-3">Descrição / Observação</th><th className="p-3 text-right">Valor</th><th className="p-3">Conferência</th><th className="p-3">Ações</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {batchRows.map((row, rowIndex) => {
@@ -388,6 +392,7 @@ export function FinancialPrelaunchesPanel({ closingId, apiFetch, transactionType
                           <React.Fragment key={row.id}>
                             <tr className={missingType || missingDoctor || !row.date || isDirty ? "bg-amber-50/80" : "bg-white hover:bg-slate-50/70"}>
                               <td className="p-2"><input value={row.date || ""} onChange={e => updateLocal(row.id, { date: e.target.value })} placeholder="DD/MM/AAAA" className={fieldClass + " min-w-28"}/></td>
+                              <td className="p-2"><input value={row.lote || row.loteNumber || ""} onChange={e => updateLocal(row.id, { lote: e.target.value, loteNumber: e.target.value })} placeholder="Nº do lote" className={fieldClass + " min-w-24"}/></td>
                               <td className="p-2">
                                 {selectedType?.defaultScope === "TEAM" && !isDoctorSelectableType(selectedType) ? (
                                   <div className="min-w-44 rounded-lg bg-slate-100 px-2.5 py-2 text-[11px] text-slate-500">Equipe · conforme tipo cadastrado</div>
