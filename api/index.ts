@@ -4763,37 +4763,79 @@ Analise o demonstrativo e retorne JSON com totals (production, taxes, glosas, ne
 
 app.put("/api/app/financial/transactions/:id", async (req, res) => {
   const { id } = req.params;
-  const { amount, observation, date, typeName } = req.body;
+  const groupId = getGroupId(req);
+  const { amount, observation, date, typeId, typeName, doctorId: requestedDoctorId, doctorName: requestedDoctorName, lote } = req.body;
   try {
     const txRef = db.collection("financial_transactions").doc(id);
     const doc = await txRef.get();
-    if (!doc.exists) return res.status(404).json({ error: "Transaction not found" });
+    if (!doc.exists) return res.status(404).json({ error: "Lançamento não encontrado." });
 
-    const existingTransaction = doc.data() || {};
-    if (amount !== undefined) {
-      const parsedAmount = Number(amount);
-      if (!Number.isFinite(parsedAmount) || parsedAmount === 0) {
-        return res.status(400).json({ error: "Informe um valor numérico diferente de zero." });
-      }
-      if (parsedAmount < 0) {
-        let negativeAllowed = existingTransaction.allowNegativeAmount === true;
-        if (!negativeAllowed && existingTransaction.typeId) {
-          const typeSnap = await db.collection("financial_transaction_types").doc(String(existingTransaction.typeId)).get();
-          const typeData = typeSnap.exists ? typeSnap.data() : undefined;
-          negativeAllowed = typeData?.teamId === getGroupId(req) &&
-            typeData?.nature !== "CREDIT" && typeData?.allowNegativeAmount === true;
-        }
-        if (!negativeAllowed) {
-          return res.status(400).json({ error: "Este tipo de lançamento não permite valores negativos." });
-        }
-      }
+    const existingTransaction: any = doc.data() || {};
+    if (existingTransaction.teamId && existingTransaction.teamId !== groupId) {
+      return res.status(403).json({ error: "Este lançamento pertence a outro grupo." });
+    }
+    const nextTypeId = typeId !== undefined ? String(typeId || "") : String(existingTransaction.typeId || "");
+    const typeSnap = nextTypeId
+      ? await db.collection("financial_transaction_types").doc(nextTypeId).get()
+      : null;
+    const typeData: any = typeSnap?.exists ? typeSnap.data() : undefined;
+    if (!typeData || typeData.teamId !== groupId || typeData.isDeleted === true) {
+      return res.status(400).json({ error: "Tipo de lançamento inválido. Atualize a lista e selecione um tipo cadastrado." });
     }
 
+    const nextAmount = amount !== undefined ? Number(amount) : Number(existingTransaction.amount);
+    if (!Number.isFinite(nextAmount) || nextAmount === 0) {
+      return res.status(400).json({ error: "Informe um valor numérico diferente de zero." });
+    }
+    const isSalary = typeData.isSalary === true;
+    const matrixAdjustmentType = ["ACERTO_1", "SOBRE_MES_ANTERIOR", "ACERTO_FINAL"].includes(typeData.matrixAdjustmentType)
+      ? typeData.matrixAdjustmentType : null;
+    const allowNegativeAmount = typeData.nature !== "CREDIT" && typeData.allowNegativeAmount === true;
+    if (nextAmount < 0 && !allowNegativeAmount && !matrixAdjustmentType) {
+      return res.status(400).json({ error: "O tipo selecionado não permite valores negativos." });
+    }
+
+    const nextNature = isSalary || matrixAdjustmentType ? "DEBIT" : typeData.nature === "CREDIT" ? "CREDIT" : "DEBIT";
+    const isSobreavisosWithDoctor = /SOBREAVISOS/i.test(String(typeData.name || "")) && Boolean(requestedDoctorId ?? existingTransaction.doctorId);
+    const nextScope = isSalary || matrixAdjustmentType || String(typeData.defaultScope || "TEAM").toUpperCase() === "DOCTOR" || isSobreavisosWithDoctor
+      ? "DOCTOR" : "TEAM";
+    const selectedDoctorId = String(requestedDoctorId !== undefined ? requestedDoctorId || "" : existingTransaction.doctorId || "");
+    let selectedDoctorData: any = null;
+    if (nextScope === "DOCTOR") {
+      const fixedDoctorId = selectedDoctorId || String(typeData.doctorId || "");
+      if (!fixedDoctorId || ["HEART_EQUIPE", "HEART", "TEAM", "EQUIPE"].includes(fixedDoctorId.toUpperCase())) {
+        return res.status(400).json({ error: "Este tipo exige a seleção de um médico." });
+      }
+      const doctorSnap = await db.collection("doctors").doc(fixedDoctorId).get();
+      if (doctorSnap.exists) selectedDoctorData = doctorSnap.data() || {};
+      else return res.status(400).json({ error: "O médico selecionado não existe. Atualize a lista de médicos." });
+      req.body.doctorId = fixedDoctorId;
+    }
+
+    const finalDoctorId = nextScope === "TEAM" ? "heart_equipe" : String(req.body.doctorId || selectedDoctorId || typeData.doctorId || "");
+    const finalDoctorName = nextScope === "TEAM"
+      ? "HEART CIRURGIA CARDIOVASCULAR"
+      : String(selectedDoctorData?.name || requestedDoctorName || existingTransaction.doctorName || finalDoctorId);
+    const nextLote = lote !== undefined ? String(lote || "").trim() : String(existingTransaction.lote || existingTransaction.loteNumber || existingTransaction.batchNumber || existingTransaction.batch || "").trim();
+
     await txRef.update({
-      ...(amount !== undefined && { amount: Number(amount) }),
-      ...(observation !== undefined && { observation }),
-      ...(date !== undefined && { date }),
-      ...(typeName !== undefined && { typeName }),
+      ...(amount !== undefined && { amount: nextAmount }),
+      ...(observation !== undefined && { observation: String(observation || "") }),
+      ...(date !== undefined && { date: String(date || "") }),
+      typeId: nextTypeId,
+      typeName: String(typeData.name || typeName || nextTypeId),
+      nature: nextNature,
+      scope: nextScope,
+      doctorId: finalDoctorId,
+      doctorName: finalDoctorName,
+      rateioMethod: nextScope === "TEAM" ? (typeData.defaultRateioMethod || (nextNature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART")) : null,
+      isSalary,
+      matrixAdjustmentType,
+      allowNegativeAmount: matrixAdjustmentType ? true : allowNegativeAmount,
+      lote: nextLote,
+      loteNumber: nextLote,
+      batchNumber: nextLote,
+      batch: nextLote,
       updatedAt: new Date().toISOString()
     });
 
