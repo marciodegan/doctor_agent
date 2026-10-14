@@ -4351,9 +4351,42 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
         createdAt: new Date().toISOString()
       });
     }
-    // 4. financial_transactions - Capitalização Cota-Parte & Occurrences
+    // 4. financial_transactions - ocorrências do PDF.
+    // A disponibilidade UTI é individual e destinada à coluna Plantão TT.
     if (Array.isArray(parsedData.occurrences)) {
+      const normalizeOccurrenceName = (value: any) => String(value || "")
+        .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ");
+      const isUtiAvailability = (occ: any) =>
+        /DISPONIBILIDADE MEDICA.*UTI|PLANTAO UTI/.test(normalizeOccurrenceName(occ.description));
+      const utiTypeName = "Disponibilidade Médica - UTI (Plantão Individual)";
+      const utiTypeId = "disponibilidade_uti_plantao_individual";
+      const utiTypeRef = db.collection("financial_transaction_types").doc(utiTypeId);
+      const utiTypeDoc = await utiTypeRef.get();
+      if (!utiTypeDoc.exists) {
+        await utiTypeRef.set({
+          id: utiTypeId, teamId: groupId, name: utiTypeName, nature: "CREDIT",
+          defaultScope: "DOCTOR", defaultRateioMethod: "NOMINAL", category: "Plantões",
+          description: "Disponibilidade UTI importada do PDF; destino exclusivo: Plantão TT",
+          matrixDestination: "UNIMED_PLANTAO_TT", isCustom: false,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        });
+      }
+      const doctorSnapshot = await db.collection("doctors").where("teamId", "==", groupId).get();
+      const doctorDocs = doctorSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      const mappingSnapshot = await db.collection("doctor_provider_mappings")
+        .where("teamId", "==", groupId).where("active", "==", true).get();
+      const doctorMappings = mappingSnapshot.docs.map(doc => doc.data() as any);
       for (const occ of parsedData.occurrences) {
+        const utiAvailability = isUtiAvailability(occ);
+        const occurrenceDoctorName = String(occ.doctorName || (utiAvailability ? occ.provider : "") || "").trim();
+        const matchedDoctor = utiAvailability && occurrenceDoctorName
+          ? doctorDocs.find((doctor: any) => normalizeOccurrenceName(doctor.name || doctor.displayName) === normalizeOccurrenceName(occurrenceDoctorName))
+          : null;
+        const matchedMapping = utiAvailability && occurrenceDoctorName
+          ? doctorMappings.find((mapping: any) => normalizeOccurrenceName(mapping.doctorName) === normalizeOccurrenceName(occurrenceDoctorName))
+          : null;
+        const utiDoctorId = matchedDoctor?.id || matchedMapping?.doctorId || "";
+        const utiDoctorName = matchedDoctor?.name || matchedMapping?.doctorName || occurrenceDoctorName;
         const txRef = db.collection("financial_transactions").doc();
         batch.set(txRef, {
           id: txRef.id,
