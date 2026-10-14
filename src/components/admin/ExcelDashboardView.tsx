@@ -965,8 +965,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       // Disponibilidade UTI importada do PDF é individual, exclusiva de Plantão TT.
       // Não deve aparecer em Part. TT nem ser rateada para Equipe TT.
       const normalizedTypeName = normalize(getEffectiveTransactionType(tx)?.name || tx.typeName || "");
-      const isImportedUtiPlantao = normalizedTypeName === "DISPONIBILIDADE MEDICA - UTI (PLANTAO INDIVIDUAL)"
-        && String(tx.source || "").toUpperCase() === "PDF_AI";
+      // O importador pode gravar o nome legado "Disponibilidade Médica - UTI"
+      // mesmo após a nova configuração do tipo. Reconhecer ambos os nomes evita
+      // que a entrada individual do PDF caia em Part. TT.
+      const isImportedUtiPlantao = (
+        normalizedTypeName === "DISPONIBILIDADE MEDICA - UTI"
+        || normalizedTypeName === "DISPONIBILIDADE MEDICA - UTI (PLANTAO INDIVIDUAL)"
+      ) && scope === "DOCTOR"
+        && /PDF/i.test(String(tx.source || tx.sourceFile || tx.importId || ""));
       if (isImportedUtiPlantao) {
         if (scope !== "DOCTOR" || isTeamPlaceholderId || !resolvedSelectedDoctor?.name) {
           console.error("[CashFlowAllocation] UTI plantão individual sem médico válido", {
