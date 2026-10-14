@@ -1181,13 +1181,18 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         const normalizeOccurrence = (value: any) => String(value || "")
           .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
         const normalizeLotNumber = (value: any) => String(value ?? "").trim().replace(/\.0$/, "");
-        // O lote é a chave de cruzamento. Aceita as diferentes propriedades usadas
-        // pelas importações e rótulos de origem, mas nunca soma lançamentos manuais.
+        const rowImportId = String(item.importId || "").trim();
+        // Preferir o vínculo exato da importação evita depender de variações no
+        // campo lote entre registros antigos. Usar o número do lote como fallback.
+        // Nunca somar lançamentos manuais nem lançamentos de outra importação.
         const pdfTransactions = (Array.isArray(details?.transactions) ? details.transactions : []).filter((tx: any) => {
           const transactionLot = normalizeLotNumber(tx.lote ?? tx.loteNumber ?? tx.batchNumber ?? tx.batch);
+          const transactionImportId = String(tx.importId || "").trim();
           const source = String(tx.source || "").trim().toUpperCase();
-          const isImportedPdf = source.includes("PDF") || Boolean(tx.importId);
-          return transactionLot === normalizeLotNumber(lotNumber) &&
+          const isImportedPdf = source.includes("PDF") || Boolean(transactionImportId);
+          const matchesImport = Boolean(rowImportId) && transactionImportId === rowImportId;
+          const matchesLot = transactionLot === normalizeLotNumber(lotNumber);
+          return (matchesImport || (!rowImportId && matchesLot)) &&
             source !== "MANUAL" && isImportedPdf;
         });
         const allowedPositiveTypes = /^(?:DISPONIBILIDADE(?: MEDICA)?(?: -)? (?:REUMATOLOGIA|GINECOLOGIA(?: - CENTRO OBSTETRICO)?|UTI)|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL)$/;
