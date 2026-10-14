@@ -2482,7 +2482,7 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
           id: db.collection("financial_taxes").doc().id, teamId: groupId, closingId: actualClosingId, importId,
           batchNumber: lote, lote, source: "XLS_IMPORT", sourceDocument: fileName,
           competencia: "", tipo: "Produção CSV", titulo: fileName, vencimento: "",
-          bruto, vlNotaCalculado: bruto, producaoCsv: bruto, ocorrenciasPositivas: 0, glosasNota: 0, glosa: 0,
+          bruto, outrosValores: 0, totalNota: bruto, vlNotaCalculado: bruto, producaoCsv: bruto, ocorrenciasPositivas: 0, glosasNota: 0, glosa: 0,
           pis: 0, cofins: 0, csll: 0, irrf: 0, iss: 0, ttImpostosNota: 0, ttRetencao: 0,
           lucroPresumido: 0, irpj: 0, csll9: 0, add10: 0, reservaImposto: 0, liquido: bruto,
           createdAt: new Date().toISOString()
@@ -4311,7 +4311,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
         id: loteTaxRef.id, teamId: groupId, closingId, batchNumber: bNum, importId,
         source: "XLS_IMPORT", sourceDocument: srcFile, sourceFileUrl: String(sourceFileUrl || ""),
         lote: bNum, competencia: "", tipo: "Produção CSV", titulo: srcFile, vencimento: "",
-        bruto: csvGross, vlNotaCalculado: csvGross, producaoCsv: csvGross, ocorrenciasPositivas: 0, glosasNota: 0, glosa: 0,
+        bruto: csvGross, outrosValores: 0, totalNota: csvGross, vlNotaCalculado: csvGross, producaoCsv: csvGross, ocorrenciasPositivas: 0, glosasNota: 0, glosa: 0,
         pis: 0, cofins: 0, csll: 0, irrf: 0, iss: 0, ttImpostosNota: 0, ttRetencao: 0,
         lucroPresumido: 0, irpj: 0, csll9: 0, add10: 0, reservaImposto: 0, liquido: csvGross,
         createdAt: new Date().toISOString()
