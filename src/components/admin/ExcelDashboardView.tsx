@@ -1190,7 +1190,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           return transactionLot === normalizeLotNumber(lotNumber) &&
             source !== "MANUAL" && isImportedPdf;
         });
-        const allowedPositiveTypes = /DISPONIBILIDADE|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL/;
+        const allowedPositiveTypes = /^(?:DISPONIBILIDADE(?: MEDICA)?(?: -)? (?:REUMATOLOGIA|GINECOLOGIA(?: - CENTRO OBSTETRICO)?|UTI)|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL)$/;
         const eligibleCredits = pdfTransactions.filter((tx: any) => {
           const label = normalizeOccurrence(tx.typeName || tx.observation || tx.description);
           const amount = Number(tx.amount) || 0;
