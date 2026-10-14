@@ -1180,9 +1180,13 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         const lotNumber = String(item.lote || item.batchNumber || item.id || "");
         const normalizeOccurrence = (value: any) => String(value || "")
           .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
+        // The transaction list may expose the PDF origin as a display label rather
+        // than the internal PDF_AI enum. The lot link is the authoritative relation.
+        // Exclude manually created transactions so only imported source rows are counted.
         const pdfTransactions = (Array.isArray(details?.transactions) ? details.transactions : []).filter((tx: any) =>
-          String(tx.lote || tx.batch || tx.batchNumber || tx.loteNumber || "") === lotNumber &&
-          String(tx.source || "").toUpperCase() === "PDF_AI"
+          String(tx.lote || tx.batch || tx.batchNumber || tx.loteNumber || "").trim() === lotNumber.trim() &&
+          (String(tx.source || "").toUpperCase() === "PDF_AI" ||
+           (Boolean(tx.importId) && String(tx.source || "").toUpperCase() !== "MANUAL"))
         );
         const allowedPositiveTypes = /DISPONIBILIDADE|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL/;
         const eligibleCredits = pdfTransactions.filter((tx: any) =>
