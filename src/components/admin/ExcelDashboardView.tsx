@@ -1180,18 +1180,23 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         const lotNumber = String(item.lote || item.batchNumber || item.id || "");
         const normalizeOccurrence = (value: any) => String(value || "")
           .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
-        // The transaction list may expose the PDF origin as a display label rather
-        // than the internal PDF_AI enum. The lot link is the authoritative relation.
-        // Exclude manually created transactions so only imported source rows are counted.
-        const pdfTransactions = (Array.isArray(details?.transactions) ? details.transactions : []).filter((tx: any) =>
-          String(tx.lote || tx.batch || tx.batchNumber || tx.loteNumber || "").trim() === lotNumber.trim() &&
-          (String(tx.source || "").toUpperCase() === "PDF_AI" ||
-           (Boolean(tx.importId) && String(tx.source || "").toUpperCase() !== "MANUAL"))
-        );
+        const normalizeLotNumber = (value: any) => String(value ?? "").trim().replace(/\.0$/, "");
+        // O lote é a chave de cruzamento. Aceita as diferentes propriedades usadas
+        // pelas importações e rótulos de origem, mas nunca soma lançamentos manuais.
+        const pdfTransactions = (Array.isArray(details?.transactions) ? details.transactions : []).filter((tx: any) => {
+          const transactionLot = normalizeLotNumber(tx.lote ?? tx.loteNumber ?? tx.batchNumber ?? tx.batch);
+          const source = String(tx.source || "").trim().toUpperCase();
+          const isImportedPdf = source.includes("PDF") || Boolean(tx.importId);
+          return transactionLot === normalizeLotNumber(lotNumber) &&
+            source !== "MANUAL" && isImportedPdf;
+        });
         const allowedPositiveTypes = /DISPONIBILIDADE|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL/;
-        const eligibleCredits = pdfTransactions.filter((tx: any) =>
-          (Number(tx.amount) || 0) > 0 && allowedPositiveTypes.test(normalizeOccurrence(tx.typeName || tx.observation))
-        ).reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0);
+        const eligibleCredits = pdfTransactions.filter((tx: any) => {
+          const label = normalizeOccurrence(tx.typeName || tx.observation || tx.description);
+          const amount = Number(tx.amount) || 0;
+          const isCredit = String(tx.nature || "").toUpperCase() === "CREDIT" || amount > 0;
+          return isCredit && allowedPositiveTypes.test(label);
+        }).reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0);
         const itemizedGlosas = pdfTransactions.filter((tx: any) =>
           /GLOSAS.*CLINICA COOPERADA/.test(normalizeOccurrence(tx.typeName || tx.observation))
         ).reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0);
