@@ -4359,10 +4359,12 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       const isUtiAvailability = (occ: any) =>
         /DISPONIBILIDADE MEDICA.*UTI|PLANTAO UTI/.test(normalizeOccurrenceName(occ.description));
       const utiTypeName = "Disponibilidade Médica - UTI (Plantão Individual)";
-      const utiTypeId = "disponibilidade_uti_plantao_individual";
-      const utiTypeRef = db.collection("financial_transaction_types").doc(utiTypeId);
-      const utiTypeDoc = await utiTypeRef.get();
-      if (!utiTypeDoc.exists) {
+      const utiTypeCollection = db.collection("financial_transaction_types");
+      const utiTypeSnapshot = await utiTypeCollection.where("teamId", "==", groupId).where("name", "==", utiTypeName).limit(1).get();
+      let utiTypeId = utiTypeSnapshot.empty ? "" : utiTypeSnapshot.docs[0].id;
+      if (!utiTypeId) {
+        const utiTypeRef = utiTypeCollection.doc();
+        utiTypeId = utiTypeRef.id;
         await utiTypeRef.set({
           id: utiTypeId, teamId: groupId, name: utiTypeName, nature: "CREDIT",
           defaultScope: "DOCTOR", defaultRateioMethod: "NOMINAL", category: "Plantões",
