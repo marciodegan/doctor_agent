@@ -1111,7 +1111,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           : transactionLot === lotNumber;
         return linkedToRow && source !== "MANUAL" && (source.includes("PDF") || Boolean(transactionImportId));
       });
-      const allowedPositiveTypes = /^(?:DISPONIBILIDADE(?: MEDICA)?(?: -)? (?:REUMATOLOGIA|GINECOLOGIA(?: - CENTRO OBSTETRICO)?|UTI)|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL)(?: \\(PLANTAO INDIVIDUAL\\))?$/;
+      const allowedPositiveTypes = /^(?:DISPONIBILIDADE(?: MEDICA)?(?: -)? (?:REUMATOLOGIA|GINECOLOGIA(?: - CENTRO OBSTETRICO)?|UTI)|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL)(?: \(PLANTAO INDIVIDUAL\))?$/;
       const credits = linkedPdfTransactions.filter((tx: any) => {
         const label = normalizeLotLabel(tx.typeName || tx.observation || tx.description);
         const amount = Number(tx.amount) || 0;
@@ -1251,7 +1251,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           const linkedToRow = hasTransactionsForRowImport ? matchesImport : matchesLot;
           return linkedToRow && source !== "MANUAL" && isImportedPdf;
         });
-        const allowedPositiveTypes = /^(?:DISPONIBILIDADE(?: MEDICA)?(?: -)? (?:REUMATOLOGIA|GINECOLOGIA(?: - CENTRO OBSTETRICO)?|UTI)|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL)(?: \\(PLANTAO INDIVIDUAL\\))?$/;
+        const allowedPositiveTypes = /^(?:DISPONIBILIDADE(?: MEDICA)?(?: -)? (?:REUMATOLOGIA|GINECOLOGIA(?: - CENTRO OBSTETRICO)?|UTI)|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL)(?: \(PLANTAO INDIVIDUAL\))?$/;
         const eligibleCredits = pdfTransactions.filter((tx: any) => {
           const label = normalizeOccurrence(tx.typeName || tx.observation || tx.description);
           const amount = Number(tx.amount) || 0;
