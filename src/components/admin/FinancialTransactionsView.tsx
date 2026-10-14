@@ -814,6 +814,18 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
               </div>
 
               <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Lote (opcional)</label>
+                <input
+                  type="text"
+                  value={newForm.lote}
+                  onChange={e => setNewForm({ ...newForm, lote: e.target.value })}
+                  placeholder="Informe o número do lote para vincular à matriz"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs focus:border-emerald-500"
+                />
+                <span className="text-[10px] text-gray-400 font-normal">Ao informar o lote, o lançamento fica vinculado a ele para os cálculos e totais da matriz.</span>
+              </div>
+
+              <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Tipo de Lançamento *</label>
                 <select
                   required
