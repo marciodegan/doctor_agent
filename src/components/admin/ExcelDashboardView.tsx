@@ -1073,7 +1073,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     // When a lot row exists, bruto already represents the reconciled VL NOTA (production plus eligible occurrences less itemized glosas).
     // Do not add operational/film again because they are already included in the imported production total.
     const lotProductionBase = loteRows.reduce((sum: number, item: any) => sum + (Number(item.vlNotaCalculado ?? item.bruto) || 0), 0);
-    const productionBase = loteProductionBase > 0 ? lotProductionBase : productionRecords.reduce((sum: number, item: any) => sum + (Number(item.honorValue) || 0) + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
+    const productionBase = lotProductionBase > 0 ? lotProductionBase : productionRecords.reduce((sum: number, item: any) => sum + (Number(item.honorValue) || 0) + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
     const irrfTotal = Math.round(productionBase * noteSettings.irrfPercent) / 100;
     const pisTotal = Math.round(productionBase * noteSettings.pisPercent) / 100;
     const cofinsTotal = Math.round(productionBase * noteSettings.cofinsPercent) / 100;
