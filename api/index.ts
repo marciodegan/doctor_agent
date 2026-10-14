@@ -4163,8 +4163,10 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       csvProductionForLot = Math.round((Number(parsedData.totals?.production) || 0) * 100) / 100;
     } else if (hasCsvImport) {
       const csvImportIds = new Set(sameLotImports.filter((item: any) => item.source === "XLS_IMPORT").map((item: any) => String(item.id)));
-      const csvProductionSnap = await db.collection("financial_production").where("closingId", "==", closingId).where("batchNumber", "==", bNum).get();
-      const csvRows = csvProductionSnap.docs.filter((doc: any) => csvImportIds.has(String(doc.data()?.importId || "")));
+      const csvProductionSnap = await db.collection("financial_production").where("closingId", "==", closingId).get();
+      const csvRows = csvProductionSnap.docs.filter((doc: any) =>
+        String(doc.data()?.batchNumber || "") === bNum && csvImportIds.has(String(doc.data()?.importId || ""))
+      );
       if (csvRows.length) csvProductionForLot = Math.round(csvRows.reduce((sum: number, doc: any) => {
         const row = doc.data() || {};
         return sum + (Number(row.honorValue) || 0) + (Number(row.operationalValue) || 0) + (Number(row.filmValue) || 0);
