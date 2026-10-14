@@ -4275,7 +4275,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
           type: t.type,
           code: t.code,
           description: t.description || `${t.type} - Retenção`,
-          baseValue: Number(t.baseValue) || Number(parsedData.totals?.production) || 0,
+          baseValue: Number(parsedData.loteRow?.totalNota ?? parsedData.loteRow?.vlNotaCalculado) || Number(t.baseValue) || Number(parsedData.totals?.production) || 0,
           taxValue: Number(t.taxValue) || 0,
           source: "PDF_AI",
           sourceDocument: srcFile,
