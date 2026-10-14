@@ -4243,23 +4243,39 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       }
     }
 
-    // 3.1 financial_taxes - Lote row for "Demonstrativo de Notas & Lotes Unimed"
+    // Keep exactly one visible Unimed lot row for each batch.
     if (parsedData.loteRow && importSource === "PDF_AI") {
+      // When the CSV arrived first, remove its provisional row so the PDF row becomes authoritative.
+      if (hasCsvImport) {
+        const csvImportIdsForTax = new Set(sameLotImports.filter((item: any) => item.source === "XLS_IMPORT").map((item: any) => String(item.id)));
+        const csvTaxSnapshots = await Promise.all(Array.from(csvImportIdsForTax).map(id => db.collection("financial_taxes").where("importId", "==", id).get()));
+        for (const snapshot of csvTaxSnapshots) {
+          for (const doc of snapshot.docs) {
+            const data: any = doc.data() || {};
+            if (String(data.lote || data.batchNumber || "") === bNum && data.bruto !== undefined) batch.delete(doc.ref);
+          }
+        }
+      }
       const loteTaxRef = db.collection("financial_taxes").doc();
       batch.set(loteTaxRef, {
-        id: loteTaxRef.id,
-        teamId: groupId,
-        closingId,
-        batchNumber: bNum,
-        importId,
-        source: "PDF_AI",
-        sourceDocument: srcFile,
-        sourceFileUrl: String(sourceFileUrl || ""),
-        ...parsedData.loteRow,
+        id: loteTaxRef.id, teamId: groupId, closingId, batchNumber: bNum, importId,
+        source: "PDF_AI", sourceDocument: srcFile, sourceFileUrl: String(sourceFileUrl || ""),
+        ...parsedData.loteRow, createdAt: new Date().toISOString()
+      });
+    } else if (importSource === "XLS_IMPORT" && !sameLotImports.some((item: any) => item.source === "PDF_AI")) {
+      // Show the CSV lot immediately, even before its financial PDF is imported.
+      const csvGross = Math.round((Number(parsedData.totals?.production) || 0) * 100) / 100;
+      const loteTaxRef = db.collection("financial_taxes").doc();
+      batch.set(loteTaxRef, {
+        id: loteTaxRef.id, teamId: groupId, closingId, batchNumber: bNum, importId,
+        source: "XLS_IMPORT", sourceDocument: srcFile, sourceFileUrl: String(sourceFileUrl || ""),
+        lote: bNum, competencia: "", tipo: "Produção CSV", titulo: srcFile, vencimento: "",
+        bruto: csvGross, vlNotaCalculado: csvGross, producaoCsv: csvGross, ocorrenciasPositivas: 0, glosasNota: 0, glosa: 0,
+        pis: 0, cofins: 0, csll: 0, irrf: 0, iss: 0, ttImpostosNota: 0, ttRetencao: 0,
+        lucroPresumido: 0, irpj: 0, csll9: 0, add10: 0, reservaImposto: 0, liquido: csvGross,
         createdAt: new Date().toISOString()
       });
     }
-
     // 4. financial_transactions - Capitalização Cota-Parte & Occurrences
     if (Array.isArray(parsedData.occurrences)) {
       for (const occ of parsedData.occurrences) {
