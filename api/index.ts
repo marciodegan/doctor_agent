@@ -3514,6 +3514,7 @@ const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) =>
 app.post("/api/app/financial/transactions/ai-preview", async (req, res) => {
   const groupId = getGroupId(req);
   const { fileName, mimeType, base64, closingId } = req.body || {};
+  const filenameLot = String(fileName || "").trim().match(/^(\\d+)/)?.[1] || "";
   if (!closingId) return res.status(400).json({ error: "Selecione uma competência antes de importar." });
   if (!base64 || !fileName) return res.status(400).json({ error: "Selecione um documento para interpretar." });
   const allowedMime = ["application/pdf", "image/png", "image/jpeg"];
@@ -3551,12 +3552,12 @@ app.post("/api/app/financial/transactions/ai-preview", async (req, res) => {
     const prompt = `Você extrai lançamentos de ocorrências financeiras de documentos médicos brasileiros.
 Leia TODAS as páginas e TODAS as seções do documento. Retorne SOMENTE JSON válido, sem markdown. Extraia cada ocorrência financeira individual que possa virar lançamento de fluxo de caixa; não extraia procedimentos médicos/produção como se fossem ocorrências, mas NÃO ignore linhas financeiras só porque estão dentro de uma tabela de atendimento/plantão.
 REGRA DE COMPLETUDE: percorra o documento do início ao fim, bloco por bloco de médico, e extraia todas as linhas financeiras visíveis, sem pular nenhuma. Inclua contribuições, integralizações, mensalidades, glosas, descontos, bonificações, sobreavisos, remunerações, disponibilidades e recebimentos. Linhas com o rótulo "Disponibilidade - [especialidade]" também são ocorrências financeiras e DEVEM ser extraídas quando tiverem data e valor, inclusive se aparecerem imediatamente antes de uma tabela de atendimento/plantão. Quando uma tabela de atendimento/plantão aparece aninhada logo abaixo de uma ocorrência financeira de disponibilidade e repete exatamente o mesmo valor para o mesmo médico, trate a tabela como detalhamento da ocorrência, NÃO como um segundo lançamento. Nesse caso, mantenha apenas a linha principal "Disponibilidade - [especialidade]" e use os dados da tabela como observação/contexto. Só extraia um plantão separado se ele tiver um valor financeiro próprio distinto ou estiver claramente identificado como outra ocorrência independente.
-Para cada linha extraída retorne date (data exatamente como aparece, preferencialmente DD/MM/AAAA), description, amount (número em reais sem símbolo e com o sinal original), nature ("DEBIT" para despesa/desconto/valor devido e "CREDIT" para recebimento/repasse), doctorName (nome EXATO de um médico da lista abaixo, ou string vazia quando não houver identificação segura), typeName (nome EXATO de um tipo cadastrado abaixo, ou string vazia quando não houver correspondência segura), observation (descrição/contexto relevante), confidence ("HIGH", "MEDIUM" ou "LOW") e warning (explicação curta quando houver dúvida).
+Para cada linha extraída retorne lote (número do lote identificado no cabeçalho do documento; string vazia se não for possível identificar), date (data exatamente como aparece, preferencialmente DD/MM/AAAA), description, amount (número em reais sem símbolo e com o sinal original), nature ("DEBIT" para despesa/desconto/valor devido e "CREDIT" para recebimento/repasse), doctorName (nome EXATO de um médico da lista abaixo, ou string vazia quando não houver identificação segura), typeName (nome EXATO de um tipo cadastrado abaixo, ou string vazia quando não houver correspondência segura), observation (descrição/contexto relevante), confidence ("HIGH", "MEDIUM" ou "LOW") e warning (explicação curta quando houver dúvida).
 Não invente dados. Preserve valores e datas. Se o documento separar ocorrências por médico, associe cada linha ao médico do bloco correspondente, inclusive tabelas anexas que aparecem dentro desse bloco. Valores negativos no documento normalmente representam saídas; use o significado e o rótulo da ocorrência para definir a natureza. Não transforme uma despesa em entrada apenas pelo sinal. Não invente categorias nem crie tipos novos. Se não for possível identificar uma data, use string vazia.
 Ao encontrar uma descrição que corresponda a um tipo cadastrado, escolha o nome EXATO desse tipo. Por exemplo, uma linha "Disponibilidade - Reumatologia" deve ser vinculada ao tipo "Disponibilidade - Reumatologia" se ele existir no catálogo.
 CATÁLOGO DE MÉDICOS: ${JSON.stringify(doctors.map(d => ({ name: d.name })))}
 TIPOS CADASTRADOS: ${JSON.stringify(types.map(t => ({ name: t.name, nature: t.nature, scope: t.scope, category: t.category, description: t.description, allowNegativeAmount: t.allowNegativeAmount })))}
-Formato de saída: {"rows":[{"date":"","description":"","amount":0,"nature":"DEBIT","doctorName":"","typeName":"","observation":"","confidence":"LOW","warning":""}]}
+Formato de saída: {"rows":[{"lote":"","date":"","description":"","amount":0,"nature":"DEBIT","doctorName":"","typeName":"","observation":"","confidence":"LOW","warning":""}]}
 Não retorne resumo financeiro nem lançamentos que não estejam visíveis no documento.`;
 
     const ai = new GoogleGenAI({ apiKey });
@@ -3574,7 +3575,7 @@ Não retorne resumo financeiro nem lançamentos que não estejam visíveis no do
     const auditPrompt = `Faça uma SEGUNDA LEITURA INDEPENDENTE deste documento, do início ao fim, para encontrar ocorrências financeiras que a primeira leitura possa ter esquecido.
 Retorne SOMENTE JSON válido no formato {"rows":[...]}. Compare com a lista já extraída e retorne APENAS ocorrências que estejam visíveis no documento original e que NÃO estejam representadas na lista existente. Não repita ocorrências já listadas. Não invente nem estime valores.
 Confira cada bloco de médico e cada linha antes das tabelas de atendimento/plantão, dentro delas e depois delas. Dê atenção especial a linhas chamadas "Disponibilidade - [especialidade]" (ex.: "Disponibilidade - Reumatologia"), que são lançamentos financeiros e não devem ser descartadas como simples cabeçalhos de produção. Se uma tabela de plantão estiver aninhada sob uma ocorrência de disponibilidade e repetir o mesmo valor para o mesmo médico, não a devolva como outra ocorrência: ela é detalhamento da disponibilidade. Só retorne o plantão separadamente se estiver claramente identificado como lançamento independente com valor próprio distinto.
-Use a mesma regra de campos da primeira leitura: date, description, amount (número em reais com sinal original), nature ("DEBIT" ou "CREDIT"), doctorName, typeName (preferir o nome EXATO do catálogo), observation, confidence e warning. Associe cada ocorrência ao médico do bloco correspondente. Não inclua procedimentos sem valor financeiro próprio nem totais de seção.
+Use a mesma regra de campos da primeira leitura: lote (número do lote no cabeçalho, string vazia se não identificado), date, description, amount (número em reais com sinal original), nature ("DEBIT" ou "CREDIT"), doctorName, typeName (preferir o nome EXATO do catálogo), observation, confidence e warning. Associe cada ocorrência ao médico do bloco correspondente. Não inclua procedimentos sem valor financeiro próprio nem totais de seção.
 CATÁLOGO DE MÉDICOS: ${JSON.stringify(doctors.map(d => ({ name: d.name })))}
 TIPOS CADASTRADOS: ${JSON.stringify(types.map(t => ({ name: t.name, nature: t.nature, scope: t.scope, category: t.category, description: t.description, allowNegativeAmount: t.allowNegativeAmount })))}
 LINHAS JÁ EXTRAÍDAS: ${JSON.stringify(parsed.rows)}
@@ -3660,6 +3661,8 @@ Se não houver nenhuma ocorrência esquecida, retorne {"rows":[]}.`;
       const finalAmount = amount;
       return {
         id: String(index + 1),
+        lote: String(row.lote || filenameLot || "").trim(),
+        loteNumber: String(row.lote || filenameLot || "").trim(),
         date: String(row.date || "").trim(),
         description: String(row.description || "").trim(),
         amount: finalAmount,
