@@ -3190,6 +3190,7 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     amount,
     observation,
     date,
+    lote,
     prelaunchId
   } = req.body;
 
@@ -3318,6 +3319,9 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       nature: nature || "DEBIT",
       observation: observation || "",
       date: txDate,
+      lote: String(lote || "").trim(),
+      loteNumber: String(lote || "").trim(),
+      batchNumber: String(lote || "").trim(),
       source: source || "MANUAL",
       ...(prelaunchId ? { prelaunchId: String(prelaunchId) } : {}),
       createdAt: new Date().toISOString()
@@ -3514,7 +3518,7 @@ const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) =>
 app.post("/api/app/financial/transactions/ai-preview", async (req, res) => {
   const groupId = getGroupId(req);
   const { fileName, mimeType, base64, closingId } = req.body || {};
-  const filenameLot = String(fileName || "").trim().match(/^(\\d+)/)?.[1] || "";
+  const filenameLot = String(fileName || "").trim().match(/^([0-9]+)/)?.[1] || "";
   if (!closingId) return res.status(400).json({ error: "Selecione uma competência antes de importar." });
   if (!base64 || !fileName) return res.status(400).json({ error: "Selecione um documento para interpretar." });
   const allowedMime = ["application/pdf", "image/png", "image/jpeg"];
@@ -3779,6 +3783,11 @@ app.patch("/api/app/financial/prelaunches/:id", async (req, res) => {
     const body = req.body || {};
     const update: any = { updatedAt: new Date().toISOString() };
     if (body.date !== undefined) update.date = String(body.date || "").trim();
+    if (body.lote !== undefined || body.loteNumber !== undefined) {
+      const lote = String(body.lote ?? body.loteNumber ?? "").trim();
+      update.lote = lote;
+      update.loteNumber = lote;
+    }
     if (body.amount !== undefined) {
       const amount = Number(body.amount);
       if (!Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: "Informe um valor diferente de zero." });
