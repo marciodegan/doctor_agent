@@ -4065,7 +4065,7 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
     const eligiblePositiveOccurrences = financialOccurrences.filter((occ: any) => {
       const label = normalizeOccurrenceLabel(occ.description || occ.typeName);
       const amount = Number(occ.amount) || 0;
-      return amount > 0 && /DISPONIBILIDADE|SOBREAVISOS|REMUNERACAO BONIFICACAO PARTO NORMAL/.test(label);
+      return amount > 0 && /^(?:DISPONIBILIDADE(?: MEDICA)?(?: -)? (?:REUMATOLOGIA|GINECOLOGIA(?: - CENTRO OBSTETRICO)?|UTI)|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL)$/.test(label);
     }).reduce((sum: number, occ: any) => sum + Math.abs(Number(occ.amount) || 0), 0);
     // Use itemized financial glosas only. The separate "Glosa 2.703" summary is intentionally ignored.
     const financialGlosas = financialOccurrences.filter((occ: any) => /GLOSAS.*CLINICA COOPERADA/.test(normalizeOccurrenceLabel(occ.description || occ.typeName)))
@@ -4298,7 +4298,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       const positiveIncluded = parsedData.occurrences.filter((occ: any) => {
         const label = occurrenceDescription(occ);
         const amount = toOccurrenceAmount(occ.amount);
-        return amount > 0 && /DISPONIBILIDADE|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL/.test(label);
+        return amount > 0 && /^(?:DISPONIBILIDADE(?: MEDICA)?(?: -)? (?:REUMATOLOGIA|GINECOLOGIA(?: - CENTRO OBSTETRICO)?|UTI)|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL)$/.test(label);
       }).reduce((sum: number, occ: any) => sum + Math.abs(toOccurrenceAmount(occ.amount)), 0);
       const itemizedGlosas = parsedData.occurrences.filter((occ: any) => /GLOSAS.*CLINICA COOPERADA/.test(occurrenceDescription(occ)))
         .reduce((sum: number, occ: any) => sum + Math.abs(toOccurrenceAmount(occ.amount)), 0);
