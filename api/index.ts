@@ -4355,7 +4355,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
     // A disponibilidade UTI é individual e destinada à coluna Plantão TT.
     if (Array.isArray(parsedData.occurrences)) {
       const normalizeOccurrenceName = (value: any) => String(value || "")
-        .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ");
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
       const isUtiAvailability = (occ: any) =>
         /DISPONIBILIDADE MEDICA.*UTI|PLANTAO UTI/.test(normalizeOccurrenceName(occ.description));
       const utiTypeName = "Disponibilidade Médica - UTI (Plantão Individual)";
