@@ -1182,18 +1182,21 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
         const normalizeLotNumber = (value: any) => String(value ?? "").trim().replace(/\.0$/, "");
         const rowImportId = String(item.importId || "").trim();
-        // Preferir o vínculo exato da importação evita depender de variações no
-        // campo lote entre registros antigos. Usar o número do lote como fallback.
-        // Nunca somar lançamentos manuais nem lançamentos de outra importação.
-        const pdfTransactions = (Array.isArray(details?.transactions) ? details.transactions : []).filter((tx: any) => {
+        const allTransactions = Array.isArray(details?.transactions) ? details.transactions : [];
+        const hasTransactionsForRowImport = Boolean(rowImportId) && allTransactions.some((tx: any) =>
+          String(tx.importId || "").trim() === rowImportId && String(tx.source || "").toUpperCase().includes("PDF")
+        );
+        // Preferir a importação exata quando ela tem ocorrências. Em registros
+        // antigos/linhas CSV, cruzar pelo lote como fallback. Excluir lançamentos manuais.
+        const pdfTransactions = allTransactions.filter((tx: any) => {
           const transactionLot = normalizeLotNumber(tx.lote ?? tx.loteNumber ?? tx.batchNumber ?? tx.batch);
           const transactionImportId = String(tx.importId || "").trim();
           const source = String(tx.source || "").trim().toUpperCase();
           const isImportedPdf = source.includes("PDF") || Boolean(transactionImportId);
           const matchesImport = Boolean(rowImportId) && transactionImportId === rowImportId;
           const matchesLot = transactionLot === normalizeLotNumber(lotNumber);
-          return (matchesImport || (!rowImportId && matchesLot)) &&
-            source !== "MANUAL" && isImportedPdf;
+          const linkedToRow = hasTransactionsForRowImport ? matchesImport : matchesLot;
+          return linkedToRow && source !== "MANUAL" && isImportedPdf;
         });
         const allowedPositiveTypes = /^(?:DISPONIBILIDADE(?: MEDICA)?(?: -)? (?:REUMATOLOGIA|GINECOLOGIA(?: - CENTRO OBSTETRICO)?|UTI)|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL)$/;
         const eligibleCredits = pdfTransactions.filter((tx: any) => {
