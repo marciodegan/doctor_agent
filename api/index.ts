@@ -2367,6 +2367,19 @@ app.post("/api/app/financial/import", async (req, res) => {
 
     await batch.commit();
 
+    // If the CSV arrives after its PDF, refresh the PDF lot row using the CSV production total.
+    if (importSource === "XLS_IMPORT" && csvProductionForLot !== null) {
+      const pdfImports = sameLotImports.filter((item: any) => item.source === "PDF_AI");
+      for (const pdfImport of pdfImports) {
+        const taxRows = await db.collection("financial_taxes").where("importId", "==", pdfImport.id).get();
+        for (const taxDoc of taxRows.docs) {
+          const taxData: any = taxDoc.data() || {};
+          if (taxData.lote === undefined || taxData.bruto === undefined || taxData.liquido === undefined) continue;
+          await taxDoc.ref.set(recalculateLotFromProduction(taxData, csvProductionForLot), { merge: true });
+        }
+      }
+    }
+
     res.json({
       success: true,
       importId,
@@ -3930,7 +3943,7 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
       try {
         const ai = new GoogleGenAI({ apiKey });
         const contents: any[] = [];
-        const promptText = "Você é um auditor especialista em faturamento médico da Unimed. Analise o PDF com máxima fidelidade e retorne SOMENTE JSON válido.\nREGRAS CRÍTICAS:\n1. Extraia TODOS os lançamentos/procedimentos individuais das tabelas de produção.\n2. Para CADA lançamento preserve o EXECUTANTE e o PRESTADOR do respectivo lançamento/bloco.\n3. A combinação Executante + Prestador será usada posteriormente em doctor_provider_mappings. NÃO infira doctorId ou doctorName.\n4. Quando houver Executante: HEART CIRURGIA CARDIOVASCULAR, mantenha o Prestador interno do bloco como protocolProvider e nunca misture blocos.\n5. Quando houver Executante: CAMILA RIBEIRO DUTRA e Prestador: CONSULTORIO MEDICO - HU ITJ, todos os lançamentos daquele bloco devem preservar exatamente esses campos.\n6. honorValue = Vlr.Hon.; operationalValue = Vlr.Oper.; filmValue = Vlr.Filme.\n7. Não use productionTotal como substituto de honorValue quando os valores individuais estiverem disponíveis.\n8. Não invente valores. Se um campo não existir no lançamento, use string vazia ou zero.\n9. doctors é apenas um resumo. A fonte principal é productionRecords.\n\nRetorne JSON com:\nproviderName, batchNumber, holerit, demonstrativo, reference, creditDate, issueDate, totals, taxesList, occurrences, productionRecords e doctors.\n\nproductionRecords deve conter, para CADA lançamento:\nprotocol, date, patientName, patientCode, document, quantity, ambCode, procedureDescription, honorValue, operationalValue, filmValue, administrativeFee, executingProvider, protocolProvider, paymentProvider.\n\nJSON esperado:\n{\n  \"providerName\": string, \"batchNumber\": string, \"holerit\": string, \"demonstrativo\": string, \"reference\": string, \"creditDate\": string, \"issueDate\": string,\n  \"totals\": { \"production\": number, \"taxes\": number, \"glosas\": number, \"net\": number },\n  \"taxesList\": [ { \"type\": \"IRRF\"|\"PIS\"|\"COFINS\"|\"CSLL\", \"code\": string, \"description\": string, \"baseValue\": number, \"taxValue\": number } ],\n  \"occurrences\": [ { \"date\": string, \"description\": string, \"amount\": number, \"nature\": \"DEBIT\"|\"CREDIT\", \"provider\": string } ],\n  \"productionRecords\": [ { \"protocol\": string, \"date\": string, \"patientName\": string, \"patientCode\": string, \"document\": string, \"quantity\": number, \"ambCode\": string, \"procedureDescription\": string, \"honorValue\": number, \"operationalValue\": number, \"filmValue\": number, \"administrativeFee\": number, \"executingProvider\": string, \"protocolProvider\": string, \"paymentProvider\": string } ],\n  \"doctors\": [ { \"name\": string, \"quantity\": number, \"productionTotal\": number, \"honorario\": number, \"operacional\": number, \"filme\": number, \"glosa\": number } ]\n}";
+        const promptText = "Você é um auditor especialista em faturamento médico da Unimed. Analise o PDF com máxima fidelidade e retorne SOMENTE JSON válido.\nREGRAS CRÍTICAS:\n1. Extraia TODOS os lançamentos/procedimentos individuais das tabelas de produção.\n2. Para CADA lançamento preserve o EXECUTANTE e o PRESTADOR do respectivo lançamento/bloco.\n3. A combinação Executante + Prestador será usada posteriormente em doctor_provider_mappings. NÃO infira doctorId ou doctorName.\n4. Quando houver Executante: HEART CIRURGIA CARDIOVASCULAR, mantenha o Prestador interno do bloco como protocolProvider e nunca misture blocos.\n5. Quando houver Executante: CAMILA RIBEIRO DUTRA e Prestador: CONSULTORIO MEDICO - HU ITJ, todos os lançamentos daquele bloco devem preservar exatamente esses campos.\n6. honorValue = Vlr.Hon.; operationalValue = Vlr.Oper.; filmValue = Vlr.Filme.\n7. Não use productionTotal como substituto de honorValue quando os valores individuais estiverem disponíveis.\n8. Não invente valores. Se um campo não existir no lançamento, use string vazia ou zero.\n9. doctors é apenas um resumo. A fonte principal é productionRecords.\n10. Em occurrences, extraia as ocorrências financeiras individualizadas, incluindo Disponibilidade, Sobreavisos, Remuneração Bonificação Parto Normal e Glosas - Clínica Cooperada. Não inclua capitalização, integralização, mensalidades, consumo ou contribuições como componentes do VL Nota.\n11. Quando uma ocorrência de Disponibilidade tiver uma tabela de plantão aninhada com o mesmo médico e o mesmo valor, conte somente a ocorrência principal, não o detalhamento repetido.\n12. Ignore o resumo separado chamado \"Glosa 2.703\"; considere apenas as glosas individualizadas na seção Ocorrências Financeiras.\n\nRetorne JSON com:\nproviderName, batchNumber, holerit, demonstrativo, reference, creditDate, issueDate, totals, taxesList, occurrences, productionRecords e doctors.\n\nproductionRecords deve conter, para CADA lançamento:\nprotocol, date, patientName, patientCode, document, quantity, ambCode, procedureDescription, honorValue, operationalValue, filmValue, administrativeFee, executingProvider, protocolProvider, paymentProvider.\n\nJSON esperado:\n{\n  \"providerName\": string, \"batchNumber\": string, \"holerit\": string, \"demonstrativo\": string, \"reference\": string, \"creditDate\": string, \"issueDate\": string,\n  \"totals\": { \"production\": number, \"taxes\": number, \"glosas\": number, \"net\": number },\n  \"taxesList\": [ { \"type\": \"IRRF\"|\"PIS\"|\"COFINS\"|\"CSLL\", \"code\": string, \"description\": string, \"baseValue\": number, \"taxValue\": number } ],\n  \"occurrences\": [ { \"date\": string, \"description\": string, \"amount\": number, \"nature\": \"DEBIT\"|\"CREDIT\", \"provider\": string } ],\n  \"productionRecords\": [ { \"protocol\": string, \"date\": string, \"patientName\": string, \"patientCode\": string, \"document\": string, \"quantity\": number, \"ambCode\": string, \"procedureDescription\": string, \"honorValue\": number, \"operationalValue\": number, \"filmValue\": number, \"administrativeFee\": number, \"executingProvider\": string, \"protocolProvider\": string, \"paymentProvider\": string } ],\n  \"doctors\": [ { \"name\": string, \"quantity\": number, \"productionTotal\": number, \"honorario\": number, \"operacional\": number, \"filme\": number, \"glosa\": number } ]\n}";
 
         contents.push({ text: promptText });
         for (const f of files) {
@@ -4131,6 +4144,34 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       .where("teamId", "==", groupId).where("closingId", "==", closingId).where("batch", "==", bNum).get();
     const sameLotImports = sameLotImportsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
     const hasCsvImport = sameLotImports.some((item: any) => item.source === "XLS_IMPORT");
+    const recalculateLotFromProduction = (row: any, productionValue: number) => {
+      const positiveOccurrences = Number(row?.ocorrenciasPositivas) || 0;
+      const glosaValue = Number(row?.glosasNota ?? row?.glosa) || 0;
+      const bruto = Math.round((productionValue + positiveOccurrences - glosaValue) * 100) / 100;
+      const lucroPresumido = Math.round(bruto * 0.32 * 100) / 100;
+      const irrf = Number(row?.irrf) || 0;
+      const csll = Number(row?.csll) || 0;
+      const irpj = Math.round(Math.max(0, lucroPresumido * 0.15 - irrf) * 100) / 100;
+      const csll9 = Math.round(Math.max(0, lucroPresumido * 0.09 - csll) * 100) / 100;
+      const add10 = Math.round(lucroPresumido * 0.10 * 100) / 100;
+      const reservaImposto = Math.round((irpj + csll9 + add10) * 100) / 100;
+      return { ...row, bruto, vlNotaCalculado: bruto, producaoCsv: productionValue, lucroPresumido, irpj, csll9, add10, reservaImposto };
+    };
+    let csvProductionForLot: number | null = null;
+    if (importSource === "XLS_IMPORT") {
+      csvProductionForLot = Math.round((Number(parsedData.totals?.production) || 0) * 100) / 100;
+    } else if (hasCsvImport) {
+      const csvImportIds = new Set(sameLotImports.filter((item: any) => item.source === "XLS_IMPORT").map((item: any) => String(item.id)));
+      const csvProductionSnap = await db.collection("financial_production").where("closingId", "==", closingId).where("batchNumber", "==", bNum).get();
+      const csvRows = csvProductionSnap.docs.filter((doc: any) => csvImportIds.has(String(doc.data()?.importId || "")));
+      if (csvRows.length) csvProductionForLot = Math.round(csvRows.reduce((sum: number, doc: any) => {
+        const row = doc.data() || {};
+        return sum + (Number(row.honorValue) || 0) + (Number(row.operationalValue) || 0) + (Number(row.filmValue) || 0);
+      }, 0) * 100) / 100;
+    }
+    if (importSource === "PDF_AI" && hasCsvImport && csvProductionForLot !== null && parsedData.loteRow) {
+      parsedData.loteRow = recalculateLotFromProduction(parsedData.loteRow, csvProductionForLot);
+    }
 
     // If the CSV arrives after the PDF, keep CSV production as the source of truth and remove duplicate PDF production rows.
     if (importSource === "XLS_IMPORT") {
