@@ -1072,9 +1072,43 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       .filter((item: any) => item.bruto !== undefined && item.liquido !== undefined);
     // When a lot row exists, bruto already represents the reconciled VL NOTA (production plus eligible occurrences less itemized glosas).
     // Do not add operational/film again because they are already included in the imported production total.
-    // VL NOTA na seção Unimed deve refletir o total consolidado de cada lote,
-    // incluindo Outros Valores PDF. totalNota é o campo calculado/exibido na tabela.
-    const lotProductionBase = loteRows.reduce((sum: number, item: any) => sum + (Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0), 0);
+    // Recalcular VL NOTA usando os mesmos lançamentos PDF que alimentam a tabela
+    // consolidada de lotes. Os campos totalNota/vlNotaCalculado vindos do backend
+    // podem estar antigos e conter apenas o Bruto CSV.
+    const normalizeLotLabel = (value: any) => String(value || "")
+      .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ");
+    const normalizeLotKey = (value: any) => String(value ?? "").trim().replace(/\\.0$/, "");
+    const allLotTransactions = Array.isArray(details?.transactions) ? details.transactions : [];
+    const lotProductionBase = loteRows.reduce((sum: number, item: any) => {
+      const lotNumber = normalizeLotKey(item.lote ?? item.batchNumber ?? item.id);
+      const rowImportId = String(item.importId || "").trim();
+      const hasTransactionsForRowImport = Boolean(rowImportId) && allLotTransactions.some((tx: any) =>
+        String(tx.importId || "").trim() === rowImportId && String(tx.source || "").toUpperCase().includes("PDF")
+      );
+      const linkedPdfTransactions = allLotTransactions.filter((tx: any) => {
+        const source = String(tx.source || "").trim().toUpperCase();
+        const transactionImportId = String(tx.importId || "").trim();
+        const transactionLot = normalizeLotKey(tx.lote ?? tx.loteNumber ?? tx.batchNumber ?? tx.batch);
+        const linkedToRow = hasTransactionsForRowImport
+          ? transactionImportId === rowImportId
+          : transactionLot === lotNumber;
+        return linkedToRow && source !== "MANUAL" && (source.includes("PDF") || Boolean(transactionImportId));
+      });
+      const allowedPositiveTypes = /^(?:DISPONIBILIDADE(?: MEDICA)?(?: -)? (?:REUMATOLOGIA|GINECOLOGIA(?: - CENTRO OBSTETRICO)?|UTI)|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL)$/;
+      const credits = linkedPdfTransactions.filter((tx: any) => {
+        const label = normalizeLotLabel(tx.typeName || tx.observation || tx.description);
+        const amount = Number(tx.amount) || 0;
+        return (String(tx.nature || "").toUpperCase() === "CREDIT" || amount > 0) && allowedPositiveTypes.test(label);
+      }).reduce((total: number, tx: any) => total + Math.abs(Number(tx.amount) || 0), 0);
+      const glosas = linkedPdfTransactions.filter((tx: any) =>
+        /GLOSAS.*CLINICA COOPERADA/.test(normalizeLotLabel(tx.typeName || tx.observation || tx.description))
+      ).reduce((total: number, tx: any) => total + Math.abs(Number(tx.amount) || 0), 0);
+      const bruto = Number(item.producaoCsv ?? item.bruto) || 0;
+      const totalNota = linkedPdfTransactions.length
+        ? Math.round((bruto + credits - glosas) * 100) / 100
+        : Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0;
+      return sum + totalNota;
+    }, 0);
     const productionBase = lotProductionBase > 0 ? lotProductionBase : productionRecords.reduce((sum: number, item: any) => sum + (Number(item.honorValue) || 0) + (Number(item.operationalValue) || 0) + (Number(item.filmValue) || 0), 0);
     const irrfTotal = Math.round(productionBase * noteSettings.irrfPercent) / 100;
     const pisTotal = Math.round(productionBase * noteSettings.pisPercent) / 100;
