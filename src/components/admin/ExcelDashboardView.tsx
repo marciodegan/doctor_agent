@@ -755,13 +755,20 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const typeName = normalizeTransactionTypeName(type?.name || tx.typeName || "");
     const scope = getEffectiveTransactionScope(tx);
     const teamScope = ["TEAM", "TEAM_HEART", "EQUIPE", "EQUIPE_HEART", "HEART_TEAM", "RATEIO_EQUIPE"].includes(scope);
+    const isRepasseUnimedCredit = typeName.includes("REPASSE PAGAMENTO DE PARECER MEDICO - HU")
+      || typeName.includes("REPASSE PAGAMENTO DE PRODUCAO - HU");
     const isRateioCredit = isCreditTransaction(tx)
-      && (typeName.includes("SOBREAVISO") || typeName.includes("RATEIO"));
+      && (
+        typeName.includes("SOBREAVISO")
+        || typeName.includes("RATEIO")
+        || isRepasseUnimedCredit
+      );
     if (!isRateioCredit) return false;
 
-    // Lançamentos individuais (ex.: Sobreavisos) também são compartilhados
-    // quando o médico selecionado participa da Unimed. O tipo continua sendo
-    // Médico Individual no cadastro; a regra abaixo só define a coluna da matriz.
+    // Lançamentos individuais (ex.: Sobreavisos e os repasses HU) também são
+    // compartilhados entre os participantes Unimed quando o médico de origem
+    // participa da Unimed. O tipo pode continuar como Médico Individual no cadastro;
+    // esta regra define que esses créditos entram em Equipe TT, sem duplicar em Part. TT.
     if (scope === "DOCTOR") {
       // This predicate is evaluated outside cashFlowAllocation's useMemo, so it
       // must not reference resolveDoctor declared inside that callback.
