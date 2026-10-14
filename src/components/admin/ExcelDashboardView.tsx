@@ -1165,7 +1165,15 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         liquidoCalculado: d.honorDS,
         finalGeral: d.dispDS
     })),
-    ocorrencias: details?.transactions || [],
+    ocorrencias: (Array.isArray(details?.transactions) ? details.transactions : []).map((tx: any) => ({
+      ...tx,
+      lote: String(tx.lote || tx.loteNumber || tx.batchNumber || tx.batch || ""),
+      medico: tx.doctorName || (tx.scope === "TEAM" ? "HEART CIRURGIA CARDIOVASCULAR" : "Médico não identificado"),
+      tipo: tx.typeName || tx.typeId || "Ocorrência",
+      desc: tx.observation || tx.description || "",
+      natureza: tx.nature === "CREDIT" ? "ENTRADA" : "SAIDA",
+      valor: Math.abs(Number(tx.amount) || 0)
+    })),
     lotesUnimed: (Array.isArray(details?.taxes) ? details.taxes : [])
       .filter((item: any) => item.lote !== undefined && item.bruto !== undefined)
       .map((item: any) => ({
@@ -2709,6 +2717,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <thead>
                 <tr className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider border-b border-gray-300">
                   <th className="p-3.5 pl-6">Data</th>
+                  <th className="p-3.5">Lote</th>
                   <th className="p-3.5">Médico / Responsável</th>
                   <th className="p-3.5">Escopo</th>
                   <th className="p-3.5">Tipo de Despesa / Ocorrência</th>
@@ -2722,7 +2731,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   const isTeam = oc.medico.includes("HEART") || configuredDoctors.find(d => d.name === oc.medico)?.isTeamMember;
                   return (
                     <tr key={idx} className="hover:bg-gray-50/80 transition-colors">
-                      <td className="p-3.5 pl-6 text-gray-500 font-bold">{oc.data}</td>
+                      <td className="p-3.5 pl-6 text-gray-500 font-bold">{oc.data || oc.date || ""}</td>
+                      <td className="p-3.5 font-bold text-blue-700">{oc.lote || "—"}</td>
                       <td className="p-3.5 font-bold text-gray-900">{oc.medico}</td>
                       <td className="p-3.5">
                         <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
