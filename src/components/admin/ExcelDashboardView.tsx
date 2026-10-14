@@ -1176,16 +1176,39 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     })),
     lotesUnimed: (Array.isArray(details?.taxes) ? details.taxes : [])
       .filter((item: any) => item.lote !== undefined && item.bruto !== undefined)
-      .map((item: any) => ({
+      .map((item: any) => {
+        const lotNumber = String(item.lote || item.batchNumber || item.id || "");
+        const normalizeOccurrence = (value: any) => String(value || "")
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
+        const pdfTransactions = (Array.isArray(details?.transactions) ? details.transactions : []).filter((tx: any) =>
+          String(tx.lote || tx.batch || tx.batchNumber || tx.loteNumber || "") === lotNumber &&
+          String(tx.source || "").toUpperCase() === "PDF_AI"
+        );
+        const allowedPositiveTypes = /DISPONIBILIDADE|SOBREAVISOS?|REMUNERACAO BONIFICACAO PARTO NORMAL/;
+        const eligibleCredits = pdfTransactions.filter((tx: any) =>
+          (Number(tx.amount) || 0) > 0 && allowedPositiveTypes.test(normalizeOccurrence(tx.typeName || tx.observation))
+        ).reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0);
+        const itemizedGlosas = pdfTransactions.filter((tx: any) =>
+          /GLOSAS.*CLINICA COOPERADA/.test(normalizeOccurrence(tx.typeName || tx.observation))
+        ).reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0);
+        const storedOtherValues = Number(item.outrosValores ?? ((Number(item.vlNotaCalculado ?? item.bruto) || 0) - (Number(item.producaoCsv ?? item.bruto) || 0))) || 0;
+        const computedOtherValues = pdfTransactions.length
+          ? Math.round((eligibleCredits - itemizedGlosas) * 100) / 100
+          : storedOtherValues;
+        const lotGross = Number(item.producaoCsv ?? item.bruto) || 0;
+        const lotTotal = pdfTransactions.length
+          ? Math.round((lotGross + computedOtherValues) * 100) / 100
+          : lotTotal;
+        return ({
         ...item,
-        lote: String(item.lote || item.batchNumber || item.id || ""),
+        lote: lotNumber,
         competencia: item.competencia || "",
         tipo: item.tipo || item.demonstrativo || "",
         titulo: item.titulo || "",
         vencimento: item.vencimento || "",
-        bruto: Number(item.producaoCsv ?? item.bruto) || 0,
-        outrosValores: Number(item.outrosValores ?? ((Number(item.vlNotaCalculado ?? item.bruto) || 0) - (Number(item.producaoCsv ?? item.bruto) || 0))) || 0,
-        totalNota: Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0,
+        bruto: lotGross,
+        outrosValores: computedOtherValues,
+        totalNota: lotTotal,
         glosa: Number(item.glosa) || 0,
         aliquotas: {
           pis: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.pis ?? noteSettings.pisPercent),
@@ -1198,21 +1221,22 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           csll9: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.csll9 ?? noteSettings.csll9Percent),
           adicional: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.adicional ?? noteSettings.adicional10Percent)
         },
-        pis: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.pis ?? noteSettings.pisPercent)) / 100,
-        cofins: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.cofins ?? noteSettings.cofinsPercent)) / 100,
-        csll: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.csll ?? noteSettings.csllPercent)) / 100,
-        irrf: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.irrf ?? noteSettings.irrfPercent)) / 100,
-        iss: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.iss ?? 5)) / 100,
+        pis: Math.round((lotTotal) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.pis ?? noteSettings.pisPercent)) / 100,
+        cofins: Math.round((lotTotal) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.cofins ?? noteSettings.cofinsPercent)) / 100,
+        csll: Math.round((lotTotal) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.csll ?? noteSettings.csllPercent)) / 100,
+        irrf: Math.round((lotTotal) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.irrf ?? noteSettings.irrfPercent)) / 100,
+        iss: Math.round((lotTotal) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.iss ?? 5)) / 100,
         ttImpostosNota: 0,
         ttRetencao: 0,
-        lucroPresumido: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.lucroPresumido ?? noteSettings.lucroPresumidoPercent)) / 100,
+        lucroPresumido: Math.round((lotTotal) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.lucroPresumido ?? noteSettings.lucroPresumidoPercent)) / 100,
         irpj: 0,
         csll9: 0,
         add10: 0,
         reservaImposto: 0,
         liquido: Number(item.netReported ?? item.liquido) || 0,
         dsSaque: 0
-      })).map((lote: any) => {
+      });
+      }).map((lote: any) => {
         const money = (value: number) => Math.round(value * 100) / 100;
         lote.ttImpostosNota = money(lote.pis + lote.cofins + lote.csll + lote.irrf);
         lote.ttRetencao = money(lote.ttImpostosNota + lote.iss);
