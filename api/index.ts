@@ -4287,11 +4287,11 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
     // Recalculate the lot from the exact occurrence rows committed from the PDF.
     // This avoids a stale/zero preview value being saved when the occurrence transactions were imported correctly.
     if (importSource === "PDF_AI" && parsedData.loteRow && Array.isArray(parsedData.occurrences)) {
-      const normalizeLotOccurrence = (value: any) => String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/\\s+/g, " ");
+      const normalizeLotOccurrence = (value: any) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
       const occurrenceDescription = (occ: any) => normalizeLotOccurrence(occ.description || occ.typeName || occ.name || occ.observation);
       const toOccurrenceAmount = (value: any) => {
         if (typeof value === "number") return value;
-        const raw = String(value ?? "").trim().replace(/R\\$\\s?/g, "").replace(/\\./g, "").replace(",", ".");
+        const raw = String(value ?? "").trim().replace(/R\$\s?/g, "").replace(/\./g, "").replace(",", ".");
         const parsed = Number(raw);
         return Number.isFinite(parsed) ? parsed : 0;
       };
