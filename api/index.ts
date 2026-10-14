@@ -4397,17 +4397,18 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
           loteNumber: bNum,
           batchNumber: bNum,
           importId,
-          scope: "TEAM",
-          doctorId: "heart_cirurgia",
-          doctorName: parsedData.providerName || "HEART CIRURGIA CARDIOVASCULAR",
-          typeId: occ.description.toLowerCase().replace(/[^a-z0-9]/g, "_"),
-          typeName: occ.description,
+          scope: utiAvailability ? "DOCTOR" : "TEAM",
+          doctorId: utiAvailability ? utiDoctorId : "heart_cirurgia",
+          doctorName: utiAvailability ? utiDoctorName : (parsedData.providerName || "HEART CIRURGIA CARDIOVASCULAR"),
+          typeId: utiAvailability ? utiTypeId : occ.description.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+          typeName: utiAvailability ? utiTypeName : occ.description,
           date: occ.date || parsedData.creditDate || "01/08/2026",
           amount: Number(occ.amount) || 0,
           nature: occ.nature || (Number(occ.amount) < 0 ? "DEBIT" : "CREDIT"),
           observation: occ.description,
           source: "PDF_AI",
           sourceFile: srcFile,
+          ...(utiAvailability && !utiDoctorId ? { allocationStatus: "PENDING_REVIEW" } : {}),
           createdAt: new Date().toISOString()
         });
       }
