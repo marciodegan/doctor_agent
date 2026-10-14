@@ -1183,7 +1183,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         tipo: item.tipo || item.demonstrativo || "",
         titulo: item.titulo || "",
         vencimento: item.vencimento || "",
-        bruto: Number(item.bruto) || 0,
+        bruto: Number(item.producaoCsv ?? item.bruto) || 0,
+        outrosValores: Number(item.outrosValores ?? ((Number(item.vlNotaCalculado ?? item.bruto) || 0) - (Number(item.producaoCsv ?? item.bruto) || 0))) || 0,
+        totalNota: Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0,
         glosa: Number(item.glosa) || 0,
         aliquotas: {
           pis: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.pis ?? noteSettings.pisPercent),
@@ -1196,14 +1198,14 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
           csll9: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.csll9 ?? noteSettings.csll9Percent),
           adicional: Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.adicional ?? noteSettings.adicional10Percent)
         },
-        pis: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.pis ?? noteSettings.pisPercent)) / 100,
-        cofins: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.cofins ?? noteSettings.cofinsPercent)) / 100,
-        csll: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.csll ?? noteSettings.csllPercent)) / 100,
-        irrf: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.irrf ?? noteSettings.irrfPercent)) / 100,
-        iss: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.iss ?? 5)) / 100,
+        pis: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.pis ?? noteSettings.pisPercent)) / 100,
+        cofins: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.cofins ?? noteSettings.cofinsPercent)) / 100,
+        csll: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.csll ?? noteSettings.csllPercent)) / 100,
+        irrf: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.irrf ?? noteSettings.irrfPercent)) / 100,
+        iss: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.iss ?? 5)) / 100,
         ttImpostosNota: 0,
         ttRetencao: 0,
-        lucroPresumido: Math.round((Number(item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.lucroPresumido ?? noteSettings.lucroPresumidoPercent)) / 100,
+        lucroPresumido: Math.round((Number(item.totalNota ?? item.vlNotaCalculado ?? item.bruto) || 0) * Number(loteAliquotas[String(item.lote || item.batchNumber || item.id || "")]?.lucroPresumido ?? noteSettings.lucroPresumidoPercent)) / 100,
         irpj: 0,
         csll9: 0,
         add10: 0,
@@ -1219,7 +1221,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         lote.add10 = money(lote.lucroPresumido * lote.aliquotas.adicional / 100);
         lote.reservaImposto = money(lote.irpj + lote.csll9 + lote.add10);
         // DS de saque é calculado somente pelo bruto menos retenções e reserva de impostos.
-        lote.dsSaque = money(lote.bruto - lote.ttRetencao - lote.reservaImposto);
+        lote.dsSaque = money(lote.totalNota - lote.ttRetencao - lote.reservaImposto);
         return lote;
       }),
     despesasEquipe: (Array.isArray(details?.transactions) ? details.transactions : []).filter((t: any) => t.nature === "DEBIT" && t.scope !== "TEAM_SPLIT").map((t: any) => ({ despesa: t.typeName || t.typeId || "Despesa", categoria: t.scope === "DOCTOR" ? "Individual" : "Equipe", valor: Number(t.amount) || 0, status: "Lançado" }))
@@ -3005,7 +3007,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   <th className="p-3">Período / Natureza</th>
                   <th className="p-3">Título</th>
                   <th className="p-3">Vencimento</th>
-                  <th className="p-3 text-right">Bruto (R$)</th>
+                  <th className="p-3 text-right">Bruto CSV (R$)</th>
+                  <th className="p-3 text-right">Outros Valores PDF (R$)</th>
+                  <th className="p-3 text-right font-black">Total (R$)</th>
                   <th className="p-3 text-right">Glosas</th>
                   <th className="p-2 text-right">PIS % / R$</th>
                   <th className="p-2 text-right">COFINS % / R$</th>
@@ -3027,7 +3031,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
                 {excelData.lotesUnimed.length === 0 ? (
                   <tr>
-                    <td colSpan={23} className="p-12 text-center">
+                    <td colSpan={25} className="p-12 text-center">
                       <div className="max-w-md mx-auto space-y-3">
                         <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
                           <BrainCircuit size={24} />
@@ -3068,6 +3072,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                       <td className="p-3 font-mono text-gray-600">{lote.titulo}</td>
                       <td className="p-3 text-gray-500">{lote.vencimento}</td>
                       <td className="p-3 text-right font-bold text-gray-900">R$ {lote.bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right font-bold text-indigo-700">R$ {lote.outrosValores.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right font-black text-emerald-800 bg-emerald-50/50">R$ {lote.totalNota.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right text-rose-600 font-bold">{lote.glosa > 0 ? `-R$ ${lote.glosa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}</td>
                       <td className="p-2 text-right text-gray-700 whitespace-nowrap">
                         <input aria-label={`pis aliquota lote ${lote.lote}`} type="number" min="0" step="0.01" value={lote.aliquotas.pis} onChange={event => setLoteAliquotas(current => ({ ...current, [String(lote.lote)]: { ...(current[String(lote.lote)] || {}), pis: Number(event.target.value) } }))} className="w-14 p-1 text-right border border-gray-200 rounded text-[10px]" />%
@@ -3133,6 +3139,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               <tfoot>
                 {(() => {
                   const totBruto = excelData.lotesUnimed.reduce((acc, l) => acc + l.bruto, 0);
+                  const totOutros = excelData.lotesUnimed.reduce((acc, l) => acc + l.outrosValores, 0);
+                  const totTotal = excelData.lotesUnimed.reduce((acc, l) => acc + l.totalNota, 0);
                   const totGlosa = excelData.lotesUnimed.reduce((acc, l) => acc + l.glosa, 0);
                   const totIrrf = excelData.lotesUnimed.reduce((acc, l) => acc + l.irrf, 0);
                   const totIss = excelData.lotesUnimed.reduce((acc, l) => acc + l.iss, 0);
@@ -3150,8 +3158,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                   const totLiq = excelData.lotesUnimed.reduce((acc, l) => acc + l.liquido, 0);
                   return (
                     <tr className="bg-gray-100 font-black text-xs text-gray-900 border-t-2 border-gray-300">
-                      <td colSpan={5} className="p-3 pl-4 uppercase">TOTAL CONSOLIDADO DOS LOTES</td>
+                      <td colSpan={6} className="p-3 pl-4 uppercase">TOTAL CONSOLIDADO DOS LOTES</td>
                       <td className="p-3 text-right">R$ {totBruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right text-indigo-700">R$ {totOutros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-3 text-right font-black text-emerald-800">R$ {totTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right text-rose-600">{totGlosa > 0 ? `-R$ ${totGlosa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}</td>
                       <td className="p-3 text-right">R$ {totPis.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="p-3 text-right">R$ {totCofins.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
