@@ -4007,6 +4007,114 @@ app.post("/api/app/financial/prelaunches/batches/:batchId/cancel", async (req, r
   }
 });
 
+
+// Standalone glosa PDF import and reconciliation against the team's imported production CSV.
+app.get("/api/app/financial/glosas/imports", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("financial_glosa_reconciliations").where("teamId", "==", groupId).get();
+    const imports = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }))
+      .sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    res.json({ imports });
+  } catch (error: any) { handleApiError(res, error, "List Glosa Imports"); }
+});
+
+app.get("/api/app/financial/glosas/imports/:importId", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    const ref = db.collection("financial_glosa_reconciliations").doc(String(req.params.importId));
+    const snap = await ref.get();
+    if (!snap.exists || snap.data()?.teamId !== groupId) return res.status(404).json({ error: "Importação não encontrada nesta equipe." });
+    const rowsSnap = await ref.collection("rows").orderBy("rowOrder", "asc").get();
+    res.json({ ...snap.data(), id: snap.id, rows: rowsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })) });
+  } catch (error: any) { handleApiError(res, error, "Get Glosa Import"); }
+});
+
+app.post("/api/app/financial/glosas/compare", async (req, res) => {
+  const groupId = getGroupId(req);
+  const { fileName, mimeType, content } = req.body || {};
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  if (!fileName || !/\\.pdf$/i.test(String(fileName)) || !String(content || "").includes("base64,")) {
+    return res.status(400).json({ error: "Envie um arquivo PDF válido." });
+  }
+  try {
+    await requireGroupMember(req, groupId);
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: "A chave GEMINI_API_KEY não está configurada no servidor." });
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = "Você é auditor de glosas médicas. Leia o PDF anexado e extraia somente as glosas individualizadas, sem incluir totais ou resumos duplicados. Retorne JSON válido no formato {\"lot\":\"\",\"rows\":[{\"protocol\":\"\",\"lot\":\"\",\"protocolDate\":\"\",\"patientName\":\"\",\"patientCode\":\"\",\"document\":\"\",\"ambCode\":\"\",\"procedureDescription\":\"\",\"valueInformed\":0,\"valueProcessed\":0,\"valueReleased\":0,\"glosaValue\":0,\"reason\":\"\",\"doctorName\":\"\"}]}. Preserve números de protocolo e documentos como strings, valores monetários como números em reais, e datas como aparecem no documento. Glosa = valor informado menos valor processado/liberado quando o documento não trouxer o valor de glosa explicitamente. Não invente dados; use strings vazias e zero quando ausentes. Extraia todas as linhas individuais e não inclua somatórios gerais.";
+    const base64 = String(content).split("base64,").pop() || "";
+    const response = await generateGeminiFinancialParse(ai, [
+      { text: prompt },
+      { inlineData: { mimeType: String(mimeType || "application/pdf"), data: base64 } }
+    ]);
+    const raw = String(response.text || "").replace(new RegExp("\u0060{3}json", "gi"), "").replace(new RegExp("\u0060{3}", "g"), "").trim();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.rows) || parsed.rows.length === 0) {
+      return res.status(422).json({ error: "Nenhuma glosa individual foi identificada no PDF. Confira se o arquivo contém o demonstrativo detalhado." });
+    }
+    const productionSnap = await db.collection("financial_production").where("teamId", "==", groupId).get();
+    const production = productionSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const normalizeGlosa = (v: any) => String(v ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const matchProduction = (row: any) => {
+      const protocol = normalizeGlosa(row.protocol), document = normalizeGlosa(row.document);
+      const patientCode = normalizeGlosa(row.patientCode), ambCode = normalizeGlosa(row.ambCode), patient = normalizeGlosa(row.patientName);
+      let candidates = production;
+      if (protocol) candidates = candidates.filter((p: any) => normalizeGlosa(p.protocol) === protocol);
+      else if (document) candidates = candidates.filter((p: any) => normalizeGlosa(p.document) === document);
+      else if (patientCode) candidates = candidates.filter((p: any) => normalizeGlosa(p.patientCode) === patientCode);
+      else return null;
+      if (candidates.length > 1 && ambCode) {
+        const byAmb = candidates.filter((p: any) => normalizeGlosa(p.ambCode) === ambCode);
+        if (byAmb.length) candidates = byAmb;
+      }
+      if (candidates.length > 1 && patient) {
+        const byPatient = candidates.filter((p: any) => normalizeGlosa(p.patientName) === patient);
+        if (byPatient.length) candidates = byPatient;
+      }
+      return candidates.length === 1 ? candidates[0] : null;
+    };
+    const rows = parsed.rows.map((row: any, index: number) => {
+      const match = matchProduction(row);
+      const informed = Number(row.valueInformed) || 0, processed = Number(row.valueProcessed) || 0;
+      const released = Number(row.valueReleased) || processed;
+      const glosa = Number(row.glosaValue) || Math.max(0, Math.round((informed - processed) * 100) / 100);
+      return {
+        ...row, protocol: String(row.protocol || ""), lot: String(row.lot || parsed.lot || ""),
+        valueInformed: informed, valueProcessed: processed, valueReleased: released, glosaValue: glosa,
+        matchStatus: match ? "MATCHED" : "UNMATCHED",
+        matchedProduction: match ? {
+          productionId: match.id, protocol: match.protocol || "", patientName: match.patientName || "",
+          patientCode: match.patientCode || "", document: match.document || "", ambCode: match.ambCode || "",
+          procedureDescription: match.procedureDescription || "", executingProvider: match.executingProvider || "",
+          protocolProvider: match.protocolProvider || "", doctorName: match.doctorName || ""
+        } : null,
+        rowOrder: index, createdAt: new Date().toISOString()
+      };
+    });
+    const matchedCount = rows.filter((r: any) => r.matchStatus === "MATCHED").length;
+    const createdAt = new Date().toISOString();
+    const ref = db.collection("financial_glosa_reconciliations").doc();
+    const metadata = {
+      id: ref.id, teamId: groupId, fileName: String(fileName), lot: String(parsed.lot || rows.find((r: any) => r.lot)?.lot || ""),
+      rowCount: rows.length, matchedCount, unmatchedCount: rows.length - matchedCount,
+      totalGlosa: Math.round(rows.reduce((sum: number, r: any) => sum + (Number(r.glosaValue) || 0), 0) * 100) / 100,
+      createdAt, createdBy: (req as any).user?.uid || "", status: matchedCount === rows.length ? "MATCHED" : matchedCount ? "PARTIAL" : "NEEDS_REVIEW"
+    };
+    await ref.set(metadata);
+    for (let offset = 0; offset < rows.length; offset += 400) {
+      const batch = db.batch();
+      rows.slice(offset, offset + 400).forEach((row: any, index: number) => batch.set(ref.collection("rows").doc(String(offset + index).padStart(6, "0")), row));
+      await batch.commit();
+    }
+    res.json({ ...metadata, rows });
+  } catch (error: any) { handleApiError(res, error, "Compare Glosa PDF"); }
+});
+
 app.post("/api/app/financial/ai-parse", async (req, res) => {
   const groupId = getGroupId(req);
   const { closingId, files, reprocess } = req.body;
