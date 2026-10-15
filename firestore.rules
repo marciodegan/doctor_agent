@@ -138,6 +138,10 @@ service cloud.firestore {
       match /official_cash_transactions/{transactionId} {
         allow read, create, update, delete: if isMember(groupId);
       }
+
+      match /official_cash_launch_types/{launchTypeId} {
+        allow read, create, update, delete: if isMember(groupId);
+      }
     }
 
     // Group Invitations
