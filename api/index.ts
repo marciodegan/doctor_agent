@@ -2242,6 +2242,9 @@ app.post("/api/app/financial/import", async (req, res) => {
   
   try {
     const user = (req as any).user;
+    const closingSnap = await db.collection("financial_closings").doc(String(closingId)).get();
+    if (!closingSnap.exists) return res.status(404).json({ error: "Fechamento não encontrado." });
+    if (!groupId || closingSnap.data()?.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outra equipe." });
     const bNum = batchNumber || "10944";
 
     const existingImportSnap = await db.collection("financial_imports")
@@ -2317,6 +2320,7 @@ app.post("/api/app/financial/import", async (req, res) => {
       const tRef = db.collection("financial_taxes").doc();
       batch.set(tRef, {
         id: tRef.id,
+        teamId: groupId,
         closingId,
         importId,
         ...t,
@@ -2328,6 +2332,7 @@ app.post("/api/app/financial/import", async (req, res) => {
       const aRef = db.collection("financial_adjustments").doc();
       batch.set(aRef, {
         id: aRef.id,
+        teamId: groupId,
         closingId,
         importId,
         ...a,
@@ -2349,6 +2354,8 @@ app.post("/api/app/financial/import", async (req, res) => {
 
     const closingRef = db.collection("financial_closings").doc(closingId);
     batch.set(closingRef, {
+      id: closingId,
+      teamId: groupId,
       status: "CONCILIADO_COM_AVISOS",
       informedValue: bundle.totals.informed,
       processedValue: bundle.totals.processed,
@@ -2826,8 +2833,13 @@ app.post("/api/app/financial/closings/:closingId/note-settings", async (req, res
 // Delete a tax/lote from a closing
 app.delete("/api/app/financial/closings/:closingId/taxes/:loteId", async (req, res) => {
   const { closingId, loteId } = req.params;
+  const groupId = getGroupId(req);
   try {
+    const closingSnap = await db.collection("financial_closings").doc(closingId).get();
+    if (!closingSnap.exists) return res.status(404).json({ error: "Fechamento não encontrado." });
+    if (!groupId || closingSnap.data()?.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outra equipe." });
     const snap = await db.collection("financial_taxes")
+      .where("teamId", "==", groupId)
       .where("closingId", "==", closingId)
       .get();
 
@@ -2844,7 +2856,7 @@ app.delete("/api/app/financial/closings/:closingId/taxes/:loteId", async (req, r
     if (deletedCount === 0) {
       const docRef = db.collection("financial_taxes").doc(loteId);
       const docSnap = await docRef.get();
-      if (docSnap.exists) {
+      if (docSnap.exists && docSnap.data()?.teamId === groupId && docSnap.data()?.closingId === closingId) {
         batch.delete(docRef);
         deletedCount++;
       }
@@ -4166,6 +4178,9 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
 
   try {
     const user = (req as any).user;
+    const closingSnap = await db.collection("financial_closings").doc(String(closingId)).get();
+    if (!closingSnap.exists) return res.status(404).json({ error: "Fechamento não encontrado." });
+    if (!groupId || closingSnap.data()?.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outra equipe." });
     const bNum = String(parsedData.batchNumber || closingId);
     const srcFile = fileName || `${bNum}_PROD.PDF`;
 
