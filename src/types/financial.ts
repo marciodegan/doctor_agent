@@ -140,6 +140,7 @@ export interface FinancialTransaction {
   amount: number;
   nature: "CREDIT" | "DEBIT";
   allowNegativeAmount?: boolean;
+  isMultiple?: boolean;
   isSalary?: boolean;
   matrixAdjustmentType?: "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "ACERTO_FINAL" | "" | null;
   observation: string;
