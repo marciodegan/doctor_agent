@@ -2074,9 +2074,9 @@ app.get("/api/app/financial/imports", async (req, res) => {
       const data = doc.data() || {};
       const closing = closingById.get(String(data.closingId || "")) || {};
       const [prod, taxes, txs] = await Promise.all([
-        db.collection("financial_production").where("importId", "==", doc.id).get(),
-        db.collection("financial_taxes").where("importId", "==", doc.id).get(),
-        db.collection("financial_transactions").where("importId", "==", doc.id).get()
+        db.collection("financial_production").where("teamId", "==", groupId).where("importId", "==", doc.id).get(),
+        db.collection("financial_taxes").where("teamId", "==", groupId).where("importId", "==", doc.id).get(),
+        db.collection("financial_transactions").where("teamId", "==", groupId).where("importId", "==", doc.id).get()
       ]);
       const productionValue = prod.docs.reduce((sum: number, d: any) => sum + (Number(d.data()?.value ?? d.data()?.amount ?? d.data()?.honorarios) || 0), 0);
       return {
@@ -4193,7 +4193,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       for (const oldImport of oldImports) {
         const oldId = oldImport.id;
         const collections = ["financial_production", "financial_glosas", "financial_taxes", "financial_adjustments", "financial_transactions", "financial_batches", "financial_reconciliation"];
-        const snapshots = await Promise.all(collections.map(name => db.collection(name).where("importId", "==", oldId).get()));
+        const snapshots = await Promise.all(collections.map(name => db.collection(name).where("teamId", "==", groupId).where("importId", "==", oldId).get()));
         const refs: any[] = [oldImport.ref];
         snapshots.forEach(snapshot => snapshot.docs.forEach((doc: any) => refs.push(doc.ref)));
         for (let i = 0; i < refs.length; i += 400) {
@@ -4228,7 +4228,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       csvProductionForLot = Math.round((Number(parsedData.totals?.production) || 0) * 100) / 100;
     } else if (hasCsvImport) {
       const csvImportIds = new Set(sameLotImports.filter((item: any) => item.source === "XLS_IMPORT").map((item: any) => String(item.id)));
-      const csvProductionSnap = await db.collection("financial_production").where("closingId", "==", closingId).get();
+      const csvProductionSnap = await db.collection("financial_production").where("teamId", "==", groupId).where("closingId", "==", closingId).get();
       const csvRows = csvProductionSnap.docs.filter((doc: any) =>
         String(doc.data()?.batchNumber || "") === bNum && csvImportIds.has(String(doc.data()?.importId || ""))
       );
@@ -4245,7 +4245,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
     if (importSource === "XLS_IMPORT") {
       const pdfImports = sameLotImports.filter((item: any) => item.source === "PDF_AI");
       for (const pdfImport of pdfImports) {
-        const pdfProduction = await db.collection("financial_production").where("importId", "==", pdfImport.id).get();
+        const pdfProduction = await db.collection("financial_production").where("teamId", "==", groupId).where("importId", "==", pdfImport.id).get();
         for (let i = 0; i < pdfProduction.docs.length; i += 400) {
           const deleteBatch = db.batch();
           pdfProduction.docs.slice(i, i + 400).forEach((doc: any) => deleteBatch.delete(doc.ref));
@@ -4360,7 +4360,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       // When the CSV arrived first, remove its provisional row so the PDF row becomes authoritative.
       if (hasCsvImport) {
         const csvImportIdsForTax = new Set(sameLotImports.filter((item: any) => item.source === "XLS_IMPORT").map((item: any) => String(item.id)));
-        const csvTaxSnapshots = await Promise.all(Array.from(csvImportIdsForTax).map(id => db.collection("financial_taxes").where("importId", "==", id).get()));
+        const csvTaxSnapshots = await Promise.all(Array.from(csvImportIdsForTax).map(id => db.collection("financial_taxes").where("teamId", "==", groupId).where("importId", "==", id).get()));
         for (const snapshot of csvTaxSnapshots) {
           for (const doc of snapshot.docs) {
             const data: any = doc.data() || {};
