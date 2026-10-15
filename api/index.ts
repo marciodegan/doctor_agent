@@ -3287,11 +3287,15 @@ app.post("/api/app/financial/transactions", async (req, res) => {
       }
       if (prelaunchData.status === "IMPORTED" && prelaunchData.transactionId) {
         const existingTransaction = await db.collection("financial_transactions").doc(String(prelaunchData.transactionId)).get();
-        if (existingTransaction.exists) return res.json({ ...existingTransaction.data(), id: existingTransaction.id, alreadyImported: true });
+        if (existingTransaction.exists) {
+          if (existingTransaction.data()?.teamId !== groupId) return res.status(403).json({ error: "Este lançamento pertence a outra equipe." });
+          return res.json({ ...existingTransaction.data(), id: existingTransaction.id, alreadyImported: true });
+        }
       }
       // Recover safely if the transaction write succeeded but the staging status
       // update was interrupted; never create a duplicate on retry.
       const priorTransaction = await db.collection("financial_transactions")
+        .where("teamId", "==", groupId)
         .where("prelaunchId", "==", String(prelaunchId)).limit(1).get();
       if (!priorTransaction.empty) {
         const existingDoc = priorTransaction.docs[0];
