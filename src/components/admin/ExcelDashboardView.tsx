@@ -53,12 +53,13 @@ import { DoctorTeamMember, TeamFinancialSettings } from "../../types/financial";
 import { TransactionTypesManager } from "./TransactionTypesManager";
 import { FinancialImportWizard } from "./FinancialImportWizard";
 import { ProviderLinker } from "./ProviderLinker";
+import { GlosasView } from "./GlosasView";
 
 const KNOWN_DOCTORS = ['ROCHELE', 'THAIS', 'LUIS', 'KATHIZE'];
 
 interface ExcelDashboardViewProps {
   closingId: string | null;
-  initialSubTab?: "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores" | "descritivo_pagamentos";
+  initialSubTab?: "visao_geral" | "config_equipe" | "colunas_medicos" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores" | "descritivo_pagamentos" | "glosas";
   onOpenImport?: () => void;
 }
 
@@ -77,7 +78,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   const rawProduction = Array.isArray(details?.productionRecords) ? details.productionRecords : [];
   const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<
-    "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores" | "lancamentos_importados" | "descritivo_pagamentos"
+    "visao_geral" | "config_equipe" | "colunas_medicos" | "matriz_entradas" | "entradas_fontes" | "ocorrencias_fluxo" | "lotes_unimed" | "despesas_equipe" | "tipos_lancamento" | "config_prestadores" | "lancamentos_importados" | "descritivo_pagamentos" | "glosas"
   >(initialSubTab);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
@@ -1588,6 +1589,18 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
         >
           <Receipt size={16} />
           <span>6. Lotes & Retenções Unimed</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("glosas")}
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl transition cursor-pointer shrink-0 ${
+            activeSubTab === "glosas"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <ShieldCheck size={16} />
+          <span>Glosas</span>
         </button>
 
         <button
@@ -3494,6 +3507,12 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeSubTab === "glosas" && (
+        <div className="bg-white rounded-[28px] border border-gray-200 shadow-sm p-4 sm:p-6">
+          <GlosasView />
         </div>
       )}
 
