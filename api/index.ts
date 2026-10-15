@@ -3007,7 +3007,14 @@ app.get("/api/app/financial/team-settings", async (req, res) => {
     if (doc.exists) {
       res.json(doc.data());
     } else {
-      res.json(DEFAULT_TEAM_CONFIG);
+      // New teams start with their own empty doctor/configuration catalog.
+      // Never inherit Heart defaults into another team's financial settings.
+      res.json({
+        teamId: groupId,
+        doctors: [],
+        teamOnlySources: [],
+        teamOnlyExpenses: []
+      });
     }
   } catch (error: any) {
     handleApiError(res, error, "Get Team Financial Settings");
@@ -3022,7 +3029,7 @@ app.post("/api/app/financial/team-settings", async (req, res) => {
     const docRef = db.collection("financial_team_settings").doc(groupId);
 
     // Recalculate dynamic PROPORÇÃO HEART based on disponivelPeriodo if present
-    const rawDoctors = doctors || DEFAULT_TEAM_CONFIG.doctors;
+    const rawDoctors = Array.isArray(doctors) ? doctors : [];
     // Only doctors marked as team members contribute to the period total and HEART proportion.
     const teamMembers = rawDoctors.filter((d: any) => d.isTeamMember === true);
     const sumDisponivel = teamMembers.reduce((acc: number, d: any) => acc + (Number(d.disponivelPeriodo) || 0), 0);
@@ -3054,8 +3061,8 @@ app.post("/api/app/financial/team-settings", async (req, res) => {
       teamId: groupId,
       doctors: processedDoctors,
       totalDisponivelEquipe: sumDisponivel > 0 ? sumDisponivel : (DEFAULT_TEAM_CONFIG.totalDisponivelEquipe || 134700.17),
-      teamOnlySources: teamOnlySources || DEFAULT_TEAM_CONFIG.teamOnlySources,
-      teamOnlyExpenses: teamOnlyExpenses || DEFAULT_TEAM_CONFIG.teamOnlyExpenses,
+      teamOnlySources: Array.isArray(teamOnlySources) ? teamOnlySources : [],
+      teamOnlyExpenses: Array.isArray(teamOnlyExpenses) ? teamOnlyExpenses : [],
       updatedAt: new Date().toISOString(),
       updatedBy: user.email || user.uid
     };
