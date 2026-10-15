@@ -336,11 +336,16 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       await fetchTransactionTypes();
       return;
     }
-    if (selectedType.defaultScope === "DOCTOR" && !newForm.doctorId && !(selectedType as any).doctorId) {
-      alert("Este tipo de lançamento é individual. Selecione o médico antes de confirmar.");
+    if (selectedType.isMultiple) {
+      const rows = multipleRows.filter(row => row.doctorId && row.amount.trim() !== "");
+      if (rows.length < 1 || rows.some(row => !Number.isFinite(Number(row.amount)) || Number(row.amount) === 0 || (Number(row.amount) < 0 && selectedType.allowNegativeAmount !== true))) {
+        alert("Preencha ao menos um médico com um valor válido diferente de zero.");
+        return;
+      }
+    } else if (selectedType.defaultScope === "DOCTOR" && !newForm.doctorId && !(selectedType as any).doctorId) {
+      alert("Este tipo de lançamento é individual. Selecione um médico antes de confirmar.");
       return;
     }
-
     try {
       setIsSubmitting(true);
       const isTeam = allocationMode === "TEAM";
