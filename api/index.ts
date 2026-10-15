@@ -2110,13 +2110,13 @@ app.get("/api/app/financial/imports/:importId/details", async (req, res) => {
       return res.status(403).json({ error: "Sem permissão para consultar esta importação." });
     }
     const [prod, glosas, taxes, adjustments, txs, batches, reconciliation] = await Promise.all([
-      db.collection("financial_production").where("importId", "==", importId).get(),
-      db.collection("financial_glosas").where("importId", "==", importId).get(),
-      db.collection("financial_taxes").where("importId", "==", importId).get(),
-      db.collection("financial_adjustments").where("importId", "==", importId).get(),
-      db.collection("financial_transactions").where("importId", "==", importId).get(),
-      db.collection("financial_batches").where("importId", "==", importId).get(),
-      db.collection("financial_reconciliation").where("importId", "==", importId).get()
+      db.collection("financial_production").where("teamId", "==", groupId).where("importId", "==", importId).get(),
+      db.collection("financial_glosas").where("teamId", "==", groupId).where("importId", "==", importId).get(),
+      db.collection("financial_taxes").where("teamId", "==", groupId).where("importId", "==", importId).get(),
+      db.collection("financial_adjustments").where("teamId", "==", groupId).where("importId", "==", importId).get(),
+      db.collection("financial_transactions").where("teamId", "==", groupId).where("importId", "==", importId).get(),
+      db.collection("financial_batches").where("teamId", "==", groupId).where("importId", "==", importId).get(),
+      db.collection("financial_reconciliation").where("teamId", "==", groupId).where("importId", "==", importId).get()
     ]);
     const records = (collectionName: string, snap: any) => snap.docs.map((d: any) => ({ id: d.id, recordType: collectionName, ...d.data() }));
     return res.json({
