@@ -33,7 +33,7 @@ export default defineConfig(({mode}) => {
           background_color: '#ffffff',
           display: 'standalone',
           display_override: ['standalone', 'minimal-ui'],
-          orientation: 'portrait',
+          orientation: 'any',
           start_url: '/?source=pwa',
           scope: '/',
           icons: [
