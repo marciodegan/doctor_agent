@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   addDoc, collection, deleteDoc, doc, getDocs, orderBy, query,
-  serverTimestamp, updateDoc, where
+  serverTimestamp
 } from "firebase/firestore";
-import { ArrowDownRight, ArrowUpRight, Banknote, Building2, CalendarDays, CircleDollarSign, Landmark, Plus, RefreshCw, Trash2, Wallet, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Banknote, Building2, CircleDollarSign, Landmark, Plus, RefreshCw, Trash2, Wallet, X } from "lucide-react";
 import { useGroup } from "../../contexts/GroupContext";
 import { db } from "../../lib/firebase";
 
@@ -17,7 +17,7 @@ type CashTransaction = {
 };
 
 const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
-const today = () => new Date().toLocaleDateString("en-CA");
+const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 const inputClass = "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
 const buttonClass = "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -73,6 +73,20 @@ export function OfficialCashFlowView() {
     (selectedAccount === "ALL" || t.accountId === selectedAccount) &&
     (!startDate || t.date >= startDate) && (!endDate || t.date <= endDate)
   ), [transactions, selectedAccount, startDate, endDate]);
+
+  const runningBalances = useMemo(() => {
+    const balances: Record<string, number> = {};
+    for (const account of accounts) balances[account.id] = Number(account.openingBalance || 0);
+    const chronological = [...transactions].sort((a, b) => a.date.localeCompare(b.date) || ((a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)) || a.id.localeCompare(b.id));
+    const byId: Record<string, number> = {};
+    for (const transaction of chronological) {
+      if (balances[transaction.accountId] === undefined) continue;
+      const amount = Math.abs(Number(transaction.amount || 0));
+      balances[transaction.accountId] += transaction.nature === "ENTRY" ? amount : -amount;
+      byId[transaction.id] = balances[transaction.accountId];
+    }
+    return byId;
+  }, [accounts, transactions]);
 
   const totalBalance = accounts.filter(a => a.active !== false).reduce((sum, a) => sum + (accountBalances[a.id] || 0), 0);
   const totalEntries = visibleTransactions.filter(t => t.nature === "ENTRY").reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0);
@@ -189,8 +203,8 @@ export function OfficialCashFlowView() {
         {loading ? <div className="p-12 text-center text-sm text-slate-500">Carregando fluxo de caixa...</div> : visibleTransactions.length === 0 ? <div className="p-12 text-center text-sm text-slate-500">Nenhuma movimentação encontrada para os filtros selecionados.</div> :
           <div className="overflow-x-auto"><table className="w-full min-w-[850px] border-collapse text-left text-sm">
             <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600"><tr>{["Data","Lançamento","Conta","Observação","Valor","Saldo da conta",""].map((h,i)=><th key={i} className="border-b border-slate-200 px-4 py-3 font-bold">{h}</th>)}</tr></thead>
-            <tbody>{visibleTransactions.map(t => {
-              const running = (accounts.find(a => a.id === t.accountId)?.openingBalance || 0) + transactions.filter(x => x.accountId === t.accountId && x.date <= t.date).reduce((sum,x) => sum + (x.nature === "ENTRY" ? 1 : -1) * Math.abs(Number(x.amount || 0)), 0);
+            <tbody>{[...visibleTransactions].sort((a, b) => b.date.localeCompare(a.date) || ((b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))).map(t => {
+              const running = runningBalances[t.id] ?? 0;
               return <tr key={t.id} className="hover:bg-blue-50/40">
                 <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 text-slate-600">{t.date.split("-").reverse().join("/")}</td>
                 <td className="border-b border-slate-100 px-4 py-3"><div className="flex items-center gap-2 font-semibold text-slate-800">{t.nature === "ENTRY" ? <ArrowDownRight size={16} className="text-emerald-600"/> : <ArrowUpRight size={16} className="text-rose-600"}/>{t.description}</div></td>
