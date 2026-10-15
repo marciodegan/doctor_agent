@@ -290,8 +290,8 @@ service cloud.firestore {
     // Legacy documents without teamId must be migrated before they are visible here.
     match /doctors/{doctorId} {
       allow get, list: if isMember(resource.data.teamId);
-      allow create: if isMember(incoming().teamId);
-      allow update: if isMember(existing().teamId) &&
+      allow create: if isOwner(incoming().teamId);
+      allow update: if isOwner(existing().teamId) &&
                        incoming().teamId == existing().teamId;
       allow delete: if isOwner(resource.data.teamId);
     }
