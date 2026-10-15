@@ -228,7 +228,6 @@ export function GlosasView() {
       <div className="space-y-3">
         {filteredGroups.map(g => {
           const isOpen = expanded.includes(g.key);
-          const groupMatched = g.rows.filter(r => r.matchStatus === "MATCHED").length;
           return <section key={g.key} className={`overflow-hidden rounded-2xl border bg-white ${g.verified ? "border-emerald-200 opacity-80" : "border-gray-200"}`}>
             <div className="flex items-center gap-3 p-3 sm:p-4">
               <button onClick={() => setExpanded(current => isOpen ? current.filter(k => k !== g.key) : [...current, g.key])} className="flex min-w-0 flex-1 items-center gap-3 text-left">
