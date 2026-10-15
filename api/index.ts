@@ -2572,7 +2572,7 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
       .replace(/^_+|_+$/g, "");
     const normalizeTypeName = (value: any) => String(value || "")
       .normalize("NFD")
-      .replace(/[\\u0300-\\u036f]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .trim()
       .toUpperCase()
       .replace(/\\s+/g, " ");
@@ -4038,7 +4038,7 @@ app.post("/api/app/financial/glosas/compare", async (req, res) => {
   const groupId = getGroupId(req);
   const { fileName, mimeType, content } = req.body || {};
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
-  if (!fileName || !/\\.pdf$/i.test(String(fileName)) || !String(content || "").includes("base64,")) {
+  if (!fileName || !/\.pdf$/i.test(String(fileName)) || !String(content || "").includes("base64,")) {
     return res.status(400).json({ error: "Envie um arquivo PDF válido." });
   }
   try {
@@ -4057,8 +4057,16 @@ app.post("/api/app/financial/glosas/compare", async (req, res) => {
     if (!Array.isArray(parsed.rows) || parsed.rows.length === 0) {
       return res.status(422).json({ error: "Nenhuma glosa individual foi identificada no PDF. Confira se o arquivo contém o demonstrativo detalhado." });
     }
-    const productionSnap = await db.collection("financial_production").where("teamId", "==", groupId).get();
-    const production = productionSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const [productionSnap, csvImportsSnap] = await Promise.all([
+      db.collection("financial_production").where("teamId", "==", groupId).get(),
+      db.collection("financial_imports").where("teamId", "==", groupId).get()
+    ]);
+    const csvImportIds = new Set(csvImportsSnap.docs
+      .filter((d: any) => String(d.data()?.source || "") === "XLS_IMPORT")
+      .map((d: any) => d.id));
+    const production = productionSnap.docs
+      .map((d: any) => ({ id: d.id, ...d.data() }))
+      .filter((p: any) => csvImportIds.has(String(p.importId || "")));
     const normalizeGlosa = (v: any) => String(v ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     const matchProduction = (row: any) => {
       const protocol = normalizeGlosa(row.protocol), document = normalizeGlosa(row.document);
