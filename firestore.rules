@@ -286,22 +286,28 @@ service cloud.firestore {
       );
     }
 
-    // Doctors (Global)
+    // Doctor records and provider mappings are owned by exactly one team.
+    // Legacy documents without teamId must be migrated before they are visible here.
     match /doctors/{doctorId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // Add proper admin/owner checks
+      allow get, list: if isMember(resource.data.teamId);
+      allow create: if isMember(incoming().teamId);
+      allow update: if isMember(existing().teamId) &&
+                       incoming().teamId == existing().teamId;
+      allow delete: if isOwner(resource.data.teamId);
     }
 
-    // Team Doctors
     match /team_doctors/{teamDoctorId} {
-      allow read: if isMember(resource.data.teamId);
-      allow create, update, delete: if isOwner(incoming().teamId || existing().teamId);
+      allow get, list: if isMember(resource.data.teamId);
+      allow create: if isOwner(incoming().teamId);
+      allow update: if isOwner(existing().teamId) &&
+                       incoming().teamId == existing().teamId;
+      allow delete: if isOwner(resource.data.teamId);
     }
 
     match /doctor_provider_mappings/{mappingId} {
       allow get, list: if isMember(resource.data.teamId);
-      allow create: if isOwner(incoming().teamId);
-      allow update: if isOwner(existing().teamId) &&
+      allow create: if isMember(incoming().teamId);
+      allow update: if isMember(existing().teamId) &&
                        incoming().teamId == existing().teamId;
       allow delete: if isOwner(resource.data.teamId);
     }
