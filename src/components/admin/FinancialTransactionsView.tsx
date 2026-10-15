@@ -909,6 +909,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                 <span className="text-[10px] text-gray-400 font-normal">{transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "Este tipo é individual e exige a seleção de um médico." : "Sem médico selecionado, será usada a regra de rateio configurada no tipo de lançamento."}</span>
               </div>
 
+              )}
+
+              {!transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.isMultiple && (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Valor Total (R$) *</label>
                 <input
@@ -921,7 +924,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   onChange={e => setNewForm({ ...newForm, amount: e.target.value })}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-black text-xs focus:border-emerald-500"
                 />
-              </div>
+              </div>)}
+
+
 
 
               )}
