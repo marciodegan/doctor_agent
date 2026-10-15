@@ -397,15 +397,26 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
   };
 
   useEffect(() => {
+    if (!activeGroup?.id) {
+      setDoctors([]);
+      return;
+    }
+    let cancelled = false;
     const fetchDoctors = async () => {
-      const doctorsCol = collection(db, "doctors");
-      const q = query(doctorsCol, where("active", "==", true), orderBy("name"));
-      const snapshot = await getDocs(q);
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setDoctors(docs);
+      try {
+        const doctorsCol = collection(db, "doctors");
+        const q = query(doctorsCol, where("teamId", "==", activeGroup.id), where("active", "==", true), orderBy("name"));
+        const snapshot = await getDocs(q);
+        if (!cancelled) setDoctors(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (error) {
+        console.error("Falha ao carregar médicos da equipe ativa:", error);
+        if (!cancelled) setDoctors([]);
+      }
     };
+    setDoctors([]);
     fetchDoctors();
-  }, []);
+    return () => { cancelled = true; };
+  }, [activeGroup?.id]);
 
   // Team settings state
   const [teamSettings, setTeamSettings] = useState<TeamFinancialSettings>({
