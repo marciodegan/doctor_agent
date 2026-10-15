@@ -53,18 +53,36 @@ export function DoctorManager() {
       return;
     }
 
+    let unsubscribeDoctors: (() => void) | undefined;
+    let cancelled = false;
+    setDoctors([]);
     setLoading(true);
-    const doctorsCol = collection(db, "doctors");
-    const qDoctors = query(doctorsCol, where("teamId", "==", activeGroup.id));
-    const unsubscribeDoctors = onSnapshot(qDoctors, (snapshot) => {
-      const data = snapshot.docs.map(item => ({ id: item.id, ...item.data() } as Doctor));
-      setDoctors(data);
-      setLoading(false);
-    }, (error) => {
-      console.error("Falha ao carregar médicos da equipe:", error);
-      setDoctors([]);
-      setLoading(false);
-    });
+
+    const subscribeToTeamDoctors = async () => {
+      try {
+        // The endpoint only migrates legacy unscoped doctors to Heart.
+        // Other teams never inherit the legacy catalog.
+        await apiFetch("/api/app/financial/doctors/migrate-legacy", {
+          method: "POST",
+          body: JSON.stringify({})
+        });
+      } catch (error) {
+        console.error("Migração inicial de médicos antigos:", error);
+      }
+      if (cancelled) return;
+      const doctorsCol = collection(db, "doctors");
+      const qDoctors = query(doctorsCol, where("teamId", "==", activeGroup.id));
+      unsubscribeDoctors = onSnapshot(qDoctors, (snapshot) => {
+        const data = snapshot.docs.map(item => ({ id: item.id, ...item.data() } as Doctor));
+        setDoctors(data);
+        setLoading(false);
+      }, (error) => {
+        console.error("Falha ao carregar médicos da equipe:", error);
+        setDoctors([]);
+        setLoading(false);
+      });
+    };
+    subscribeToTeamDoctors();
 
     const fetchTeamSettings = async () => {
         try {
@@ -79,8 +97,11 @@ export function DoctorManager() {
       };
       fetchTeamSettings();
 
-    return () => unsubscribeDoctors();
-  }, [activeGroup]);
+    return () => {
+      cancelled = true;
+      unsubscribeDoctors?.();
+    };
+  }, [activeGroup?.id]);
 
   const handleSaveSettings = async () => {
     try {
