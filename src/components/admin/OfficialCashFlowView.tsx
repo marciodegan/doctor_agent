@@ -13,7 +13,10 @@ type CashAccount = {
 };
 type CashTransaction = {
   id: string; accountId: string; date: string; description: string; observation: string;
-  nature: "ENTRY" | "EXIT"; amount: number; createdAt?: any;
+  nature: "ENTRY" | "EXIT"; amount: number; launchTypeId?: string; createdAt?: any;
+};
+type CashLaunchType = {
+  id: string; name: string; nature: "ENTRY" | "EXIT"; active: boolean;
 };
 
 const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
@@ -25,6 +28,7 @@ export function OfficialCashFlowView() {
   const { activeGroup } = useGroup();
   const [accounts, setAccounts] = useState<CashAccount[]>([]);
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
+  const [launchTypes, setLaunchTypes] = useState<CashLaunchType[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -33,23 +37,28 @@ export function OfficialCashFlowView() {
   const [endDate, setEndDate] = useState("");
   const [showAccountForm, setShowAccountForm] = useState(false);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [showLaunchTypeForm, setShowLaunchTypeForm] = useState(false);
+  const [launchTypeName, setLaunchTypeName] = useState("");
   const [accountForm, setAccountForm] = useState({ name: "", institution: "", kind: "bank" as CashAccount["kind"], openingBalance: "0" });
-  const [transactionForm, setTransactionForm] = useState({ accountId: "", date: today(), nature: "ENTRY" as CashTransaction["nature"], description: "", amount: "", observation: "" });
+  const [transactionForm, setTransactionForm] = useState({ accountId: "", date: today(), nature: "ENTRY" as CashTransaction["nature"], launchTypeId: "", description: "", amount: "", observation: "" });
 
   const groupId = activeGroup?.id;
   const accountsRef = () => collection(db, "groups", groupId!, "official_cash_accounts");
   const transactionsRef = () => collection(db, "groups", groupId!, "official_cash_transactions");
+  const launchTypesRef = () => collection(db, "groups", groupId!, "official_cash_launch_types");
 
   const loadData = async () => {
     if (!groupId) { setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [accountSnap, transactionSnap] = await Promise.all([
+      const [accountSnap, transactionSnap, launchTypeSnap] = await Promise.all([
         getDocs(query(accountsRef(), orderBy("name"))),
-        getDocs(query(transactionsRef(), orderBy("date", "desc")))
+        getDocs(query(transactionsRef(), orderBy("date", "desc"))),
+        getDocs(query(launchTypesRef(), orderBy("name")))
       ]);
       setAccounts(accountSnap.docs.map(d => ({ id: d.id, ...d.data() } as CashAccount)));
       setTransactions(transactionSnap.docs.map(d => ({ id: d.id, ...d.data() } as CashTransaction)));
+      setLaunchTypes(launchTypeSnap.docs.map(d => ({ id: d.id, ...d.data() } as CashLaunchType)));
     } catch (e: any) {
       console.error("Erro ao carregar fluxo de caixa oficial", e);
       setError("Não foi possível carregar o fluxo. Verifique as permissões do Firestore e tente novamente.");
@@ -109,20 +118,46 @@ export function OfficialCashFlowView() {
     finally { setSaving(false); }
   };
 
+  const saveLaunchType = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!groupId || !launchTypeName.trim()) return;
+    const normalizedName = launchTypeName.trim().toLocaleLowerCase("pt-BR");
+    if (launchTypes.some(t => t.nature === transactionForm.nature && t.name.trim().toLocaleLowerCase("pt-BR") === normalizedName)) {
+      setError("Já existe um lançamento cadastrado com esse nome para esse tipo.");
+      return;
+    }
+    setSaving(true); setError("");
+    try {
+      const name = launchTypeName.trim();
+      const created = await addDoc(launchTypesRef(), {
+        name, nature: transactionForm.nature, active: true,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+      setLaunchTypes(current => [...current, { id: created.id, name, nature: transactionForm.nature, active: true }].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")));
+      setTransactionForm(f => ({ ...f, launchTypeId: created.id, description: name }));
+      setLaunchTypeName("");
+      setShowLaunchTypeForm(false);
+    } catch (e) { console.error(e); setError("Não foi possível cadastrar o lançamento."); }
+    finally { setSaving(false); }
+  };
+
   const saveTransaction = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!groupId || !transactionForm.accountId || !transactionForm.description.trim() || !(Number(transactionForm.amount) > 0)) {
-      setError("Informe a conta, a descrição e um valor maior que zero."); return;
+    const selectedLaunchType = launchTypes.find(t => t.id === transactionForm.launchTypeId && t.nature === transactionForm.nature && t.active !== false);
+    if (!groupId || !transactionForm.accountId || !selectedLaunchType || !(Number(transactionForm.amount) > 0)) {
+      setError("Informe a conta, selecione um lançamento cadastrado e informe um valor maior que zero."); return;
     }
     setSaving(true); setError("");
     try {
       await addDoc(transactionsRef(), {
         accountId: transactionForm.accountId, date: transactionForm.date,
-        nature: transactionForm.nature, description: transactionForm.description.trim(),
+        nature: transactionForm.nature, launchTypeId: selectedLaunchType.id,
+        description: selectedLaunchType.name,
         amount: Number(transactionForm.amount), observation: transactionForm.observation.trim(),
         createdAt: serverTimestamp(), updatedAt: serverTimestamp()
       });
-      setTransactionForm({ accountId: selectedAccount !== "ALL" ? selectedAccount : (accounts.find(a => a.active !== false)?.id || ""), date: today(), nature: "ENTRY", description: "", amount: "", observation: "" });
+      setTransactionForm({ accountId: selectedAccount !== "ALL" ? selectedAccount : (accounts.find(a => a.active !== false)?.id || ""), date: today(), nature: "ENTRY", launchTypeId: "", description: "", amount: "", observation: "" });
+      setShowLaunchTypeForm(false); setLaunchTypeName("");
       setShowTransactionForm(false); await loadData();
     } catch (e) { console.error(e); setError("Não foi possível salvar o lançamento."); }
     finally { setSaving(false); }
@@ -229,8 +264,16 @@ export function OfficialCashFlowView() {
 
       {showTransactionForm && <Modal title="Novo lançamento" onClose={() => setShowTransactionForm(false)}><form onSubmit={saveTransaction} className="space-y-4">
         <label className="block text-sm font-semibold text-slate-700">Conta<select required className={inputClass + " mt-1"} value={transactionForm.accountId} onChange={e => setTransactionForm(f => ({...f,accountId:e.target.value}))}><option value="">Selecione uma conta</option>{accounts.filter(a => a.active !== false).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="block text-sm font-semibold text-slate-700">Data<input type="date" required className={inputClass + " mt-1"} value={transactionForm.date} onChange={e => setTransactionForm(f => ({...f,date:e.target.value}))}/></label><label className="block text-sm font-semibold text-slate-700">Tipo<select className={inputClass + " mt-1"} value={transactionForm.nature} onChange={e => setTransactionForm(f => ({...f,nature:e.target.value as CashTransaction["nature"]}))}><option value="ENTRY">Entrada</option><option value="EXIT">Saída</option></select></label></div>
-        <label className="block text-sm font-semibold text-slate-700">Descrição<input required className={inputClass + " mt-1"} placeholder="Ex.: Recebimento, aluguel, cartão" value={transactionForm.description} onChange={e => setTransactionForm(f => ({...f,description:e.target.value}))}/></label>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="block text-sm font-semibold text-slate-700">Data<input type="date" required className={inputClass + " mt-1"} value={transactionForm.date} onChange={e => setTransactionForm(f => ({...f,date:e.target.value}))}/></label><label className="block text-sm font-semibold text-slate-700">Tipo<select className={inputClass + " mt-1"} value={transactionForm.nature} onChange={e => { const nature = e.target.value as CashTransaction["nature"]; setTransactionForm(f => ({...f,nature,launchTypeId:"",description:""})); setShowLaunchTypeForm(false); setLaunchTypeName(""); }}><option value="ENTRY">Entrada</option><option value="EXIT">Saída</option></select></label></div>
+        <div>
+          <label className="block text-sm font-semibold text-slate-700">Lançamento cadastrado<select required className={inputClass + " mt-1"} value={transactionForm.launchTypeId} onChange={e => { const selected = launchTypes.find(t => t.id === e.target.value); setTransactionForm(f => ({...f,launchTypeId:e.target.value,description:selected?.name || ""})); }}><option value="">Selecione um lançamento</option>{launchTypes.filter(t => t.active !== false && t.nature === transactionForm.nature).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+          <button type="button" className={buttonClass + " mt-2 border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"} onClick={() => { setError(""); setLaunchTypeName(""); setShowLaunchTypeForm(v => !v); }}><Plus size={15}/>{showLaunchTypeForm ? "Cancelar cadastro" : "Cadastrar novo lançamento"}</button>
+          {showLaunchTypeForm && <form onSubmit={saveLaunchType} className="mt-3 space-y-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+            <label className="block text-sm font-semibold text-slate-700">Nome do lançamento<input autoFocus required maxLength={80} className={inputClass + " mt-1"} placeholder={transactionForm.nature === "ENTRY" ? "Ex.: Honorários, Reembolso" : "Ex.: Aluguel, Cartão, Contabilidade"} value={launchTypeName} onChange={e => setLaunchTypeName(e.target.value)}/></label>
+            <p className="text-xs text-slate-500">Este cadastro ficará disponível na lista de {transactionForm.nature === "ENTRY" ? "entradas" : "saídas"} deste grupo.</p>
+            <button type="submit" disabled={saving} className={buttonClass + " w-full bg-blue-600 text-white hover:bg-blue-700"}>{saving ? "Salvando..." : "Salvar lançamento na lista"}</button>
+          </form>}
+        </div>
         <label className="block text-sm font-semibold text-slate-700">Valor (R$)<input type="number" min="0.01" step="0.01" required className={inputClass + " mt-1"} placeholder="0,00" value={transactionForm.amount} onChange={e => setTransactionForm(f => ({...f,amount:e.target.value}))}/></label>
         <label className="block text-sm font-semibold text-slate-700">Observação (opcional)<textarea rows={2} className={inputClass + " mt-1"} value={transactionForm.observation} onChange={e => setTransactionForm(f => ({...f,observation:e.target.value}))}/></label>
         <button disabled={saving} className={buttonClass + " w-full bg-emerald-600 text-white hover:bg-emerald-700"}>{saving ? "Salvando..." : "Salvar lançamento"}</button>
