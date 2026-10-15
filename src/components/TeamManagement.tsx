@@ -26,6 +26,8 @@ import { ShoppingListConfig } from "./ShoppingListConfig";
 export function TeamManagement() {
   const { 
     activeGroup, 
+    groups,
+    setActiveGroupId,
     activeGroupMembers,
     inviteUser, 
     removeMember,
