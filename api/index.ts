@@ -4075,7 +4075,7 @@ app.post("/api/app/financial/glosas/compare", async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(503).json({ error: "A chave GEMINI_API_KEY não está configurada no servidor." });
     const ai = new GoogleGenAI({ apiKey });
-    const prompt = "Você é auditor de glosas médicas. Leia o PDF anexado e extraia somente as glosas individualizadas, sem incluir totais ou resumos duplicados. Retorne JSON válido no formato {\"lot\":\"\",\"rows\":[{\"protocol\":\"\",\"lot\":\"\",\"protocolDate\":\"\",\"patientName\":\"\",\"patientCode\":\"\",\"document\":\"\",\"ambCode\":\"\",\"procedureDescription\":\"\",\"valueInformed\":0,\"valueProcessed\":0,\"valueReleased\":0,\"glosaValue\":0,\"reason\":\"\",\"doctorName\":\"\"}]}. Preserve números de protocolo e documentos como strings, valores monetários como números em reais, e datas como aparecem no documento. Glosa = valor informado menos valor processado/liberado quando o documento não trouxer o valor de glosa explicitamente. Não invente dados; use strings vazias e zero quando ausentes. Extraia todas as linhas individuais e não inclua somatórios gerais.";
+    const prompt = "Você é auditor de glosas médicas. Leia o PDF e extraia CADA linha de procedimento individualizada. Um protocolo pode conter vários procedimentos: crie uma linha JSON para cada procedimento, repetindo o número do protocolo em todas as linhas daquele protocolo. NÃO resuma um protocolo em uma única linha. Preserve nome do paciente, data do atendimento/procedimento, médico/executante, código AMB, documento, descrição do procedimento, valor informado, processado, liberado, valor da glosa e motivo/justificativa quando visíveis. Retorne JSON válido no formato {\\\"lot\\\":\\\"\\\",\\\"rows\\\":[{\\\"protocol\\\":\\\"\\\",\\\"lot\\\":\\\"\\\",\\\"date\\\":\\\"\\\",\\\"protocolDate\\\":\\\"\\\",\\\"patientName\\\":\\\"\\\",\\\"patientCode\\\":\\\"\\\",\\\"document\\\":\\\"\\\",\\\"ambCode\\\":\\\"\\\",\\\"procedureDescription\\\":\\\"\\\",\\\"valueInformed\\\":0,\\\"valueProcessed\\\":0,\\\"valueReleased\\\":0,\\\"glosaValue\\\":0,\\\"reason\\\":\\\"\\\",\\\"doctorName\\\":\\\"\\\"}]}. Preserve protocolos e documentos como strings e valores monetários como números em reais. Não inclua linhas de totais, subtotais ou resumos repetidos como procedimentos. Se o valor da glosa não estiver explícito, calcule valor informado menos valor processado apenas quando ambos estiverem claramente disponíveis. Não invente campos ausentes: use string vazia ou zero.";
     const base64 = String(content).split("base64,").pop() || "";
     const response = await generateGeminiFinancialParse(ai, [
       { text: prompt },
@@ -4141,7 +4141,8 @@ app.post("/api/app/financial/glosas/compare", async (req, res) => {
     const ref = db.collection("financial_glosa_reconciliations").doc();
     const metadata = {
       id: ref.id, teamId: groupId, fileName: String(fileName), lot: String(parsed.lot || rows.find((r: any) => r.lot)?.lot || ""),
-      rowCount: rows.length, matchedCount, unmatchedCount: rows.length - matchedCount,
+      rowCount: rows.length, protocolCount: new Set(rows.map((r: any) => String(r.protocol || "").trim() || "SEM-PROTOCOLO")).size,
+      verifiedCount: 0, matchedCount, unmatchedCount: rows.length - matchedCount,
       totalGlosa: Math.round(rows.reduce((sum: number, r: any) => sum + (Number(r.glosaValue) || 0), 0) * 100) / 100,
       createdAt, createdBy: (req as any).user?.uid || "", status: matchedCount === rows.length ? "MATCHED" : matchedCount ? "PARTIAL" : "NEEDS_REVIEW"
     };
