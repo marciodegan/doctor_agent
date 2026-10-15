@@ -4429,7 +4429,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       const oldImports = oldImportsSnap.docs.filter((doc: any) => String(doc.data()?.source || "") === importSource);
       for (const oldImport of oldImports) {
         const oldId = oldImport.id;
-        const collections = ["financial_production", "financial_glosas", "financial_taxes", "financial_adjustments", "financial_transactions", "financial_batches", "financial_reconciliation"];
+        const collections = ["financial_production", "financial_production_raw", "financial_glosas", "financial_taxes", "financial_adjustments", "financial_transactions", "financial_batches", "financial_reconciliation"];
         const snapshots = await Promise.all(collections.map(name => db.collection(name).where("teamId", "==", groupId).where("importId", "==", oldId).get()));
         const refs: any[] = [oldImport.ref];
         snapshots.forEach(snapshot => snapshot.docs.forEach((doc: any) => refs.push(doc.ref)));
@@ -4491,6 +4491,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       }
     }
     const batch = db.batch();
+    const productionWriteQueue: Array<{ ref: any; data: any }> = [];
     const importRef = db.collection("financial_imports").doc();
     const importId = importRef.id;
 
@@ -4513,7 +4514,9 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
           ? ["Existem lançamentos com combinação Executante + Prestador sem mapeamento."]
           : [])
       ],
-      errors: []
+      errors: [],
+      rawSpreadsheetRowCount: Number(parsedData.rawSpreadsheetRowCount) || 0,
+      rawSpreadsheetColumnCount: Array.isArray(parsedData.rawSpreadsheetHeaders) ? parsedData.rawSpreadsheetHeaders.length : 0
     });
 
     // 2. financial_batches
@@ -4710,7 +4713,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
         );
 
         const prodRef = db.collection("financial_production").doc();
-        batch.set(prodRef, {
+        const productionRecord = {
           id: prodRef.id,
           teamId: groupId,
           closingId,
@@ -4733,10 +4736,12 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
           doctorId: mapping?.doctorId || null,
           doctorName: mapping?.doctorName || null,
           allocationStatus: mapping ? "ALLOCATED" : "PENDING_REVIEW",
-          source: "PDF_AI",
+          source: importSource === "XLS_IMPORT" ? "CSV" : "PDF_AI",
           sourceFile: srcFile,
           createdAt: new Date().toISOString()
-        });
+        };
+        if (importSource === "XLS_IMPORT") productionWriteQueue.push({ ref: prodRef, data: productionRecord });
+        else batch.set(prodRef, productionRecord);
       }
     }
 
@@ -4836,6 +4841,43 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
       newValue: `Lote ${bNum} (${srcFile}) conciliado com sucesso no fechamento. Produção: R$ ${parsedData.totals?.production}, Líquido: R$ ${parsedData.totals?.net}`,
       timestamp: new Date().toISOString()
     });
+
+    // Firestore batches are limited to 500 writes. CSV/XLS production can exceed that limit,
+    // so persist the normalized rows in chunks without changing any matrix formulas.
+    for (let offset = 0; offset < productionWriteQueue.length; offset += 400) {
+      const productionBatch = db.batch();
+      productionWriteQueue.slice(offset, offset + 400).forEach(item => productionBatch.set(item.ref, item.data));
+      await productionBatch.commit();
+    }
+
+    // Archive every populated spreadsheet row and every source column separately from the
+    // normalized financial_production collection used by the existing matrix calculations.
+    if (importSource === "XLS_IMPORT" && Array.isArray(parsedData.rawSpreadsheetRows)) {
+      const rawRows: any[] = parsedData.rawSpreadsheetRows;
+      for (let offset = 0; offset < rawRows.length; offset += 400) {
+        const rawBatch = db.batch();
+        rawRows.slice(offset, offset + 400).forEach((raw: any, index: number) => {
+          const rawRef = db.collection("financial_production_raw").doc();
+          rawBatch.set(rawRef, {
+            id: rawRef.id, teamId: groupId, closingId, importId, batchNumber: bNum,
+            source: "XLS_IMPORT", sourceFile: srcFile,
+            sourceRowNumber: Number(raw.sourceRowNumber) || offset + index + 1,
+            sourceHeaders: Array.isArray(raw.sourceHeaders) ? raw.sourceHeaders : parsedData.rawSpreadsheetHeaders || [],
+            sourceValues: Array.isArray(raw.sourceValues) ? raw.sourceValues : [],
+            sourceColumns: raw.sourceColumns && typeof raw.sourceColumns === "object" ? raw.sourceColumns : {},
+            protocol: String(raw.protocol || "").trim(), date: String(raw.date || ""),
+            patientName: String(raw.patientName || ""), patientCode: String(raw.patientCode || ""),
+            document: String(raw.document || ""), quantity: Number(raw.quantity) || 0,
+            ambCode: String(raw.ambCode || ""), procedureDescription: String(raw.procedureDescription || ""),
+            honorValue: Number(raw.honorValue) || 0, operationalValue: Number(raw.operationalValue) || 0,
+            filmValue: Number(raw.filmValue) || 0, administrativeFee: Number(raw.administrativeFee) || 0,
+            executingProvider: String(raw.executingProvider || ""), paymentProvider: String(raw.paymentProvider || ""),
+            protocolProvider: String(raw.protocolProvider || ""), createdAt: new Date().toISOString()
+          });
+        });
+        await rawBatch.commit();
+      }
+    }
 
     await batch.commit();
 
