@@ -118,8 +118,8 @@ export function OfficialCashFlowView() {
     finally { setSaving(false); }
   };
 
-  const saveLaunchType = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const saveLaunchType = async (event?: React.FormEvent) => {
+    event?.preventDefault();
     if (!groupId || !launchTypeName.trim()) return;
     const normalizedName = launchTypeName.trim().toLocaleLowerCase("pt-BR");
     if (launchTypes.some(t => t.nature === transactionForm.nature && t.name.trim().toLocaleLowerCase("pt-BR") === normalizedName)) {
@@ -268,11 +268,11 @@ export function OfficialCashFlowView() {
         <div>
           <label className="block text-sm font-semibold text-slate-700">Lançamento cadastrado<select required className={inputClass + " mt-1"} value={transactionForm.launchTypeId} onChange={e => { const selected = launchTypes.find(t => t.id === e.target.value); setTransactionForm(f => ({...f,launchTypeId:e.target.value,description:selected?.name || ""})); }}><option value="">Selecione um lançamento</option>{launchTypes.filter(t => t.active !== false && t.nature === transactionForm.nature).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
           <button type="button" className={buttonClass + " mt-2 border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"} onClick={() => { setError(""); setLaunchTypeName(""); setShowLaunchTypeForm(v => !v); }}><Plus size={15}/>{showLaunchTypeForm ? "Cancelar cadastro" : "Cadastrar novo lançamento"}</button>
-          {showLaunchTypeForm && <form onSubmit={saveLaunchType} className="mt-3 space-y-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+          {showLaunchTypeForm && <div className="mt-3 space-y-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
             <label className="block text-sm font-semibold text-slate-700">Nome do lançamento<input autoFocus required maxLength={80} className={inputClass + " mt-1"} placeholder={transactionForm.nature === "ENTRY" ? "Ex.: Honorários, Reembolso" : "Ex.: Aluguel, Cartão, Contabilidade"} value={launchTypeName} onChange={e => setLaunchTypeName(e.target.value)}/></label>
             <p className="text-xs text-slate-500">Este cadastro ficará disponível na lista de {transactionForm.nature === "ENTRY" ? "entradas" : "saídas"} deste grupo.</p>
-            <button type="submit" disabled={saving} className={buttonClass + " w-full bg-blue-600 text-white hover:bg-blue-700"}>{saving ? "Salvando..." : "Salvar lançamento na lista"}</button>
-          </form>}
+            <button type="button" disabled={saving || !launchTypeName.trim()} onClick={() => void saveLaunchType()} className={buttonClass + " w-full bg-blue-600 text-white hover:bg-blue-700"}>{saving ? "Salvando..." : "Salvar lançamento na lista"}</button>
+          </div>}
         </div>
         <label className="block text-sm font-semibold text-slate-700">Valor (R$)<input type="number" min="0.01" step="0.01" required className={inputClass + " mt-1"} placeholder="0,00" value={transactionForm.amount} onChange={e => setTransactionForm(f => ({...f,amount:e.target.value}))}/></label>
         <label className="block text-sm font-semibold text-slate-700">Observação (opcional)<textarea rows={2} className={inputClass + " mt-1"} value={transactionForm.observation} onChange={e => setTransactionForm(f => ({...f,observation:e.target.value}))}/></label>
