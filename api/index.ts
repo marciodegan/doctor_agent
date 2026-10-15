@@ -1941,11 +1941,15 @@ app.post("/api/app/financial/doctors/migrate-legacy", async (req, res) => {
       return res.json({ migrated: 0, skipped: true });
     }
     await requireGroupMember(req, groupId);
-    const legacy = await db.collection("doctors").where("teamId", "==", null).get();
+    const allDoctors = await db.collection("doctors").get();
+    const legacyDocs = allDoctors.docs.filter((doctorDoc: any) => {
+      const data = doctorDoc.data();
+      return !data.teamId && !data.groupId;
+    });
     let migrated = 0;
-    for (let i = 0; i < legacy.docs.length; i += 400) {
+    for (let i = 0; i < legacyDocs.length; i += 400) {
       const batch = db.batch();
-      legacy.docs.slice(i, i + 400).forEach((doctorDoc: any) => {
+      legacyDocs.slice(i, i + 400).forEach((doctorDoc: any) => {
         batch.update(doctorDoc.ref, { teamId: groupId, migratedToTeamAt: new Date().toISOString() });
         migrated++;
       });
