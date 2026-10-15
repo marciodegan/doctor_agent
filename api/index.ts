@@ -3505,6 +3505,47 @@ const parseStructuredFinancialSpreadsheet = (file: any, closingData: any) => {
   const idx = (...names: string[]) => names.map(normalizeImportHeader).map(n => headers.indexOf(n)).find(i => i >= 0) ?? -1;
   const get = (row: any[], ...names: string[]) => { const i = idx(...names); return i >= 0 ? row[i] : ""; };
 
+  // Keep an immutable archive of every source column and every populated row.
+  // This archive is intentionally separate from financial_production so matrix totals/calculations remain unchanged.
+  const originalHeaderRow = rows[headerIndex] || [];
+  const columnCount = Math.max(originalHeaderRow.length, ...rows.map(row => row.length));
+  const sourceHeaders: string[] = [];
+  const headerCounts = new Map<string, number>();
+  for (let columnIndex = 0; columnIndex < columnCount; columnIndex++) {
+    const originalName = String(originalHeaderRow[columnIndex] ?? "").trim();
+    const baseName = originalName || `COLUNA_${columnIndex + 1}`;
+    const count = (headerCounts.get(baseName) || 0) + 1;
+    headerCounts.set(baseName, count);
+    sourceHeaders.push(count === 1 ? baseName : `${baseName}__${count}`);
+  }
+  const rawSpreadsheetRows = rows.slice(headerIndex + 1).map((row, index) => {
+    const sourceValues = sourceHeaders.map((_, columnIndex) => row[columnIndex] ?? "");
+    if (!sourceValues.some(value => value !== "" && value !== null && value !== undefined)) return null;
+    const sourceColumns: Record<string, any> = {};
+    sourceHeaders.forEach((header, columnIndex) => { sourceColumns[header] = sourceValues[columnIndex]; });
+    return {
+      sourceRowNumber: headerIndex + index + 2,
+      sourceHeaders,
+      sourceValues,
+      sourceColumns,
+      protocol: String(get(row, "RELAÇÃO NR", "RELACAO NR")).trim(),
+      date: formatImportDate(get(row, "DATA")),
+      patientName: String(get(row, "NOME DO USUARIO", "NOME DO USUÁRIO")).trim(),
+      patientCode: String(get(row, "CODIGO DO USUARIO", "CÓDIGO DO USUÁRIO")).trim(),
+      document: String(get(row, "DOCUMENTO")).trim(),
+      quantity: parseImportNumber(get(row, "QT.", "QT")),
+      ambCode: String(get(row, "CODIGO AMB", "CÓDIGO AMB")).trim(),
+      procedureDescription: String(get(row, "DESCRICAO", "DESCRIÇÃO")).trim(),
+      honorValue: parseImportNumber(get(row, "VLR.HON.")),
+      operationalValue: parseImportNumber(get(row, "VLR.OPER.")),
+      filmValue: parseImportNumber(get(row, "VLR.FILME")),
+      administrativeFee: parseImportNumber(get(row, "VLR TX ADM")),
+      executingProvider: String(get(row, "PRESTADOR EXECUTANTE")).trim(),
+      paymentProvider: String(get(row, "PRESTADOR PAGAMENTO")).trim(),
+      protocolProvider: String(get(row, "PRESTADOR PROTOCOLO")).trim()
+    };
+  }).filter(Boolean);
+
   const productionRecords = rows.slice(headerIndex + 1).map(row => {
     const executingProvider = String(get(row, "PRESTADOR EXECUTANTE")).trim();
     const protocolProvider = String(get(row, "PRESTADOR PROTOCOLO")).trim();
@@ -3562,6 +3603,9 @@ const parseStructuredFinancialSpreadsheet = (file: any, closingData: any) => {
     taxesList: [],
     occurrences: [],
     productionRecords,
+    rawSpreadsheetRows,
+    rawSpreadsheetHeaders: sourceHeaders,
+    rawSpreadsheetRowCount: rawSpreadsheetRows.length,
     doctors: Array.from(doctors.values()),
     sourceType: "STRUCTURED_SPREADSHEET"
   };
