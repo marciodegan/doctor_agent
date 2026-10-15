@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Loader2, UserPlus, Save, X } from "lucide-react";
 import { db } from "../../lib/firebase";
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from "firebase/firestore";
 import { useGroup } from "../../contexts/GroupContext";
 import { TeamRateioConfig } from "../TeamRateioConfig";
 import { ProviderLinker } from "./ProviderLinker";
@@ -47,12 +47,22 @@ export function DoctorManager() {
   }, [doctors, teamSettings]);
 
   useEffect(() => {
-    if (!activeGroup) return;
+    if (!activeGroup?.id) {
+      setDoctors([]);
+      setLoading(false);
+      return;
+    }
 
-    const qDoctors = query(collection(db, "doctors"));
+    setLoading(true);
+    const doctorsCol = collection(db, "doctors");
+    const qDoctors = query(doctorsCol, where("teamId", "==", activeGroup.id));
     const unsubscribeDoctors = onSnapshot(qDoctors, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Doctor));
+      const data = snapshot.docs.map(item => ({ id: item.id, ...item.data() } as Doctor));
       setDoctors(data);
+      setLoading(false);
+    }, (error) => {
+      console.error("Falha ao carregar médicos da equipe:", error);
+      setDoctors([]);
       setLoading(false);
     });
 
@@ -86,6 +96,7 @@ export function DoctorManager() {
           const firestoreDoctor = doctors.find(d => d.id === doctor.key);
           if (firestoreDoctor) {
             await updateDoc(doc(db, "doctors", firestoreDoctor.id), {
+              teamId: activeGroup?.id,
               valorLimite: Math.max(0, Number(doctor.valorLimite) || 0),
               updatedAt: serverTimestamp()
             });
@@ -108,12 +119,15 @@ export function DoctorManager() {
     if (isEditing) {
       await updateDoc(doc(db, "doctors", isEditing.id), {
         ...formData,
+        teamId: activeGroup?.id,
         valorLimite: Math.max(0, Number(formData.valorLimite) || 0),
         updatedAt: serverTimestamp()
       });
     } else {
+      if (!activeGroup?.id) return;
       await addDoc(collection(db, "doctors"), {
         ...formData,
+        teamId: activeGroup.id,
         valorLimite: Math.max(0, Number(formData.valorLimite) || 0),
         active: true,
         createdAt: serverTimestamp(),
