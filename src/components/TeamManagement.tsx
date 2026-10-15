@@ -258,7 +258,31 @@ export function TeamManagement() {
           <div className="flex-1 overflow-y-visible md:overflow-y-auto p-6 sm:p-8 space-y-10 custom-scrollbar pb-[calc(120px+env(safe-area-inset-bottom))] md:pb-8">
             {managementMode === "dashboard" ? (
               <div className="space-y-8">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                 <section className="rounded-3xl border border-blue-100 bg-blue-50/60 p-4 sm:p-5 space-y-3">
+                   <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-2xl bg-white text-blue-600 shadow-sm flex items-center justify-center shrink-0">
+                       <Users size={20} />
+                     </div>
+                     <div className="min-w-0">
+                       <h3 className="text-sm font-black uppercase tracking-tight text-gray-900">Trocar equipe</h3>
+                       <p className="text-[10px] sm:text-xs text-gray-500">Selecione uma equipe da qual você faz parte.</p>
+                     </div>
+                   </div>
+                   <select
+                     aria-label="Selecionar equipe"
+                     value={activeGroup.id}
+                     onChange={(event) => setActiveGroupId(event.target.value)}
+                     className="w-full min-w-0 rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                   >
+                     {groups
+                       .filter((group) => group.status !== "terminated" && group.status !== "removed" && group.active !== false && group.ativo !== false)
+                       .map((group) => (
+                         <option key={group.id} value={group.id}>{group.name || "Equipe"}</option>
+                       ))}
+                   </select>
+                   <p className="text-[10px] text-gray-400">Os pacientes, médicos, lançamentos e fechamentos serão exibidos conforme a equipe selecionada.</p>
+                 </section>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                     <button 
                       onClick={() => setManagementMode("members")}
                       className="flex flex-col items-center justify-center gap-4 p-8 bg-blue-50/50 border-2 border-blue-100 rounded-[40px] hover:bg-blue-600 hover:text-white hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-200 transition-all group relative overflow-hidden"
