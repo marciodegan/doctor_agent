@@ -104,8 +104,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     : allDoctors.map(doctor => ({ ...doctor, id: doctor.key }));
 
   const fetchDoctorOptions = async () => {
+    if (!activeGroup?.id) { setDoctorOptions([]); return; }
     try {
-      const snapshot = await getDocs(query(collection(db, "doctors"), where("active", "==", true), orderBy("name")));
+      const snapshot = await getDocs(query(collection(db, "doctors"), where("teamId", "==", activeGroup?.id || ""), where("active", "==", true), orderBy("name")));
       const docs = snapshot.docs
         .map(document => {
           const data = document.data();
@@ -125,6 +126,11 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       setDoctorOptions([]);
     }
   };
+
+  useEffect(() => {
+    setDoctorOptions([]);
+    fetchDoctorOptions();
+  }, [activeGroup?.id]);
 
   // Fetch transaction types
   const fetchTransactionTypes = async () => {
