@@ -39,7 +39,8 @@ import {
   Stethoscope,
   PowerOff,
   ExternalLink,
-  Kanban
+  Kanban,
+  Wallet
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -53,8 +54,9 @@ import { ShoppingList } from "./components/ShoppingList";
 import { PersonalNotes } from "./components/PersonalNotes";
 import { TrelloBoard } from "./components/TrelloBoard";
 import { NewPatientModal } from "./components/NewPatientModal";
+import { OfficialCashFlowView } from "./components/admin/OfficialCashFlowView";
 
-type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes" | "trello";
+type NavView = "workspace" | "pricing" | "calendar" | "logs" | "shopping_list" | "notes" | "trello" | "official_cash_flow";
 
 export default function AppWorkspace() {
   const { isAuthenticated, user, login, logout, isDemoMode, enableDemoMode, disableDemoMode } = useAuth();
@@ -446,6 +448,12 @@ export default function AppWorkspace() {
                   active={currentView === "calendar"}
                   onClick={() => navigateAndAction("calendar")}
                 />
+                <NavItem
+                  icon={<Wallet size={18} />}
+                  label="Fluxo de Caixa Oficial"
+                  active={currentView === "official_cash_flow"}
+                  onClick={() => navigateAndAction("official_cash_flow")}
+                />
 
                 <div className="pt-8 space-y-1">
                   <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">Account</div>
@@ -574,6 +582,12 @@ export default function AppWorkspace() {
             label="Calendário"
             active={currentView === "calendar"}
             onClick={() => navigateAndAction("calendar")}
+          />
+          <NavItem
+            icon={<Wallet size={18} />}
+            label="Fluxo de Caixa Oficial"
+            active={currentView === "official_cash_flow"}
+            onClick={() => navigateAndAction("official_cash_flow")}
           />
 
           <div className="pt-8 space-y-1">
@@ -832,7 +846,9 @@ export default function AppWorkspace() {
                       transition={{ duration: 0.15 }}
                       className="w-full"
                     >
-                      {currentView === "pricing" ? (
+                      {currentView === "official_cash_flow" ? (
+                        <OfficialCashFlowView />
+                      ) : currentView === "pricing" ? (
                         <Pricing onBack={() => navigateAndAction("workspace")} />
                       ) : currentView === "calendar" ? (
                         <FirestoreCalendar
