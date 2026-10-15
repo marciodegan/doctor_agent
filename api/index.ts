@@ -1916,6 +1916,20 @@ async function parseBatch10944FilesForServer(closingId: string, teamId: string) 
   };
 }
 
+// Security boundary for every financial API endpoint. The Admin SDK bypasses
+// Firestore rules, so each request must prove membership in the selected team.
+app.use("/api/app/financial", async (req, res, next) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    await requireGroupMember(req, groupId);
+    (req as any).activeGroupId = groupId;
+    next();
+  } catch (error: any) {
+    return res.status(403).json({ error: "Você não faz parte desta equipe ou seu acesso está inativo." });
+  }
+});
+
 app.get("/api/app/financial/closings", async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
@@ -2088,10 +2102,11 @@ app.get("/api/app/financial/imports/:importId/details", async (req, res) => {
   const groupId = getGroupId(req);
   const { importId } = req.params;
   try {
+    if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
     const importDoc = await db.collection("financial_imports").doc(importId).get();
     if (!importDoc.exists) return res.status(404).json({ error: "Importação não encontrada." });
     const importData = importDoc.data() || {};
-    if (importData.teamId && groupId && importData.teamId !== groupId) {
+    if (importData.teamId !== groupId) {
       return res.status(403).json({ error: "Sem permissão para consultar esta importação." });
     }
     const [prod, glosas, taxes, adjustments, txs, batches, reconciliation] = await Promise.all([
@@ -2125,11 +2140,12 @@ app.delete("/api/app/financial/imports/:importId", async (req, res) => {
   const groupId = getGroupId(req);
   const { importId } = req.params;
   try {
+    if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
     const importRef = db.collection("financial_imports").doc(importId);
     const importDoc = await importRef.get();
     if (!importDoc.exists) return res.status(404).json({ error: "Importação não encontrada." });
     const importData = importDoc.data() || {};
-    if (importData.teamId && groupId && importData.teamId !== groupId) {
+    if (importData.teamId !== groupId) {
       return res.status(403).json({ error: "Sem permissão para excluir esta importação." });
     }
 
@@ -2140,7 +2156,7 @@ app.delete("/api/app/financial/imports/:importId", async (req, res) => {
     const closingSnap = await closingRef.get();
     if (!closingSnap.exists) return res.status(409).json({ error: "O fechamento desta importação não foi encontrado; exclusão bloqueada por segurança." });
     const closingData = closingSnap.data() || {};
-    if (closingData.teamId && groupId && closingData.teamId !== groupId) {
+    if (closingData.teamId !== groupId) {
       return res.status(403).json({ error: "O fechamento vinculado pertence a outro grupo." });
     }
     const closingStatus = String(closingData.status || "").trim().toUpperCase();
@@ -2159,7 +2175,7 @@ app.delete("/api/app/financial/imports/:importId", async (req, res) => {
       "financial_reconciliation"
     ];
     const snapshots = await Promise.all(collectionNames.map(name =>
-      db.collection(name).where("importId", "==", importId).get()
+      db.collection(name).where("teamId", "==", groupId).where("importId", "==", importId).get()
     ));
     const refs: any[] = [importRef];
     snapshots.forEach(snapshot => snapshot.docs.forEach((doc: any) => refs.push(doc.ref)));
@@ -3237,7 +3253,7 @@ app.post("/api/app/financial/transactions", async (req, res) => {
     const closingSnap = await closingRef.get();
     if (!closingSnap.exists) return res.status(400).json({ error: "O fechamento selecionado não existe. Crie ou selecione um fechamento em aberto." });
     const closingData = closingSnap.data() || {};
-    if (closingData.teamId && closingData.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outro grupo." });
+    if (closingData.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outro grupo." });
     if (String(closingData.status || "").toUpperCase() === "FECHADO") return res.status(409).json({ error: "Este fechamento já foi concluído. Abra um novo fechamento para lançar valores." });
 
     let prelaunchRef: any = null;
@@ -3564,7 +3580,7 @@ app.post("/api/app/financial/transactions/ai-preview", async (req, res) => {
     const closingSnap = await db.collection("financial_closings").doc(String(closingId)).get();
     if (!closingSnap.exists) return res.status(404).json({ error: "A competência selecionada não foi encontrada." });
     const closingData = closingSnap.data() || {};
-    if (closingData.teamId && closingData.teamId !== groupId) return res.status(403).json({ error: "A competência pertence a outro grupo." });
+    if (closingData.teamId !== groupId) return res.status(403).json({ error: "A competência pertence a outro grupo." });
     if (String(closingData.status || "").toUpperCase() === "FECHADO") return res.status(409).json({ error: "A competência está fechada. Selecione uma competência em aberto." });
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -4768,7 +4784,7 @@ app.put("/api/app/financial/transactions/:id", async (req, res) => {
     if (!doc.exists) return res.status(404).json({ error: "Lançamento não encontrado." });
 
     const existingTransaction: any = doc.data() || {};
-    if (existingTransaction.teamId && existingTransaction.teamId !== groupId) {
+    if (!groupId || existingTransaction.teamId !== groupId) {
       return res.status(403).json({ error: "Este lançamento pertence a outro grupo." });
     }
     const nextTypeId = typeId !== undefined ? String(typeId || "") : String(existingTransaction.typeId || "");
@@ -4847,8 +4863,13 @@ app.put("/api/app/financial/transactions/:id", async (req, res) => {
 
 app.delete("/api/app/financial/transactions/:id", async (req, res) => {
   const { id } = req.params;
+  const groupId = getGroupId(req);
   try {
-    await db.collection("financial_transactions").doc(id).delete();
+    const txRef = db.collection("financial_transactions").doc(id);
+    const txSnap = await txRef.get();
+    if (!txSnap.exists) return res.status(404).json({ error: "Lançamento não encontrado." });
+    if (!groupId || txSnap.data()?.teamId !== groupId) return res.status(403).json({ error: "Este lançamento pertence a outra equipe." });
+    await txRef.delete();
     res.json({ success: true });
   } catch (error: any) {
     handleApiError(res, error, "Delete Financial Transaction");
