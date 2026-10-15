@@ -9,7 +9,7 @@ type GlosaRow = {
   reason?: string; doctorName?: string; matchStatus?: string; matchedProduction?: any; verified?: boolean;
 };
 type GlosaImport = { id: string; fileName: string; createdAt: string; lot?: string; rowCount: number; matchedCount: number; unmatchedCount: number; verifiedCount?: number; protocolCount?: number; };
-type ProtocolGroup = { key: string; protocol: string; lot: string; rows: GlosaRow[]; totalGlosa: number; verified: boolean; };
+type ProtocolGroup = { key: string; protocol: string; lot: string; rows: GlosaRow[]; csvRecords: any[]; totalGlosa: number; verified: boolean; };
 
 const money = (v: any) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const norm = (v: any) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -91,11 +91,17 @@ export function GlosasView() {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(r);
     });
-    return Array.from(map.entries()).map(([key, items]) => ({
-      key, protocol: items[0]?.protocol || "Sem protocolo", lot: items.find(r => r.lot)?.lot || "",
-      rows: items, totalGlosa: items.reduce((sum, r) => sum + (Number(r.glosaValue) || 0), 0),
-      verified: items.length > 0 && items.every(r => r.verified === true)
-    })).sort((a, b) => Number(a.verified) - Number(b.verified) || a.protocol.localeCompare(b.protocol, "pt-BR", { numeric: true }));
+    return Array.from(map.entries()).map(([key, items]) => {
+      const csvRows = items.flatMap(r => Array.isArray((r as any).matchedProductionRecords) ? (r as any).matchedProductionRecords : []);
+      const csvRecords = Array.from(new Map(csvRows.map((record: any, index: number) => [
+        String(record.productionId || record.sourceRowNumber || record.document || record.protocol + "-" + index), record
+      ])).values());
+      return {
+        key, protocol: items[0]?.protocol || "Sem protocolo", lot: items.find(r => r.lot)?.lot || "",
+        rows: items, csvRecords, totalGlosa: items.reduce((sum, r) => sum + (Number(r.glosaValue) || 0), 0),
+        verified: items.length > 0 && items.every(r => r.verified === true)
+      };
+    }).filter(group => group.totalGlosa > 0).sort((a, b) => Number(a.verified) - Number(b.verified) || a.protocol.localeCompare(b.protocol, "pt-BR", { numeric: true }));
   }, [rows]);
 
   const filteredGroups = useMemo(() => {
@@ -227,7 +233,7 @@ export function GlosasView() {
             <div className="flex items-center gap-3 p-3 sm:p-4">
               <button onClick={() => setExpanded(current => isOpen ? current.filter(k => k !== g.key) : [...current, g.key])} className="flex min-w-0 flex-1 items-center gap-3 text-left">
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${g.verified ? "bg-emerald-100 text-emerald-800" : "bg-blue-50 text-blue-800"}`}>{isOpen ? <ChevronDown size={18}/> : <ChevronRight size={18}/>}</span>
-                <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 font-extrabold text-slate-800">Protocolo {g.protocol}{g.verified && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">Verificado</span>}</span><span className="mt-1 block text-xs text-gray-500">Lote {g.lot || "—"} · {g.rows.length} procedimento(s) · {groupMatched}/{g.rows.length} correspondentes</span></span>
+                <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 font-extrabold text-slate-800">Protocolo {g.protocol}{g.verified && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">Verificado</span>}</span><span className="mt-1 block text-xs text-gray-500">Lote {g.lot || "—"} · {g.csvRecords.length} registro(s) CSV vinculado(s) · {g.rows.length} linha(s) de glosa</span></span>
                 <span className="whitespace-nowrap text-right"><span className="block text-[10px] font-bold uppercase text-gray-500">Total glosa</span><span className="text-sm sm:text-base font-black text-red-700">{money(g.totalGlosa)}</span></span>
               </button>
               <button title={g.verified ? "Reabrir conferência" : "Marcar como verificado"} disabled={savingProtocol === g.key} onClick={() => verifyProtocol(g, !g.verified)} className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-extrabold disabled:opacity-50 ${g.verified ? "bg-emerald-100 text-emerald-800" : "bg-slate-800 text-white"}`}>{savingProtocol === g.key ? <Loader2 size={15} className="animate-spin"/> : <ClipboardCheck size={15}/>}<span className="hidden md:inline">{g.verified ? "Verificado" : "Marcar verificado"}</span><span className="md:hidden">{g.verified ? "OK" : "Verificar"}</span></button>
@@ -240,6 +246,21 @@ export function GlosasView() {
                 <button onClick={() => { void navigator.clipboard?.writeText(protocolText(g)); setMessage("Resumo do protocolo copiado."); }} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700"><Share2 size={15}/> Copiar resumo</button>
               </div>
               <div className="space-y-3 p-3 sm:p-4">
+                {g.csvRecords.length > 0 && <section className="overflow-hidden rounded-xl border border-blue-100">
+                  <div className="flex flex-col gap-1 bg-blue-50 px-4 py-3"><h4 className="font-extrabold text-slate-800">Registros completos encontrados no CSV</h4><p className="text-xs text-slate-600">{g.csvRecords.length} linha(s) do arquivo original com o protocolo {g.protocol}. Todas as colunas importadas são preservadas nesta tabela.</p></div>
+                  {g.csvRecords[0]?.sourceColumns ? <div className="overflow-auto">
+                    <table className="min-w-max w-full text-xs">
+                      <thead className="bg-slate-800 text-white"><tr>{Object.keys(g.csvRecords[0].sourceColumns).map((header: string) => <th key={header} className="whitespace-nowrap border-r border-slate-600 px-3 py-2 text-left">{header}</th>)}</tr></thead>
+                      <tbody>{g.csvRecords.map((record: any, index: number) => <tr key={record.productionId || index} className="border-t border-gray-100 odd:bg-white even:bg-gray-50">
+                        {Object.keys(g.csvRecords[0].sourceColumns).map((header: string) => {
+                          const value = record.sourceColumns?.[header];
+                          const display = value === null || value === undefined || value === "" ? "—" : typeof value === "object" ? (value.seconds ? new Date(value.seconds * 1000).toLocaleString("pt-BR") : JSON.stringify(value)) : String(value);
+                          return <td key={header} className="whitespace-nowrap border-r border-gray-100 px-3 py-2">{display}</td>;
+                        })}
+                      </tr>)}</tbody>
+                    </table>
+                  </div> : <div className="overflow-auto"><table className="min-w-[950px] w-full text-xs"><thead className="bg-slate-800 text-white"><tr>{["Data","Paciente","Código usuário","Documento","Código AMB","Descrição","Qtd.","Vlr. Hon.","Vlr. Oper.","Vlr. Filme","Vlr. Tx Adm","Prestador Executante","Prestador Pagamento","Prestador Protocolo"].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 text-left">{h}</th>)}</tr></thead><tbody>{g.csvRecords.map((record: any, index: number) => <tr key={record.productionId || index} className="border-t border-gray-100"><td className="whitespace-nowrap px-3 py-2">{record.date || "—"}</td><td className="px-3 py-2">{record.patientName || "—"}</td><td className="px-3 py-2">{record.patientCode || "—"}</td><td className="px-3 py-2">{record.document || "—"}</td><td className="px-3 py-2">{record.ambCode || "—"}</td><td className="px-3 py-2">{record.procedureDescription || "—"}</td><td className="px-3 py-2">{record.quantity ?? "—"}</td><td className="px-3 py-2">{money(record.honorValue)}</td><td className="px-3 py-2">{money(record.operationalValue)}</td><td className="px-3 py-2">{money(record.filmValue)}</td><td className="px-3 py-2">{money(record.administrativeFee)}</td><td className="px-3 py-2">{record.executingProvider || "—"}</td><td className="px-3 py-2">{record.paymentProvider || "—"}</td><td className="px-3 py-2">{record.protocolProvider || "—"}</td></tr>)}</tbody></table></div>}
+                </section>}
                 {g.rows.map((r, i) => <article key={r.id || g.key + "-" + i} className="rounded-xl border border-gray-200 p-3 sm:p-4">
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1"><p className="font-bold text-slate-800">{i + 1}. {rowProcedure(r)}</p><div className="mt-2 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-1 text-xs text-gray-600"><p><strong>Paciente:</strong> {rowPatient(r)}</p><p><strong>Data:</strong> {rowDate(r) || "Não informada"}</p><p><strong>Médico:</strong> {rowDoctor(r)}</p><p><strong>Código AMB:</strong> {r.ambCode || r.matchedProduction?.ambCode || "—"}</p><p><strong>Documento:</strong> {r.document || r.matchedProduction?.document || "—"}</p><p><strong>Correspondência CSV:</strong> {r.matchStatus === "MATCHED" ? <span className="font-bold text-emerald-700">Encontrado</span> : <span className="font-bold text-amber-700">Conferir manualmente</span>}</p>{r.reason && <p className="sm:col-span-2 xl:col-span-3"><strong>Motivo:</strong> {r.reason}</p>}</div></div>
