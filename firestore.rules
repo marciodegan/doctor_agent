@@ -43,8 +43,10 @@ service cloud.firestore {
       let groupDoc = /databases/$(database)/documents/groups/$(groupId);
       return isSignedIn() && (
         (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid) ||
-        (exists(memberDoc) && (get(memberDoc).data.role == "owner" || get(memberDoc).data.role == "admin")) ||
-        (exists(userMembershipDoc) && (get(userMembershipDoc).data.role == "owner" || get(userMembershipDoc).data.role == "admin"))
+        (exists(memberDoc) && isActiveMembership(get(memberDoc).data) &&
+          (get(memberDoc).data.role == "owner" || get(memberDoc).data.role == "admin")) ||
+        (exists(userMembershipDoc) && isActiveMembership(get(userMembershipDoc).data) &&
+          (get(userMembershipDoc).data.role == "owner" || get(userMembershipDoc).data.role == "admin"))
       );
     }
 
