@@ -878,6 +878,21 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                 </select>
               </div>
 
+              {transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.isMultiple ? (
+                <div className="space-y-3">
+                  <div><label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Valores por médico</label><p className="mt-1 text-[10px] text-gray-500">Preencha somente os médicos envolvidos. Cada valor será salvo como um lançamento individual. A soma não precisa fechar em zero.</p></div>
+                  <div className="space-y-2">
+                    {multipleRows.map((row, index) => {
+                      const doctor = selectableDoctors.find(d => String(d.id) === String(row.doctorId));
+                      return <div key={row.doctorId || index} className="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-2">
+                        <span className="truncate text-xs font-bold text-gray-800">{doctor?.name || "Médico"}</span>
+                        <input aria-label={"Valor de " + (doctor?.name || "médico")} type="number" step="0.01" placeholder="0,00" value={row.amount} onChange={e => setMultipleRows(current => current.map((item, i) => i === index ? { ...item, amount: e.target.value } : item))} className="w-full rounded-lg border border-gray-200 bg-white p-2 text-right text-xs font-bold outline-none focus:border-emerald-500" />
+                      </div>;
+                    })}
+                  </div>
+                  <p className="text-xs font-bold text-slate-700">Soma informativa: {multipleRows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                </div>
+              ) : (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Médico {transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "(obrigatório para este tipo)" : "(opcional)"}</label>
                 <select
@@ -908,6 +923,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                 />
               </div>
 
+
+              )}
+              {!transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.isMultiple && (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Observação</label>
                 <input
@@ -975,4 +993,6 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       )}
     </div>
   );
-}
+}              )}
+
+
