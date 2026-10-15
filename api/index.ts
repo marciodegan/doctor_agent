@@ -4825,7 +4825,7 @@ app.post("/api/app/financial/ai-commit", async (req, res) => {
           doctorId: mapping?.doctorId || null,
           doctorName: mapping?.doctorName || null,
           allocationStatus: mapping ? "ALLOCATED" : "PENDING_REVIEW",
-          source: importSource === "XLS_IMPORT" ? "CSV" : "PDF_AI",
+          source: "PDF_AI",
           sourceFile: srcFile,
           createdAt: new Date().toISOString()
         };
