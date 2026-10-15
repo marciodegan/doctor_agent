@@ -324,8 +324,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     }
     const selectedType = transactionTypes.find(t => String(t.id) === String(newForm.typeId));
     const parsedAmount = Number(newForm.amount);
-    if (!newForm.amount || !Number.isFinite(parsedAmount) || parsedAmount === 0 ||
-        (parsedAmount < 0 && selectedType?.allowNegativeAmount !== true)) {
+    if (!selectedType?.isMultiple && (!newForm.amount || !Number.isFinite(parsedAmount) || parsedAmount === 0 ||
+        (parsedAmount < 0 && selectedType?.allowNegativeAmount !== true))) {
       alert(selectedType?.allowNegativeAmount
         ? "Informe um valor diferente de zero. Valores negativos são permitidos para este tipo."
         : "Informe um valor maior que zero.");
@@ -872,7 +872,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   <option value="">Selecione um tipo cadastrado</option>
                   {transactionTypes.map(t => (
                     <option key={t.id} value={t.id}>
-                      {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.isSalary === true ? "(SALÁRIO INDIVIDUAL)" : t.matrixAdjustmentType === "ACERTO_FINAL" ? "(ACERTO FINAL INDIVIDUAL)" : t.matrixAdjustmentType ? "(ACERTO INDIVIDUAL)" : t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
+                      {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.isMultiple ? "(MÚLTIPLO)" : t.isSalary === true ? "(SALÁRIO INDIVIDUAL)" : t.matrixAdjustmentType === "ACERTO_FINAL" ? "(ACERTO FINAL INDIVIDUAL)" : t.matrixAdjustmentType ? "(ACERTO INDIVIDUAL)" : t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
                     </option>
                   ))}
                 </select>
