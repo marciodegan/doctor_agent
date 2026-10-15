@@ -880,7 +880,10 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
 
               {transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.isMultiple ? (
                 <div className="space-y-3">
-                  <div><label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Valores por médico</label><p className="mt-1 text-[10px] text-gray-500">Preencha somente os médicos envolvidos. Cada valor será salvo como um lançamento individual. A soma não precisa fechar em zero.</p></div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Valores por médico</label>
+                    <p className="mt-1 text-[10px] text-gray-500">Preencha somente os médicos envolvidos. Cada valor será salvo como um lançamento individual. A soma não precisa fechar em zero.</p>
+                  </div>
                   <div className="space-y-2">
                     {multipleRows.map((row, index) => {
                       const doctor = selectableDoctors.find(d => String(d.id) === String(row.doctorId));
@@ -893,53 +896,29 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   <p className="text-xs font-bold text-slate-700">Soma informativa: {multipleRows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
                 </div>
               ) : (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Médico {transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "(obrigatório para este tipo)" : "(opcional)"}</label>
-                <select
-                  value={newForm.doctorId || ""}
-                  onChange={e => {
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Médico {transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "(obrigatório para este tipo)" : "(opcional)"}</label>
+                  <select value={newForm.doctorId || ""} onChange={e => {
                     const doctor = selectableDoctors.find(d => String(d.id) === String(e.target.value));
                     setNewForm({ ...newForm, doctorId: doctor?.id || "", doctorName: doctor?.name || "" });
-                  }}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="">{transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "Selecione o médico para este lançamento individual" : "Equipe / despesa compartilhada (ratear conforme o tipo)"}</option>
-                  {selectableDoctors.map(doctor => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
-                </select>
-                <span className="text-[10px] text-gray-400 font-normal">{transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "Este tipo é individual e exige a seleção de um médico." : "Sem médico selecionado, será usada a regra de rateio configurada no tipo de lançamento."}</span>
-              </div>
-
+                  }} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500">
+                    <option value="">{transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "Selecione o médico para este lançamento individual" : "Equipe / despesa compartilhada (ratear conforme o tipo)"}</option>
+                    {selectableDoctors.map(doctor => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
+                  </select>
+                  <span className="text-[10px] text-gray-400 font-normal">{transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "Este tipo é individual e exige a seleção de um médico." : "Sem médico selecionado, será usada a regra de rateio configurada no tipo de lançamento."}</span>
+                </div>
               )}
 
               {!transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.isMultiple && (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Valor Total (R$) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min={transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.allowNegativeAmount === true ? undefined : "0.01"}
-                  placeholder={transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.allowNegativeAmount === true ? "Ex.: 1000 ou -1000" : "0,00"}
-                  required
-                  value={newForm.amount}
-                  onChange={e => setNewForm({ ...newForm, amount: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-black text-xs focus:border-emerald-500"
-                />
-              </div>)}
-
-
-
-
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Valor Total (R$) *</label>
+                  <input type="number" step="0.01" min={transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.allowNegativeAmount === true ? undefined : "0.01"} placeholder={transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.allowNegativeAmount === true ? "Ex.: 1000 ou -1000" : "0,00"} required value={newForm.amount} onChange={e => setNewForm({ ...newForm, amount: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-black text-xs focus:border-emerald-500" />
+                </div>
               )}
-              {!transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.isMultiple && (
+
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Observação</label>
-                <input
-                  type="text"
-                  value={newForm.observation}
-                  onChange={e => setNewForm({ ...newForm, observation: e.target.value })}
-                  placeholder="Descrição opcional"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs focus:border-emerald-500"
-                />
+                <input type="text" value={newForm.observation} onChange={e => setNewForm({ ...newForm, observation: e.target.value })} placeholder="Descrição opcional" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-semibold text-xs focus:border-emerald-500" />
               </div>
 
               <p className="text-[10px] text-gray-500 font-medium">
