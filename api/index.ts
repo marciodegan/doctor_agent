@@ -4067,7 +4067,7 @@ app.post("/api/app/financial/glosas/compare", async (req, res) => {
     const production = productionSnap.docs
       .map((d: any) => ({ id: d.id, ...d.data() }))
       .filter((p: any) => csvImportIds.has(String(p.importId || "")));
-    const normalizeGlosa = (v: any) => String(v ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const normalizeGlosa = (v: any) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     const matchProduction = (row: any) => {
       const protocol = normalizeGlosa(row.protocol), document = normalizeGlosa(row.document);
       const patientCode = normalizeGlosa(row.patientCode), ambCode = normalizeGlosa(row.ambCode), patient = normalizeGlosa(row.patientName);
