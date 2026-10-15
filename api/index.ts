@@ -4071,11 +4071,14 @@ app.post("/api/app/financial/glosas/compare", async (req, res) => {
     const matchProduction = (row: any) => {
       const protocol = normalizeGlosa(row.protocol), document = normalizeGlosa(row.document);
       const patientCode = normalizeGlosa(row.patientCode), ambCode = normalizeGlosa(row.ambCode), patient = normalizeGlosa(row.patientName);
-      let candidates = production;
-      if (protocol) candidates = candidates.filter((p: any) => normalizeGlosa(p.protocol) === protocol);
-      else if (document) candidates = candidates.filter((p: any) => normalizeGlosa(p.document) === document);
-      else if (patientCode) candidates = candidates.filter((p: any) => normalizeGlosa(p.patientCode) === patientCode);
-      else return null;
+      let candidates: any[] = [];
+      if (protocol) candidates = production.filter((p: any) => normalizeGlosa(p.protocol) === protocol);
+      if (!candidates.length && document) candidates = production.filter((p: any) => normalizeGlosa(p.document) === document);
+      if (!candidates.length && patientCode) candidates = production.filter((p: any) => normalizeGlosa(p.patientCode) === patientCode);
+      if (!candidates.length && patient && ambCode) {
+        candidates = production.filter((p: any) => normalizeGlosa(p.patientName) === patient && normalizeGlosa(p.ambCode) === ambCode);
+      }
+      if (!candidates.length) return null;
       if (candidates.length > 1 && ambCode) {
         const byAmb = candidates.filter((p: any) => normalizeGlosa(p.ambCode) === ambCode);
         if (byAmb.length) candidates = byAmb;
