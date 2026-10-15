@@ -337,8 +337,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       return;
     }
     if (selectedType.isMultiple) {
-      const rows = multipleRows.filter(row => row.doctorId && row.amount.trim() !== "");
-      if (rows.length < 1 || rows.some(row => !Number.isFinite(Number(row.amount)) || Number(row.amount) === 0 || (Number(row.amount) < 0 && selectedType.allowNegativeAmount !== true))) {
+      const rows = multipleRows.filter(row => row.doctorId && row.amount.trim() !== "" && Number(row.amount) !== 0);
+      if (rows.length < 1 || rows.some(row => !Number.isFinite(Number(row.amount)) || (Number(row.amount) < 0 && selectedType.allowNegativeAmount !== true))) {
         alert("Preencha ao menos um médico com um valor válido diferente de zero.");
         return;
       }
@@ -359,7 +359,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         lote: newForm.lote.trim()
       };
       if (selectedType.isMultiple) {
-        const rows = multipleRows.filter(row => row.doctorId && row.amount.trim() !== "");
+        const rows = multipleRows.filter(row => row.doctorId && row.amount.trim() !== "" && Number(row.amount) !== 0);
         for (const row of rows) {
           const doctor = selectableDoctors.find(d => String(d.id) === String(row.doctorId));
           const res = await apiFetch("/api/app/financial/transactions", {
