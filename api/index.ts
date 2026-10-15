@@ -4074,7 +4074,50 @@ app.get("/api/app/financial/glosas/imports/:importId", async (req, res) => {
     const snap = await ref.get();
     if (!snap.exists || snap.data()?.teamId !== groupId) return res.status(404).json({ error: "Importação não encontrada nesta equipe." });
     const rowsSnap = await ref.collection("rows").orderBy("rowOrder", "asc").get();
-    res.json({ ...snap.data(), id: snap.id, rows: rowsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })) });
+    const rows = rowsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const [csvImportsSnap, rawProductionSnap, normalizedProductionSnap] = await Promise.all([
+      db.collection("financial_imports").where("teamId", "==", groupId).get(),
+      db.collection("financial_production_raw").where("teamId", "==", groupId).get(),
+      db.collection("financial_production").where("teamId", "==", groupId).get()
+    ]);
+    const csvImportIds = new Set(csvImportsSnap.docs.filter((d: any) => String(d.data()?.source || "") === "XLS_IMPORT").map((d: any) => d.id));
+    const rawRecords = rawProductionSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((p: any) => csvImportIds.has(String(p.importId || "")));
+    const normalizedRecords = normalizedProductionSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((p: any) => csvImportIds.has(String(p.importId || "")));
+    const normalize = (v: any) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const seenProtocols = new Set<string>();
+    const enrichedRows = rows.map((row: any) => {
+      const protocol = normalize(row.protocol);
+      if (!protocol) return row;
+      const matches = rawRecords.filter((p: any) => normalize(p.protocol) === protocol);
+      const selected = matches.length ? matches : normalizedRecords.filter((p: any) => normalize(p.protocol) === protocol);
+      const first = selected[0];
+      const result: any = {
+        ...row,
+        matchStatus: selected.length ? "MATCHED" : row.matchStatus || "UNMATCHED",
+        matchedProductionCount: selected.length,
+        matchedProduction: first ? {
+          productionId: first.id, protocol: first.protocol || "", date: first.date || "", patientName: first.patientName || "",
+          patientCode: first.patientCode || "", document: first.document || "", ambCode: first.ambCode || "",
+          procedureDescription: first.procedureDescription || "", executingProvider: first.executingProvider || "",
+          protocolProvider: first.protocolProvider || "", doctorName: first.doctorName || ""
+        } : row.matchedProduction || null
+      };
+      if (!seenProtocols.has(protocol)) {
+        seenProtocols.add(protocol);
+        result.matchedProductionRecords = selected.map((p: any) => ({
+          productionId: p.id, protocol: p.protocol || "", date: p.date || "", patientName: p.patientName || "",
+          patientCode: p.patientCode || "", document: p.document || "", ambCode: p.ambCode || "",
+          procedureDescription: p.procedureDescription || "", executingProvider: p.executingProvider || "",
+          paymentProvider: p.paymentProvider || "", protocolProvider: p.protocolProvider || "",
+          doctorName: p.doctorName || "", quantity: p.quantity ?? "", honorValue: p.honorValue ?? 0,
+          operationalValue: p.operationalValue ?? 0, filmValue: p.filmValue ?? 0,
+          administrativeFee: p.administrativeFee ?? 0, sourceRowNumber: p.sourceRowNumber ?? "",
+          sourceColumns: p.sourceColumns || null, sourceValues: p.sourceValues || null, sourceHeaders: p.sourceHeaders || null
+        }));
+      } else result.matchedProductionRecords = [];
+      return result;
+    });
+    res.json({ ...snap.data(), id: snap.id, rows: enrichedRows });
   } catch (error: any) { handleApiError(res, error, "Get Glosa Import"); }
 });
 
@@ -4224,9 +4267,15 @@ app.post("/api/app/financial/glosas/compare", async (req, res) => {
       createdAt, createdBy: (req as any).user?.uid || "", status: matchedCount === rows.length ? "MATCHED" : matchedCount ? "PARTIAL" : "NEEDS_REVIEW"
     };
     await ref.set(metadata);
-    for (let offset = 0; offset < rows.length; offset += 400) {
+    // Store compact glosa rows only; full CSV matches are joined on read to avoid duplicating
+    // potentially hundreds of CSV rows into every glosa document (Firestore 1 MiB document limit).
+    const persistedRows = rows.map((row: any) => {
+      const { matchedProductionRecords, ...compact } = row;
+      return compact;
+    });
+    for (let offset = 0; offset < persistedRows.length; offset += 400) {
       const batch = db.batch();
-      rows.slice(offset, offset + 400).forEach((row: any, index: number) => batch.set(ref.collection("rows").doc(String(offset + index).padStart(6, "0")), row));
+      persistedRows.slice(offset, offset + 400).forEach((row: any, index: number) => batch.set(ref.collection("rows").doc(String(offset + index).padStart(6, "0")), row));
       await batch.commit();
     }
     res.json({ ...metadata, rows });
