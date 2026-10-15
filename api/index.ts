@@ -4128,7 +4128,7 @@ app.post("/api/app/financial/glosas/compare", async (req, res) => {
         valueInformed: informed, valueProcessed: processed, valueReleased: released, glosaValue: glosa,
         matchStatus: match ? "MATCHED" : "UNMATCHED",
         matchedProduction: match ? {
-          productionId: match.id, protocol: match.protocol || "", patientName: match.patientName || "",
+          productionId: match.id, protocol: match.protocol || "", date: match.date || "", patientName: match.patientName || "",
           patientCode: match.patientCode || "", document: match.document || "", ambCode: match.ambCode || "",
           procedureDescription: match.procedureDescription || "", executingProvider: match.executingProvider || "",
           protocolProvider: match.protocolProvider || "", doctorName: match.doctorName || ""
