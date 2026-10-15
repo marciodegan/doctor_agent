@@ -2695,7 +2695,7 @@ app.post("/api/app/financial/import-source-upload", (req, res, next) => {
     const closingSnap = await db.collection("financial_closings").doc(closingId).get();
     if (!closingSnap.exists) return res.status(404).json({ error: "Fechamento não encontrado." });
     const closingData = closingSnap.data() || {};
-    if (closingData.teamId && closingData.teamId !== groupId) return res.status(403).json({ error: "Sem permissão para este fechamento." });
+    if (closingData.teamId !== groupId) return res.status(403).json({ error: "Sem permissão para este fechamento." });
     const safeName = String(file.originalname || "arquivo").replace(/[^a-zA-Z0-9._-]/g, "_");
     const objectPath = "financial-import-sources/" + groupId + "/" + closingId + "/" + Date.now() + "_" + safeName;
     const token = Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -2734,6 +2734,7 @@ app.post("/api/app/financial/closings/:closingId/manual-note", async (req, res) 
     let closingSnap = await closingRef.get();
     if (!closingSnap.exists) {
       const byMonth = await db.collection("financial_closings")
+        .where("teamId", "==", groupId)
         .where("monthKey", "==", closingId.toUpperCase()).limit(1).get();
       if (!byMonth.empty) {
         closingRef = byMonth.docs[0].ref;
@@ -2742,15 +2743,16 @@ app.post("/api/app/financial/closings/:closingId/manual-note", async (req, res) 
     }
     if (!closingSnap.exists) return res.status(404).json({ error: "Fechamento não encontrado." });
     const closing = closingSnap.data() || {};
-    if (closing.teamId && groupId && closing.teamId !== groupId) {
+    if (closing.teamId !== groupId) {
       return res.status(403).json({ error: "Sem permissão para alterar este fechamento." });
     }
     const duplicate = await db.collection("financial_taxes")
+      .where("teamId", "==", groupId)
       .where("closingId", "==", closingRef.id).where("lote", "==", lote).limit(1).get();
     if (!duplicate.empty) return res.status(409).json({ error: "Já existe uma nota/lote com esse identificador neste fechamento." });
     const ref = db.collection("financial_taxes").doc();
     const record = {
-      id: ref.id, teamId: closing.teamId || groupId || "default-group",
+      id: ref.id, teamId: groupId,
       closingId: closingRef.id, lote, batchNumber: lote,
       competencia: String(note.competencia || closing.monthKey || ""),
       tipo: String(note.tipo || "Produção Estruturada"),
@@ -2782,6 +2784,7 @@ app.post("/api/app/financial/closings/:closingId/note-settings", async (req, res
     let snap = await ref.get();
     if (!snap.exists) {
       const byMonth = await db.collection("financial_closings")
+        .where("teamId", "==", groupId)
         .where("monthKey", "==", closingId.toUpperCase())
         .limit(1)
         .get();
@@ -2790,7 +2793,7 @@ app.post("/api/app/financial/closings/:closingId/note-settings", async (req, res
         snap = byMonth.docs[0];
       }
     }
-    if (snap.exists && snap.data()?.teamId && snap.data()?.teamId !== groupId) {
+    if (snap.exists && snap.data()?.teamId !== groupId) {
       return res.status(403).json({ error: "Closing does not belong to this group" });
     }
     const allowed = [
@@ -2857,9 +2860,13 @@ app.delete("/api/app/financial/closings/:closingId/taxes/:loteId", async (req, r
 // Update removed lotes for a closing
 app.post("/api/app/financial/closings/:closingId/removed-lotes", async (req, res) => {
   const { closingId } = req.params;
+  const groupId = getGroupId(req);
   const { removedLotes } = req.body;
   try {
     const closingRef = db.collection("financial_closings").doc(closingId);
+    const closingSnap = await closingRef.get();
+    if (!closingSnap.exists) return res.status(404).json({ error: "Fechamento não encontrado." });
+    if (!groupId || closingSnap.data()?.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outra equipe." });
     await closingRef.update({
       removedLotes: removedLotes || [],
       updatedAt: new Date().toISOString()
@@ -2879,6 +2886,7 @@ app.post("/api/app/financial/closings/:closingId/status", async (req, res) => {
     const closingRef = db.collection("financial_closings").doc(closingId);
     const doc = await closingRef.get();
     if (!doc.exists) return res.status(404).json({ error: "Closing not found" });
+    if (!groupId || doc.data()?.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outra equipe." });
 
     const oldStatus = doc.data()?.status;
 
@@ -3953,6 +3961,7 @@ app.post("/api/app/financial/ai-parse", async (req, res) => {
     const closingDoc = await db.collection("financial_closings").doc(closingId).get();
     if (!closingDoc.exists) return res.status(404).json({ error: "Fechamento não encontrado" });
     const closingData = closingDoc.data();
+    if (!groupId || closingData?.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outra equipe." });
 
     let aiParsed: any = null;
     let aiParseError = "";
