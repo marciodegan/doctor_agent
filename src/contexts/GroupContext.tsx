@@ -737,9 +737,20 @@ export function GroupProvider({ children }: { children: React.ReactNode }) {
     if (lastSavedId) {
       const foundSaved = activeList.find((g) => g.id === lastSavedId);
       if (foundSaved) {
-        // Restore if found and active
-        setActiveGroup((prev) => (prev?.id === foundSaved.id ? prev : foundSaved));
-        safeLocalStorage.setItem("activeGroupId", foundSaved.id);
+        // Prefer Heart over the legacy CardioSP selection once, then persist the choice.
+        const preferredHeart = foundSaved.name.trim().toLocaleLowerCase("pt-BR") === "cardiosp"
+          ? activeList.find((g) => g.name.trim().toLocaleLowerCase("pt-BR") === "heart" && g.groupType === "professional")
+          : undefined;
+        const groupToRestore = preferredHeart || foundSaved;
+        setActiveGroup((prev) => (prev?.id === groupToRestore.id ? prev : groupToRestore));
+        safeLocalStorage.setItem("activeGroupId", groupToRestore.id);
+        if (preferredHeart && user) {
+          setDoc(doc(db, "users", user.uid), {
+            lastActiveGroupId: preferredHeart.id,
+            lastActiveGroupType: preferredHeart.groupType,
+            updatedAt: serverTimestamp(),
+          }, { merge: true }).catch(err => console.error("Failed to save preferred Heart team:", err));
+        }
       } else {
         // Rule 4 & 5: The last active group is either removed, terminated, or not permitted.
         // We do not load any group automatically, and redirect to the selection list of groups.
