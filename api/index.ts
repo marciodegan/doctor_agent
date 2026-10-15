@@ -4256,6 +4256,13 @@ app.post("/api/app/financial/glosas/compare", async (req, res) => {
         rowOrder: index, createdAt: new Date().toISOString()
       };
     });
+    const matchedProtocolsForResponse = new Set<string>();
+    for (const row of rows) {
+      const protocolKey = String(row.protocol || "").trim();
+      if (!protocolKey) continue;
+      if (matchedProtocolsForResponse.has(protocolKey)) row.matchedProductionRecords = [];
+      else matchedProtocolsForResponse.add(protocolKey);
+    }
     const matchedCount = rows.filter((r: any) => r.matchStatus === "MATCHED").length;
     const createdAt = new Date().toISOString();
     const ref = db.collection("financial_glosa_reconciliations").doc();
