@@ -3135,7 +3135,7 @@ app.get("/api/app/financial/transaction-types", async (req, res) => {
 
 app.post("/api/app/financial/transaction-types", async (req, res) => {
   const groupId = getGroupId(req);
-  const { name, nature, defaultScope, defaultRateioMethod, displayOrder, allowNegativeAmount, isSalary, matrixAdjustmentType, category, description } = req.body;
+  const { name, nature, defaultScope, defaultRateioMethod, displayOrder, allowNegativeAmount, isMultiple, isSalary, matrixAdjustmentType, category, description } = req.body;
   if (!name || !nature) {
     return res.status(400).json({ error: "name and nature are required" });
   }
@@ -3153,6 +3153,7 @@ app.post("/api/app/financial/transaction-types", async (req, res) => {
       defaultRateioMethod: salaryType || adjustmentType ? "NOMINAL" : defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
       ...(displayOrder !== undefined && { displayOrder: Math.max(0, Math.trunc(Number(displayOrder) || 0)) }),
       allowNegativeAmount: adjustmentType ? true : !salaryType && nature !== "CREDIT" && allowNegativeAmount === true,
+      isMultiple: !salaryType && !adjustmentType && isMultiple === true,
       isSalary: salaryType,
       matrixAdjustmentType: adjustmentType,
       category: salaryType ? "Salários" : adjustmentType ? "Acertos" : category?.trim() || "Geral",
@@ -3201,6 +3202,7 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
       ...(allowNegativeAmount !== undefined || nature === "CREDIT"
         ? { allowNegativeAmount: nature === "CREDIT" ? false : allowNegativeAmount === true }
         : {}),
+      ...(isMultiple !== undefined && { isMultiple: !salaryType && !adjustmentType && isMultiple === true }),
       ...(isSalary !== undefined && { isSalary: salaryType }),
       ...(matrixAdjustmentType !== undefined && { matrixAdjustmentType: adjustmentType }),
       ...(category !== undefined && { category: category.trim() }),
