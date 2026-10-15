@@ -1930,6 +1930,33 @@ app.use("/api/app/financial", async (req, res, next) => {
   }
 });
 
+// One-time migration: assign legacy doctor records (without teamId) to Heart.
+app.post("/api/app/financial/doctors/migrate-legacy", async (req, res) => {
+  const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  try {
+    const groupSnap = await db.collection("groups").doc(groupId).get();
+    const groupName = String(groupSnap.data()?.name || "").trim().toLocaleLowerCase("pt-BR");
+    if (!groupSnap.exists || groupName !== "heart") {
+      return res.json({ migrated: 0, skipped: true });
+    }
+    await requireGroupMember(req, groupId);
+    const legacy = await db.collection("doctors").where("teamId", "==", null).get();
+    let migrated = 0;
+    for (let i = 0; i < legacy.docs.length; i += 400) {
+      const batch = db.batch();
+      legacy.docs.slice(i, i + 400).forEach((doctorDoc: any) => {
+        batch.update(doctorDoc.ref, { teamId: groupId, migratedToTeamAt: new Date().toISOString() });
+        migrated++;
+      });
+      await batch.commit();
+    }
+    res.json({ migrated });
+  } catch (error: any) {
+    handleApiError(res, error, "Migrate Legacy Doctors");
+  }
+});
+
 app.get("/api/app/financial/closings", async (req, res) => {
   const groupId = getGroupId(req);
   if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
