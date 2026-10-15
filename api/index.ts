@@ -1918,28 +1918,18 @@ async function parseBatch10944FilesForServer(closingId: string, teamId: string) 
 
 app.get("/api/app/financial/closings", async (req, res) => {
   const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
   try {
-    let closings: any[] = [];
-    if (groupId) {
-      try {
-        const snap = await db.collection("financial_closings")
-          .where("teamId", "==", groupId)
-          .orderBy("createdAt", "desc")
-          .get();
-        closings = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      } catch (e) {
-        console.warn("[Closings] Team query failed, falling back to all closings:", e);
-      }
-    }
-
-    if (closings.length === 0) {
-      const allSnap = await db.collection("financial_closings").get();
-      closings = allSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    }
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("financial_closings")
+      .where("teamId", "==", groupId)
+      .orderBy("createdAt", "desc")
+      .get();
+    let closings: any[] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     // Ensure SETEMBRO-26 always exists as reference
     if (closings.length === 0) {
-      const defaultDoc = db.collection("financial_closings").doc("SETEMBRO-26");
+      const defaultDoc = db.collection("financial_closings").doc(`${groupId}__SETEMBRO-26`);
       const defaultData = {
         id: "SETEMBRO-26",
         teamId: groupId || "default",
@@ -1973,8 +1963,10 @@ app.get("/api/app/financial/closings", async (req, res) => {
 app.post("/api/app/financial/closings", async (req, res) => {
   const groupId = getGroupId(req);
   const { monthKey } = req.body;
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
   if (!monthKey) return res.status(400).json({ error: "monthKey is required" });
   try {
+    await requireGroupMember(req, groupId);
     const user = (req as any).user;
     const docRef = db.collection("financial_closings").doc();
     const closingData = {
@@ -2018,15 +2010,18 @@ app.post("/api/app/financial/closings", async (req, res) => {
 app.delete("/api/app/financial/closings/:closingId", async (req, res) => {
   const groupId = getGroupId(req);
   const { closingId } = req.params;
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
   try {
+    await requireGroupMember(req, groupId);
     const closingDoc = await db.collection("financial_closings").doc(closingId).get();
     if (!closingDoc.exists) return res.status(404).json({ error: "Fechamento não encontrado" });
+    if (closingDoc.data()?.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outra equipe." });
 
     const [prodSnap, glosaSnap, taxSnap, adjSnap, txSnap, auditSnap, importSnap] = await Promise.all([
-      db.collection("financial_production").where("closingId", "==", closingId).get(),
-      db.collection("financial_glosas").where("closingId", "==", closingId).get(),
-      db.collection("financial_taxes").where("closingId", "==", closingId).get(),
-      db.collection("financial_adjustments").where("closingId", "==", closingId).get(),
+      db.collection("financial_production").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_glosas").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_taxes").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
+      db.collection("financial_adjustments").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
       db.collection("financial_transactions").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
       db.collection("financial_audit_logs").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
       db.collection("financial_imports").where("teamId", "==", groupId).where("closingId", "==", closingId).get()
@@ -2053,10 +2048,10 @@ app.delete("/api/app/financial/closings/:closingId", async (req, res) => {
 // List imports for the active group, including closing status and summary values.
 app.get("/api/app/financial/imports", async (req, res) => {
   const groupId = getGroupId(req);
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
   try {
-    const snap = groupId
-      ? await db.collection("financial_imports").where("teamId", "==", groupId).get()
-      : await db.collection("financial_imports").get();
+    await requireGroupMember(req, groupId);
+    const snap = await db.collection("financial_imports").where("teamId", "==", groupId).get();
     const closingIds = Array.from(new Set(snap.docs.map((d: any) => String(d.data()?.closingId || "")).filter(Boolean)));
     const closingSnaps = await Promise.all(closingIds.map(id => db.collection("financial_closings").doc(id).get()));
     const closingById = new Map<string, any>();
@@ -2383,10 +2378,11 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
   const { closingId } = req.params;
   console.log(`[API] Fetching financial details: closingId=${closingId}, groupId=${groupId}`);
 
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
   try {
-    // The matrix depends primarily on the imported production records.
-    // Keep this endpoint intentionally resilient: optional collections must not
-    // make the entire financial dashboard return HTTP 500.
+    await requireGroupMember(req, groupId);
+    // Every lookup below is constrained to the active team. Never fall back to
+    // a global query, because closing IDs/month names may exist in other teams.
     let closingData: any = {
       id: closingId,
       monthKey: closingId.toUpperCase(),
@@ -2400,10 +2396,11 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
 
     try {
       const directClosing = await db.collection("financial_closings").doc(closingId).get();
-      if (directClosing.exists) {
+      if (directClosing.exists && directClosing.data()?.teamId === groupId) {
         closingData = { id: directClosing.id, ...directClosing.data() };
       } else {
         const byMonth = await db.collection("financial_closings")
+          .where("teamId", "==", groupId)
           .where("monthKey", "==", closingId.toUpperCase())
           .limit(1)
           .get();
@@ -2421,7 +2418,7 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     const queryCollection = async (name: string) => {
       for (const id of ids) {
         try {
-          const snap = await db.collection(name).where("closingId", "==", id).get();
+          const snap = await db.collection(name).where("teamId", "==", groupId).where("closingId", "==", id).get();
           if (!snap.empty) return snap;
         } catch (error: any) {
           console.error(`[API] ${name} query failed for ${id}:`, error?.message || error);
@@ -2445,11 +2442,11 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     const activeImportIds = new Set<string>();
     try {
       const importSnapshots = await Promise.all(ids.map(id =>
-        db.collection("financial_imports").where("closingId", "==", id).get()
+        db.collection("financial_imports").where("teamId", "==", groupId).where("closingId", "==", id).get()
       ));
       importSnapshots.forEach(snapshot => snapshot.docs.forEach((doc: any) => {
         const data = doc.data() || {};
-        if (!data.teamId || !groupId || data.teamId === groupId) activeImportIds.add(doc.id);
+        if (data.teamId === groupId) activeImportIds.add(doc.id);
       }));
     } catch (importLookupError: any) {
       console.error("[API] Import registry lookup failed:", importLookupError?.message || importLookupError);
@@ -2462,11 +2459,11 @@ app.get("/api/app/financial/closings/:closingId/details", async (req, res) => {
     // Backfill the visible lot row for CSV imports made before this behavior existed.
     // The import registry can contain hundreds of production rows while financial_taxes has no lot summary.
     try {
-      const registeredImports = await Promise.all(ids.map(id => db.collection("financial_imports").where("closingId", "==", id).get()));
+      const registeredImports = await Promise.all(ids.map(id => db.collection("financial_imports").where("teamId", "==", groupId).where("closingId", "==", id).get()));
       const importDocs = registeredImports.flatMap(snapshot => snapshot.docs)
         .filter((doc: any) => {
           const data = doc.data() || {};
-          return (!data.teamId || !groupId || data.teamId === groupId) && data.source === "XLS_IMPORT";
+          return data.teamId === groupId && data.source === "XLS_IMPORT";
         });
       for (const importDoc of importDocs) {
         const importId = importDoc.id;
