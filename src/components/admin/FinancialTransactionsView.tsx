@@ -349,33 +349,50 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     try {
       setIsSubmitting(true);
       const isTeam = allocationMode === "TEAM";
-
-      const res = await apiFetch("/api/app/financial/transactions", {
-        method: "POST",
-        body: JSON.stringify({
-          closingId: selectedClosingId,
-          doctorId: newForm.doctorId || null,
-          doctorName: newForm.doctorId ? (selectableDoctors.find(d => String(d.id) === String(newForm.doctorId))?.name || "") : null,
-          scope: newForm.doctorId ? "DOCTOR" : "TEAM",
-          typeName: newForm.typeName,
-          typeId: newForm.typeId || "avulso",
-          amount: parseFloat(newForm.amount),
-          nature: newForm.nature,
-          observation: newForm.observation,
-          date: newForm.date,
-          lote: newForm.lote.trim(),
-          source: isTeam ? "RATEIO_EQUIPE" : "MANUAL",
-          autoSplitTeam: isTeam && autoSplitTeam,
-          rateioMethod: isTeam ? rateioMethod : undefined
-        })
-      });
-
-      const responseData = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert("Não foi possível criar o lançamento: " + (responseData.error || responseData.message || `Erro HTTP ${res.status}`));
-        return;
+      const commonPayload = {
+        closingId: selectedClosingId,
+        typeName: selectedType.name,
+        typeId: selectedType.id,
+        nature: newForm.nature,
+        observation: newForm.observation,
+        date: newForm.date,
+        lote: newForm.lote.trim()
+      };
+      if (selectedType.isMultiple) {
+        const rows = multipleRows.filter(row => row.doctorId && row.amount.trim() !== "");
+        for (const row of rows) {
+          const doctor = selectableDoctors.find(d => String(d.id) === String(row.doctorId));
+          const res = await apiFetch("/api/app/financial/transactions", {
+            method: "POST",
+            body: JSON.stringify({ ...commonPayload, doctorId: row.doctorId, doctorName: doctor?.name || "", scope: "DOCTOR", amount: Number(row.amount), source: "MANUAL", autoSplitTeam: false })
+          });
+          const responseData = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(responseData.error || responseData.message || "Erro HTTP " + res.status);
+        }
+      } else {
+        const res = await apiFetch("/api/app/financial/transactions", {
+          method: "POST",
+          body: JSON.stringify({
+            closingId: selectedClosingId,
+            doctorId: newForm.doctorId || null,
+            doctorName: newForm.doctorId ? (selectableDoctors.find(d => String(d.id) === String(newForm.doctorId))?.name || "") : null,
+            scope: newForm.doctorId ? "DOCTOR" : "TEAM",
+            typeName: newForm.typeName,
+            typeId: newForm.typeId || "avulso",
+            amount: parseFloat(newForm.amount),
+            nature: newForm.nature,
+            observation: newForm.observation,
+            date: newForm.date,
+            lote: newForm.lote.trim(),
+            source: isTeam ? "RATEIO_EQUIPE" : "MANUAL",
+            autoSplitTeam: isTeam && autoSplitTeam,
+            rateioMethod: isTeam ? rateioMethod : undefined
+          })
+        });
+        const responseData = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(responseData.error || responseData.message || "Erro HTTP " + res.status);
       }
-
+      setMultipleRows([]);
       setIsNewModalOpen(false);
       setNewForm({
         doctorId: "",
