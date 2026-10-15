@@ -3182,7 +3182,7 @@ app.post("/api/app/financial/transaction-types", async (req, res) => {
 app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
   const groupId = getGroupId(req);
   const { id } = req.params;
-  const { name, nature, defaultScope, defaultRateioMethod, displayOrder, allowNegativeAmount, isSalary, matrixAdjustmentType, category, description } = req.body;
+  const { name, nature, defaultScope, defaultRateioMethod, displayOrder, allowNegativeAmount, isMultiple, isSalary, matrixAdjustmentType, category, description } = req.body;
   try {
     const user = (req as any).user;
     const docRef = db.collection("financial_transaction_types").doc(id);
