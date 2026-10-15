@@ -207,7 +207,7 @@ export function OfficialCashFlowView() {
               const running = runningBalances[t.id] ?? 0;
               return <tr key={t.id} className="hover:bg-blue-50/40">
                 <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 text-slate-600">{t.date.split("-").reverse().join("/")}</td>
-                <td className="border-b border-slate-100 px-4 py-3"><div className="flex items-center gap-2 font-semibold text-slate-800">{t.nature === "ENTRY" ? <ArrowDownRight size={16} className="text-emerald-600" /> : <ArrowUpRight size={16} className="text-rose-600" />}{t.description}</div></td>
+                <td className="border-b border-slate-100 px-4 py-3"><div className="flex items-center gap-2 font-semibold text-slate-800">{t.nature === "ENTRY" ? (<ArrowDownRight size={16} className="text-emerald-600" />) : (<ArrowUpRight size={16} className="text-rose-600" />)}{t.description}</div></td>
                 <td className="border-b border-slate-100 px-4 py-3 text-slate-600">{accountName(t.accountId)}</td>
                 <td className="max-w-[220px] truncate border-b border-slate-100 px-4 py-3 text-slate-500" title={t.observation}>{t.observation || " "}</td>
                 <td className={`whitespace-nowrap border-b border-slate-100 px-4 py-3 text-right font-bold ${t.nature === "ENTRY" ? "text-emerald-700" : "text-rose-700"}`}>{t.nature === "ENTRY" ? "+" : "−"}{money(Math.abs(Number(t.amount || 0)))}</td>
