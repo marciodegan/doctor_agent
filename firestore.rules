@@ -20,14 +20,20 @@ service cloud.firestore {
        return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isActiveMembership(data) {
+      return data.get('status', '') in ['active', 'conectado', 'accepted'] ||
+        data.get('active', false) == true ||
+        data.get('ativo', false) == true;
+    }
+
     function isMember(groupId) {
       let memberDoc = /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
       let userMembershipDoc = /databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(groupId);
       let groupDoc = /databases/$(database)/documents/groups/$(groupId);
-      return isSignedIn() && (
-        exists(userMembershipDoc) ||
-        exists(memberDoc) ||
-        (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid)
+      return isSignedIn() && groupId is string && groupId.size() > 0 && (
+        (exists(groupDoc) && get(groupDoc).data.createdBy == request.auth.uid) ||
+        (exists(memberDoc) && isActiveMembership(get(memberDoc).data)) ||
+        (exists(userMembershipDoc) && isActiveMembership(get(userMembershipDoc).data))
       );
     }
     
@@ -306,28 +312,105 @@ service cloud.firestore {
       allow create, update, delete: if isOwner(groupId);
     }
 
+    // All financial records must identify exactly one owning team.
+    // Documents without teamId/groupId are intentionally inaccessible until migrated.
+    function recordTeamId(data) {
+      return data.get('teamId', data.get('groupId', null));
+    }
+    function canReadTeamRecord(data) {
+      return recordTeamId(data) is string && isMember(recordTeamId(data));
+    }
+    function canCreateTeamRecord(data) {
+      return recordTeamId(data) is string && isMember(recordTeamId(data));
+    }
+    function canUpdateTeamRecord(oldData, newData) {
+      return recordTeamId(oldData) is string &&
+        recordTeamId(newData) == recordTeamId(oldData) &&
+        isMember(recordTeamId(oldData));
+    }
+    function canDeleteTeamRecord(data) {
+      return recordTeamId(data) is string && isMember(recordTeamId(data));
+    }
+
     match /financial_closings/{closingId} {
-      allow read: if isMember(resource.data.teamId || resource.data.groupId);
-      allow write: if isOwner(resource.data.teamId || resource.data.groupId || incoming().teamId || incoming().groupId);
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
     }
 
     match /financial_transaction_types/{typeId} {
-      allow read: if isMember(resource.data.teamId || resource.data.groupId);
-      allow write: if isOwner(resource.data.teamId || resource.data.groupId || incoming().teamId || incoming().groupId);
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
     }
 
     match /financial_imports/{importId} {
-      allow read: if isMember(resource.data.teamId || resource.data.groupId);
-      allow write: if isOwner(resource.data.teamId || resource.data.groupId || incoming().teamId || incoming().groupId);
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
     }
 
     match /financial_transactions/{transactionId} {
-      allow read: if isMember(resource.data.teamId || resource.data.groupId) && (
-        isOwner(resource.data.teamId || resource.data.groupId) ||
-        resource.data.doctorId == request.auth.uid ||
-        resource.data.createdBy == request.auth.uid
-      );
-      allow write: if isOwner(incoming().teamId || incoming().groupId);
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
+    }
+
+    match /financial_production/{recordId} {
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
+    }
+
+    match /financial_glosas/{recordId} {
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
+    }
+
+    match /financial_taxes/{recordId} {
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
+    }
+
+    match /financial_adjustments/{recordId} {
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
+    }
+
+    match /financial_batches/{recordId} {
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
+    }
+
+    match /financial_reconciliation/{recordId} {
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
+    }
+
+    match /financial_audit_logs/{recordId} {
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update, delete: if false;
+    }
+
+    match /financial_team_settings/{teamId} {
+      allow read: if isMember(teamId);
+      allow create, update, delete: if isOwner(teamId);
     }
   }
 }
