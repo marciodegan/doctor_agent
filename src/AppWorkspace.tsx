@@ -62,6 +62,8 @@ export default function AppWorkspace() {
   const { isAuthenticated, user, login, logout, isDemoMode, enableDemoMode, disableDemoMode } = useAuth();
   const {
     activeGroup,
+    groups,
+    setActiveGroupId,
     companyName,
     setIsManagementOpen,
     setManagementMode,
@@ -368,12 +370,26 @@ export default function AppWorkspace() {
             <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">{headerName}</span>
           </div>
 
-          {/* Right Group Button (e.g., "Heart") */}
-          <div className="ml-auto flex items-center">
+          {/* Team selector and group settings */}
+          <div className="ml-auto flex min-w-0 items-center gap-2">
             {activeGroup && (
-              <button
+              <>
+                <select
+                  aria-label="Selecionar equipe"
+                  value={activeGroup.id}
+                  onChange={(event) => setActiveGroupId(event.target.value)}
+                  className="min-w-0 max-w-[145px] sm:max-w-[220px] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-bold text-gray-800 shadow-2xs outline-none focus:border-blue-400"
+                  title="Selecionar equipe"
+                >
+                  {groups
+                    .filter((team) => team.status !== "terminated" && team.status !== "removed" && team.active !== false && team.ativo !== false)
+                    .map((team) => (
+                      <option key={team.id} value={team.id}>{team.name || "Grupo"}</option>
+                    ))}
+                </select>
+                <button
                 onClick={() => setIsManagementOpen(true)}
-                className="flex items-center gap-2 bg-white/80 hover:bg-white border border-slate-200/80 px-3 py-1.5 rounded-2xl shadow-2xs transition-all active:scale-95 group cursor-pointer"
+                className="flex shrink-0 items-center gap-2 bg-white/80 hover:bg-white border border-slate-200/80 px-3 py-1.5 rounded-2xl shadow-2xs transition-all active:scale-95 group cursor-pointer"
                 title="Gerenciar Grupo"
               >
                 {activeGroup.photoURL ? (
@@ -391,7 +407,8 @@ export default function AppWorkspace() {
                   {activeGroup.name || "Grupo"}
                 </span>
                 <div className="w-2 h-2 bg-emerald-500 rounded-full border border-white shrink-0" />
-              </button>
+                </button>
+              </>
             )}
           </div>
         </div>
