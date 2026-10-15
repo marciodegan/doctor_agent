@@ -977,6 +977,4 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       )}
     </div>
   );
-}              )}
-
-
+}
