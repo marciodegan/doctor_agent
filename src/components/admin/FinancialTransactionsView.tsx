@@ -59,6 +59,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [allocationMode, setAllocationMode] = useState<"TEAM" | "DOCTOR">("TEAM");
   const [autoSplitTeam, setAutoSplitTeam] = useState(true);
+  const [multipleRows, setMultipleRows] = useState<{ doctorId: string; amount: string }[]>([]);
   // Team allocation methods: nominal, dynamic HeaRT, or all-doctor PROP percentage.
   const [rateioMethod, setRateioMethod] = useState<"PROPORCAO_HEART" | "NOMINAL" | "PROP_GERAL">("PROPORCAO_HEART");
 
@@ -226,6 +227,13 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const handleSelectTransactionType = (typeId: string) => {
     const matched = transactionTypes.find(t => String(t.id) === String(typeId) || t.name === typeId);
     if (matched) {
+      if (matched.isMultiple) {
+        setAllocationMode("DOCTOR");
+        setAutoSplitTeam(false);
+        setMultipleRows(selectableDoctors.map(doctor => ({ doctorId: String(doctor.id), amount: "" })));
+      } else {
+        setMultipleRows([]);
+      }
       setNewForm(prev => ({
         ...prev,
         typeName: matched.name,
@@ -316,8 +324,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     }
     const selectedType = transactionTypes.find(t => String(t.id) === String(newForm.typeId));
     const parsedAmount = Number(newForm.amount);
-    if (!newForm.amount || !Number.isFinite(parsedAmount) || parsedAmount === 0 ||
-        (parsedAmount < 0 && selectedType?.allowNegativeAmount !== true)) {
+    if (!selectedType?.isMultiple && (!newForm.amount || !Number.isFinite(parsedAmount) || parsedAmount === 0 ||
+        (parsedAmount < 0 && selectedType?.allowNegativeAmount !== true))) {
       alert(selectedType?.allowNegativeAmount
         ? "Informe um valor diferente de zero. Valores negativos são permitidos para este tipo."
         : "Informe um valor maior que zero.");
@@ -328,41 +336,63 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       await fetchTransactionTypes();
       return;
     }
-    if (selectedType.defaultScope === "DOCTOR" && !newForm.doctorId && !(selectedType as any).doctorId) {
-      alert("Este tipo de lançamento é individual. Selecione o médico antes de confirmar.");
+    if (selectedType.isMultiple) {
+      const rows = multipleRows.filter(row => row.doctorId && row.amount.trim() !== "");
+      if (rows.length < 1 || rows.some(row => !Number.isFinite(Number(row.amount)) || Number(row.amount) === 0 || (Number(row.amount) < 0 && selectedType.allowNegativeAmount !== true))) {
+        alert("Preencha ao menos um médico com um valor válido diferente de zero.");
+        return;
+      }
+    } else if (selectedType.defaultScope === "DOCTOR" && !newForm.doctorId && !(selectedType as any).doctorId) {
+      alert("Este tipo de lançamento é individual. Selecione um médico antes de confirmar.");
       return;
     }
-
     try {
       setIsSubmitting(true);
       const isTeam = allocationMode === "TEAM";
-
-      const res = await apiFetch("/api/app/financial/transactions", {
-        method: "POST",
-        body: JSON.stringify({
-          closingId: selectedClosingId,
-          doctorId: newForm.doctorId || null,
-          doctorName: newForm.doctorId ? (selectableDoctors.find(d => String(d.id) === String(newForm.doctorId))?.name || "") : null,
-          scope: newForm.doctorId ? "DOCTOR" : "TEAM",
-          typeName: newForm.typeName,
-          typeId: newForm.typeId || "avulso",
-          amount: parseFloat(newForm.amount),
-          nature: newForm.nature,
-          observation: newForm.observation,
-          date: newForm.date,
-          lote: newForm.lote.trim(),
-          source: isTeam ? "RATEIO_EQUIPE" : "MANUAL",
-          autoSplitTeam: isTeam && autoSplitTeam,
-          rateioMethod: isTeam ? rateioMethod : undefined
-        })
-      });
-
-      const responseData = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert("Não foi possível criar o lançamento: " + (responseData.error || responseData.message || `Erro HTTP ${res.status}`));
-        return;
+      const commonPayload = {
+        closingId: selectedClosingId,
+        typeName: selectedType.name,
+        typeId: selectedType.id,
+        nature: newForm.nature,
+        observation: newForm.observation,
+        date: newForm.date,
+        lote: newForm.lote.trim()
+      };
+      if (selectedType.isMultiple) {
+        const rows = multipleRows.filter(row => row.doctorId && row.amount.trim() !== "");
+        for (const row of rows) {
+          const doctor = selectableDoctors.find(d => String(d.id) === String(row.doctorId));
+          const res = await apiFetch("/api/app/financial/transactions", {
+            method: "POST",
+            body: JSON.stringify({ ...commonPayload, doctorId: row.doctorId, doctorName: doctor?.name || "", scope: "DOCTOR", amount: Number(row.amount), source: "MANUAL", autoSplitTeam: false })
+          });
+          const responseData = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(responseData.error || responseData.message || "Erro HTTP " + res.status);
+        }
+      } else {
+        const res = await apiFetch("/api/app/financial/transactions", {
+          method: "POST",
+          body: JSON.stringify({
+            closingId: selectedClosingId,
+            doctorId: newForm.doctorId || null,
+            doctorName: newForm.doctorId ? (selectableDoctors.find(d => String(d.id) === String(newForm.doctorId))?.name || "") : null,
+            scope: newForm.doctorId ? "DOCTOR" : "TEAM",
+            typeName: newForm.typeName,
+            typeId: newForm.typeId || "avulso",
+            amount: parseFloat(newForm.amount),
+            nature: newForm.nature,
+            observation: newForm.observation,
+            date: newForm.date,
+            lote: newForm.lote.trim(),
+            source: isTeam ? "RATEIO_EQUIPE" : "MANUAL",
+            autoSplitTeam: isTeam && autoSplitTeam,
+            rateioMethod: isTeam ? rateioMethod : undefined
+          })
+        });
+        const responseData = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(responseData.error || responseData.message || "Erro HTTP " + res.status);
       }
-
+      setMultipleRows([]);
       setIsNewModalOpen(false);
       setNewForm({
         doctorId: "",
@@ -842,12 +872,27 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   <option value="">Selecione um tipo cadastrado</option>
                   {transactionTypes.map(t => (
                     <option key={t.id} value={t.id}>
-                      {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.isSalary === true ? "(SALÁRIO INDIVIDUAL)" : t.matrixAdjustmentType === "ACERTO_FINAL" ? "(ACERTO FINAL INDIVIDUAL)" : t.matrixAdjustmentType ? "(ACERTO INDIVIDUAL)" : t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
+                      {t.name} — [{t.nature === "DEBIT" ? "SAÍDA" : "ENTRADA"}] {t.isMultiple ? "(MÚLTIPLO)" : t.isSalary === true ? "(SALÁRIO INDIVIDUAL)" : t.matrixAdjustmentType === "ACERTO_FINAL" ? "(ACERTO FINAL INDIVIDUAL)" : t.matrixAdjustmentType ? "(ACERTO INDIVIDUAL)" : t.defaultScope === "TEAM" ? "(Equipe HeaRT)" : "(Individual)"}
                     </option>
                   ))}
                 </select>
               </div>
 
+              {transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.isMultiple ? (
+                <div className="space-y-3">
+                  <div><label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Valores por médico</label><p className="mt-1 text-[10px] text-gray-500">Preencha somente os médicos envolvidos. Cada valor será salvo como um lançamento individual. A soma não precisa fechar em zero.</p></div>
+                  <div className="space-y-2">
+                    {multipleRows.map((row, index) => {
+                      const doctor = selectableDoctors.find(d => String(d.id) === String(row.doctorId));
+                      return <div key={row.doctorId || index} className="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-2">
+                        <span className="truncate text-xs font-bold text-gray-800">{doctor?.name || "Médico"}</span>
+                        <input aria-label={"Valor de " + (doctor?.name || "médico")} type="number" step="0.01" placeholder="0,00" value={row.amount} onChange={e => setMultipleRows(current => current.map((item, i) => i === index ? { ...item, amount: e.target.value } : item))} className="w-full rounded-lg border border-gray-200 bg-white p-2 text-right text-xs font-bold outline-none focus:border-emerald-500" />
+                      </div>;
+                    })}
+                  </div>
+                  <p className="text-xs font-bold text-slate-700">Soma informativa: {multipleRows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                </div>
+              ) : (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider block">Médico {transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "(obrigatório para este tipo)" : "(opcional)"}</label>
                 <select
@@ -864,6 +909,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                 <span className="text-[10px] text-gray-400 font-normal">{transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.defaultScope === "DOCTOR" ? "Este tipo é individual e exige a seleção de um médico." : "Sem médico selecionado, será usada a regra de rateio configurada no tipo de lançamento."}</span>
               </div>
 
+              )}
+
+              {!transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.isMultiple && (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Valor Total (R$) *</label>
                 <input
@@ -876,8 +924,13 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   onChange={e => setNewForm({ ...newForm, amount: e.target.value })}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none font-black text-xs focus:border-emerald-500"
                 />
-              </div>
+              </div>)}
 
+
+
+
+              )}
+              {!transactionTypes.find(t => String(t.id) === String(newForm.typeId))?.isMultiple && (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Observação</label>
                 <input
@@ -945,4 +998,6 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       )}
     </div>
   );
-}
+}              )}
+
+

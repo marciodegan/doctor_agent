@@ -45,6 +45,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
     defaultScope: "TEAM" as "TEAM" | "DOCTOR" | "CLOSING",
     defaultRateioMethod: "NOMINAL" as "NOMINAL" | "PROPORCAO_HEART" | "PROP_GERAL",
     allowNegativeAmount: false,
+    isMultiple: false,
     isSalary: false,
     matrixAdjustmentType: "" as "" | "ACERTO_1" | "SOBRE_MES_ANTERIOR" | "ACERTO_FINAL",
     category: "Receitas Equipe",
@@ -159,6 +160,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
       defaultScope: typeItem.defaultScope || "TEAM",
       defaultRateioMethod: typeItem.defaultRateioMethod || (typeItem.nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
       allowNegativeAmount: typeItem.allowNegativeAmount === true,
+      isMultiple: typeItem.isMultiple === true,
       isSalary: typeItem.isSalary === true,
       matrixAdjustmentType: typeItem.matrixAdjustmentType || "",
       category: typeItem.category || "Geral",
@@ -178,6 +180,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
       setSubmitting(true);
       const formPayload = {
         ...form,
+        defaultScope: form.isMultiple ? "DOCTOR" : form.defaultScope,
         displayOrder: form.nature === "DEBIT" ? Math.max(1, Math.trunc(Number(displayOrder) || 1)) : (Number(displayOrder) || 0)
       };
       if (editingType) {
@@ -587,7 +590,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                             : "bg-purple-50 text-purple-800 border border-purple-200"
                         }`}>
                           {isTeam ? <Users size={12} /> : <User size={12} />}
-                          <span>{isTeam ? "Rateio Equipe HeaRT" : "Médico Individual"}</span>
+                          <span>{t.isMultiple ? "Múltiplos médicos" : isTeam ? "Rateio Equipe HeaRT" : "Médico Individual"}</span>
                         </span>
                       </td>
 
@@ -743,7 +746,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    disabled={form.isSalary || Boolean(form.matrixAdjustmentType)}
+                    disabled={form.isSalary || Boolean(form.matrixAdjustmentType) || form.isMultiple}
                     onClick={() => {
                       setForm(prev => ({ 
                         ...prev, 
@@ -797,7 +800,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                   <input
                     type="checkbox"
                     checked={form.allowNegativeAmount}
-                    disabled={Boolean(form.matrixAdjustmentType)}
+                    disabled={Boolean(form.matrixAdjustmentType) || form.isMultiple}
                     onChange={e => setForm(prev => ({ ...prev, allowNegativeAmount: e.target.checked }))}
                     className="mt-0.5 h-4 w-4 accent-amber-600"
                   />
@@ -810,6 +813,10 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                 </label>
               )}
 
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-violet-200 bg-violet-50 cursor-pointer">
+                <input type="checkbox" checked={form.isMultiple} disabled={Boolean(form.isSalary) || Boolean(form.matrixAdjustmentType)} onChange={e => setForm(prev => ({ ...prev, isMultiple: e.target.checked, defaultScope: e.target.checked ? "DOCTOR" : prev.defaultScope, allowNegativeAmount: e.target.checked ? true : prev.allowNegativeAmount }))} className="mt-0.5 h-4 w-4 accent-violet-600" />
+                <span><span className="block text-xs font-black text-violet-950">Tipo de lançamento múltiplo</span><span className="block mt-0.5 text-[10px] font-medium text-violet-800">Lança valores individuais para vários médicos de uma só vez. A soma não precisa fechar em zero.</span></span>
+              </label>
               {/* Escopo Padrão */}
               <div>
                 <label className="block text-[11px] font-black uppercase text-gray-700 tracking-wider mb-1.5">
