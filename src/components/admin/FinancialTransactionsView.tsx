@@ -59,6 +59,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [allocationMode, setAllocationMode] = useState<"TEAM" | "DOCTOR">("TEAM");
   const [autoSplitTeam, setAutoSplitTeam] = useState(true);
+  const [multipleRows, setMultipleRows] = useState<{ doctorId: string; amount: string }[]>([]);
   // Team allocation methods: nominal, dynamic HeaRT, or all-doctor PROP percentage.
   const [rateioMethod, setRateioMethod] = useState<"PROPORCAO_HEART" | "NOMINAL" | "PROP_GERAL">("PROPORCAO_HEART");
 
@@ -226,6 +227,13 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const handleSelectTransactionType = (typeId: string) => {
     const matched = transactionTypes.find(t => String(t.id) === String(typeId) || t.name === typeId);
     if (matched) {
+      if (matched.isMultiple) {
+        setAllocationMode("DOCTOR");
+        setAutoSplitTeam(false);
+        setMultipleRows(selectableDoctors.map(doctor => ({ doctorId: String(doctor.id), amount: "" })));
+      } else {
+        setMultipleRows([]);
+      }
       setNewForm(prev => ({
         ...prev,
         typeName: matched.name,
