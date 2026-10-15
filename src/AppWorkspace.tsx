@@ -370,45 +370,30 @@ export default function AppWorkspace() {
             <span className="font-bold text-lg tracking-tight text-blue-600 whitespace-nowrap">{headerName}</span>
           </div>
 
-          {/* Team selector and group settings */}
+          {/* Active team button opens team management, where switching is available */}
           <div className="ml-auto flex min-w-0 items-center gap-2">
             {activeGroup && (
-              <>
-                <select
-                  aria-label="Selecionar equipe"
-                  value={activeGroup.id}
-                  onChange={(event) => setActiveGroupId(event.target.value)}
-                  className="min-w-0 max-w-[145px] sm:max-w-[220px] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-bold text-gray-800 shadow-2xs outline-none focus:border-blue-400"
-                  title="Selecionar equipe"
-                >
-                  {groups
-                    .filter((team) => team.status !== "terminated" && team.status !== "removed" && team.active !== false && team.ativo !== false)
-                    .map((team) => (
-                      <option key={team.id} value={team.id}>{team.name || "Grupo"}</option>
-                    ))}
-                </select>
-                <button
+              <button
                 onClick={() => setIsManagementOpen(true)}
                 className="flex shrink-0 items-center gap-2 bg-white/80 hover:bg-white border border-slate-200/80 px-3 py-1.5 rounded-2xl shadow-2xs transition-all active:scale-95 group cursor-pointer"
-                title="Gerenciar Grupo"
+                title="Gerenciar equipe e trocar de equipe"
               >
                 {activeGroup.photoURL ? (
-                  <img 
-                    src={activeGroup.photoURL} 
+                  <img
+                    src={activeGroup.photoURL}
                     className="w-6 h-6 rounded-lg object-cover border border-slate-200"
-                    alt="Group"
+                    alt="Equipe"
                   />
                 ) : (
                   <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                     <Users size={14} />
                   </div>
                 )}
-                <span className="text-xs font-bold text-gray-800 tracking-tight max-w-[110px] truncate">
-                  {activeGroup.name || "Grupo"}
+                <span className="text-xs font-bold text-gray-800 tracking-tight max-w-[90px] sm:max-w-[110px] truncate">
+                  {activeGroup.name || "Equipe"}
                 </span>
                 <div className="w-2 h-2 bg-emerald-500 rounded-full border border-white shrink-0" />
-                </button>
-              </>
+              </button>
             )}
           </div>
         </div>
