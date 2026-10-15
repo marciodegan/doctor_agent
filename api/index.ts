@@ -4034,6 +4034,35 @@ app.get("/api/app/financial/glosas/imports/:importId", async (req, res) => {
   } catch (error: any) { handleApiError(res, error, "Get Glosa Import"); }
 });
 
+app.patch("/api/app/financial/glosas/imports/:importId/protocol/:protocol/verified", async (req, res) => {
+  const groupId = getGroupId(req);
+  const verified = Boolean(req.body?.verified);
+  const protocol = String(req.params.protocol || "");
+  if (!groupId) return res.status(400).json({ error: "Active Group ID is required" });
+  if (!protocol) return res.status(400).json({ error: "Protocolo obrigatório." });
+  try {
+    await requireGroupMember(req, groupId);
+    const ref = db.collection("financial_glosa_reconciliations").doc(String(req.params.importId));
+    const snap = await ref.get();
+    if (!snap.exists || snap.data()?.teamId !== groupId) return res.status(404).json({ error: "Importação não encontrada nesta equipe." });
+    const rowsSnap = await ref.collection("rows").get();
+    const normalize = (v: any) => String(v ?? "").trim();
+    const targets = rowsSnap.docs.filter((d: any) => normalize(d.data()?.protocol) === protocol);
+    if (!targets.length) return res.status(404).json({ error: "Protocolo não encontrado nesta importação." });
+    for (let i = 0; i < targets.length; i += 400) {
+      const batch = db.batch();
+      targets.slice(i, i + 400).forEach((d: any) => batch.update(d.ref, { verified, verifiedAt: verified ? new Date().toISOString() : null, verifiedBy: verified ? ((req as any).user?.uid || "") : "" }));
+      await batch.commit();
+    }
+    const refreshed = (await ref.collection("rows").get()).docs.map((d: any) => d.data());
+    const groups = new Map<string, any[]>();
+    refreshed.forEach((row: any) => { const key = normalize(row.protocol); if (!groups.has(key)) groups.set(key, []); groups.get(key)!.push(row); });
+    const verifiedCount = Array.from(groups.values()).filter((items: any[]) => items.length && items.every((row: any) => row.verified === true)).length;
+    await ref.update({ verifiedCount, protocolCount: groups.size, updatedAt: new Date().toISOString() });
+    res.json({ success: true, protocol, verified, verifiedCount, protocolCount: groups.size });
+  } catch (error: any) { handleApiError(res, error, "Verify Glosa Protocol"); }
+});
+
 app.post("/api/app/financial/glosas/compare", async (req, res) => {
   const groupId = getGroupId(req);
   const { fileName, mimeType, content } = req.body || {};
