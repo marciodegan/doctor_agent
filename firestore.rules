@@ -297,13 +297,11 @@ service cloud.firestore {
     }
 
     match /doctor_provider_mappings/{mappingId} {
-      allow get: if isSignedIn() && isMember(resource.data.teamId);
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isMember(incoming().teamId);
-      allow update: if isSignedIn() && isOwner(existing().teamId) &&
-                       incoming().teamId == existing().teamId &&
-                       incoming().updatedAt == request.time;
-      allow delete: if isMember(resource.data.teamId);
+      allow get, list: if isMember(resource.data.teamId);
+      allow create: if isOwner(incoming().teamId);
+      allow update: if isOwner(existing().teamId) &&
+                       incoming().teamId == existing().teamId;
+      allow delete: if isOwner(resource.data.teamId);
     }
 
     // Manual values entered in the financial matrix, scoped to the owning group.
@@ -406,6 +404,20 @@ service cloud.firestore {
       allow read: if canReadTeamRecord(resource.data);
       allow create: if canCreateTeamRecord(incoming());
       allow update, delete: if false;
+    }
+
+    match /financial_transaction_prelaunches/{recordId} {
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
+    }
+
+    match /financial_transaction_prelaunch_batches/{recordId} {
+      allow read: if canReadTeamRecord(resource.data);
+      allow create: if canCreateTeamRecord(incoming());
+      allow update: if canUpdateTeamRecord(existing(), incoming());
+      allow delete: if canDeleteTeamRecord(existing());
     }
 
     match /financial_team_settings/{teamId} {
