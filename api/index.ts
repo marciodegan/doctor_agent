@@ -3612,7 +3612,7 @@ app.post("/api/app/financial/transactions/ai-preview", async (req, res) => {
 
     const [typesSnapshot, doctorsSnapshot] = await Promise.all([
       db.collection("financial_transaction_types").where("teamId", "==", groupId).get(),
-      db.collection("doctors").where("active", "==", true).get()
+      db.collection("doctors").where("teamId", "==", groupId).where("active", "==", true).get()
     ]);
     const types = typesSnapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() }))
