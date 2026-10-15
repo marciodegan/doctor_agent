@@ -62,8 +62,6 @@ export default function AppWorkspace() {
   const { isAuthenticated, user, login, logout, isDemoMode, enableDemoMode, disableDemoMode } = useAuth();
   const {
     activeGroup,
-    groups,
-    setActiveGroupId,
     companyName,
     setIsManagementOpen,
     setManagementMode,
