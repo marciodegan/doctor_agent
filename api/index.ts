@@ -4130,47 +4130,80 @@ app.post("/api/app/financial/glosas/compare", async (req, res) => {
     if (!Array.isArray(parsed.rows) || parsed.rows.length === 0) {
       return res.status(422).json({ error: "Nenhuma glosa individual foi identificada no PDF. Confira se o arquivo contém o demonstrativo detalhado." });
     }
-    const [productionSnap, csvImportsSnap] = await Promise.all([
+    const [productionSnap, rawProductionSnap, csvImportsSnap] = await Promise.all([
       db.collection("financial_production").where("teamId", "==", groupId).get(),
+      db.collection("financial_production_raw").where("teamId", "==", groupId).get(),
       db.collection("financial_imports").where("teamId", "==", groupId).get()
     ]);
     const csvImportIds = new Set(csvImportsSnap.docs
       .filter((d: any) => String(d.data()?.source || "") === "XLS_IMPORT")
       .map((d: any) => d.id));
-    const production = productionSnap.docs
+    const rawProduction = rawProductionSnap.docs
+      .map((d: any) => ({ id: d.id, ...d.data() }))
+      .filter((p: any) => csvImportIds.has(String(p.importId || "")));
+    const normalizedProduction = productionSnap.docs
       .map((d: any) => ({ id: d.id, ...d.data() }))
       .filter((p: any) => csvImportIds.has(String(p.importId || "")));
     const normalizeGlosa = (v: any) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const matchProduction = (row: any) => {
+    const matchProductionRows = (row: any) => {
       const protocol = normalizeGlosa(row.protocol), document = normalizeGlosa(row.document);
       const patientCode = normalizeGlosa(row.patientCode), ambCode = normalizeGlosa(row.ambCode), patient = normalizeGlosa(row.patientName);
-      let candidates: any[] = [];
-      if (protocol) candidates = production.filter((p: any) => normalizeGlosa(p.protocol) === protocol);
-      if (!candidates.length && document) candidates = production.filter((p: any) => normalizeGlosa(p.document) === document);
-      if (!candidates.length && patientCode) candidates = production.filter((p: any) => normalizeGlosa(p.patientCode) === patientCode);
-      if (!candidates.length && patient && ambCode) {
-        candidates = production.filter((p: any) => normalizeGlosa(p.patientName) === patient && normalizeGlosa(p.ambCode) === ambCode);
+      const search = (records: any[]) => {
+        if (protocol) {
+          const exactProtocol = records.filter((p: any) => normalizeGlosa(p.protocol) === protocol);
+          if (exactProtocol.length) return exactProtocol;
+        }
+        if (document) {
+          const byDocument = records.filter((p: any) => normalizeGlosa(p.document) === document);
+          if (byDocument.length) return byDocument;
+        }
+        if (patientCode) {
+          const byPatientCode = records.filter((p: any) => normalizeGlosa(p.patientCode) === patientCode);
+          if (byPatientCode.length) return byPatientCode;
+        }
+        if (patient && ambCode) return records.filter((p: any) =>
+          normalizeGlosa(p.patientName) === patient && normalizeGlosa(p.ambCode) === ambCode
+        );
+        return [];
+      };
+      const rawMatches = search(rawProduction);
+      const matches = rawMatches.length ? rawMatches : search(normalizedProduction);
+      if (matches.length > 1 && ambCode) {
+        const byAmb = matches.filter((p: any) => normalizeGlosa(p.ambCode) === ambCode);
+        if (byAmb.length) return byAmb;
       }
-      if (!candidates.length) return null;
-      if (candidates.length > 1 && ambCode) {
-        const byAmb = candidates.filter((p: any) => normalizeGlosa(p.ambCode) === ambCode);
-        if (byAmb.length) candidates = byAmb;
+      if (matches.length > 1 && patient) {
+        const byPatient = matches.filter((p: any) => normalizeGlosa(p.patientName) === patient);
+        if (byPatient.length) return byPatient;
       }
-      if (candidates.length > 1 && patient) {
-        const byPatient = candidates.filter((p: any) => normalizeGlosa(p.patientName) === patient);
-        if (byPatient.length) candidates = byPatient;
+      if (protocol && matches.length) {
+        const protocolMatches = (rawMatches.length ? rawProduction : normalizedProduction)
+          .filter((p: any) => normalizeGlosa(p.protocol) === protocol);
+        if (protocolMatches.length) return protocolMatches;
       }
-      return candidates.length === 1 ? candidates[0] : null;
+      return matches;
     };
     const rows = parsed.rows.map((row: any, index: number) => {
-      const match = matchProduction(row);
+      const matches = matchProductionRows(row);
+      const match = matches[0] || null;
       const informed = Number(row.valueInformed) || 0, processed = Number(row.valueProcessed) || 0;
       const released = Number(row.valueReleased) || processed;
       const glosa = Number(row.glosaValue) || Math.max(0, Math.round((informed - processed) * 100) / 100);
       return {
         ...row, protocol: String(row.protocol || ""), lot: String(row.lot || parsed.lot || ""),
         valueInformed: informed, valueProcessed: processed, valueReleased: released, glosaValue: glosa,
-        matchStatus: match ? "MATCHED" : "UNMATCHED",
+        matchStatus: matches.length ? "MATCHED" : "UNMATCHED",
+        matchedProductionCount: matches.length,
+        matchedProductionRecords: matches.map((p: any) => ({
+          productionId: p.id, protocol: p.protocol || "", date: p.date || "", patientName: p.patientName || "",
+          patientCode: p.patientCode || "", document: p.document || "", ambCode: p.ambCode || "",
+          procedureDescription: p.procedureDescription || "", executingProvider: p.executingProvider || "",
+          paymentProvider: p.paymentProvider || "", protocolProvider: p.protocolProvider || "",
+          doctorName: p.doctorName || "", quantity: p.quantity ?? "", honorValue: p.honorValue ?? 0,
+          operationalValue: p.operationalValue ?? 0, filmValue: p.filmValue ?? 0,
+          administrativeFee: p.administrativeFee ?? 0, sourceRowNumber: p.sourceRowNumber ?? "",
+          sourceColumns: p.sourceColumns || null, sourceValues: p.sourceValues || null, sourceHeaders: p.sourceHeaders || null
+        })),
         matchedProduction: match ? {
           productionId: match.id, protocol: match.protocol || "", date: match.date || "", patientName: match.patientName || "",
           patientCode: match.patientCode || "", document: match.document || "", ambCode: match.ambCode || "",
