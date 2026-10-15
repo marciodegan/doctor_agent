@@ -800,7 +800,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
                   <input
                     type="checkbox"
                     checked={form.allowNegativeAmount}
-                    disabled={Boolean(form.matrixAdjustmentType)}
+                    disabled={Boolean(form.matrixAdjustmentType) || form.isMultiple}
                     onChange={e => setForm(prev => ({ ...prev, allowNegativeAmount: e.target.checked }))}
                     className="mt-0.5 h-4 w-4 accent-amber-600"
                   />
