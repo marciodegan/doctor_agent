@@ -2103,7 +2103,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         return;
                       }
                       const propSum = participatingRows.reduce((sum: number, row: any) => sum + getPropGeralPercent(row), 0);
-                      if (propSum > 100.000001) {
+                      if (propSum > 100.05) {
                         propGeneralWarnings.push(`${tx.typeName || "Saída"}: a soma dos percentuais PROP dos médicos habilitados é ${propSum.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%, acima de 100%. O rateio será aplicado pelos percentuais individuais, sem normalização.`);
                       }
                       const allowNegativeAmount = tx.allowNegativeAmount === true;
