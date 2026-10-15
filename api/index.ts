@@ -1945,8 +1945,8 @@ app.get("/api/app/financial/closings", async (req, res) => {
     if (closings.length === 0) {
       const defaultDoc = db.collection("financial_closings").doc(`${groupId}__SETEMBRO-26`);
       const defaultData = {
-        id: "SETEMBRO-26",
-        teamId: groupId || "default",
+        id: `${groupId}__SETEMBRO-26`,
+        teamId: groupId,
         monthKey: "SETEMBRO-26",
         status: "PENDENTE_CONFERENCIA",
         totalProduction: 0,
