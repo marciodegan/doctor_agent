@@ -1403,40 +1403,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .trim().toUpperCase().replace(/\s+/g, " ");
   const getDoctorCardMatrixData = (med: any) => {
-    const cachedRows = typeof window !== "undefined" ? (window as any).__matrixRowsCache : null;
-    const cacheMeta = typeof window !== "undefined" ? (window as any).__matrixRowsCacheMeta : null;
-    const cachedRow = cacheMeta?.groupId === activeGroup?.id
-      && cacheMeta?.closingId === selectedClosingId
-      && Array.isArray(cachedRows)
-      ? cachedRows.find((row: any) => String(row.key) === String(med.key)
-        || normalizeCardDoctor(row.name) === normalizeCardDoctor(med.nome))
-      : null;
-    if (cachedRow) {
-      const cachedIncoming = [
-        { label: "Azambuja", tt: Number(cachedRow.azTotTT) || 0, ds: Number(cachedRow.azTotDS) || 0 },
-        { label: "Marieta", tt: Number(cachedRow.marTotTT) || 0, ds: Number(cachedRow.marTotDS) || 0 },
-        { label: "Unimed", tt: Number(cachedRow.unimTotTT) || 0, ds: Number(cachedRow.unimTotDS) || 0 },
-        { label: "Consultório", tt: Number(cachedRow.consultTT) || 0, ds: Number(cachedRow.consultDS) || 0 },
-        { label: "Dinheiro", tt: Number(cachedRow.dinheiroTT) || 0, ds: Number(cachedRow.dinheiroDS) || 0 },
-        { label: "Unimed Luis", tt: Number(cachedRow.unimLuisTT) || 0, ds: Number(cachedRow.unimLuisDS) || 0 }
-      ];
-      const cachedExpenses = displayedExpenseTypes.map((type: any) => ({
-        id: type.id,
-        label: type.name,
-        amount: getDisplayedExpenseValue(cachedRow, type)
-      }));
-      const doctorNameKey = normalizeCardDoctor(med.nome);
-      const salary = Number(cachedRow.salaryAmount ?? cashFlowAllocation.salaryByDoctor[doctorNameKey]) || 0;
-      return {
-        incoming: cachedIncoming,
-        expenses: [...cachedExpenses, { id: "salary", label: "Salário", amount: salary }],
-        glosa: Number(med.saidas) || 0,
-        totalTT: Number(cachedRow.totalGeralTT) || 0,
-        totalDS: Number(cachedRow.totalGeralDS) || 0,
-        dispPeriodo: Number(cachedRow.dispPeriodo) || 0,
-        result: Number(cachedRow.finalizacaoAmount ?? cachedRow.finalAfterSalary ?? med.finalGeral) || 0
-      };
-    }
+
 
     const doc = rowsData.find((row: any) => String(row.key) === String(med.key)
       || normalizeCardDoctor(row.name) === normalizeCardDoctor(med.nome));
@@ -2482,7 +2449,6 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     });
 
                     (window as any).__matrixRowsCache = rows;
-                    (window as any).__matrixRowsCacheMeta = { groupId: activeGroup?.id, closingId: selectedClosingId };
 
                     return (
                       <>
