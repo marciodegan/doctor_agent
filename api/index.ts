@@ -3616,7 +3616,8 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) => {
   const models = [
     { name: "gemini-3.1-flash-lite", attempts: 2 },
-    { name: "gemini-3.5-flash-lite", attempts: 1 }
+    { name: "gemini-3.5-flash-lite", attempts: 1 },
+    { name: "gemini-2.5-flash", attempts: 1 }
   ];
   let lastError: any = null;
 
@@ -3624,51 +3625,42 @@ const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) =>
     const model = modelConfig.name;
     for (let attempt = 1; attempt <= modelConfig.attempts; attempt++) {
       try {
-        console.log(`[AI Financial Parse] Trying ${model}, attempt ${attempt}/2`);
+        console.log(`[AI Financial Parse] Trying ${model}, attempt ${attempt}/${modelConfig.attempts}`);
+        // Multi-page medical PDFs can take longer than 18 seconds to inspect and return structured rows.
+        const timeoutMs = 45000;
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error(`TIMEOUT: Gemini ${model} did not respond within ${timeoutMs / 1000} seconds.`)), timeoutMs);
+        });
 
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`TIMEOUT: Gemini ${model} did not respond within 18 seconds.`)), 18000)
-        );
-
-        const response = await Promise.race([
-          ai.models.generateContent({
-            model,
-            contents,
-            config: {
-              responseMimeType: "application/json"
-            }
-          }),
-          timeoutPromise
-        ]);
-
-        console.log(`[AI Financial Parse] Success with ${model}`);
-        return response as any;
+        try {
+          const response = await Promise.race([
+            ai.models.generateContent({
+              model,
+              contents,
+              config: { responseMimeType: "application/json" }
+            }),
+            timeoutPromise
+          ]);
+          console.log(`[AI Financial Parse] Success with ${model}`);
+          return response as any;
+        } finally {
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+        }
       } catch (error: any) {
         lastError = error;
         const message = String(error?.message || error || "");
         const isTransient =
-          message.includes("503") ||
-          message.includes("UNAVAILABLE") ||
-          message.includes("429") ||
-          message.includes("RESOURCE_EXHAUSTED") ||
-          message.includes("TIMEOUT") ||
-          message.includes("500") ||
-          message.includes("502") ||
-          message.includes("504");
-
+          message.includes("503") || message.includes("UNAVAILABLE") ||
+          message.includes("429") || message.includes("RESOURCE_EXHAUSTED") ||
+          message.includes("TIMEOUT") || message.includes("500") ||
+          message.includes("502") || message.includes("504");
         console.error(`[AI Financial Parse] ${model} attempt ${attempt} failed:`, message);
-
-        if (!isTransient) {
-          throw error;
-        }
-
-        if (attempt < modelConfig.attempts) {
-          await sleep(1500 * Math.pow(2, attempt - 1));
-        }
+        if (!isTransient) throw error;
+        if (attempt < modelConfig.attempts) await sleep(1500 * Math.pow(2, attempt - 1));
       }
     }
   }
-
   throw lastError || new Error("Nenhum modelo Gemini conseguiu processar o PDF.");
 };
 
