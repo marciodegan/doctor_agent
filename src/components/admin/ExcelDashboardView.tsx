@@ -1408,6 +1408,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const doc = rowsData.find((row: any) => String(row.key) === String(med.key)
       || normalizeCardDoctor(row.name) === normalizeCardDoctor(med.nome));
     const isTeam = Boolean(doc?.isTeam);
+    const matrixDoctorKey = String(doc?.key || med.key || "");
     const percent = Number(doc?.percent ?? med.percent) || 0;
     const hasClosing = Boolean(details?.closing);
     const mul = hasClosing ? 1 : 0;
@@ -1422,7 +1423,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     }, 0);
     const netAzTT = Math.max(0, (Number(globalEntradas.azambujaTT) || 0) * mul - totalAzPlantaoTT);
     const netAzDS = Math.max(0, (Number(globalEntradas.azambujaDS) || 0) * mul - totalAzPlantaoDS);
-    const azPlTT = (Number(manualEntradas[med.key]?.azambujaPlantaoTT) || 0) * mul;
+    const azPlTT = (Number(manualEntradas[matrixDoctorKey]?.azambujaPlantaoTT) || 0) * mul;
     const azPlDS = globalEntradas.azambujaTT > 0
       ? Math.round((azPlTT * globalEntradas.azambujaDS / globalEntradas.azambujaTT) * 100) / 100
       : 0;
