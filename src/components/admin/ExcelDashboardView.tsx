@@ -1400,8 +1400,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     maximumFractionDigits: 2
   });
   const normalizeCardDoctor = (value: any) => String(value || "")
-    .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
-    .trim().toUpperCase().replace(/\\s+/g, " ");
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim().toUpperCase().replace(/\s+/g, " ");
   const getDoctorCardMatrixData = (med: any) => {
     const cachedRows = typeof window !== "undefined" ? (window as any).__matrixRowsCache : null;
     const cacheMeta = typeof window !== "undefined" ? (window as any).__matrixRowsCacheMeta : null;
@@ -1648,7 +1648,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(result => result ? resolve(result) : reject(new Error("Falha ao criar o arquivo PNG.")), "image/png");
     });
-    const safeName = String(med.nome || "medico").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+    const safeName = String(med.nome || "medico").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "medico";
     const file = new File([blob], "icare-" + safeName + ".png", { type: "image/png" });
     if (shareToWhatsApp && typeof navigator !== "undefined" && typeof (navigator as any).share === "function"
@@ -2453,7 +2453,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         : 0;
                     });
 
-                    (window as any).__matrixRowsCache = rows;\n                    (window as any).__matrixRowsCacheMeta = { groupId: activeGroup?.id, closingId: selectedClosingId };
+                    (window as any).__matrixRowsCache = rows;
+                    (window as any).__matrixRowsCacheMeta = { groupId: activeGroup?.id, closingId: selectedClosingId };
 
                     return (
                       <>
