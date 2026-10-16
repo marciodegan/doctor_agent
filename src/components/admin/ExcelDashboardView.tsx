@@ -1461,7 +1461,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       + (Number(cashFlowAllocation.incomingByDoctor[normalizeCardDoctor(med.nome)]) || 0)) * mul);
     const importedUtiPlantaoTT = Number(cashFlowAllocation.unimedPlantaoByDoctor[normalizeCardDoctor(med.nome)]) || 0;
     const unimPlTT = importedUtiPlantaoTT * mul;
-    const unimTotTT = unimedEqTT + unimedPartTT + (isTeam && !participatesUnimed ? operational + film : 0) + unimPlTT;
+    const unimTotTT = unimedEqTT + unimedPartTT + (isTeam && !participatesUnimed ? (operational + film) * mul : 0) + unimPlTT;
     const unimTotDS = Math.round(unimTotTT * unimedDSRatio * 100) / 100;
     const consultTT = isTeam ? Math.round(percent / 100 * (Number(globalEntradas.consultorioTT) || 0) * 100) / 100 * mul : 0;
     const consultDS = isTeam ? Math.round(percent / 100 * (Number(globalEntradas.consultorioDS) || 0) * 100) / 100 * mul : 0;
@@ -1503,7 +1503,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const rowUnimedEqTT = (rowParticipatesUnimed ? sharedUnimedTT : rowProd + rowOperational + rowFilm) * mul;
       const rowUnimedPartTT = ((Number(cashFlowAllocation.incomingByDoctor[normalizeCardDoctor(rowDoc.name)]) || 0) * mul);
       const rowUtiTT = (Number(cashFlowAllocation.unimedPlantaoByDoctor[normalizeCardDoctor(rowDoc.name)]) || 0) * mul;
-      const rowUnimedTT = rowUnimedEqTT + rowUnimedPartTT + (rowParticipatesUnimed ? 0 : rowOperational + rowFilm) + rowUtiTT;
+      const rowUnimedTT = rowUnimedEqTT + rowUnimedPartTT + (rowParticipatesUnimed ? 0 : (rowOperational + rowFilm) * mul) + rowUtiTT;
       const rowUnimedDS = Math.round(rowUnimedTT * unimedDSRatio * 100) / 100;
       const rowConsultDS = Math.round(rowPct / 100 * (Number(globalEntradas.consultorioDS) || 0) * 100) / 100 * mul;
       const rowDinheiroDS = Math.round(rowPct / 100 * (Number(globalEntradas.dinheiroDS) || 0) * 100) / 100 * mul;
