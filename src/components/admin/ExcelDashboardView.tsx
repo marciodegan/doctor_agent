@@ -1240,14 +1240,19 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       saldoFinal: totalUnimedDS
     },
     fechamentoMedicos: doctorsAggregated.map(d => ({
-        nome: d.doctorName,
-        key: d.doctorId,
-        isTeamMember: d.isTeam,
-        producao: d.honorTT,
-        entradas: d.plantaoTT,
-        saidas: d.glosa,
-        liquidoCalculado: d.honorDS,
-        finalGeral: d.dispDS
+        nome: d.doctorName || "Médico não identificado",
+        key: d.doctorId || "",
+        isTeamMember: Boolean(d.isTeam),
+        producao: Number(d.honorTT) || 0,
+        entradas: Number(d.plantaoTT) || 0,
+        saidas: Number(d.glosa) || 0,
+        liquidoCalculado: Number(d.honorDS) || 0,
+        // Campos usados pela visualização de colunas. Não há rateio de lucros
+        // calculado neste resumo; manter zero evita quebrar a tela com dados antigos.
+        divisaoLucros: 0,
+        finalGeral: Number(d.dispDS) || 0,
+        detalhesEntradas: [],
+        detalhesSaidas: []
     })),
     ocorrencias: (Array.isArray(details?.transactions) ? details.transactions : []).map((tx: any) => ({
       ...tx,
@@ -2683,7 +2688,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                           {med.divisaoLucros > 0 ? `+R$ ${med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
                         </td>
                         <td className="p-4 text-right pr-6 font-black text-sm text-emerald-800 bg-emerald-50/50">
-                          R$ {med.finalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          R$ {(Number(med.finalGeral) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
                     );
@@ -2843,29 +2848,29 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                     <div className="py-3 space-y-2 border-b border-gray-300">
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-500">Produção Unimed:</span>
-                        <span className="font-bold text-gray-900">R$ {med.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <span className="font-bold text-gray-900">R$ {(Number(med.producao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-emerald-600 font-medium">Outras Entradas:</span>
-                        <span className="font-bold text-emerald-600">+R$ {med.entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <span className="font-bold text-emerald-600">+R$ {(Number(med.entradas) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-rose-600 font-medium">Ocorrências / Descontos:</span>
-                        <span className="font-bold text-rose-600">-R$ {med.saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <span className="font-bold text-rose-600">-R$ {(Number(med.saidas) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-indigo-600 font-medium">Divisão / Acertos:</span>
-                        <span className="font-bold text-indigo-600">+R$ {med.divisaoLucros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <span className="font-bold text-indigo-600">+R$ {(Number(med.divisaoLucros) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                       </div>
                     </div>
 
                     {/* Occurrence highlights */}
                     <div className="py-2 space-y-1 text-[10px]">
                       <span className="font-black text-gray-400 uppercase tracking-wider block">Lançamentos Alocados:</span>
-                      {med.detalhesEntradas.map((de, idx) => (
+                      {(Array.isArray(med.detalhesEntradas) ? med.detalhesEntradas : []).map((de, idx) => (
                         <div key={idx} className="text-emerald-700 font-medium truncate">• {de}</div>
                       ))}
-                      {med.detalhesSaidas.map((ds, idx) => (
+                      {(Array.isArray(med.detalhesSaidas) ? med.detalhesSaidas : []).map((ds, idx) => (
                         <div key={idx} className="text-rose-700 font-medium truncate">• {ds}</div>
                       ))}
                     </div>
