@@ -3615,9 +3615,9 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const generateGeminiFinancialParse = async (ai: GoogleGenAI, contents: any[]) => {
   const models = [
-    { name: "gemini-3.1-flash-lite", attempts: 2 },
-    { name: "gemini-3.5-flash-lite", attempts: 1 },
-    { name: "gemini-2.5-flash", attempts: 1 }
+    { name: "gemini-3.8-flash", attempts: 2 },
+    { name: "gemini-3.1-flash-lite", attempts: 1 },
+    { name: "gemini-3.5-flash-lite", attempts: 1 }
   ];
   let lastError: any = null;
 
