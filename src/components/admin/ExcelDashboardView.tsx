@@ -1512,10 +1512,38 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     ];
     const totalDS = incoming.reduce((sum, item) => sum + item.ds, 0);
     const dispPeriodo = isTeam ? Math.max(0, totalDS - unimTotDS) : 0;
-    const totalTeamDisp = rowsData.filter((row: any) => row.isTeam).reduce((sum: number, row: any) => {
-      const foundMed = excelData.fechamentoMedicos.find((item: any) => normalizeCardDoctor(item.nome) === normalizeCardDoctor(row.name));
-      return sum + (Number(foundMed?.finalGeral) || 0);
-    }, 0);
+    const getDispPeriodoForRow = (rowDoc: any) => {
+      const rowIsTeam = Boolean(rowDoc?.isTeam);
+      if (!rowIsTeam) return 0;
+      const rowPct = Number(rowDoc?.percent) || 0;
+      const rowManual = manualEntradas[rowDoc.key] || {};
+      const rowAzPlTT = (Number(rowManual.azambujaPlantaoTT) || 0) * mul;
+      const rowAzPlDS = globalEntradas.azambujaTT > 0
+        ? Math.round((rowAzPlTT * globalEntradas.azambujaDS / globalEntradas.azambujaTT) * 100) / 100
+        : 0;
+      const rowAzDS = Math.round(rowPct / 100 * netAzDS * 100) / 100 + rowAzPlDS;
+      const rowMarDS = Math.round(rowPct / 100 * (Number(globalEntradas.marietaDS) || 0) * 100) / 100 * mul;
+      const rowAgg = (Array.isArray(doctorsAggregated) ? doctorsAggregated : []).find((item: any) =>
+        String(item.doctorId) === String(rowDoc.key)
+        || normalizeCardDoctor(item.doctorName) === normalizeCardDoctor(rowDoc.name));
+      const rowConfig = configuredDoctors.find((item: any) => String(item.key) === String(rowDoc.key))
+        || configuredDoctors.find((item: any) => normalizeCardDoctor(item.name) === normalizeCardDoctor(rowDoc.name));
+      const rowParticipatesUnimed = rowConfig?.participaUnimed === true;
+      const rowProd = Number(rowAgg?.honorTT) || 0;
+      const rowOperational = Number(rowAgg?.operationalTT) || 0;
+      const rowFilm = Number(rowAgg?.filmTT) || 0;
+      const rowUnimedEqTT = (rowParticipatesUnimed ? sharedUnimedTT : rowProd + rowOperational + rowFilm) * mul;
+      const rowUnimedPartTT = ((Number(cashFlowAllocation.incomingByDoctor[normalizeCardDoctor(rowDoc.name)]) || 0) * mul);
+      const rowUtiTT = (Number(cashFlowAllocation.unimedPlantaoByDoctor[normalizeCardDoctor(rowDoc.name)]) || 0) * mul;
+      const rowUnimedTT = rowUnimedEqTT + rowUnimedPartTT + (rowParticipatesUnimed ? 0 : rowOperational + rowFilm) + rowUtiTT;
+      const rowUnimedDS = Math.round(rowUnimedTT * unimedDSRatio * 100) / 100;
+      const rowConsultDS = Math.round(rowPct / 100 * (Number(globalEntradas.consultorioDS) || 0) * 100) / 100 * mul;
+      const rowDinheiroDS = Math.round(rowPct / 100 * (Number(globalEntradas.dinheiroDS) || 0) * 100) / 100 * mul;
+      const rowLuisDS = Math.round(rowPct / 100 * (Number(globalEntradas.unimedLuisDS) || 0) * 100) / 100 * mul;
+      return Math.max(0, rowAzDS + rowMarDS + rowUnimedDS + rowConsultDS + rowDinheiroDS + rowLuisDS - rowUnimedDS);
+    };
+    const totalTeamDisp = rowsData.filter((row: any) => row.isTeam)
+      .reduce((sum: number, row: any) => sum + getDispPeriodoForRow(row), 0);
     const heartPercent = isTeam && totalTeamDisp > 0 ? dispPeriodo / totalTeamDisp * 100 : 0;
 
     const expenses = { ...(cashFlowAllocation.expenseByDoctorType[normalizeCardDoctor(med.nome)] || {}) };
@@ -1559,7 +1587,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const adjustment = cashFlowAllocation.matrixAdjustmentByDoctor[normalizeCardDoctor(med.nome)] || {};
     const resultAfterSalary = Math.round((totalDS
       - expenseRows.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
-      - glosaValue - salaryAmount) * 100) / 100;
+      - salaryAmount) * 100) / 100;
     const profitBase = resultAfterSalary + (Number(adjustment.ACERTO_1) || 0) + (Number(adjustment.SOBRE_MES_ANTERIOR) || 0);
     const limit = Math.max(0, Number(doctorConfig?.valorLimite) || 0);
     const divLucros = limit > 0 ? Math.min(profitBase, limit) : profitBase;
