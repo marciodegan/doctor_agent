@@ -1411,7 +1411,32 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       ? cachedRows.find((row: any) => String(row.key) === String(med.key)
         || normalizeCardDoctor(row.name) === normalizeCardDoctor(med.nome))
       : null;
-    if (cachedRow) return cachedRow;
+    if (cachedRow) {
+      const cachedIncoming = [
+        { label: "Azambuja", tt: Number(cachedRow.azTotTT) || 0, ds: Number(cachedRow.azTotDS) || 0 },
+        { label: "Marieta", tt: Number(cachedRow.marTotTT) || 0, ds: Number(cachedRow.marTotDS) || 0 },
+        { label: "Unimed", tt: Number(cachedRow.unimTotTT) || 0, ds: Number(cachedRow.unimTotDS) || 0 },
+        { label: "Consultório", tt: Number(cachedRow.consultTT) || 0, ds: Number(cachedRow.consultDS) || 0 },
+        { label: "Dinheiro", tt: Number(cachedRow.dinheiroTT) || 0, ds: Number(cachedRow.dinheiroDS) || 0 },
+        { label: "Unimed Luis", tt: Number(cachedRow.unimLuisTT) || 0, ds: Number(cachedRow.unimLuisDS) || 0 }
+      ];
+      const cachedExpenses = displayedExpenseTypes.map((type: any) => ({
+        id: type.id,
+        label: type.name,
+        amount: getDisplayedExpenseValue(cachedRow, type)
+      }));
+      const doctorNameKey = normalizeCardDoctor(med.nome);
+      const salary = Number(cachedRow.salaryAmount ?? cashFlowAllocation.salaryByDoctor[doctorNameKey]) || 0;
+      return {
+        incoming: cachedIncoming,
+        expenses: [...cachedExpenses, { id: "salary", label: "Salário", amount: salary }],
+        glosa: Number(med.saidas) || 0,
+        totalTT: Number(cachedRow.totalGeralTT) || 0,
+        totalDS: Number(cachedRow.totalGeralDS) || 0,
+        dispPeriodo: Number(cachedRow.dispPeriodo) || 0,
+        result: Number(cachedRow.finalizacaoAmount ?? cachedRow.finalAfterSalary ?? med.finalGeral) || 0
+      };
+    }
 
     const doc = rowsData.find((row: any) => String(row.key) === String(med.key)
       || normalizeCardDoctor(row.name) === normalizeCardDoctor(med.nome));
@@ -1524,18 +1549,30 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       const typeId = String(tx.typeId || tx.typeName || "outros");
       if (allocated !== 0) expenses[typeId] = (Number(expenses[typeId]) || 0) + allocated;
     });
+    const expenseRows = displayedExpenseTypes.map((type: any) => ({
+      id: type.id,
+      label: type.name,
+      amount: type.allowNegativeAmount ? Number(expenses[type.id]) || 0 : Math.abs(Number(expenses[type.id]) || 0)
+    }));
+    const glosaValue = Number(med.saidas) || Number(doctorAgg?.glosa) || 0;
+    const salaryAmount = Number(cashFlowAllocation.salaryByDoctor[normalizeCardDoctor(med.nome)]) || 0;
+    const adjustment = cashFlowAllocation.matrixAdjustmentByDoctor[normalizeCardDoctor(med.nome)] || {};
+    const resultAfterSalary = Math.round((totalDS
+      - expenseRows.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
+      - glosaValue - salaryAmount) * 100) / 100;
+    const profitBase = resultAfterSalary + (Number(adjustment.ACERTO_1) || 0) + (Number(adjustment.SOBRE_MES_ANTERIOR) || 0);
+    const limit = Math.max(0, Number(doctorConfig?.valorLimite) || 0);
+    const divLucros = limit > 0 ? Math.min(profitBase, limit) : profitBase;
+    const excedente = limit > 0 ? Math.max(0, Math.round((profitBase - limit) * 100) / 100) : 0;
+    const finalization = Math.round((divLucros + excedente + (Number(adjustment.ACERTO_FINAL) || 0)) * 100) / 100;
     return {
       incoming,
-      expenses: displayedExpenseTypes.map((type: any) => ({
-        id: type.id,
-        label: type.name,
-        amount: type.allowNegativeAmount ? Number(expenses[type.id]) || 0 : Math.abs(Number(expenses[type.id]) || 0)
-      })),
-      glosa: Number(med.saidas) || Number(doctorAgg?.glosa) || 0,
+      expenses: [...expenseRows, { id: "salary", label: "Salário", amount: salaryAmount }],
+      glosa: glosaValue,
       totalTT: incoming.reduce((sum, item) => sum + item.tt, 0),
-      totalDS: totalDS,
+      totalDS,
       dispPeriodo,
-      result: Number(med.finalGeral) || 0
+      result: finalization
     };
   };
 
@@ -1543,11 +1580,9 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const width = 900;
     const padding = 42;
     const rowHeight = 54;
-    const visibleExpenses = (Array.isArray(data.expenses) ? data.expenses : []).filter((item: any) => Math.abs(Number(item.amount) || 0) > 0.0001);
-    const entryRows = (Array.isArray(data.incoming) ? data.incoming : []).filter((item: any) =>
-      Math.abs(Number(item.tt) || 0) > 0.0001 || Math.abs(Number(item.ds) || 0) > 0.0001);
-    const showGlosa = Math.abs(Number(data.glosa) || 0) > 0.0001;
-    const expenseRows = [...visibleExpenses, ...(showGlosa ? [{ id: "glosa", label: "Glosas", amount: Number(data.glosa) || 0 }] : [])];
+    const visibleExpenses = Array.isArray(data.expenses) ? data.expenses : [];
+    const entryRows = Array.isArray(data.incoming) ? data.incoming : [];
+    const expenseRows = [...visibleExpenses, { id: "glosa", label: "Glosas", amount: Number(data.glosa) || 0 }];
     const height = 370 + Math.max(1, entryRows.length) * rowHeight + Math.max(1, expenseRows.length) * rowHeight + 130;
     const canvas = document.createElement("canvas");
     canvas.width = width;
@@ -3062,10 +3097,8 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
             {excelData.fechamentoMedicos.map((med: any) => {
               const isTeam = med.isTeamMember;
               const matrixData = getDoctorCardMatrixData(med);
-              const entries = (Array.isArray(matrixData.incoming) ? matrixData.incoming : [])
-                .filter((item: any) => Math.abs(Number(item.tt) || 0) > 0.0001 || Math.abs(Number(item.ds) || 0) > 0.0001);
-              const expenses = (Array.isArray(matrixData.expenses) ? matrixData.expenses : [])
-                .filter((item: any) => Math.abs(Number(item.amount) || 0) > 0.0001);
+              const entries = Array.isArray(matrixData.incoming) ? matrixData.incoming : [];
+              const expenses = Array.isArray(matrixData.expenses) ? matrixData.expenses : [];
               const glosa = Number(matrixData.glosa) || 0;
               const specialty = configuredDoctors.find((d: any) => d.name === med.nome)?.specialty || "Especialidade não informada";
               const isBusy = false;
