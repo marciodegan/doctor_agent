@@ -3095,7 +3095,10 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
               const entries = Array.isArray(matrixData.incoming) ? matrixData.incoming : [];
               const expenses = Array.isArray(matrixData.expenses) ? matrixData.expenses : [];
               const glosa = Number(matrixData.glosa) || 0;
-              const specialty = configuredDoctors.find((d: any) => d.name === med.nome)?.specialty || "Especialidade não informada";
+              const doctorCardConfig = configuredDoctors.find((d: any) => String(d.key) === String(med.key))
+                || configuredDoctors.find((d: any) => normalizeCardDoctor(d.name) === normalizeCardDoctor(med.nome));
+              const specialty = doctorCardConfig?.specialty || "Especialidade não informada";
+              const nominalPercent = Number(doctorCardConfig?.teamSharePercent) || 0;
               const isBusy = false;
               return (
                 <article key={med.key || med.nome} className={`doctor-share-card bg-white rounded-2xl border shadow-sm overflow-hidden ${isTeam ? "border-emerald-300" : "border-slate-200"}`}>
@@ -3105,7 +3108,7 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                         <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${isTeam ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>
                           {isTeam ? "Membro da equipe" : "Cooperado externo"}
                         </span>
-                        {isTeam && <span className="text-[10px] font-bold text-emerald-800">{Number(med.percent) || 0}% nominal</span>}
+                        {isTeam && <span className="text-[10px] font-bold text-emerald-800">{nominalPercent}% nominal</span>}
                       </div>
                       <h3 className="font-black text-slate-950 text-base sm:text-lg leading-tight break-words">{med.nome}</h3>
                       <p className="text-xs text-slate-500 mt-1">{specialty}</p>
@@ -3151,13 +3154,11 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
                             <span className="text-sm font-black text-rose-700">- R$ {moneyLabel(item.amount)}</span>
                           </div>
                         ))}
-                        {glosa !== 0 && (
-                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2 px-3 rounded-lg bg-rose-50/70">
-                            <span className="text-sm font-semibold text-slate-700">Glosas</span>
-                            <span className="text-sm font-black text-rose-700">- R$ {moneyLabel(glosa)}</span>
-                          </div>
-                        )}
-                        {!expenses.length && glosa === 0 && <p className="text-xs text-slate-400 py-3">Nenhuma saída com valor neste fechamento.</p>}
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2 px-3 rounded-lg bg-rose-50/70">
+                          <span className="text-sm font-semibold text-slate-700">Glosas</span>
+                          <span className="text-sm font-black text-rose-700">- R$ {moneyLabel(glosa)}</span>
+                        </div>
+                        {!expenses.length && glosa === 0 && <p className="text-xs text-slate-400 py-3">Nenhuma outra saída com valor neste fechamento.</p>}
                       </div>
                     </section>
 
