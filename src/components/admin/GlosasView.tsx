@@ -217,31 +217,31 @@ export function GlosasView() {
     {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 flex gap-2"><CheckCircle2 size={18} className="shrink-0"/>{message}</div>}
 
     {rows.length > 0 && <>
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-        <div className="rounded-xl border bg-white p-4"><p className="text-xs font-bold uppercase text-gray-500">Protocolos</p><p className="text-2xl font-black mt-1">{protocolGroups.length}</p></div>
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-5">
+        <div className="rounded-xl border bg-white p-3 sm:p-4"><p className="text-xs font-bold uppercase text-gray-500">Protocolos</p><p className="text-2xl font-black mt-1">{protocolGroups.length}</p></div>
         <div className="rounded-xl border bg-white p-4"><p className="text-xs font-bold uppercase text-gray-500">Procedimentos</p><p className="text-2xl font-black mt-1">{rows.length}</p></div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-bold uppercase text-emerald-700">Verificados</p><p className="text-2xl font-black text-emerald-800 mt-1">{verifiedCount}</p></div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4"><p className="text-xs font-bold uppercase text-amber-700">Pendentes</p><p className="text-2xl font-black text-amber-800 mt-1">{protocolGroups.length - verifiedCount}</p></div>
-        <div className="rounded-xl border bg-white p-4 col-span-2 xl:col-span-1"><p className="text-xs font-bold uppercase text-gray-500">Total de glosas</p><p className="text-xl font-black mt-1">{money(totalGlosa)}</p></div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 sm:p-4"><p className="text-xs font-bold uppercase text-emerald-700">Verificados</p><p className="text-2xl font-black text-emerald-800 mt-1">{verifiedCount}</p></div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 sm:p-4"><p className="text-xs font-bold uppercase text-amber-700">Pendentes</p><p className="text-2xl font-black text-amber-800 mt-1">{protocolGroups.length - verifiedCount}</p></div>
+        <div className="rounded-xl border bg-white p-3 sm:p-4 col-span-2 xl:col-span-1"><p className="text-xs font-bold uppercase text-gray-500">Total de glosas</p><p className="text-xl font-black mt-1">{money(totalGlosa)}</p></div>
       </div>
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between"><div><h3 className="font-extrabold text-lg">Protocolos com glosas</h3><p className="text-xs text-gray-500 mt-1">Os protocolos pendentes aparecem primeiro; os verificados vão para o final.</p></div><div className="relative w-full sm:max-w-sm"><Search size={16} className="absolute left-3 top-3 text-gray-400"/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar protocolo, paciente, médico..." className="w-full rounded-xl border border-gray-300 py-2.5 pl-9 pr-3 text-sm"/></div></div>
       <div className="space-y-3">
         {filteredGroups.map(g => {
           const isOpen = expanded.includes(g.key);
           return <section key={g.key} className={`overflow-hidden rounded-2xl border bg-white ${g.verified ? "border-emerald-200 opacity-80" : "border-gray-200"}`}>
-            <div className="flex items-center gap-3 p-3 sm:p-4">
-              <button onClick={() => setExpanded(current => isOpen ? current.filter(k => k !== g.key) : [...current, g.key])} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+            <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:gap-3 sm:p-4">
+              <button onClick={() => setExpanded(current => isOpen ? current.filter(k => k !== g.key) : [...current, g.key])} className="flex min-w-0 w-full flex-1 items-start gap-2 text-left sm:items-center sm:gap-3">
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${g.verified ? "bg-emerald-100 text-emerald-800" : "bg-blue-50 text-blue-800"}`}>{isOpen ? <ChevronDown size={18}/> : <ChevronRight size={18}/>}</span>
                 <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 font-extrabold text-slate-800">Protocolo {g.protocol}{g.verified && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">Verificado</span>}</span><span className="mt-1 block text-xs text-gray-500">Lote {g.lot || "—"} · {g.csvRecords.length} registro(s) CSV vinculado(s) · {g.rows.length} linha(s) de glosa</span></span>
-                <span className="whitespace-nowrap text-right"><span className="block text-[10px] font-bold uppercase text-gray-500">Total glosa</span><span className="text-sm sm:text-base font-black text-red-700">{money(g.totalGlosa)}</span></span>
+                <span className="shrink-0 text-left sm:text-right"><span className="block text-[10px] font-bold uppercase text-gray-500">Total glosa</span><span className="text-sm sm:text-base font-black text-red-700">{money(g.totalGlosa)}</span></span>
               </button>
-              <button title={g.verified ? "Reabrir conferência" : "Marcar como verificado"} disabled={savingProtocol === g.key} onClick={() => verifyProtocol(g, !g.verified)} className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-extrabold disabled:opacity-50 ${g.verified ? "bg-emerald-100 text-emerald-800" : "bg-slate-800 text-white"}`}>{savingProtocol === g.key ? <Loader2 size={15} className="animate-spin"/> : <ClipboardCheck size={15}/>}<span className="hidden md:inline">{g.verified ? "Verificado" : "Marcar verificado"}</span><span className="md:hidden">{g.verified ? "OK" : "Verificar"}</span></button>
+              <button title={g.verified ? "Reabrir conferência" : "Marcar como verificado"} disabled={savingProtocol === g.key} onClick={() => verifyProtocol(g, !g.verified)} className={`flex w-full shrink-0 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold disabled:opacity-50 sm:w-auto sm:py-2 ${g.verified ? "bg-emerald-100 text-emerald-800" : "bg-slate-800 text-white"}`}>{savingProtocol === g.key ? <Loader2 size={15} className="animate-spin"/> : <ClipboardCheck size={15}/>}<span className="hidden md:inline">{g.verified ? "Verificado" : "Marcar verificado"}</span><span className="md:hidden">{g.verified ? "OK" : "Verificar"}</span></button>
             </div>
             {isOpen && <div className="border-t border-gray-100">
-              <div className="flex flex-wrap gap-2 border-b border-gray-100 bg-gray-50 p-3">
-                <button onClick={() => shareWhatsApp(g)} className="inline-flex items-center gap-2 rounded-lg border border-green-200 bg-white px-3 py-2 text-xs font-bold text-green-800"><MessageCircle size={15}/> WhatsApp</button>
-                <button onClick={() => shareEmail(g)} className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-800"><Mail size={15}/> E-mail</button>
-                <button onClick={() => downloadProtocolImage(g)} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700"><Download size={15}/> Baixar imagem</button>
+              <div className="grid grid-cols-2 gap-2 border-b border-gray-100 bg-gray-50 p-3 sm:flex sm:flex-wrap">
+                <button onClick={() => shareWhatsApp(g)} className="inline-flex min-w-0 items-center justify-center gap-2 rounded-lg border border-green-200 bg-white px-2 py-2.5 text-xs font-bold text-green-800 sm:px-3"><MessageCircle size={15}/> WhatsApp</button>
+                <button onClick={() => shareEmail(g)} className="inline-flex min-w-0 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-2 py-2.5 text-xs font-bold text-blue-800 sm:px-3"><Mail size={15}/> E-mail</button>
+                <button onClick={() => downloadProtocolImage(g)} className="inline-flex min-w-0 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-2 py-2.5 text-xs font-bold text-gray-700 sm:px-3"><Download size={15}/> Baixar imagem</button>
                 <button onClick={() => { void navigator.clipboard?.writeText(protocolText(g)); setMessage("Resumo do protocolo copiado."); }} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700"><Share2 size={15}/> Copiar resumo</button>
               </div>
               <div className="space-y-3 p-3 sm:p-4">
