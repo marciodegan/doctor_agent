@@ -45,6 +45,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ date: "", lote: "", doctorId: "", doctorName: "", typeId: "", typeName: "", amount: "", observation: "" });
   const [searchTerm, setSearchTerm] = useState("");
+  const [loteFilter, setLoteFilter] = useState("");
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState("ALL");
   const [selectedNatureFilter, setSelectedNatureFilter] = useState("ALL");
 
@@ -429,7 +430,10 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         (t.observation || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
         docName.toLowerCase().includes(searchTerm.toLowerCase())
       : true;
-    return matchDoctor && matchNature && matchSearch;
+    const transactionLot = String(t.lote ?? t.loteNumber ?? t.batchNumber ?? t.batch ?? "").trim();
+    const matchLot = !loteFilter.trim()
+      || transactionLot.toLowerCase().includes(loteFilter.trim().toLowerCase());
+    return matchDoctor && matchNature && matchSearch && matchLot;
   });
 
   const totalEntradas = filtered
@@ -579,6 +583,19 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-3.5 py-2 text-xs font-semibold text-gray-800 placeholder-gray-400 outline-none focus:border-emerald-500 w-64"
+            />
+          </div>
+
+          {/* Lot filter */}
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs">
+            <Search size={14} className="text-gray-400" />
+            <input
+              type="text"
+              placeholder="Filtrar por lote..."
+              aria-label="Filtrar ocorrências por lote"
+              value={loteFilter}
+              onChange={e => setLoteFilter(e.target.value)}
+              className="bg-transparent w-24 sm:w-28 font-bold text-gray-700 outline-none placeholder-gray-400"
             />
           </div>
 
