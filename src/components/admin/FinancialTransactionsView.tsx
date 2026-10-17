@@ -23,7 +23,10 @@ import {
   Settings2,
   Percent,
   Sliders,
-  DollarSign
+  DollarSign,
+  ChevronUp,
+  ChevronDown,
+  ArrowUpDown
 } from "lucide-react";
 import { TransactionTypesManager } from "./TransactionTypesManager";
 import { FinancialTransactionAIImport } from "./FinancialTransactionAIImport";
@@ -488,7 +491,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     .filter(t => t.nature === "CREDIT")
     .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
-  const totalSaidas = filtered
+  const totalSaidas = sortedFiltered
     .filter(t => t.nature === "DEBIT")
     .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
