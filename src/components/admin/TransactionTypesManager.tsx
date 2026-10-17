@@ -814,7 +814,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
               )}
 
               <label className="flex items-start gap-3 p-3 rounded-xl border border-violet-200 bg-violet-50 cursor-pointer">
-                <input type="checkbox" checked={form.isMultiple} disabled={Boolean(form.isSalary) || Boolean(form.matrixAdjustmentType)} onChange={e => setForm(prev => ({ ...prev, isMultiple: e.target.checked, defaultScope: e.target.checked ? "DOCTOR" : prev.defaultScope, allowNegativeAmount: e.target.checked ? true : prev.allowNegativeAmount }))} className="mt-0.5 h-4 w-4 accent-violet-600" />
+                <input type="checkbox" checked={form.isMultiple} disabled={Boolean(form.isSalary) || (Boolean(form.matrixAdjustmentType) && form.matrixAdjustmentType !== "ACERTO_1")} onChange={e => setForm(prev => ({ ...prev, isMultiple: e.target.checked, defaultScope: e.target.checked ? "DOCTOR" : prev.defaultScope, allowNegativeAmount: e.target.checked ? true : prev.allowNegativeAmount }))} className="mt-0.5 h-4 w-4 accent-violet-600" />
                 <span><span className="block text-xs font-black text-violet-950">Tipo de lançamento múltiplo</span><span className="block mt-0.5 text-[10px] font-medium text-violet-800">Lança valores individuais para vários médicos de uma só vez. A soma não precisa fechar em zero.</span></span>
               </label>
               {/* Escopo Padrão */}
