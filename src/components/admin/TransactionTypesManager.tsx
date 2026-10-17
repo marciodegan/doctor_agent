@@ -734,7 +734,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
               {(form.isSalary || form.matrixAdjustmentType) && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
                   <span className="font-black block">{form.isSalary ? "Tipo especial: Salário individual" : form.matrixAdjustmentType === "ACERTO_FINAL" ? "Tipo especial: Acerto Final" : form.matrixAdjustmentType === "ACERTO_1" ? "Tipo especial: Acerto 1" : "Tipo especial: Sobre Mês Anterior"}</span>
-                  <span className="block mt-1">{form.isSalary ? "Será sempre uma saída vinculada a um único médico. Na matriz, ficará fora das despesas gerais e será descontado apenas no cálculo do FINAL." : form.matrixAdjustmentType === "ACERTO_FINAL" ? "Lançamento individual vinculado a um médico. Aceita valores positivos e negativos, aparece após TOTAL e é somado para calcular FINALIZAÇÃO." : "Será um lançamento individual do médico, aceita valores positivos e negativos e aparece em coluna própria após FINAL. Não altera RESULT nem FINAL."}</span>
+                  <span className="block mt-1">{form.isSalary ? "Cada valor fica vinculado a um médico. Na matriz, ficará fora das despesas gerais e será descontado apenas no cálculo do FINAL." : form.matrixAdjustmentType === "ACERTO_FINAL" ? "Cada valor fica vinculado a um médico. Aceita valores positivos e negativos, aparece após TOTAL e é somado para calcular FINALIZAÇÃO." : "Será um lançamento individual do médico, aceita valores positivos e negativos e aparece em coluna própria após FINAL. Não altera RESULT nem FINAL."}</span>
                 </div>
               )}
 
