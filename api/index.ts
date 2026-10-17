@@ -1924,6 +1924,44 @@ app.use("/api/app/financial", async (req, res, next) => {
   try {
     await requireGroupMember(req, groupId);
     (req as any).activeGroupId = groupId;
+
+    // Fechamentos encerrados são somente leitura. Aplicamos a regra no servidor
+    // para proteger também alterações feitas por outras telas ou chamadas diretas à API.
+    const isMutation = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method.toUpperCase());
+    const isStatusRoute = req.method === "POST" && /\/closings\/[^/]+\/status$/.test(req.path);
+    if (isMutation && !isStatusRoute) {
+      let closingId = String((req.params as any)?.closingId || req.body?.closingId || "").trim();
+
+      // Para alterações/exclusões de lançamentos existentes, recuperar o fechamento
+      // a partir do próprio lançamento, sem depender do cliente enviar closingId.
+      if (!closingId && (req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE")) {
+        const entityId = String((req.params as any)?.id || "").trim();
+        if (entityId) {
+          const route = req.path.toLowerCase();
+          const collection = route.includes("/transactions/") ? "financial_transactions"
+            : route.includes("/prelaunches/") ? "financial_transaction_prelaunches"
+            : route.includes("/glosas/") ? "financial_glosas"
+            : route.includes("/taxes/") ? "financial_taxes"
+            : route.includes("/production/") ? "financial_production"
+            : route.includes("/adjustments/") ? "financial_adjustments"
+            : "";
+          if (collection) {
+            const entitySnap = await db.collection(collection).doc(entityId).get();
+            if (entitySnap.exists) closingId = String(entitySnap.data()?.closingId || "");
+          }
+        }
+      }
+
+      if (closingId) {
+        const closingSnap = await db.collection("financial_closings").doc(closingId).get();
+        if (closingSnap.exists && closingSnap.data()?.teamId === groupId &&
+            String(closingSnap.data()?.status || "").toUpperCase() === "FECHADO") {
+          return res.status(409).json({
+            error: "Este fechamento está encerrado e não permite alterações, exclusões ou novas importações. Reabra o mês com justificativa para realizar ajustes."
+          });
+        }
+      }
+    }
     next();
   } catch (error: any) {
     return res.status(403).json({ error: "Você não faz parte desta equipe ou seu acesso está inativo." });
@@ -2931,13 +2969,23 @@ app.post("/api/app/financial/closings/:closingId/status", async (req, res) => {
     if (!doc.exists) return res.status(404).json({ error: "Closing not found" });
     if (!groupId || doc.data()?.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outra equipe." });
 
-    const oldStatus = doc.data()?.status;
+    const oldStatus = String(doc.data()?.status || "").toUpperCase();
+    const requestedStatus = String(status || "").toUpperCase();
+    if (!["FECHADO", "ABERTO"].includes(requestedStatus)) {
+      return res.status(400).json({ error: "Status inválido. Use FECHADO ou ABERTO." });
+    }
+    if (oldStatus === "FECHADO" && requestedStatus === "ABERTO" && !String(reason || "").trim()) {
+      return res.status(400).json({ error: "Informe a justificativa para reabrir este fechamento." });
+    }
+    if (oldStatus === "FECHADO" && requestedStatus === "FECHADO") {
+      return res.json({ success: true, status: oldStatus, alreadyClosed: true });
+    }
 
     const updateData: any = {
-      status,
+      status: requestedStatus,
       updatedAt: new Date().toISOString()
     };
-    if (status === "FECHADO") {
+    if (requestedStatus === "FECHADO") {
       updateData.closedAt = new Date().toISOString();
       updateData.closedBy = user.email || user.uid;
     }
@@ -2949,15 +2997,15 @@ app.post("/api/app/financial/closings/:closingId/status", async (req, res) => {
       closingId,
       userId: user.uid,
       userName: user.email || "Admin",
-      action: status === "FECHADO" ? "CLOSE_MONTH" : status === "ABERTO" ? "REOPEN_MONTH" : "UPDATE_STATUS",
+      action: requestedStatus === "FECHADO" ? "CLOSE_MONTH" : requestedStatus === "ABERTO" ? "REOPEN_MONTH" : "UPDATE_STATUS",
       fieldChanged: "status",
       oldValue: oldStatus,
-      newValue: status,
+      newValue: requestedStatus,
       reason: reason || "",
       timestamp: new Date().toISOString()
     });
 
-    res.json({ success: true, status });
+    res.json({ success: true, status: requestedStatus });
   } catch (error: any) {
     handleApiError(res, error, "Update Closing Status");
   }
