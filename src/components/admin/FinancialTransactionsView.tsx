@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useGroup } from "../../contexts/GroupContext";
 import { 
+  Lock,
   Wallet, 
   Plus, 
   Search, 
@@ -43,6 +44,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const { activeGroup, apiFetch } = useGroup();
   const [closings, setClosings] = useState<any[]>([]);
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(closingId);
+  const [closingTab, setClosingTab] = useState<"OPEN" | "CLOSED">("OPEN");
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -188,9 +190,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         if (res.ok) {
           const data = await res.json();
           setClosings(data);
-          if (!selectedClosingId && data.length > 0) {
-            setSelectedClosingId(data[0].id);
-          }
+          const openClosings = data.filter((closing: any) => String(closing.status || "").toUpperCase() !== "FECHADO");
+          if (!openClosings.some((closing: any) => closing.id === selectedClosingId)) setSelectedClosingId(openClosings[0]?.id || null);
         }
       } catch (e) {
         console.error("Failed to load closings:", e);
@@ -202,15 +203,35 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     fetchDoctorOptions();
   }, [activeGroup]);
 
-  // Sync selectedClosingId
+  // Keep the working tab focused on an open closing. A parent-selected historical
+  // closing must never pull its transactions into the active working list.
   useEffect(() => {
-    if (closingId) {
-      setSelectedClosingId(closingId);
-    }
-  }, [closingId]);
+    if (!closingId) return;
+    const selected = closings.find(closing => closing.id === closingId);
+    if (closingTab === "OPEN" && selected && String(selected.status || "").toUpperCase() === "FECHADO") return;
+    if (closingTab === "CLOSED" && selected && String(selected.status || "").toUpperCase() !== "FECHADO") return;
+    setSelectedClosingId(closingId);
+  }, [closingId, closings, closingTab]);
+
+  const openClosings = closings.filter(closing => String(closing.status || "").toUpperCase() !== "FECHADO");
+  const closedClosings = closings.filter(closing => String(closing.status || "").toUpperCase() === "FECHADO");
+  const visibleClosings = closingTab === "OPEN" ? openClosings : closedClosings;
+  const selectedClosing = closings.find(closing => closing.id === selectedClosingId) || null;
+  const isHistoricalReadOnly = String(selectedClosing?.status || "").toUpperCase() === "FECHADO";
+
+  const handleClosingTabChange = (tab: "OPEN" | "CLOSED") => {
+    setClosingTab(tab);
+    setEditingId(null);
+    const list = tab === "OPEN" ? openClosings : closedClosings;
+    if (!list.some(closing => closing.id === selectedClosingId)) setSelectedClosingId(list[0]?.id || null);
+  };
 
   const fetchTransactions = async () => {
-    if (!selectedClosingId || !activeGroup) return;
+    if (!selectedClosingId || !activeGroup) {
+      setTransactions([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await apiFetch(`/api/app/financial/closings/${selectedClosingId}/details`);
@@ -525,12 +546,12 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
               onChange={e => setSelectedClosingId(e.target.value)}
               className="bg-transparent font-black text-gray-900 outline-none cursor-pointer"
             >
-              {closings.filter(c => String(c.status || "").toUpperCase() !== "FECHADO").map(c => (
+              {visibleClosings.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.monthKey} ({c.status})
                 </option>
               ))}
-              {closings.length === 0 && <option value="">Nenhum fechamento</option>}
+              {visibleClosings.length === 0 && <option value="">Nenhum fechamento {closingTab === "OPEN" ? "em aberto" : "encerrado"}</option>}
             </select>
           </div>
 
@@ -546,7 +567,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
           {/* AI Import Preview Button */}
           <button
             onClick={() => setIsAIImportOpen(true)}
-            disabled={!selectedClosingId || closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO")}
+            disabled={!selectedClosingId || isHistoricalReadOnly}
             title="Interpretar PDF ou imagem e revisar pré-lançamentos antes de importar"
             className="flex items-center gap-2 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
@@ -562,8 +583,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                   await fetchTransactionTypes();
                   setIsNewModalOpen(true);
                 }}
-                disabled={transactionTypes.length === 0 || closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO")}
-                title={transactionTypes.length === 0 ? "Cadastre um tipo de lançamento antes de lançar valores." : closings.some(c => c.id === selectedClosingId && String(c.status || "").toUpperCase() === "FECHADO") ? "Fechamento concluído. Crie ou selecione um fechamento em aberto." : "Novo lançamento"}
+                disabled={transactionTypes.length === 0 || !selectedClosingId || isHistoricalReadOnly}
+                title={isHistoricalReadOnly ? "Fechamento encerrado: somente consulta." : transactionTypes.length === 0 ? "Cadastre um tipo de lançamento antes de lançar valores." : "Novo lançamento"}
                 className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Plus size={16} />
@@ -574,6 +595,20 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         </div>
       </div>
 
+      <div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xs">
+        <button onClick={() => handleClosingTabChange("OPEN")} className={`rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition ${closingTab === "OPEN" ? "bg-emerald-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}>
+          <span className="inline-flex items-center gap-2"><Wallet size={14}/> Em aberto <span className={`rounded-full px-1.5 py-0.5 text-[9px] ${closingTab === "OPEN" ? "bg-white/20" : "bg-gray-100"}`}>{openClosings.length}</span></span>
+        </button>
+        <button onClick={() => handleClosingTabChange("CLOSED")} className={`rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition ${closingTab === "CLOSED" ? "bg-slate-800 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}>
+          <span className="inline-flex items-center gap-2"><FileText size={14}/> Encerrados <span className={`rounded-full px-1.5 py-0.5 text-[9px] ${closingTab === "CLOSED" ? "bg-white/20" : "bg-gray-100"}`}>{closedClosings.length}</span></span>
+        </button>
+      </div>
+      {closingTab === "CLOSED" && (
+        <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+          <Lock size={15} className="mt-0.5 shrink-0" />
+          <span><strong>Histórico em modo de consulta.</strong> Os lançamentos deste fechamento permanecem preservados. Para fazer ajustes, reabra o mês na seção Fechamentos, informando a justificativa.</span>
+        </div>
+      )}
       <div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xs">
         <button onClick={() => setActiveSection("FLOW")} className={`rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition ${activeSection === "FLOW" ? "bg-emerald-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}>
           <span className="inline-flex items-center gap-2"><Wallet size={14}/> Fluxo de Caixa</span>
@@ -833,6 +868,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                         ) : (
                           <div className="flex items-center justify-end gap-1">
                             <button
+                              disabled={isHistoricalReadOnly}
+                              title={isHistoricalReadOnly ? "Fechamento encerrado: somente consulta" : "Editar lançamento"}
                               onClick={() => {
                                 setEditingId(t.id);
                                 const matchedType = transactionTypes.find(type => String(type.id) === String(t.typeId))
@@ -854,7 +891,9 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
                             </button>
                             <button
                               onClick={() => handleDelete(t.id)}
-                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              disabled={isHistoricalReadOnly}
+                              title={isHistoricalReadOnly ? "Fechamento encerrado: somente consulta" : "Excluir lançamento"}
+                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Trash2 size={15} />
                             </button>
