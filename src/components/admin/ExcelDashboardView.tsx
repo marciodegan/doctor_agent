@@ -14,6 +14,7 @@ import { db } from "../../lib/firebase";
 import { 
   TableProperties, 
   Download, 
+  Share2,
   Calendar, 
   TrendingUp, 
   Users, 
@@ -1390,6 +1391,280 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
     const config = configuredDoctors.find(c => c.name === d.nome);
     return config ? !config.isTeamMember : !d.isTeamMember;
   });
+
+
+  // Dados exclusivos da visualização Colunas por Médico. Não altera os cálculos
+  // nem os dados persistidos da matriz financeira.
+  const moneyLabel = (value: any) => (Number(value) || 0).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  const normalizeCardDoctor = (value: any) => String(value || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim().toUpperCase().replace(/\s+/g, " ");
+  const getDoctorCardMatrixData = (med: any) => {
+
+
+    const doc = rowsData.find((row: any) => String(row.key) === String(med.key)
+      || normalizeCardDoctor(row.name) === normalizeCardDoctor(med.nome));
+    const isTeam = Boolean(doc?.isTeam);
+    const matrixDoctorKey = String(doc?.key || med.key || "");
+    const percent = Number(doc?.percent ?? med.percent) || 0;
+    const hasClosing = Boolean(details?.closing);
+    const mul = hasClosing ? 1 : 0;
+    const doctorsForTotals = rowsData;
+    const totalAzPlantaoTT = doctorsForTotals.reduce((sum: number, row: any) =>
+      sum + (Number(manualEntradas[row.key]?.azambujaPlantaoTT) || 0), 0) * mul;
+    const totalAzPlantaoDS = doctorsForTotals.reduce((sum: number, row: any) => {
+      const tt = (Number(manualEntradas[row.key]?.azambujaPlantaoTT) || 0) * mul;
+      return sum + (globalEntradas.azambujaTT > 0
+        ? Math.round((tt * globalEntradas.azambujaDS / globalEntradas.azambujaTT) * 100) / 100
+        : 0);
+    }, 0);
+    const netAzTT = Math.max(0, (Number(globalEntradas.azambujaTT) || 0) * mul - totalAzPlantaoTT);
+    const netAzDS = Math.max(0, (Number(globalEntradas.azambujaDS) || 0) * mul - totalAzPlantaoDS);
+    const azPlTT = (Number(manualEntradas[matrixDoctorKey]?.azambujaPlantaoTT) || 0) * mul;
+    const azPlDS = globalEntradas.azambujaTT > 0
+      ? Math.round((azPlTT * globalEntradas.azambujaDS / globalEntradas.azambujaTT) * 100) / 100
+      : 0;
+    const azTT = (isTeam ? Math.round(percent / 100 * netAzTT * 100) / 100 : 0) + azPlTT;
+    const azDS = (isTeam ? Math.round(percent / 100 * netAzDS * 100) / 100 : 0) + azPlDS;
+    const marTT = isTeam ? Math.round(percent / 100 * (Number(globalEntradas.marietaTT) || 0) * 100) / 100 * mul : 0;
+    const marDS = isTeam ? Math.round(percent / 100 * (Number(globalEntradas.marietaDS) || 0) * 100) / 100 * mul : 0;
+    const doctorAgg = (Array.isArray(doctorsAggregated) ? doctorsAggregated : []).find((item: any) =>
+      String(item.doctorId) === String(med.key)
+      || normalizeCardDoctor(item.doctorName) === normalizeCardDoctor(med.nome));
+    const doctorConfig = configuredDoctors.find((item: any) => String(item.key) === String(med.key))
+      || configuredDoctors.find((item: any) => normalizeCardDoctor(item.name) === normalizeCardDoctor(med.nome));
+    const unimedParticipants = configuredDoctors.filter((doctor: any) => doctor.participaUnimed === true);
+    const sharedRateioTransactions = cashFlowTransactions.filter((tx: any) => isSharedUnimedRateioTransaction(tx));
+    const sharedRateioTotal = sharedRateioTransactions.reduce((sum: number, tx: any) => {
+      const amount = Number(tx.amount) || 0;
+      return sum + (tx.allowNegativeAmount === true ? amount : Math.abs(amount));
+    }, 0);
+    const participantProduction = unimedParticipants.reduce((sum: number, doctor: any) => {
+      const found = (Array.isArray(doctorsAggregated) ? doctorsAggregated : []).find((item: any) =>
+        String(item.doctorId) === String(doctor.key)
+        || normalizeCardDoctor(item.doctorName) === normalizeCardDoctor(doctor.name));
+      return sum + (Number(found?.honorTT) || 0) + (Number(found?.operationalTT) || 0) + (Number(found?.filmTT) || 0);
+    }, 0) + sharedRateioTotal;
+    const sharedUnimedTT = unimedParticipants.length ? participantProduction / unimedParticipants.length : 0;
+    const totalLotsDS = (Array.isArray(excelData.lotesUnimed) ? excelData.lotesUnimed : [])
+      .reduce((sum: number, lote: any) => sum + (Number(lote.dsSaque) || 0), 0);
+    const unimedDSRatio = Number(totalUnimedTT) > 0 ? totalLotsDS / Number(totalUnimedTT) : 0;
+    const prod = Number(doctorAgg?.honorTT) || 0;
+    const operational = Number(doctorAgg?.operationalTT) || 0;
+    const film = Number(doctorAgg?.filmTT) || 0;
+    const participatesUnimed = doctorConfig?.participaUnimed === true;
+    const unimedEqTT = isTeam ? (participatesUnimed ? sharedUnimedTT : prod + operational + film) * mul : 0;
+    const unimedPartTT = (((!isTeam ? prod + operational + film : 0)
+      + (Number(cashFlowAllocation.incomingByDoctor[normalizeCardDoctor(med.nome)]) || 0)) * mul);
+    const importedUtiPlantaoTT = Number(cashFlowAllocation.unimedPlantaoByDoctor[normalizeCardDoctor(med.nome)]) || 0;
+    const unimPlTT = importedUtiPlantaoTT * mul;
+    const unimTotTT = unimedEqTT + unimedPartTT + (isTeam && !participatesUnimed ? (operational + film) * mul : 0) + unimPlTT;
+    const unimTotDS = Math.round(unimTotTT * unimedDSRatio * 100) / 100;
+    const consultTT = isTeam ? Math.round(percent / 100 * (Number(globalEntradas.consultorioTT) || 0) * 100) / 100 * mul : 0;
+    const consultDS = isTeam ? Math.round(percent / 100 * (Number(globalEntradas.consultorioDS) || 0) * 100) / 100 * mul : 0;
+    const dinheiroTT = isTeam ? Math.round(percent / 100 * (Number(globalEntradas.dinheiroTT) || 0) * 100) / 100 * mul : 0;
+    const dinheiroDS = isTeam ? Math.round(percent / 100 * (Number(globalEntradas.dinheiroDS) || 0) * 100) / 100 * mul : 0;
+    const unimLuisTT = isTeam ? Math.round(percent / 100 * (Number(globalEntradas.unimedLuisTT) || 0) * 100) / 100 * mul : 0;
+    const unimLuisDS = isTeam ? Math.round(percent / 100 * (Number(globalEntradas.unimedLuisDS) || 0) * 100) / 100 * mul : 0;
+
+    const incoming = [
+      { label: "Azambuja", tt: azTT, ds: azDS },
+      { label: "Marieta", tt: marTT, ds: marDS },
+      { label: "Unimed", tt: unimTotTT, ds: unimTotDS },
+      { label: "Consultório", tt: consultTT, ds: consultDS },
+      { label: "Dinheiro", tt: dinheiroTT, ds: dinheiroDS },
+      { label: "Unimed Luis", tt: unimLuisTT, ds: unimLuisDS }
+    ];
+    const totalDS = incoming.reduce((sum, item) => sum + item.ds, 0);
+    const dispPeriodo = isTeam ? Math.max(0, totalDS - unimTotDS) : 0;
+    const getDispPeriodoForRow = (rowDoc: any) => {
+      const rowIsTeam = Boolean(rowDoc?.isTeam);
+      if (!rowIsTeam) return 0;
+      const rowPct = Number(rowDoc?.percent) || 0;
+      const rowManual = manualEntradas[rowDoc.key] || {};
+      const rowAzPlTT = (Number(rowManual.azambujaPlantaoTT) || 0) * mul;
+      const rowAzPlDS = globalEntradas.azambujaTT > 0
+        ? Math.round((rowAzPlTT * globalEntradas.azambujaDS / globalEntradas.azambujaTT) * 100) / 100
+        : 0;
+      const rowAzDS = Math.round(rowPct / 100 * netAzDS * 100) / 100 + rowAzPlDS;
+      const rowMarDS = Math.round(rowPct / 100 * (Number(globalEntradas.marietaDS) || 0) * 100) / 100 * mul;
+      const rowAgg = (Array.isArray(doctorsAggregated) ? doctorsAggregated : []).find((item: any) =>
+        String(item.doctorId) === String(rowDoc.key)
+        || normalizeCardDoctor(item.doctorName) === normalizeCardDoctor(rowDoc.name));
+      const rowConfig = configuredDoctors.find((item: any) => String(item.key) === String(rowDoc.key))
+        || configuredDoctors.find((item: any) => normalizeCardDoctor(item.name) === normalizeCardDoctor(rowDoc.name));
+      const rowParticipatesUnimed = rowConfig?.participaUnimed === true;
+      const rowProd = Number(rowAgg?.honorTT) || 0;
+      const rowOperational = Number(rowAgg?.operationalTT) || 0;
+      const rowFilm = Number(rowAgg?.filmTT) || 0;
+      const rowUnimedEqTT = (rowParticipatesUnimed ? sharedUnimedTT : rowProd + rowOperational + rowFilm) * mul;
+      const rowUnimedPartTT = ((Number(cashFlowAllocation.incomingByDoctor[normalizeCardDoctor(rowDoc.name)]) || 0) * mul);
+      const rowUtiTT = (Number(cashFlowAllocation.unimedPlantaoByDoctor[normalizeCardDoctor(rowDoc.name)]) || 0) * mul;
+      const rowUnimedTT = rowUnimedEqTT + rowUnimedPartTT + (rowParticipatesUnimed ? 0 : (rowOperational + rowFilm) * mul) + rowUtiTT;
+      const rowUnimedDS = Math.round(rowUnimedTT * unimedDSRatio * 100) / 100;
+      const rowConsultDS = Math.round(rowPct / 100 * (Number(globalEntradas.consultorioDS) || 0) * 100) / 100 * mul;
+      const rowDinheiroDS = Math.round(rowPct / 100 * (Number(globalEntradas.dinheiroDS) || 0) * 100) / 100 * mul;
+      const rowLuisDS = Math.round(rowPct / 100 * (Number(globalEntradas.unimedLuisDS) || 0) * 100) / 100 * mul;
+      return Math.max(0, rowAzDS + rowMarDS + rowUnimedDS + rowConsultDS + rowDinheiroDS + rowLuisDS - rowUnimedDS);
+    };
+    const totalTeamDisp = rowsData.filter((row: any) => row.isTeam)
+      .reduce((sum: number, row: any) => sum + getDispPeriodoForRow(row), 0);
+    const heartPercent = isTeam && totalTeamDisp > 0 ? dispPeriodo / totalTeamDisp * 100 : 0;
+
+    const expenses = { ...(cashFlowAllocation.expenseByDoctorType[normalizeCardDoctor(med.nome)] || {}) };
+    // Reaplica somente os rateios de despesas da matriz para que o cartão mostre
+    // os mesmos valores proporcionais de Heart e PROP Geral, sem alterar lançamentos.
+    const heartTransactions = cashFlowTransactions.filter((tx: any) =>
+      String(tx.nature || "").toUpperCase() === "DEBIT"
+      && String(tx.scope || "TEAM").toUpperCase() !== "DOCTOR"
+      && !isSalaryTransaction(tx) && !isMatrixAdjustmentTransaction(tx)
+      && getEffectiveRateioMethod(tx) === "PROPORCAO_HEART");
+    heartTransactions.forEach((tx: any) => { delete expenses[String(tx.typeId || tx.typeName || "outros")]; });
+    heartTransactions.forEach((tx: any) => {
+      if (!isTeam) return;
+      const amount = tx.allowNegativeAmount === true ? Number(tx.amount) || 0 : Math.max(0, Number(tx.amount) || 0);
+      const allocated = Math.round((amount * heartPercent / 100 + Number.EPSILON) * 100) / 100;
+      const typeId = String(tx.typeId || tx.typeName || "outros");
+      if (allocated !== 0) expenses[typeId] = (Number(expenses[typeId]) || 0) + allocated;
+    });
+    const propTransactions = cashFlowTransactions.filter((tx: any) =>
+      String(tx.nature || "").toUpperCase() === "DEBIT"
+      && String(tx.scope || "TEAM").toUpperCase() !== "DOCTOR"
+      && !isSalaryTransaction(tx) && getEffectiveRateioMethod(tx) === "PROP_GERAL");
+    propTransactions.forEach((tx: any) => { delete expenses[String(tx.typeId || tx.typeName || "outros")]; });
+    const totalUnimedForProp = Number(totalUnimedTT) || 0;
+    const propPercent = totalUnimedForProp > 0 ? Math.max(0, unimTotTT) / totalUnimedForProp * 100 : 0;
+    const participatesGeneral = doctorConfig?.participaRateioGeral === true;
+    propTransactions.forEach((tx: any) => {
+      if (!participatesGeneral) return;
+      const amount = tx.allowNegativeAmount === true ? Number(tx.amount) || 0 : Math.max(0, Number(tx.amount) || 0);
+      const allocated = Math.round((amount * propPercent / 100 + Number.EPSILON) * 100) / 100;
+      const typeId = String(tx.typeId || tx.typeName || "outros");
+      if (allocated !== 0) expenses[typeId] = (Number(expenses[typeId]) || 0) + allocated;
+    });
+    const expenseRows = displayedExpenseTypes.map((type: any) => ({
+      id: type.id,
+      label: type.name,
+      amount: type.allowNegativeAmount ? Number(expenses[type.id]) || 0 : Math.abs(Number(expenses[type.id]) || 0)
+    }));
+    const glosaValue = Number(med.saidas) || Number(doctorAgg?.glosa) || 0;
+    const salaryAmount = Number(cashFlowAllocation.salaryByDoctor[normalizeCardDoctor(med.nome)]) || 0;
+    const adjustment = cashFlowAllocation.matrixAdjustmentByDoctor[normalizeCardDoctor(med.nome)] || {};
+    const resultAfterSalary = Math.round((totalDS
+      - expenseRows.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
+      - salaryAmount) * 100) / 100;
+    const profitBase = resultAfterSalary + (Number(adjustment.ACERTO_1) || 0) + (Number(adjustment.SOBRE_MES_ANTERIOR) || 0);
+    const limit = Math.max(0, Number(doctorConfig?.valorLimite) || 0);
+    const divLucros = limit > 0 ? Math.min(profitBase, limit) : profitBase;
+    const excedente = limit > 0 ? Math.max(0, Math.round((profitBase - limit) * 100) / 100) : 0;
+    const finalization = Math.round((divLucros + excedente + (Number(adjustment.ACERTO_FINAL) || 0)) * 100) / 100;
+    return {
+      incoming,
+      expenses: [...expenseRows, { id: "salary", label: "Salário", amount: salaryAmount }],
+      glosa: glosaValue,
+      totalTT: incoming.reduce((sum, item) => sum + item.tt, 0),
+      totalDS,
+      dispPeriodo,
+      result: finalization
+    };
+  };
+
+  const downloadDoctorCardPng = async (med: any, data: any, shareToWhatsApp: boolean) => {
+    const width = 900;
+    const padding = 42;
+    const rowHeight = 54;
+    const visibleExpenses = Array.isArray(data.expenses) ? data.expenses : [];
+    const entryRows = Array.isArray(data.incoming) ? data.incoming : [];
+    const expenseRows = [...visibleExpenses, { id: "glosa", label: "Glosas", amount: Number(data.glosa) || 0 }];
+    const height = 370 + Math.max(1, entryRows.length) * rowHeight + Math.max(1, expenseRows.length) * rowHeight + 130;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Não foi possível gerar a imagem PNG neste navegador.");
+    const roundedRect = (x: number, y: number, w: number, h: number, radius: number, fill: string, stroke?: string) => {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + w, y, x + w, y + h, radius);
+      ctx.arcTo(x + w, y + h, x, y + h, radius);
+      ctx.arcTo(x, y + h, x, y, radius);
+      ctx.arcTo(x, y, x + w, y, radius);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+      if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
+    };
+    const text = (value: string, x: number, y: number, font: string, color: string, align: CanvasTextAlign = "left") => {
+      ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(value, x, y);
+    };
+    ctx.fillStyle = "#f1f5f9"; ctx.fillRect(0, 0, width, height);
+    roundedRect(padding, padding, width - padding * 2, height - padding * 2, 28, "#ffffff", "#dbe3ed");
+    roundedRect(padding, padding, width - padding * 2, 170, 28, "#102b46");
+    ctx.fillStyle = "#102b46"; ctx.fillRect(padding, padding + 140, width - padding * 2, 30);
+    text("iCare  •  RESUMO FINANCEIRO", padding + 28, padding + 44, "bold 18px Arial", "#93c5fd");
+    text(String(med.nome || "Médico").toUpperCase(), padding + 28, padding + 88, "bold 27px Arial", "#ffffff");
+    text(String(excelData.monthKey || selectedClosingId || "Fechamento"), padding + 28, padding + 124, "16px Arial", "#dbeafe");
+    let y = padding + 210;
+    text("ENTRADAS", padding + 28, y, "bold 17px Arial", "#047857");
+    y += 25;
+    entryRows.forEach((item: any) => {
+      roundedRect(padding + 20, y, width - padding * 2 - 40, rowHeight - 7, 10, "#f0fdf4");
+      text(item.label, padding + 36, y + 23, "bold 17px Arial", "#14532d");
+      text("TT  R$ " + moneyLabel(item.tt), width - padding - 35, y + 18, "14px Arial", "#64748b", "right");
+      text("DS  R$ " + moneyLabel(item.ds), width - padding - 35, y + 37, "bold 15px Arial", "#047857", "right");
+      y += rowHeight;
+    });
+    if (!entryRows.length) {
+      text("Nenhuma entrada com valor neste fechamento.", padding + 30, y + 18, "15px Arial", "#64748b");
+      y += rowHeight;
+    }
+    y += 12;
+    text("SAÍDAS", padding + 28, y, "bold 17px Arial", "#be123c");
+    y += 25;
+    expenseRows.forEach((item: any) => {
+      roundedRect(padding + 20, y, width - padding * 2 - 40, rowHeight - 7, 10, "#fff1f2");
+      text(item.label, padding + 36, y + 27, "bold 16px Arial", "#881337");
+      text("- R$ " + moneyLabel(item.amount), width - padding - 35, y + 27, "bold 16px Arial", "#be123c", "right");
+      y += rowHeight;
+    });
+    if (!expenseRows.length) {
+      text("Nenhuma saída com valor neste fechamento.", padding + 30, y + 18, "15px Arial", "#64748b");
+      y += rowHeight;
+    }
+    y += 12;
+    roundedRect(padding + 20, y, width - padding * 2 - 40, 78, 16, "#e0f2fe", "#bae6fd");
+    text("VALOR FINAL", padding + 38, y + 31, "bold 15px Arial", "#075985");
+    text("R$ " + moneyLabel(data.result), width - padding - 38, y + 49, "bold 25px Arial", "#0c4a6e", "right");
+    y += 96;
+    text("Gerado pelo iCare", width / 2, y + 4, "12px Arial", "#94a3b8", "center");
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(result => result ? resolve(result) : reject(new Error("Falha ao criar o arquivo PNG.")), "image/png");
+    });
+    const safeName = String(med.nome || "medico").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "medico";
+    const file = new File([blob], "icare-" + safeName + ".png", { type: "image/png" });
+    if (shareToWhatsApp && typeof navigator !== "undefined" && typeof (navigator as any).share === "function"
+      && typeof (navigator as any).canShare === "function" && (navigator as any).canShare({ files: [file] })) {
+      await (navigator as any).share({ files: [file], title: "Resumo financeiro • " + med.nome, text: "Resumo financeiro de " + med.nome + " • " + excelData.monthKey });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    if (shareToWhatsApp) {
+      const message = "Resumo financeiro de " + med.nome + " • " + excelData.monthKey + ". Anexe a imagem PNG que acabou de ser baixada.";
+      window.open("https://wa.me/?text=" + encodeURIComponent(message), "_blank", "noopener,noreferrer");
+    }
+  };
 
   if (!activeGroup) return <div className="p-8 text-center text-gray-500">Grupo não selecionado.</div>;
 
@@ -2803,90 +3078,119 @@ export function ExcelDashboardView({ closingId, initialSubTab = "lotes_unimed", 
       {/* VIEW 3: COLUNAS VERTICAIS POR MÉDICO (EXCEL COLUMN VIEW) */}
       {activeSubTab === "colunas_medicos" && (
         <div className="space-y-4">
-          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users size={16} />
-              <span className="font-bold">Colunas Individuais por Médico do Excel (4 da Equipe e 5 Cooperados Parceiros)</span>
+          <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm text-sky-950">
+              <Users size={18} />
+              <div>
+                <p className="font-black">Resumo financeiro individual por médico</p>
+                <p className="text-xs text-sky-800">Entradas e saídas organizadas conforme a matriz do fechamento {excelData.monthKey}.</p>
+              </div>
             </div>
-            <span className="text-[10px] uppercase font-black tracking-wider text-emerald-700">9 Painéis Conectados</span>
+            <span className="text-[10px] uppercase font-black tracking-wider text-sky-700">9 médicos • cartões individuais</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {excelData.fechamentoMedicos.map((med) => {
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {excelData.fechamentoMedicos.map((med: any) => {
               const isTeam = med.isTeamMember;
+              const matrixData = getDoctorCardMatrixData(med);
+              const entries = Array.isArray(matrixData.incoming) ? matrixData.incoming : [];
+              const expenses = Array.isArray(matrixData.expenses) ? matrixData.expenses : [];
+              const glosa = Number(matrixData.glosa) || 0;
+              const doctorCardConfig = configuredDoctors.find((d: any) => String(d.key) === String(med.key))
+                || configuredDoctors.find((d: any) => normalizeCardDoctor(d.name) === normalizeCardDoctor(med.nome));
+              const specialty = doctorCardConfig?.specialty || "Especialidade não informada";
+              const nominalPercent = Number(doctorCardConfig?.teamSharePercent) || 0;
+              const isBusy = false;
               return (
-                <div 
-                  key={med.nome}
-                  className={`bg-white rounded-[28px] border shadow-md p-6 flex flex-col justify-between space-y-4 transition ${
-                    isTeam 
-                      ? "border-emerald-300 ring-2 ring-emerald-500/10 hover:border-emerald-500" 
-                      : "border-gray-300 hover:border-gray-400"
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 border-b border-gray-300 pb-3">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                            isTeam ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
-                          }`}>
-                            {isTeam ? `Membro Equipe (${med.percent})` : "Cooperado Externo"}
-                          </span>
+                <article key={med.key || med.nome} className={`doctor-share-card bg-white rounded-2xl border shadow-sm overflow-hidden ${isTeam ? "border-emerald-300" : "border-slate-200"}`}>
+                  <div className={`px-4 py-4 sm:px-5 flex items-start justify-between gap-3 ${isTeam ? "bg-emerald-50" : "bg-slate-50"}`}>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${isTeam ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>
+                          {isTeam ? "Membro da equipe" : "Cooperado externo"}
+                        </span>
+                        {isTeam && <span className="text-[10px] font-bold text-emerald-800">{nominalPercent}% nominal</span>}
+                      </div>
+                      <h3 className="font-black text-slate-950 text-base sm:text-lg leading-tight break-words">{med.nome}</h3>
+                      <p className="text-xs text-slate-500 mt-1">{specialty}</p>
+                    </div>
+                    <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${isTeam ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+                      {isTeam ? "HEART" : "EXT"}
+                    </div>
+                  </div>
+
+                  <div className="p-4 sm:p-5 space-y-5">
+                    <section>
+                      <div className="flex items-center justify-between gap-2 border-b border-emerald-100 pb-2 mb-2">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800">Entradas</h4>
+                        <span className="text-[10px] font-bold text-slate-400">TT / disponível (DS)</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {entries.map((item: any) => (
+                          <div key={item.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2 px-3 rounded-lg bg-emerald-50/70">
+                            <span className="text-sm font-semibold text-slate-700">{item.label}</span>
+                            <div className="text-right">
+                              <div className="text-[10px] text-slate-500">TT R$ {moneyLabel(item.tt)}</div>
+                              <div className="text-sm font-black text-emerald-800">DS R$ {moneyLabel(item.ds)}</div>
+                            </div>
+                          </div>
+                        ))}
+                        {!entries.length && <p className="text-xs text-slate-400 py-3">Nenhuma entrada com valor neste fechamento.</p>}
+                      </div>
+                      <div className="mt-2 flex justify-between gap-3 border-t border-emerald-200 pt-3">
+                        <span className="text-xs font-black uppercase text-slate-600">Total de entradas (DS)</span>
+                        <span className="text-sm font-black text-emerald-800">R$ {moneyLabel(matrixData.totalDS)}</span>
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="flex items-center justify-between gap-2 border-b border-rose-100 pb-2 mb-2">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-rose-800">Saídas</h4>
+                        <span className="text-[10px] font-bold text-slate-400">Despesas e glosas</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {expenses.map((item: any) => (
+                          <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2 px-3 rounded-lg bg-rose-50/70">
+                            <span className="text-sm font-semibold text-slate-700">{item.label}</span>
+                            <span className="text-sm font-black text-rose-700">- R$ {moneyLabel(item.amount)}</span>
+                          </div>
+                        ))}
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2 px-3 rounded-lg bg-rose-50/70">
+                          <span className="text-sm font-semibold text-slate-700">Glosas</span>
+                          <span className="text-sm font-black text-rose-700">- R$ {moneyLabel(glosa)}</span>
                         </div>
-                        <h4 className="font-black text-gray-900 text-sm mt-1">{med.nome}</h4>
-                        <p className="text-[10px] text-gray-400">
-                          {configuredDoctors.find(d => d.name === med.nome)?.specialty}
-                        </p>
+                        {!expenses.length && glosa === 0 && <p className="text-xs text-slate-400 py-3">Nenhuma outra saída com valor neste fechamento.</p>}
                       </div>
-                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 ${
-                        isTeam ? "bg-emerald-600 text-white" : "bg-gray-200 text-gray-700"
-                      }`}>
-                        {isTeam ? med.percent : "EXT"}
+                    </section>
+
+                    <div className={`rounded-xl border px-4 py-4 flex items-center justify-between gap-3 ${isTeam ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-600">Valor final líquido</p>
+                        <p className="text-[10px] text-slate-500 mt-1">Conforme o fechamento atual</p>
                       </div>
+                      <p className={`text-xl font-black tabular-nums ${isTeam ? "text-emerald-900" : "text-slate-950"}`}>R$ {moneyLabel(matrixData.result)}</p>
                     </div>
 
-                    <div className="py-3 space-y-2 border-b border-gray-300">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-500">Produção Unimed:</span>
-                        <span className="font-bold text-gray-900">R$ {(Number(med.producao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-emerald-600 font-medium">Outras Entradas:</span>
-                        <span className="font-bold text-emerald-600">+R$ {(Number(med.entradas) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-rose-600 font-medium">Ocorrências / Descontos:</span>
-                        <span className="font-bold text-rose-600">-R$ {(Number(med.saidas) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-indigo-600 font-medium">Divisão / Acertos:</span>
-                        <span className="font-bold text-indigo-600">+R$ {(Number(med.divisaoLucros) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    </div>
-
-                    {/* Occurrence highlights */}
-                    <div className="py-2 space-y-1 text-[10px]">
-                      <span className="font-black text-gray-400 uppercase tracking-wider block">Lançamentos Alocados:</span>
-                      {(Array.isArray(med.detalhesEntradas) ? med.detalhesEntradas : []).map((de, idx) => (
-                        <div key={idx} className="text-emerald-700 font-medium truncate">• {de}</div>
-                      ))}
-                      {(Array.isArray(med.detalhesSaidas) ? med.detalhesSaidas : []).map((ds, idx) => (
-                        <div key={idx} className="text-rose-700 font-medium truncate">• {ds}</div>
-                      ))}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => void downloadDoctorCardPng(med, matrixData, false).catch((error: any) => alert(error?.message || "Não foi possível gerar a imagem PNG."))}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        <Download size={15} /> Baixar cartão PNG
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => void downloadDoctorCardPng(med, matrixData, true).catch((error: any) => alert(error?.message || "Não foi possível compartilhar o cartão."))}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#128C7E] px-3 py-2.5 text-xs font-black text-white hover:bg-[#0e776b] disabled:opacity-50"
+                      >
+                        <Share2 size={15} /> Enviar pelo WhatsApp
+                      </button>
                     </div>
                   </div>
-
-                  <div className={`p-4 rounded-2xl border flex items-center justify-between ${
-                    isTeam 
-                      ? "bg-emerald-50/70 border-emerald-100" 
-                      : "bg-gray-50 border-gray-300"
-                  }`}>
-                    <span className="text-[10px] font-black text-gray-700 uppercase">Salário Final Líquido:</span>
-                    <span className={`text-base font-black ${isTeam ? "text-emerald-800" : "text-gray-900"}`}>
-                      R$ {med.finalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                </div>
+                </article>
               );
             })}
           </div>
