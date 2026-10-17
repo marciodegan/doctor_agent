@@ -733,8 +733,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center space-y-2">
             <Wallet size={36} className="text-gray-300 mx-auto" />
-            <p className="font-black text-gray-700 text-sm">Nenhum lançamento encontrado</p>
-            <p className="text-xs text-gray-400">Clique em "Novo Lançamento" para adicionar uma ocorrência ou despesa de equipe.</p>
+            <p className="font-black text-gray-700 text-sm">{!selectedClosingId ? (closingTab === "OPEN" ? "Nenhum fechamento em aberto" : "Selecione um fechamento encerrado") : "Nenhum lançamento encontrado"}</p>
+            <p className="text-xs text-gray-400">{!selectedClosingId ? (closingTab === "OPEN" ? "Crie um novo fechamento para começar a lançar os valores da próxima competência." : "Selecione uma competência no menu acima para consultar seu histórico.") : isHistoricalReadOnly ? "Este fechamento não possui lançamentos vinculados. Os dados históricos de outras competências não são exibidos aqui." : "Clique em \"Novo Lançamento\" para adicionar uma ocorrência ou despesa de equipe."}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
