@@ -3153,7 +3153,7 @@ app.post("/api/app/financial/transaction-types", async (req, res) => {
       defaultRateioMethod: salaryType || adjustmentType ? "NOMINAL" : defaultRateioMethod || (nature === "CREDIT" ? "NOMINAL" : "PROPORCAO_HEART"),
       ...(displayOrder !== undefined && { displayOrder: Math.max(0, Math.trunc(Number(displayOrder) || 0)) }),
       allowNegativeAmount: adjustmentType ? true : !salaryType && nature !== "CREDIT" && allowNegativeAmount === true,
-      isMultiple: !salaryType && (!adjustmentType || adjustmentType === "ACERTO_1") && isMultiple === true,
+      isMultiple: (salaryType || !adjustmentType || adjustmentType === "ACERTO_1" || adjustmentType === "ACERTO_FINAL") && isMultiple === true,
       isSalary: salaryType,
       matrixAdjustmentType: adjustmentType,
       category: salaryType ? "Salários" : adjustmentType ? "Acertos" : category?.trim() || "Geral",
@@ -3202,7 +3202,7 @@ app.put("/api/app/financial/transaction-types/:id", async (req, res) => {
       ...(allowNegativeAmount !== undefined || nature === "CREDIT"
         ? { allowNegativeAmount: nature === "CREDIT" ? false : allowNegativeAmount === true }
         : {}),
-      ...(isMultiple !== undefined && { isMultiple: !salaryType && (!adjustmentType || adjustmentType === "ACERTO_1") && isMultiple === true }),
+      ...(isMultiple !== undefined && { isMultiple: (salaryType || !adjustmentType || adjustmentType === "ACERTO_1" || adjustmentType === "ACERTO_FINAL") && isMultiple === true }),
       ...(isSalary !== undefined && { isSalary: salaryType }),
       ...(matrixAdjustmentType !== undefined && { matrixAdjustmentType: adjustmentType }),
       ...(category !== undefined && { category: category.trim() }),
