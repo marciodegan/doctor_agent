@@ -102,8 +102,12 @@ export function FinancialClosingsView({ selectedClosingId, onSelectClosing, onOp
 
   const handleToggleCloseMonth = async (closingId: string, currentStatus: string) => {
     const newStatus = currentStatus === "FECHADO" ? "ABERTO" : "FECHADO";
-    const reason = newStatus === "ABERTO" ? prompt("Motivo da reabertura do mês:") : "";
-    if (newStatus === "ABERTO" && !reason) return;
+    if (newStatus === "FECHADO" && !confirm("Confirma o fechamento deste mês? Depois de fechado, não será possível incluir, editar, excluir ou importar lançamentos até reabrir o período. Os dados serão preservados no histórico.")) return;
+    const reason = newStatus === "ABERTO" ? prompt("Informe o motivo da reabertura do mês:") : "";
+    if (newStatus === "ABERTO" && !String(reason || "").trim()) {
+      alert("A reabertura exige uma justificativa.");
+      return;
+    }
 
     try {
       const res = await apiFetch(`/api/app/financial/closings/${closingId}/status`, {
@@ -120,6 +124,11 @@ export function FinancialClosingsView({ selectedClosingId, onSelectClosing, onOp
   };
 
   const handleDeleteClosing = async (closingId: string, monthKey: string) => {
+    const selected = closings.find(c => c.id === closingId);
+    if (String(selected?.status || "").toUpperCase() === "FECHADO") {
+      alert("Este fechamento está encerrado. Reabra-o com justificativa antes de qualquer ajuste administrativo.");
+      return;
+    }
     if (!confirm(`Deseja realmente EXCLUIR o fechamento "${monthKey}" e todos os seus lançamentos, produções e dados importados? Esta ação é irreversível e removerá todos os dados do período.`)) return;
     try {
       const res = await apiFetch(`/api/app/financial/closings/${closingId}`, { method: "DELETE" });
@@ -293,8 +302,9 @@ export function FinancialClosingsView({ selectedClosingId, onSelectClosing, onOp
 
                   <button
                     onClick={() => handleDeleteClosing(closingDetails.closing.id, closingDetails.closing.monthKey)}
-                    className="px-4 py-3 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer"
-                    title="Excluir Fechamento e Dados Importados"
+                    disabled={String(closingDetails.closing.status || "").toUpperCase() === "FECHADO"}
+                    className="px-4 py-3 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                    title={String(closingDetails.closing.status || "").toUpperCase() === "FECHADO" ? "Reabra o fechamento antes de excluir" : "Excluir Fechamento e Dados Importados"}
                   >
                     <Trash2 size={16} />
                     <span>Excluir Fechamento</span>
