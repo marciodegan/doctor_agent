@@ -1931,11 +1931,16 @@ app.use("/api/app/financial", async (req, res, next) => {
     const isStatusRoute = req.method === "POST" && /\/closings\/[^/]+\/status$/.test(req.path);
     if (isMutation && !isStatusRoute) {
       let closingId = String((req.params as any)?.closingId || req.body?.closingId || "").trim();
+      const closingPathMatch = req.path.match(/\/closings\/([^/]+)/i);
+      if (!closingId && closingPathMatch && !["status", "details"].includes(closingPathMatch[1])) {
+        closingId = decodeURIComponent(closingPathMatch[1]);
+      }
 
       // Para alterações/exclusões de lançamentos existentes, recuperar o fechamento
       // a partir do próprio lançamento, sem depender do cliente enviar closingId.
       if (!closingId && (req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE")) {
-        const entityId = String((req.params as any)?.id || "").trim();
+        const entityMatch = req.path.match(/\/([^/]+)\/([^/]+)$/);
+        const entityId = String((req.params as any)?.id || entityMatch?.[2] || "").trim();
         if (entityId) {
           const route = req.path.toLowerCase();
           const collection = route.includes("/transactions/") ? "financial_transactions"
@@ -2099,6 +2104,9 @@ app.delete("/api/app/financial/closings/:closingId", async (req, res) => {
     const closingDoc = await db.collection("financial_closings").doc(closingId).get();
     if (!closingDoc.exists) return res.status(404).json({ error: "Fechamento não encontrado" });
     if (closingDoc.data()?.teamId !== groupId) return res.status(403).json({ error: "Este fechamento pertence a outra equipe." });
+    if (String(closingDoc.data()?.status || "").toUpperCase() === "FECHADO") {
+      return res.status(409).json({ error: "Não é possível excluir um fechamento encerrado. Reabra-o com justificativa antes de excluir." });
+    }
 
     const [prodSnap, glosaSnap, taxSnap, adjSnap, txSnap, auditSnap, importSnap] = await Promise.all([
       db.collection("financial_production").where("teamId", "==", groupId).where("closingId", "==", closingId).get(),
