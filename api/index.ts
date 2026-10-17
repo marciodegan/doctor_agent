@@ -2061,7 +2061,7 @@ app.post("/api/app/financial/closings", async (req, res) => {
       id: docRef.id,
       teamId: groupId,
       monthKey: monthKey.trim().toUpperCase(),
-      status: "PENDING",
+      status: "PENDENTE_CONFERENCIA",
       informedValue: 0,
       processedValue: 0,
       releasedValue: 0,
