@@ -734,7 +734,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
               {(form.isSalary || form.matrixAdjustmentType) && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
                   <span className="font-black block">{form.isSalary ? "Tipo especial: Salário individual" : form.matrixAdjustmentType === "ACERTO_FINAL" ? "Tipo especial: Acerto Final" : form.matrixAdjustmentType === "ACERTO_1" ? "Tipo especial: Acerto 1" : "Tipo especial: Sobre Mês Anterior"}</span>
-                  <span className="block mt-1">{form.isSalary ? "Será sempre uma saída vinculada a um único médico. Na matriz, ficará fora das despesas gerais e será descontado apenas no cálculo do FINAL." : form.matrixAdjustmentType === "ACERTO_FINAL" ? "Lançamento individual vinculado a um médico. Aceita valores positivos e negativos, aparece após TOTAL e é somado para calcular FINALIZAÇÃO." : "Será um lançamento individual do médico, aceita valores positivos e negativos e aparece em coluna própria após FINAL. Não altera RESULT nem FINAL."}</span>
+                  <span className="block mt-1">{form.isSalary ? "Cada valor fica vinculado a um médico. Na matriz, ficará fora das despesas gerais e será descontado apenas no cálculo do FINAL." : form.matrixAdjustmentType === "ACERTO_FINAL" ? "Cada valor fica vinculado a um médico. Aceita valores positivos e negativos, aparece após TOTAL e é somado para calcular FINALIZAÇÃO." : "Será um lançamento individual do médico, aceita valores positivos e negativos e aparece em coluna própria após FINAL. Não altera RESULT nem FINAL."}</span>
                 </div>
               )}
 
@@ -814,7 +814,7 @@ export function TransactionTypesManager({ onSelectTypeForNewTransaction, onClose
               )}
 
               <label className="flex items-start gap-3 p-3 rounded-xl border border-violet-200 bg-violet-50 cursor-pointer">
-                <input type="checkbox" checked={form.isMultiple} disabled={Boolean(form.isSalary) || (Boolean(form.matrixAdjustmentType) && form.matrixAdjustmentType !== "ACERTO_1")} onChange={e => setForm(prev => ({ ...prev, isMultiple: e.target.checked, defaultScope: e.target.checked ? "DOCTOR" : prev.defaultScope, allowNegativeAmount: e.target.checked ? true : prev.allowNegativeAmount }))} className="mt-0.5 h-4 w-4 accent-violet-600" />
+                <input type="checkbox" checked={form.isMultiple} disabled={Boolean(form.matrixAdjustmentType) && form.matrixAdjustmentType !== "ACERTO_1" && form.matrixAdjustmentType !== "ACERTO_FINAL"} onChange={e => setForm(prev => ({ ...prev, isMultiple: e.target.checked, defaultScope: e.target.checked ? "DOCTOR" : prev.defaultScope, allowNegativeAmount: prev.isSalary ? false : (e.target.checked ? true : prev.allowNegativeAmount) }))} className="mt-0.5 h-4 w-4 accent-violet-600" />
                 <span><span className="block text-xs font-black text-violet-950">Tipo de lançamento múltiplo</span><span className="block mt-0.5 text-[10px] font-medium text-violet-800">Lança valores individuais para vários médicos de uma só vez. A soma não precisa fechar em zero.</span></span>
               </label>
               {/* Escopo Padrão */}
