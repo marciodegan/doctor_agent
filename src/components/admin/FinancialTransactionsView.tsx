@@ -446,7 +446,7 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
       switch (sortColumn) {
         case "date": {
           const raw = String(t.date || "");
-          const br = raw.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/);
+          const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
           if (br) return new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1])).getTime();
           const parsed = Date.parse(raw);
           return Number.isNaN(parsed) ? 0 : parsed;
