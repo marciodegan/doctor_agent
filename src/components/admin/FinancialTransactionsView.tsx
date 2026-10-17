@@ -23,7 +23,10 @@ import {
   Settings2,
   Percent,
   Sliders,
-  DollarSign
+  DollarSign,
+  ChevronUp,
+  ChevronDown,
+  ArrowUpDown
 } from "lucide-react";
 import { TransactionTypesManager } from "./TransactionTypesManager";
 import { FinancialTransactionAIImport } from "./FinancialTransactionAIImport";
@@ -46,6 +49,8 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
   const [editForm, setEditForm] = useState({ date: "", lote: "", doctorId: "", doctorName: "", typeId: "", typeName: "", amount: "", observation: "" });
   const [searchTerm, setSearchTerm] = useState("");
   const [loteFilter, setLoteFilter] = useState("");
+  const [sortColumn, setSortColumn] = useState<"date" | "lote" | "doctor" | "type" | "description" | "origin" | "amount">("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState("ALL");
   const [selectedNatureFilter, setSelectedNatureFilter] = useState("ALL");
 
@@ -436,11 +441,57 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
     return matchDoctor && matchNature && matchSearch && matchLot;
   });
 
-  const totalEntradas = filtered
+  const sortedFiltered = [...filtered].sort((a: any, b: any) => {
+    const getValue = (t: any) => {
+      switch (sortColumn) {
+        case "date": {
+          const raw = String(t.date || "");
+          const br = raw.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/);
+          if (br) return new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1])).getTime();
+          const parsed = Date.parse(raw);
+          return Number.isNaN(parsed) ? 0 : parsed;
+        }
+        case "lote": return String(t.lote ?? t.loteNumber ?? t.batchNumber ?? t.batch ?? "").toLowerCase();
+        case "doctor": return String(t.doctorName || "").toLowerCase();
+        case "type": return String(t.typeName || t.typeId || "").toLowerCase();
+        case "description": return String(t.observation || "").toLowerCase();
+        case "origin": return String(t.origin || t.source || (t.scope === "TEAM_SPLIT" ? "Rateio equipe" : t.sourceType || "")).toLowerCase();
+        case "amount": return Number(t.amount) || 0;
+        default: return "";
+      }
+    };
+    const left = getValue(a);
+    const right = getValue(b);
+    let result = typeof left === "number" && typeof right === "number"
+      ? left - right
+      : String(left).localeCompare(String(right), "pt-BR", { numeric: true, sensitivity: "base" });
+    if (result === 0) result = String(a.id || "").localeCompare(String(b.id || ""));
+    return sortDirection === "asc" ? result : -result;
+  });
+
+  const toggleSort = (column: typeof sortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(current => current === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection(column === "date" || column === "amount" ? "desc" : "asc");
+    }
+  };
+
+  const SortableHeader = ({ column, children, className = "p-4" }: { column: typeof sortColumn; children: React.ReactNode; className?: string }) => (
+    <th className={className}>
+      <button type="button" onClick={() => toggleSort(column)} className="inline-flex items-center gap-1.5 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded" aria-label={`Ordenar por ${String(children)}`}>
+        {children}
+        {sortColumn === column ? (sortDirection === "asc" ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={11} className="opacity-40" />}
+      </button>
+    </th>
+  );
+
+  const totalEntradas = sortedFiltered
     .filter(t => t.nature === "CREDIT")
     .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
-  const totalSaidas = filtered
+  const totalSaidas = sortedFiltered
     .filter(t => t.nature === "DEBIT")
     .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
@@ -655,18 +706,18 @@ export function FinancialTransactionsView({ closingId }: FinancialTransactionsVi
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-400 font-black uppercase text-[10px] tracking-wider">
-                  <th className="p-4 pl-6">Data</th>
-                  <th className="p-4">Lote</th>
-                  <th className="p-4">Médico / Destinatário</th>
-                  <th className="p-4">Tipo de Lançamento</th>
-                  <th className="p-4">Descrição / Observação</th>
-                  <th className="p-4 text-center">Origem / Rateio</th>
-                  <th className="p-4 text-right pr-6">Valor (R$)</th>
+                  <SortableHeader column="date" className="p-4 pl-6">Data</SortableHeader>
+                  <SortableHeader column="lote">Lote</SortableHeader>
+                  <SortableHeader column="doctor">Médico / Destinatário</SortableHeader>
+                  <SortableHeader column="type">Tipo de Lançamento</SortableHeader>
+                  <SortableHeader column="description">Descrição / Observação</SortableHeader>
+                  <SortableHeader column="origin" className="p-4 text-center">Origem / Rateio</SortableHeader>
+                  <SortableHeader column="amount" className="p-4 text-right pr-6">Valor (R$)</SortableHeader>
                   <th className="p-4 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
-                {filtered.map(t => {
+                {sortedFiltered.map(t => {
                   const isDebit = t.nature === "DEBIT";
                   const isHeartTeam = t.scope === "TEAM" || (t.doctorName && t.doctorName.includes("HEART"));
                   const isTeamSplit = t.scope === "TEAM_SPLIT";
